@@ -21,11 +21,11 @@ Add the marketplace and install plugins from within Claude Code:
 
 ```
 /plugin marketplace add one21labs/one21tools
-/plugin install code-skills@one21tools
+/plugin install dev-skills@one21tools
 /plugin install engineering-skills@one21tools
 ```
 
-`code-skills` bundles code-standards, building-skills, and optimizing-context. `engineering-skills` bundles engineering-principles.
+`dev-skills` bundles code-standards, building-skills, and optimizing-context. `engineering-skills` bundles engineering-principles, engineering-epc, and c-embedded-rpi.
 
 To get updates after installation:
 
@@ -39,18 +39,6 @@ Or clone and symlink individual skills without the plugin system:
 git clone https://github.com/one21labs/one21tools.git
 ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards
 ```
-
-## CLAUDE-base.md
-
-`CLAUDE-base.md` is a general-purpose Claude Code project template. Copy it to your project root as `CLAUDE.md` and extend it with project-specific context:
-
-```bash
-cp CLAUDE-base.md /your/project/CLAUDE.md
-```
-
-## Engineering Principles
-
-`ENGINEERING_PRINCIPLES.md` is a standalone reference document mapping Lean manufacturing, TPS, and Deming quality principles to software development, documentation, and AI-assisted workflows. Referenced by the `engineering-principles` skill and usable independently.
 
 ## License
 
