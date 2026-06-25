@@ -1,0 +1,53 @@
+# <Project> — CLAUDE.md template
+
+Copy this to your project root as CLAUDE.md and fill the <bracketed> parts. Keep it under 60
+lines — this is the always-loaded layer; when it grows, push detail to its home (a source
+header, the roadmap, an agent file) and leave a pointer. Delete this heading block once filled.
+
+---
+
+## Stack & navigation
+<Language / framework / build. Where state lives. How to run it.>
+<Test + build + render commands, e.g. `npm test`, `npm run build` — run all before every push.>
+File headers own each file's role + constraints. Start at <the core module> (the product).
+
+## Sacred (do not break)
+- <the core module> = the product. Never modify without updating its paired test.
+- <persistence/storage invariant — key prefix, on-disk format>. Add a migration fn; never change the format.
+- Schema version in every saved record. Increment on shape change.
+
+## Conventions
+- Watch for and cut **muda** as you go — duplicated logic / one-home violations, dead code or
+  fields, premature abstraction, drift. Cite-or-silence; don't gold-plate.
+- One component/module per concern; inline until reused in 2+ places.
+- Reuse existing helpers; don't duplicate. Editors patch only their own fields.
+
+## Docs — one home per fact
+Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
+Altitude: STRATEGY > ROADMAP > README > CLAUDE.md > source headers > code (code owns executables).
+A copy above its home is drift. Touch a source file -> update its header in the same change.
+
+## Never
+- <project inviolables, e.g. no console.log in committed code; no async wrapper around a sync API>
+- ship without the core test green
+- git push to <deploy branch> without intent — it auto-deploys to production
+
+## Shipping — version, release, PR
+- Version tracks the shipped APP. Background/meta work (tooling, process docs) does NOT bump it.
+- App change: bump the version (patch = fix/UX, minor = a roadmap feature) — never hand-edit.
+- PR: title = the change in one line; body = Purpose / Changes / Testing / Deferred.
+- Run `/retrospect` on the branch before opening the PR (process improvements land in it).
+
+## Feedback = PDCA trigger
+User feedback (bug report, feature ask, behavioral observation) triggers `/roadmap-review`
+immediately — Plan (advise -> PM decides -> ADR + roadmap entry), Do, Check (tests + render +
+fresh-eyes gate), Act (ship + iterate the system). **Never fix directly** before planning — a
+judgment call (threshold, scope, policy) triggers the panel even when it's meta/tooling.
+
+## Review panels (agent grading)
+- Fresh eyes: each reviewer a NEW agent, only the artifact + a neutral task; never pass a prior
+  grade or the grade you want (priming anchors and inflates).
+- Independent instances in parallel; the grade is a signal, never the objective.
+- Verify before acting: reproduce every finding against the code yourself — agents are
+  confidently wrong. Never relay or act on an unverified claim, either direction.
+- Inherit settled calls from `docs/decisions/`; don't re-litigate. Full process: `/roadmap-review`.
