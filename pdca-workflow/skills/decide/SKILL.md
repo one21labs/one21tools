@@ -50,9 +50,9 @@ this project by `/pdca-init` (panel-generation). If `.claude/agents/` has no pro
 generate one now — see the `pdca-init` skill, which owns panel generation. Pick the subset a
 call needs; record which advisors ran and why on the ADR.
 
-**Model split** (lead on the strongest model, workers cheaper): `pm`, `verifier`, `red-team`
-run on the strongest model; advisors + `tech-lead` on a cheaper one. Context isolation is
-automatic per subagent — pass each only the files it needs; don't restate isolation in a prompt.
+**Model split** (lead / gate / adversary on the strongest model, advisors + bridge cheaper) — each
+agent's frontmatter `model:` is the SSoT for its tier. Context isolation is automatic per subagent —
+pass each only the files it needs; don't restate isolation in a prompt.
 
 ## The loop
 1. **Inherit.** Read `docs/decisions/` — load prior ADRs so settled calls are not re-litigated.
@@ -93,5 +93,7 @@ automatic per subagent — pass each only the files it needs; don't restate isol
    loop with `/retrospect`.
 
 If behavior/code changed, run the project's test + build (per CLAUDE.md) and bump the version per
-CLAUDE.md's Shipping rule (which exempts meta/tooling) before committing. A panel returning unanimous consensus either way (all-accept or all-reject)
-is itself a mis-scope signal — re-confirm the ask with the user before acting.
+CLAUDE.md's Shipping rule (which exempts meta/tooling) before committing.
+
+A panel returning unanimous consensus either way (all-accept or all-reject) is itself a mis-scope
+signal — re-confirm the ask with the user before acting.

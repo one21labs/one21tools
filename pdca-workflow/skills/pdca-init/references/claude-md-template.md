@@ -41,9 +41,10 @@ Git history is the SSoT for backstory — docs state the current truth, never na
 Altitude (drop rungs the project lacks, e.g. STRATEGY/ROADMAP): STRATEGY > ROADMAP > README >
 CLAUDE.md > source headers > code. Code is bottom-altitude but TOP authority for executable facts
 (schema versions, signatures, filenames) — a doc that restates them rots. "Code" is whatever form
-the product takes: for a skill/plugin/docs repo it is the `SKILL.md` / manifests / config, and they
-own their executable facts (skill names, manifest fields, the registry) the same way. Touch a source
-artifact -> update its header/frontmatter in the same change.
+the product takes: for a skill/plugin/docs repo it is the `SKILL.md` / manifests / config plus any
+scripts/source for the deterministic parts (e.g. a linter), owning their executable facts (skill
+names, manifest fields, the registry, the logic) the same way. Touch a source artifact -> update its
+header/frontmatter in the same change.
 
 ## Never
 - <project inviolables — e.g. no debug logging in committed code; no async wrapper around a sync API>
