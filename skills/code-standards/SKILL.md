@@ -25,10 +25,11 @@ Apply two tests before including anything in a file header:
 
 **Altitude**: Is this at the right level of abstraction? Headers belong at architectural altitude — role, constraints, non-obvious patterns. Implementation detail is the wrong altitude for a header; it belongs in the code or inline comments.
 
-What passes both tests:
-- What this module owns and explicitly does NOT own
-- Constraints that must be preserved (e.g., "no I/O", "thread-safe", "stateless after init")
+A header documents, in named sections, only what passes both tests:
+- Architecture role — what this module owns and explicitly does NOT own
+- Design constraints that must be preserved (e.g., "no I/O", "thread-safe", "stateless after init")
 - Non-obvious usage contract or initialization sequence
+- Direct consumers (USED BY) — to trace impact before a change
 - Navigation to related files (SEE ALSO)
 
 What fails and should be excluded:

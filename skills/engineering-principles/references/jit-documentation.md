@@ -35,16 +35,11 @@ Ask these questions in order:
 
 ## Source File Header Pattern
 
-Effective headers document four things:
-
-```
-ARCHITECTURE ROLE:   What this file is responsible for. One sentence.
-DESIGN CONSTRAINTS:  Rules that are non-obvious or would surprise a reader.
-USED BY:             Direct consumers. Helps trace impact before changes.
-SEE ALSO:            Related files whose behavior affects this one.
-```
-
-Omit sections that have nothing non-obvious to say. A header that restates the filename adds no value.
+A source header carries the file's **architecture role, design constraints, used-by, and
+see-also** — omit any section with nothing non-obvious to say. The section *schema* and the
+SSoT/altitude tests for what belongs in a header have their one home in the `code-standards` skill
+(File Headers); this skill owns only the *placement* call above — that this knowledge lives in the
+header (loaded JIT on read), never in always-loaded CLAUDE.md.
 
 ## Worked Example
 
