@@ -52,6 +52,7 @@ When information exists in multiple places:
 | API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
 | Architecture described twice | Design doc AND wiki page | One location, deprecate other |
 | Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, cut the story |
 
 ### Data
 
