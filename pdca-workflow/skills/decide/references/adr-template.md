@@ -16,6 +16,12 @@ Rules:
   renumbered IDs, what-folded-into-what, draft history, "Learned" logs are drift; state the
   current decision, cut the story.
 - Every record carries justification AND tagged assumptions + revisit triggers.
+- **Mint a falsifiable criterion (Plan-phase gate).** Every decision states at least one criterion
+  its Check can later test — a `[checkable]`/`[checkable-doc]`/`[contradiction]` assumption, or an
+  `[unverifiable]` paired with a REOPEN-IF (revisitable on a signal). A decision for which none can
+  be stated is **UNFALSIFIABLE** — a quality signal the PM must address (reframe the call until it
+  is testable, or accept it as explicitly unfalsifiable), not wave through. `adr-lint` enforces
+  PRESENCE of a criterion; whether it is *genuinely* falsifiable is the PM's + gate's call.
 - **One ADR per PR (max).** A PR captures one decision in one ADR. If it must change before the PR
   merges, **revise it in place** — never add a second ADR to amend or overrule a still-unmerged
   sibling (proliferation; the draft history is squashed away anyway). Separate decisions = separate PRs.
@@ -32,8 +38,9 @@ Rules:
   existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, open PRs) + 1`
   — parallel branches grab the same int otherwise. Below origin/main's highest = stale: rebase first.
 - **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
-  frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, or an
-  over-budget record. `/decide` scans open ADRs' revisit triggers each run.
+  frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, an
+  unfalsifiable decision (no stated criterion), or an over-budget record. `/decide` scans open ADRs'
+  revisit triggers each run.
 
 ## Template
 
@@ -87,7 +94,11 @@ Tag routing: **verified** fine; **checkable** (code) the gate verifies, unchecke
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
-restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say.
+restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say. Across the
+corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
+`[outcome]` lines) is the **assumption hit-rate** — the emergent, bottom-up quality signal of the
+loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, via
+the `metrics-engine.md` contract over `## Act` outcomes — no separate metrics home.
 
 **Status = decision validity** (frontmatter `status`), not shipping — `accepted` is the authoritative
 live decision; `proposed` = not yet authoritative; `superseded by NNNN` = retired by a separate one

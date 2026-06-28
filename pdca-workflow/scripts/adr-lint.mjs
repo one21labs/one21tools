@@ -9,6 +9,9 @@
  *   - no ADR names a release version (version-agnostic — name the cut/feature, not the release);
  *   - every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to an ADR on disk (the
  *     renumber/fold catcher — a stale cite would pass review otherwise);
+ *   - every ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
+ *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
+ *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
  *   - no ADR exceeds the line budget (a missed lower home — relocate, keep the crux).
  *
  * DESIGN CONSTRAINTS:
@@ -74,6 +77,19 @@ export function lint({ files, budget }) {
     cited.delete(a.id); // self-reference (title/header) is fine
     const dangling = [...cited].filter(id => !onDisk.has(id));
     if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")}`);
+
+    // Falsifiability (Plan-phase criterion-minting gate): an ADR must state at least one criterion
+    // the Check can later test — a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]` assumption
+    // bullet, OR a `- [unverifiable]` carrying a REOPEN-IF ON THE SAME BULLET (revisitable on a
+    // signal — the template's canonical `- [unverifiable] ... — REOPEN-IF: <trigger>` form). None =
+    // the decision is UNFALSIFIABLE. The REOPEN-IF must be same-bullet, not merely present somewhere
+    // in the file, else a bare `[unverifiable]` + a stray REOPEN-IF (e.g. the `## Revisit triggers`
+    // header's idiom) would fail open. PRESENCE only (a real tagged bullet, `-` or `*`, not a prose
+    // mention); whether a stated criterion is GENUINELY falsifiable is the PM's/gate's call, not lint's.
+    const hasCriterion = /^\s*[-*]\s*\[(?:checkable|checkable-doc|contradiction)\]/m.test(a.text);
+    const hasRevisitable = /^\s*[-*]\s*\[unverifiable\][^\n]*REOPEN-IF/im.test(a.text);
+    if (!hasCriterion && !hasRevisitable)
+      problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
 
     // Line budget.
     if (a.lines > budget) problems.push(`${a.name}: ${a.lines} lines > ${budget}-line budget`);

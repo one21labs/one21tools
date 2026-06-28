@@ -5,8 +5,8 @@ The ADR system is an append-only, manually-numbered corpus. The cleanest poka-yo
 don't maintain can't drift, so the ADR files ARE the catalog (skim them by grepping the
 `summary` / `status` frontmatter). `adr-lint` guards what prevention can't design away: bad
 frontmatter, id collisions across parallel branches, release-version coupling, dangling cites,
-and budget rot. Per "no process-gating script without a test of its decision logic," it ships
-with one (`scripts/adr-lint.test.mjs`).
+unfalsifiable decisions, and budget rot. Per "no process-gating script without a test of its
+decision logic," it ships with one (`scripts/adr-lint.test.mjs`).
 
 This file is the **spec**. A runnable node reference ships at `scripts/adr-lint.mjs`
 (zero-dependency, cross-platform); a consumer on another stack reimplements the checks against it.
@@ -29,7 +29,12 @@ summary: "<one line for the skim catalog>"
    the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
 4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to a file on
    disk (the renumber/fold catcher; a self-cite is fine).
-5. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from `adr-template.md`;
+5. **Falsifiability (Plan-phase criterion-minting gate)** — every ADR states at least one criterion
+   the Check can later test: a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]` assumption
+   bullet, OR a `- [unverifiable]` paired with a REOPEN-IF (revisitable on a signal). An ADR with
+   none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not a prose mention);
+   whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic call, not lint's.
+6. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from `adr-template.md`;
    configurable). Over budget = bloat or a missed lower home.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.

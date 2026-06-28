@@ -44,6 +44,10 @@ deterministic logic; a doc that restates them rots).
   plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
 
+## Replies — always close with a summary
+Every reply ends with a **TL;DR** then an **ELI15**, each <=4 bullets (fewer is fine; never pad to
+the count). TL;DR = what changed / the decision, terse; ELI15 = the same in plain language.
+
 ## Feedback = PDCA trigger
 This repo dogfoods its own `pdca-workflow` plugin. A judgment call (a threshold, scope, or policy
 question — even meta/tooling) triggers `/decide` immediately — advise -> PM decides -> ADR in
