@@ -1,0 +1,63 @@
+# Advisory muda / judgment review (optional, opt-in). Runs Claude Code headless on each PR and
+# posts findings as ONE comment. ADVISORY ONLY — it never sets a failing check and never blocks the
+# merge; keep your own test workflow as the only required check (set it required in repo
+# Settings -> Branches). This is the unprompted forcing-function that fires the muda/one-home/drift
+# check on every PR, complementing the in-session /retrospect reminder hook.
+#
+# /pdca-init copies this into .github/workflows/ on request. It is a TEMPLATE: it only works on
+# GitHub + needs out-of-band secret setup, so it is never auto-wired. To activate:
+#   1. Generate a Claude Pro/Max OAuth token once: `claude setup-token` (1-year token; NO
+#      pay-per-use API key needed).
+#   2. Store it as the repo secret CLAUDE_CODE_OAUTH_TOKEN.
+#   3. Keep your test workflow as the only required check in branch protection.
+# Until the secret exists the job skips cleanly (not a failure): a `secrets` value can't be read in
+# a job-level `if`, so a gate STEP checks the env and toggles the rest of the job.
+name: claude-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on the OAuth token (skip cleanly when the secret is absent — not a failure)
+        id: gate
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: |
+          if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No CLAUDE_CODE_OAUTH_TOKEN secret set — skipping the advisory review (this is not a failure)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Claude advisory muda review
+        if: steps.gate.outputs.ok == 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Post the review via the default Actions token (the job already has
+          # pull-requests: write). Without this the action falls back to the GitHub
+          # App OIDC flow, which needs `id-token: write` + the app installed and
+          # otherwise dies with "Could not fetch an OIDC token", turning the
+          # advisory check red. Explicit token = no OIDC, works with the OAuth setup.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: |
+            Review ONLY this PR's diff. Flag muda per CLAUDE.md — duplicated logic,
+            dead code or fields, premature abstraction, one-home / SSoT violations,
+            drift — and any obvious correctness bug. Be terse: cite file:line, group
+            findings, skip nits. Post a single PR comment. This is ADVISORY: never
+            block the merge; if the diff is clean, say so in one line.
