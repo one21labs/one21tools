@@ -9,6 +9,8 @@ import assert from "node:assert/strict";
 import { lint } from "./adr-lint.mjs";
 
 // Build an ADR file { name, text } with valid frontmatter by default; override to plant a defect.
+// A valid-by-default ADR carries a falsifiable criterion (a `- [checkable]` bullet) so the
+// criterion-minting gate passes; pass { noCriterion: true } to plant the UNFALSIFIABLE defect.
 function adr(name, o = {}) {
   const id = o.id ?? name.slice(0, 4);
   const fm = o.frontmatter ?? `---
@@ -18,7 +20,8 @@ status: ${o.status ?? "accepted"}
 summary: "${o.summary ?? "A one-line summary"}"
 ---`;
   const body = o.body ?? `\n# ${id} — A decision\n\n- Date: 2026-06-27\n`;
-  return { name, text: fm + body };
+  const criterion = o.noCriterion ? "" : "\n- [checkable] it works — owner, verified\n";
+  return { name, text: fm + body + criterion };
 }
 
 const clean = () => [adr("0001-first.md"), adr("0002-second.md")];
@@ -84,6 +87,51 @@ test("a resolvable cross-ADR cite is not flagged", () => {
 test("fires when an ADR exceeds the line budget", () => {
   const files = clean();
   assert.match(lint({ files, budget: 3 }).problems[0], /lines > 3-line budget/);
+});
+
+test("fires UNFALSIFIABLE when an ADR states no falsifiable criterion", () => {
+  const files = [adr("0001-first.md", { noCriterion: true })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+});
+
+test("an [unverifiable] paired with a REOPEN-IF is revisitable, not UNFALSIFIABLE", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X — REOPEN-IF a user asks\n",
+  })];
+  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+});
+
+test("an [unverifiable] with no REOPEN-IF is still UNFALSIFIABLE (no fake-criterion escape)", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n",
+  })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+});
+
+test("a bare [unverifiable] with a stray REOPEN-IF elsewhere is still UNFALSIFIABLE (pairing is same-bullet)", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n\n## Revisit triggers\n- REOPEN-IF a user asks\n",
+  })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+});
+
+test("an asterisk-marked criterion bullet is valid (markdown allows `*` and `-` list markers)", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n* [checkable] it works — owner, verified\n",
+  })];
+  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+});
+
+test("a prose mention of [checkable] is not a criterion bullet (presence, not substring)", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\nThe gate checks every [checkable] assumption it is given.\n",
+  })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
 });
 
 test("accumulates independent problems rather than stopping at the first", () => {
