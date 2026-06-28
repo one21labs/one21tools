@@ -16,6 +16,9 @@ Given a decision record (or a set of review claims), do this:
    confidently wrong; a flagged "bug" has been provably correct before. Relay nothing
    unverified, in either direction. (For the diff's mechanical correctness pass, run
    `/code-review` rather than re-deriving a bug hunt — your unique job is the next steps.)
+   A claim about the **external world** (vendor name/model, catalog, competitor, API/schema
+   currency) is not settleable from a sandbox with no web egress — mark it UNVERIFIABLE-EXTERNAL
+   and route it to a web-capable actor; a 403 / no-egress is NOT a REFUTE.
 2. **Check every `[checkable]` assumption** in the decision record. Mark each CONFIRMED (with
    evidence) or REFUTED (with counter-evidence). A `[checkable]` assumption left unchecked is a
    defect — check it or say why you cannot.
@@ -26,7 +29,9 @@ Given a decision record (or a set of review claims), do this:
    algorithm against the project's core module — it is the product).
 
 Output:
-- A short verdict per claim/assumption: CONFIRMED / REFUTED / UNVERIFIABLE (+ why).
+- A short verdict per claim/assumption: CONFIRMED / REFUTED / UNVERIFIABLE (+ why). Account for
+  EVERY claim you were given — a returned set smaller than the input is REFUTED-by-omission, not a
+  silent pass.
 - **BLOCKERS:** any verified correctness or safety finding that should stop the decision as
   written. These bind the PM — be specific and cite evidence.
 - Note anything the PM assumed done that the product does not do (or vice-versa).

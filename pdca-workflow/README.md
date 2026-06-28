@@ -22,17 +22,39 @@ finds problems but can't decide trade-offs, and averaging hides the one accounta
 ```
 agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
 skills/
-  roadmap-review/   the decision panel (the workflow's system of record)
-    references/adr-template.md
+  roadmap-review/   the decision panel + the process system-of-record
+    references/       adr-template, adr-lint, metrics-engine
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-hooks/         hooks.json + retrospect-reminder.sh  (PR-create -> /retrospect reminder)
+scripts/       adr-lint.mjs (+ .test.mjs)   the ADR-ledger poka-yoke (node, zero-dep)
+templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
+hooks/         hooks.json + retrospect-reminder.sh   (PR-create -> /retrospect reminder)
 ```
 
 The five meta-roles ship here. The **advisor panel is project-specific** and is generated for
 each project by `/pdca-init` from `references/panel-generation.md` — one advisor per distinct way
 the product can be wrong, plus the cost / value / risk / differentiation axes.
+
+## Scope — what's generic vs project-supplied
+
+The plugin ships the generic framework; each project supplies its domain (advisor personas,
+thresholds, Sacred files, render/verify command). Two deliberate scope calls (recorded in this
+repo's [docs/decisions/0001](../docs/decisions/0001-pdca-workflow-extraction-scope.md), the
+framework dogfooded on its own extraction):
+
+- **Metrics engine = spec, not code.** `references/metrics-engine.md` is the language-neutral
+  `analyze()` contract (window-decoupling, sample-gating, `unknown != healthy`); a project
+  implements it in its own stack against its own analytics provider. The runnable form is too
+  stack/provider-specific to ship.
+- **No standalone `review-system.md`.** The `/roadmap-review` skill IS the process
+  system-of-record — there is no separate process doc to drift against.
+
+## Why it stays alive
+
+A process rots unless it is **committed** (version control survives), **auto-discovered**
+(CLAUDE.md points to it), and **executable** (a `/`-command runs it; a test or linter gates it).
+This plugin keeps all three wired, and ADR revisit triggers pull stale decisions back each run.
 
 ## Use it in a project
 

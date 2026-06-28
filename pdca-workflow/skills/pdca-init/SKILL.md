@@ -20,13 +20,19 @@ Run this loop:
 
 2. **Scaffold CLAUDE.md.** If none exists, write one from `references/claude-md-template.md`,
    filling the project specifics you inferred (stack, Sacred files, test/build/render commands).
-   Keep it under 60 lines — it is the always-loaded layer. If CLAUDE.md already exists, only ADD
-   the missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger,
-   `/retrospect` before a PR); never rewrite the user's content.
+   Keep it to the always-loaded minimum (~60 lines). If the project has product analytics, add a
+   `metrics command:` line so `/roadmap-review` can run it before gating/conversion calls (see
+   `../roadmap-review/references/metrics-engine.md`). If CLAUDE.md already exists, only ADD the
+   missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
+   before a PR); never rewrite the user's content.
 
-3. **Scaffold the decision log.** If `docs/decisions/` is absent, create it: copy
+3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
    `../roadmap-review/references/adr-template.md` into `docs/decisions/README.md` (its canonical
-   home), and create an empty `docs/decisions/INDEX.md` with a header row.
+   home), and create `docs/decisions/INDEX.md` with the pinned table header (`| ID | Decision |
+   Ships |`) plus an `### Open unverifiable assumptions (shared register)` section stub — the
+   formats `adr-template.md` pins. Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs` into the
+   project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge / in CI —
+   the ledger's poka-yoke (`../roadmap-review/references/adr-lint.md`).
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`. Infer the 4-8 advisors THIS project's decisions actually
@@ -36,7 +42,9 @@ Run this loop:
    chosen (a short `docs/decisions/panel.md`) so the user can edit it.
 
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
-   review/edit the panel, then run `/roadmap-review` for their first decision.
+   review/edit the panel, then run `/roadmap-review` for their first decision. Offer (don't
+   auto-apply) the optional advisory CI: copy `../../templates/claude-review.yml` into
+   `.github/workflows/` and print its OAuth-token / required-check setup steps.
 
 The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) ship with this plugin
 and need no scaffolding — only the domain panel is project-specific.

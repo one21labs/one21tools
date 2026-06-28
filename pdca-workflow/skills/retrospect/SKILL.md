@@ -28,8 +28,9 @@ Run this loop:
 5. **Curate.** Dedupe; keep only systemic improvements (would recur), at least 2,
    cite-or-silence — never pad to a count. If under two are real, say so.
 6. **Route + act.** Each improvement goes to its lowest home: behavior to the relevant agent
-   file; process/structure to the project's process doc or the `/roadmap-review` skill; an
-   inviolable to CLAUDE.md; an executable gap to a test/script/hook. Apply the cheap,
+   file; process/structure to the `/roadmap-review` skill (the process system-of-record) or a
+   project process doc if one exists; an inviolable to CLAUDE.md; an executable gap to a
+   test/script/hook. Apply the cheap,
    non-judgment ones directly in this run. If an improvement is a judgment call (cost/scope/
    policy trade-off), open `/roadmap-review` and let the PM record an ADR — do not decide it here.
 7. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"

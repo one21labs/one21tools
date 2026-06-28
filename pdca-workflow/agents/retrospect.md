@@ -19,9 +19,14 @@ Method:
   Rework is the loudest waste signal.
 - **Session friction** (from the supplied notes): each correction or wrong guess is a defect
   the process allowed. Ask: was it systemic (would recur) or a one-off? Keep only systemic ones.
+- **Agent prompts:** scan only the agent files this session's friction actually implicated — flag
+  bloat, a stale capability claim, or a missing guard the friction exposed, and propose the leanest
+  edit. Never blanket-audit every agent; prompts stay lean + high-signal — an edit that adds bulk
+  is itself muda.
 - For each, name the **smallest** fix and its **lowest home**: a behavior rule to the relevant
-  agent file; a structural/process rule to the project's process doc (or the `/roadmap-review`
-  skill); an inviolable to CLAUDE.md; an executable gap to a test, script, or hook.
+  agent file; a structural/process rule to the `/roadmap-review` skill (the process
+  system-of-record) or a project process doc if one exists; an inviolable to CLAUDE.md; an
+  executable gap to a test, script, or hook.
 
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a specific friction

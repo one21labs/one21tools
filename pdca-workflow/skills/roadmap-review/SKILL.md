@@ -58,7 +58,10 @@ automatic per subagent — pass each only the files it needs; don't restate isol
 1. **Inherit.** Read `docs/decisions/` — load prior ADRs so settled calls are not re-litigated.
    Scan each open ADR's revisit triggers against the current product; flag any that fire. Check
    roadmap future-work items already fully shipped but still listed as future (drift) — cite the
-   line; omit if none.
+   line; omit if none. If the project configures a metrics command (CLAUDE.md), run it before any
+   gating or conversion call and fold the fired triggers into the panel — see
+   `references/metrics-engine.md` (the window-decoupling + min-sample discipline; thresholds are
+   project config). No metrics command = skip this.
 2. **Frame.** Clarify scope FIRST — resolve an ambiguous or multi-item ask into a stated scope
    before any advisor runs (a panel on a fuzzy question wastes the spend and anchors wrong).
    List the open judgment calls. One decision register.
@@ -74,7 +77,9 @@ automatic per subagent — pass each only the files it needs; don't restate isol
    every `[checkable]` assumption). If any ADR folds a safety caveat in as a BLOCKER, `red-team`
    AND `tech-lead` are required (not optional). All fresh, uncontaminated by the PM's intent. A
    verified correctness/safety finding, an unanswered red-team break, or an infeasible cut BLOCKS
-   the decision — fix the contradicting document; don't leave the catch.
+   the decision — fix the contradicting document; don't leave the catch. When a fresh finding
+   supersedes a shared handoff note (a verdict, an assumption result), overwrite the note before
+   the next agent reads it — a stale verdict a sibling consumes is drift (the handoff is SSoT).
 7. **Record.** Write accepted ADRs to `docs/decisions/NNNN-slug.md`; update
    `docs/decisions/INDEX.md`; add a roadmap entry referencing the ADR ID for every
    feedback-triggered decision.

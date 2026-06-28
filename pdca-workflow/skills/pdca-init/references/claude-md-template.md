@@ -1,8 +1,9 @@
 # <Project> — CLAUDE.md template
 
-Copy this to your project root as CLAUDE.md and fill the <bracketed> parts. Keep it under 60
-lines — this is the always-loaded layer; when it grows, push detail to its home (a source
-header, the roadmap, an agent file) and leave a pointer. Delete this heading block once filled.
+Copy this to your project root as CLAUDE.md and fill the <bracketed> parts. Keep it to the
+always-loaded minimum (~60 lines — a proxy for its token cost); over-length signals content
+belongs in a lower home, so push detail there (a source header, the roadmap, an agent file) and
+leave a pointer. Delete this heading block once filled.
 
 ---
 
@@ -24,12 +25,16 @@ File headers own each file's role + constraints. Start at <the core module> (the
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
-Altitude: STRATEGY > ROADMAP > README > CLAUDE.md > source headers > code (code owns executables).
+Altitude: STRATEGY > ROADMAP > README > CLAUDE.md > source headers > code. Code is bottom-altitude
+but TOP authority for executable facts (schema versions, signatures, filenames, dims) — a doc that
+restates them rots.
 A copy above its home is drift. Touch a source file -> update its header in the same change.
 
 ## Never
 - <project inviolables, e.g. no console.log in committed code; no async wrapper around a sync API>
 - ship without the core test green
+- ship a process-gating script (a CI action, a metrics threshold, a render/lint gate) without an
+  executable test of its decision logic
 - git push to <deploy branch> without intent — it auto-deploys to production
 
 ## Shipping — version, release, PR

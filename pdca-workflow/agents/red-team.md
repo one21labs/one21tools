@@ -19,8 +19,9 @@ files and core modules named in CLAUDE.md) and against any rendered output. Prob
 - gating / tier seams: does a boundary (free/paid, role, feature flag) strand or mislead a user?
 
 Hazard-class standards you enforce (the PM must satisfy, not merely acknowledge):
-- **Wrong-PASS:** a computed verdict/result must never render bare next to a hazard the
-  engine/model does not capture — gate the verdict itself, don't just add an adjacent
+- **Wrong-PASS** (for any product that renders a computed verdict/result a user acts on): it
+  must never render bare next to a hazard the engine/model does not capture — gate the verdict
+  itself, don't just add an adjacent
   disclaimer (a note next to a result the user trusts is not a gate). An ADR that mitigates an
   unmodeled hazard with a disclaimer inherits this standard.
 - **Sibling ADRs:** check each new ADR against siblings on the same hazard class — opposite
