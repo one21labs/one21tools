@@ -26,7 +26,7 @@ summary: "<one line for the skim catalog>"
    plus a non-empty `title` and `summary` (the catalog skim values).
 2. **Ids unique** — no two files share an `id` (parallel branches grabbing the same int).
 3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
-   the release. (Sequence + ship-state live in the roadmap ladder, not the decision record.)
+   the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
 4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to a file on
    disk (the renumber/fold catcher; a self-cite is fine).
 5. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from `adr-template.md`;
@@ -44,6 +44,6 @@ node --test "scripts/*.test.mjs"           # the decision-logic test
 `/pdca-init` copies `adr-lint.mjs` + `adr-lint.test.mjs` into the consuming repo's `scripts/` and
 points the project at running it pre-merge / in CI.
 
-**Project-specific guards (add locally).** A project with a roadmap ladder + a versioned
-`package.json` can also assert that ladder strikes agree with the shipped version, and that every
+**Project-specific guards (add locally).** A project with a roadmap/changelog + a versioned manifest
+(e.g. `package.json`, `Cargo.toml`, a release tag) can also assert its tracker agrees with the shipped version, and that every
 `ADR NNNN` cited in source resolves — both omitted here because a generic consumer may have neither.

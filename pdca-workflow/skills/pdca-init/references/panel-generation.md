@@ -3,7 +3,7 @@
 The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) are domain-agnostic and
 ship with the plugin. The **advisor panel** is not — it must be generated for each project so the
 PM hears the lenses that actually matter for this product. Generate it once at `/pdca-init`;
-regenerate or top it up when `/roadmap-review` finds the panel missing or stale.
+regenerate or top it up when `/decide` finds the panel missing or stale.
 
 ## Why a custom panel
 A correctness panel finds problems but can't decide between them; the PM decides, but only as

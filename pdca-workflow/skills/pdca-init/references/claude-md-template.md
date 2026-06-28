@@ -1,21 +1,28 @@
 # <Project> — CLAUDE.md template
 
-Copy this to your project root as CLAUDE.md and fill the <bracketed> parts. Keep it to the
-always-loaded minimum (~60 lines — a proxy for its token cost); over-length signals content
-belongs in a lower home, so push detail there (a source header, the roadmap, an agent file) and
-leave a pointer. Delete this heading block once filled.
+Copy this to your project root as CLAUDE.md and fill the <bracketed> parts. This is a **generic
+scaffold for any stack** (app, library, CLI, service, docs/tooling repo) — keep the lines that fit
+your project and **DROP the ones that don't** (e.g. the persistence items for a stateless tool, the
+deploy line for a library, the render check for a non-UI project). Don't keep a line verbatim just
+because it's here. Keep the result to the always-loaded minimum (~60 lines — a proxy for its token
+cost); over-length signals content belongs in a lower home, so push detail there (a source header,
+the roadmap, an agent file) and leave a pointer. Delete this heading block once filled.
 
 ---
 
 ## Stack & navigation
-<Language / framework / build. Where state lives. How to run it.>
-<Test + build + render commands, e.g. `npm test`, `npm run build` — run all before every push.>
+<Language / framework / build — inferred from the repo (the build manifest, lockfile, source
+layout), not assumed. Where state lives, if any. How to run it.>
+<The project's own test + build commands — run all before every push. Add a render/verify command
+only if there is a display or output layer.>
 File headers own each file's role + constraints. Start at <the core module> (the product).
 
 ## Sacred (do not break)
-- <the core module> = the product. Never modify without updating its paired test.
-- <persistence/storage invariant — key prefix, on-disk format>. Add a migration fn; never change the format.
-- Schema version in every saved record. Increment on shape change.
+- <the core module(s)> = the product. Never modify without updating its paired test; a
+  scope/signature change to it is a judgment call -> `/decide` before the first edit.
+- <only if the product persists data: the on-disk / storage format is an invariant — never change
+  it, add a migration; a schema version on every saved record, bumped on any shape change.>
+- <any other inviolable this project must not break — keep only what applies.>
 
 ## Conventions
 - Watch for and cut **muda** as you go — duplicated logic / one-home violations, dead code or
@@ -24,36 +31,43 @@ File headers own each file's role + constraints. Start at <the core module> (the
 - Poka-yoke: prefer a design that makes an error impossible over one that only detects it — delete
   the mirror, don't guard it; derive, don't duplicate; compute the verdict, don't assert it. A
   guard/test is the fallback when prevention can't be designed in.
-- One component/module per concern; inline until reused in 2+ places.
-- Reuse existing helpers; don't duplicate. Editors patch only their own fields.
+- One module per concern; inline until reused in 2+ places. Reuse existing helpers; don't duplicate.
+- <project-specific conventions — naming, error handling, units, layering, etc.>
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
 Git history is the SSoT for backstory — docs state the current truth, never narrate how it got there
 (retired/renumbered IDs, what-folded-into-what, "Learned" logs = drift; cut on sight).
-Altitude: STRATEGY > ROADMAP > README > CLAUDE.md > source headers > code. Code is bottom-altitude
-but TOP authority for executable facts (schema versions, signatures, filenames, dims) — a doc that
-restates them rots.
-A copy above its home is drift. Touch a source file -> update its header in the same change.
+Altitude (drop rungs the project lacks, e.g. STRATEGY/ROADMAP): STRATEGY > ROADMAP > README >
+CLAUDE.md > source headers > code. Code is bottom-altitude but TOP authority for executable facts
+(schema versions, signatures, filenames) — a doc that restates them rots. "Code" is whatever form
+the product takes: for a skill/plugin/docs repo it is the `SKILL.md` / manifests / config, and they
+own their executable facts (skill names, manifest fields, the registry) the same way. Touch a source
+artifact -> update its header/frontmatter in the same change.
 
 ## Never
-- <project inviolables, e.g. no console.log in committed code; no async wrapper around a sync API>
+- <project inviolables — e.g. no debug logging in committed code; no async wrapper around a sync API>
 - ship without the core test green
 - ship a process-gating script (a CI action, a metrics threshold, a render/lint gate) without an
   executable test of its decision logic
-- git push to <deploy branch> without intent — it auto-deploys to production
+- <if a push deploys or releases: git push to <branch> without intent — it ships to production>
 
 ## Shipping — version, release, PR
-- Version tracks the shipped APP. Background/meta work (tooling, process docs) does NOT bump it.
-- App change: bump the version (patch = fix/UX, minor = a roadmap feature) — never hand-edit.
+- Version tracks the shipped artifact (app / library / CLI). Background/meta work (tooling, process
+  docs) does NOT bump it.
+- A shipped change bumps the version (patch = fix/UX, minor = a roadmap feature) via the project's
+  version tool — don't hand-edit if a tool owns it.
+- One concern per PR; a cross-cutting cleanup gets its own branch, not bundled into a feature PR.
 - PR: title = the change in one line; body = Purpose / Changes / Testing / Deferred.
 - Run `/retrospect` on the branch before opening the PR (process improvements land in it).
 
 ## Feedback = PDCA trigger
-User feedback (bug report, feature ask, behavioral observation) triggers `/roadmap-review`
-immediately — Plan (advise -> PM decides -> ADR + roadmap entry), Do, Check (tests + render +
-fresh-eyes gate), Act (ship + iterate the system). **Never fix directly** before planning — a
-judgment call (threshold, scope, policy) triggers the panel even when it's meta/tooling.
+User feedback (bug report, feature ask, behavioral observation) triggers `/decide`
+immediately — Plan (advise -> PM decides -> ADR; + a tracker entry if the project keeps one), Do,
+Check (tests + a fresh-eyes gate; + a produced-output check if there is an output layer), Act
+(ship + iterate the system).
+**Never fix directly** before planning — a judgment call (threshold, scope, policy) triggers the
+panel even when it's meta/tooling.
 
 ## Review panels (agent grading)
 - Fresh eyes: each reviewer a NEW agent, only the artifact + a neutral task; never pass a prior
@@ -61,4 +75,4 @@ judgment call (threshold, scope, policy) triggers the panel even when it's meta/
 - Independent instances in parallel; the grade is a signal, never the objective.
 - Verify before acting: reproduce every finding against the code yourself — agents are
   confidently wrong. Never relay or act on an unverified claim, either direction.
-- Inherit settled calls from `docs/decisions/`; don't re-litigate. Full process: `/roadmap-review`.
+- Inherit settled calls from `docs/decisions/`; don't re-litigate. Full process: `/decide`.

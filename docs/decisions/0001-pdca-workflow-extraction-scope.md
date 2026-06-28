@@ -28,7 +28,7 @@ poka-yoke prevention>detection).
 
 OUT / project-supplied (deferred): the runnable metrics engine — ship the **spec only**, not code
 (doubly project-specific: stack + analytics provider); a standalone `review-system.md` scaffold —
-**folded into the `/roadmap-review` skill**, which is the process system-of-record (one process
+**folded into the `/decide` skill**, which is the process system-of-record (one process
 home); the domain layer — advisor personas, thresholds, the Sacred file list, render harnesses —
 left for each consumer's `.claude/agents/` + CLAUDE.md.
 

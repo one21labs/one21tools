@@ -66,6 +66,11 @@ test("fires on a dangling cross-ADR cite", () => {
   assert.match(lint({ files, budget: 70 }).problems[0], /dangling ADR cite\(s\): 0099/);
 });
 
+test("fires on a dangling `superseded by NNNN` status pointer (the headline fold-cite)", () => {
+  const files = [adr("0001-first.md", { status: "superseded by 0099" })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /dangling ADR cite\(s\): 0099/);
+});
+
 test("a self-cite is not flagged as dangling", () => {
   const files = [adr("0001-first.md", { body: "\n# 0001 — see ADR 0001 above\n" })];
   assert.deepEqual(lint({ files, budget: 70 }).problems, []);

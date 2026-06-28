@@ -1,15 +1,17 @@
-# Decision log — Architecture Decision Records (ADRs)
+# Decision log — Authoritative Decision Records (ADRs)
 
-An **ADR** is a dated, append-only note capturing one judgment call: its context, the decision,
-the justification, the assumptions (tagged), and the triggers that would reopen it. One file per
-decision: `NNNN-slug.md` (zero-padded, monotonic). Produced by the `pm` agent in the
-`/roadmap-review` flow.
+An **ADR** is a dated note capturing one judgment call: its context, the decision, the
+justification, the assumptions (tagged), and the triggers that would reopen it. It is the
+**authoritative current statement** of that decision — kept current in place (rationalize, don't
+re-supersede); git history holds how it got there. One file per decision: `NNNN-slug.md`
+(zero-padded, monotonic). Produced by the `pm` agent in the `/decide` flow.
 
 This file is the canonical ADR template. `/pdca-init` copies it into a new project as
 `docs/decisions/README.md` (which also holds the shared-assumption register, below).
 
 Rules:
-- The roadmap references a decision by ID; it never re-states or re-argues it.
+- References to a decision (a roadmap, changelog, issue, or another ADR) use its ID; never re-state
+  or re-argue it.
 - **Don't narrate backstory.** Git history is the SSoT for how a decision got here — retired /
   renumbered IDs, what-folded-into-what, draft history, "Learned" logs are drift; state the
   current decision, cut the story.
@@ -22,15 +24,16 @@ Rules:
   existing one (an "amends NNNN" ADR folds into NNNN). Reserve `status: superseded by NNNN` for a
   decision *wholly retired* by a separate one.
 - **No version numbers in an ADR** (version-agnostic): name the feature / cut / relationship
-  ("Cut 1a", "ahead of the cal record"), never a release. Sequence + ship-state live once in the
-  roadmap ladder, not copied into the ADR — coupling a decision to a release means every
+  ("Cut 1a", "before the export feature"), never a release. The ADR carries no release version;
+  sequence is the dependency order among the unshipped accepted ADRs and ship-state derives from
+  `## Act` (the plan-of-record note below) — coupling a decision to a release number means every
   re-sequence edits every ADR. `adr-lint` fails on any `vX.Y.Z`.
 - **Allocate a number** only after confirming it's a *new* decision (an amend/re-sequence edits the
   existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, open PRs) + 1`
   — parallel branches grab the same int otherwise. Below origin/main's highest = stale: rebase first.
 - **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
   frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, or an
-  over-budget record. `/roadmap-review` scans open ADRs' revisit triggers each run.
+  over-budget record. `/decide` scans open ADRs' revisit triggers each run.
 
 ## Template
 
@@ -86,9 +89,14 @@ sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but beco
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
 restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say.
 
-**Status = decision validity**, in the frontmatter `status` — not shipping. Ship-state is read from
-the roadmap ladder (strike the row when its release ships); the git tag / roadmap stay the one home
-for "shipped" — no per-ADR shipped field, no version in the ADR.
+**Status = decision validity** (frontmatter `status`), not shipping — `accepted` is the authoritative
+live decision; `proposed` = not yet authoritative; `superseded by NNNN` = retired by a separate one
+(rare; rationalize in place instead). **The ADR corpus IS the plan-of-record:** an ADR with no
+`## Act` is decided-but-not-yet-shipped (the live plan); a dated `## Act` marks it shipped;
+build-order is the dependency order among the unshipped accepted ADRs. Ship-state is thus DERIVED
+from the record (Act presence) — no per-ADR shipped field, no version in the ADR. A roadmap /
+changelog / release tracker is an OPTIONAL human-readable projection: if the project keeps one it
+references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 **No index file (poka-yoke).** The ADR files ARE the catalog — skim them by grepping frontmatter
 (`summary` / `status`); a mirror you don't maintain can't drift, so there is nothing to police.

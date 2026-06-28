@@ -23,7 +23,7 @@ LTconfig.
 
 | Component | What it is |
 |-----------|------------|
-| `/roadmap-review` skill | The decision panel: advisors argue, one PM decides and writes an ADR, an independent gate verifies, red-team breaks it. Triggered by any user feedback or open judgment call. |
+| `/decide` skill | The decision panel: advisors argue, one PM decides and writes an ADR, an independent gate verifies, red-team breaks it. Triggered by any user feedback or open judgment call. |
 | `/retrospect` skill | Automates the Act loop: reads git history + session friction, emits routed process improvements. Run before opening a PR. |
 | `/pdca-init` skill | Scaffolds the workflow into a project: a themed CLAUDE.md, the ADR decision log, and a **project-tailored advisor panel** generated from the project's domain. |
 | Agents | The domain-agnostic meta-roles: `pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`. The advisor panel itself is generated per project by `/pdca-init`. |
@@ -32,7 +32,7 @@ LTconfig.
 | Hook | A non-blocking reminder to run `/retrospect` when you create a PR. |
 
 After installing, run `/pdca-init` once per project to generate its CLAUDE.md and advisor panel,
-then `/roadmap-review` to decide your first judgment call. See
+then `/decide` to decide your first judgment call. See
 [pdca-workflow/README.md](pdca-workflow/README.md).
 
 ## Install

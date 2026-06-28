@@ -14,25 +14,31 @@ Arguments (optional): $ARGUMENTS = notes about the project's domain to steer pan
 
 Run this loop:
 
-1. **Read the project.** Read CLAUDE.md (if any), the README, the package/build manifest, and
-   the top-level source headers to infer: what the product does, its domain, its Sacred files /
-   core module, its test + build + render commands, and the decision axes that matter.
+1. **Read the project.** Scan the repo to infer the stack — don't assume one. Read CLAUDE.md (if
+   any), the README, the build manifest + lockfile (`package.json`, `pyproject.toml`, `Cargo.toml`,
+   `go.mod`, `Gemfile`, a `Makefile`, etc.), and the top-level source headers to infer: what the
+   product does, its domain, its language/build, its Sacred files / core module, its test + build
+   commands (and a render/verify command only if there is a display or output layer), and the
+   decision axes that matter.
 
 2. **Scaffold CLAUDE.md.** If none exists, write one from `references/claude-md-template.md`,
-   filling the project specifics you inferred (stack, Sacred files, test/build/render commands).
-   Keep it to the always-loaded minimum (~60 lines). If the project has product analytics, add a
-   `metrics command:` line so `/roadmap-review` can run it before gating/conversion calls (see
-   `../roadmap-review/references/metrics-engine.md`). If CLAUDE.md already exists, only ADD the
+   filling the project specifics you inferred (stack, Sacred files, test/build commands) and
+   DROPPING template lines that don't apply to this stack — the template is a generic scaffold, not
+   a checklist to keep verbatim (e.g. the persistence/schema Sacred items for a stateless tool, the
+   deploy Never for a library, the render check for a non-UI project). Keep it to the always-loaded
+   minimum (~60 lines). If the project has product analytics, add a
+   `metrics command:` line so `/decide` can run it before gating/conversion calls (see
+   `../decide/references/metrics-engine.md`). If CLAUDE.md already exists, only ADD the
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
    before a PR); never rewrite the user's content.
 
 3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
-   `../roadmap-review/references/adr-template.md` into `docs/decisions/README.md` (its canonical
+   `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home — it carries the ADR rules, the template, AND the shared-assumption register). No index
    file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
    — a mirror you don't keep can't drift). Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs`
    into the project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge /
-   in CI — the corpus poka-yoke (`../roadmap-review/references/adr-lint.md`).
+   in CI — the corpus poka-yoke (`../decide/references/adr-lint.md`).
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`. Infer the 4-8 advisors THIS project's decisions actually
@@ -42,7 +48,7 @@ Run this loop:
    chosen (a short `docs/decisions/panel.md`) so the user can edit it.
 
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
-   review/edit the panel, then run `/roadmap-review` for their first decision. Offer (don't
+   review/edit the panel, then run `/decide` for their first decision. Offer (don't
    auto-apply) the optional advisory CI: copy `../../templates/claude-review.yml` into
    `.github/workflows/` and print its OAuth-token / required-check setup steps.
 

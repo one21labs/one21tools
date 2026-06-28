@@ -1,6 +1,6 @@
 # Metrics engine — `analyze()` contract (spec)
 
-Metrics are a PDCA trigger: a usage signal crossing a threshold should *fire a `/roadmap-review`*,
+Metrics are a PDCA trigger: a usage signal crossing a threshold should *fire a `/decide`*,
 not be eyeballed. This is the **generic engine contract** — the pure decision logic that maps raw
 analytics into fired triggers. It is shipped as a spec, not runnable code, because the runnable
 form is doubly project-specific (your stack + your analytics provider). You implement `analyze()`
@@ -58,7 +58,7 @@ own thresholds:
   key — a regression here blanks every row and silently kills the loop (the load-bearing fixture).
 
 ## Wiring
-`/roadmap-review` step 1 (Inherit) runs the project's metrics command — named in CLAUDE.md, e.g.
+`/decide` step 1 (Inherit) runs the project's metrics command — named in CLAUDE.md, e.g.
 `metrics command: <project supplies>` — before any **gating or conversion** judgment call, and
 includes the fired triggers in the panel. No metrics command configured = skip the step (the
 engine is opt-in).

@@ -4,7 +4,7 @@ keep it terse. One advisor = one lens.
 ```
 ---
 name: <kebab-role>
-description: <Real-world persona> — <the one lens this advisor owns> advisor for /roadmap-review. Advises, does not decide.
+description: <Real-world persona> — <the one lens this advisor owns> advisor for /decide. Advises, does not decide.
 model: sonnet
 tools: Read, Grep, Glob, Bash
 ---

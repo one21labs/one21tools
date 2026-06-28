@@ -1,10 +1,10 @@
 ---
-name: roadmap-review
+name: decide
 description: Use when deciding a roadmap or product judgment call, or on any user feedback such as a bug report, feature ask, or behavioral observation. Runs the PM-led panel and records the decision as an ADR. Explicit-invoke only; never auto-fire.
 disable-model-invocation: true
 ---
 
-# /roadmap-review — PM-led decision panel (PDCA Plan + Check)
+# /decide — PM-led decision panel (PDCA Plan + Check)
 
 Decide a judgment call the right way: a dialectic of advisors, one accountable decider, an
 independent verification gate — never parallel-and-average. This skill IS the system of record
@@ -41,7 +41,7 @@ PM sets intent
 |------|-------|-----------|
 | Decider | `pm` | what/why/sequence/scope; may overrule an advisor on priority; CANNOT overrule a verified correctness/safety finding; records justification + tagged assumptions per call. |
 | Advisors | the project's panel (below) | advise, don't decide; a recommendation + effort x risk x value grounded in code + THE one assumption it depends on, tagged; terse; never primed with a target grade. |
-| Gate | `verifier` | fresh, uncontaminated; reproduces every load-bearing claim + grades the real output; checks `[checkable]` assumptions; BLOCKS on a verified correctness/safety finding. |
+| Gate | `verifier` | fresh, uncontaminated; reproduces every load-bearing claim + grades the real produced output (where there is one); checks `[checkable]` assumptions; BLOCKS on a verified correctness/safety finding. |
 | Bridge | `tech-lead` | turns an accepted decision into a buildable spec. |
 | Adversary | `red-team` | tries to break each decision against the real product; the PM must respond. Mandatory with tech-lead when an ADR folds a safety caveat in as a BLOCKER. |
 
@@ -56,17 +56,20 @@ automatic per subagent — pass each only the files it needs; don't restate isol
 
 ## The loop
 1. **Inherit.** Read `docs/decisions/` — load prior ADRs so settled calls are not re-litigated.
-   Scan each open ADR's revisit triggers against the current product; flag any that fire. Check
-   roadmap future-work items already fully shipped but still listed as future (drift) — cite the
-   line; omit if none. If the project configures a metrics command (CLAUDE.md), run it before any
+   Scan each open ADR's revisit triggers against the current product; flag any that fire. The ADR
+   corpus IS the plan: flag drift — an ADR shipped (dated `## Act`) that a sibling/cross-ref still
+   treats as open, or an accepted ADR long stalled with no `## Act`; if the project keeps a
+   roadmap/changelog/tracker, also flag where it is out of sync with the ADRs. Cite the line; omit
+   if none. If the project configures a metrics command (CLAUDE.md), run it before any
    gating or conversion call and fold the fired triggers into the panel — see
    `references/metrics-engine.md` (the window-decoupling + min-sample discipline; thresholds are
    project config). No metrics command = skip this.
 2. **Frame.** Clarify scope FIRST — resolve an ambiguous or multi-item ask into a stated scope
    before any advisor runs (a panel on a fuzzy question wastes the spend and anchors wrong).
    List the open judgment calls. One decision register.
-3. **Render.** Grade the real picture, not the source — run the project's render/verify step
-   (per CLAUDE.md) for any display or output-layer call.
+3. **Check output.** Grade the real produced output, not the source — for any claim about what the
+   product outputs (renders, prints, exports, writes), run the project's render/verify step (per
+   CLAUDE.md) and read the actual output; never confirm it from source alone. No output layer = skip.
 4. **Advise (dialectic).** Spawn the project's advisors fresh, in parallel, never primed with a
    target grade. For genuinely two-sided calls, run opposing counsel (each steelmans one side).
    Require effort x risk x value grounded in current code/output, returned terse.
@@ -81,14 +84,14 @@ automatic per subagent — pass each only the files it needs; don't restate isol
    supersedes a shared handoff note (a verdict, an assumption result), overwrite the note before
    the next agent reads it — a stale verdict a sibling consumes is drift (the handoff is SSoT).
 7. **Record.** Write accepted ADRs to `docs/decisions/NNNN-slug.md` with frontmatter
-   (`id`/`title`/`status`/`summary`; version-agnostic — ship-state lives in the roadmap, not the
-   ADR). No index to update — the file IS the record (rules + the shared register stay in
-   `docs/decisions/README.md`). Add a roadmap entry referencing the ADR ID for every
-   feedback-triggered decision.
+   (`id`/`title`/`status`/`summary`; version-agnostic — ship-state is derived from the record's
+   `## Act`, not a version). No index to update — the corpus IS the plan-of-record (rules + the
+   shared register stay in `docs/decisions/README.md`). If the project keeps a roadmap/changelog/
+   tracker, mirror the build-order/ship-state there referencing the ADR ID.
 8. **Iterate the system.** Fold what you learned (a missing field, a redundant persona, a better
    stop rule) back into its home — an agent file, this skill, or CLAUDE.md. Automate this Act
    loop with `/retrospect`.
 
-If behavior/code changed, run the project's test + build (per CLAUDE.md) and bump the version
-before committing. A panel returning unanimous consensus either way (all-accept or all-reject)
+If behavior/code changed, run the project's test + build (per CLAUDE.md) and bump the version per
+CLAUDE.md's Shipping rule (which exempts meta/tooling) before committing. A panel returning unanimous consensus either way (all-accept or all-reject)
 is itself a mis-scope signal — re-confirm the ask with the user before acting.

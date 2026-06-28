@@ -17,10 +17,10 @@
  * - lint() is PURE (no fs/process) so its decision logic is unit-testable, per "no process-gating
  *   script without a test of its decision logic." main() is the thin IO wrapper.
  * - The frontmatter schema (id/title/status/summary) is pinned in adr-template.md — keep in sync.
- * - Project-specific guards LTconfig also runs (ROADMAP-strike vs package.json version, `ADR NNNN`
- *   cites in src/) are intentionally omitted: a generic consumer may have neither. Add them locally.
+ * - Project-specific guards a project may add (a ROADMAP-strike check vs the package version, or
+ *   `ADR NNNN` cites in source) are intentionally omitted: a generic consumer may have neither.
  *
- * SEE ALSO: ../skills/roadmap-review/references/adr-lint.md (spec), adr-template.md (the rules).
+ * SEE ALSO: ../skills/decide/references/adr-lint.md (spec), adr-template.md (the rules).
  * TESTING: adr-lint.test.mjs (`node --test "scripts/*.test.mjs"`).
  *
  * Usage:
@@ -65,10 +65,12 @@ export function lint({ files, budget }) {
     const vers = [...new Set([...a.text.matchAll(/\bv?\d+\.\d+\.\d+\b/g)].map(m => m[0]))];
     if (vers.length) problems.push(`${a.name}: names a release version (version-agnostic): ${vers.join(", ")}`);
 
-    // Dangling cross-ADR cite: every `ADR NNNN` / `[NNNN]` cited resolves to a file on disk.
+    // Dangling cite: every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited resolves on disk.
+    // The status pointer is the headline fold-cite — match it too, or supersession escapes the guard.
     const cited = new Set();
     for (const m of a.text.matchAll(/ADR ?(\d{4})/g)) cited.add(m[1]);
     for (const m of a.text.matchAll(/\[(\d{4})\]/g)) cited.add(m[1]);
+    for (const m of a.text.matchAll(/superseded by (\d{4})/gi)) cited.add(m[1]);
     cited.delete(a.id); // self-reference (title/header) is fine
     const dangling = [...cited].filter(id => !onDisk.has(id));
     if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")}`);
