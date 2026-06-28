@@ -51,7 +51,7 @@ Manufacturing engineering principles applied to all work - software, documentati
 | **Common vs special cause** | Recurring issues → fix system; One-offs → investigate root cause |
 | **DMAIC** | Define → Measure → Analyze → Improve → Control (for major projects) |
 | **Taguchi/DOE** | Orthogonal arrays reduce test explosion while maintaining coverage |
-| **Poka-yoke** | Error-proofing. Validation prevents defects at source. |
+| **Poka-yoke** | Error-proofing. Make the error impossible by design (delete the mirror, derive don't duplicate, compute don't assert) over merely detecting it; detection (a guard/test) is the fallback when prevention can't be designed in. Validate at source. |
 
 ## Root Cause Analysis (5 Whys)
 
