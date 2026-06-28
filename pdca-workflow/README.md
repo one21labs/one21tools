@@ -27,7 +27,7 @@ skills/
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-scripts/       adr-lint.mjs (+ .test.mjs)   the ADR-ledger poka-yoke (node, zero-dep)
+scripts/       adr-lint.mjs (+ .test.mjs)   the ADR-corpus poka-yoke (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
 hooks/         hooks.json + retrospect-reminder.sh   (PR-create -> /retrospect reminder)
 ```

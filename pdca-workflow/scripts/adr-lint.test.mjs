@@ -1,84 +1,89 @@
 /*
- * adr-lint.test.mjs — proves adr-lint's decision logic (the poka-yoke for the
- * poka-yoke). Zero-dependency: node's built-in test runner + assert, so it runs
- * with `node --test scripts/` on any stack. Each case plants exactly one ledger
- * defect and asserts the matching check fires (and that a clean ledger is silent).
- *
- * Run: node --test "scripts/*.test.mjs"
+ * adr-lint.test.mjs — proves adr-lint's decision logic (the poka-yoke for the poka-yoke).
+ * Zero-dependency: node's built-in test runner + assert, so it runs with
+ * `node --test "scripts/*.test.mjs"` on any stack. Each case plants exactly one corpus defect
+ * (or a clean corpus) and asserts the matching guard fires.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { lint } from "./adr-lint.mjs";
 
-// A clean two-ADR ledger, indexed, within budget. Helpers below mutate copies.
-const clean = () => ({
-  files: ["0001-a.md", "0002-b.md"],
-  indexLinks: [["0001", "0001-a.md"], ["0002", "0002-b.md"]],
-  lineCounts: { "0001-a.md": 40, "0002-b.md": 55 },
-  budget: 70,
+// Build an ADR file { name, text } with valid frontmatter by default; override to plant a defect.
+function adr(name, o = {}) {
+  const id = o.id ?? name.slice(0, 4);
+  const fm = o.frontmatter ?? `---
+id: ${id}
+title: "${o.title ?? "A decision"}"
+status: ${o.status ?? "accepted"}
+summary: "${o.summary ?? "A one-line summary"}"
+---`;
+  const body = o.body ?? `\n# ${id} — A decision\n\n- Date: 2026-06-27\n`;
+  return { name, text: fm + body };
+}
+
+const clean = () => [adr("0001-first.md"), adr("0002-second.md")];
+
+test("clean corpus reports no problems", () => {
+  assert.deepEqual(lint({ files: clean(), budget: 70 }).problems, []);
 });
 
-test("clean ledger reports no problems", () => {
-  assert.deepEqual(lint(clean()).problems, []);
-});
-
-test("fires on a duplicate ADR ID on disk", () => {
-  const l = clean();
-  l.files = ["0001-a.md", "0001-b.md"];
-  l.indexLinks = [["0001", "0001-a.md"], ["0001", "0001-b.md"]];
-  l.lineCounts = { "0001-a.md": 40, "0001-b.md": 40 };
-  const { problems } = lint(l);
+test("fires on missing frontmatter", () => {
+  const files = [adr("0001-first.md", { frontmatter: "# 0001 — no frontmatter" })];
+  const { problems } = lint({ files, budget: 70 });
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /Duplicate ADR IDs/);
+  assert.match(problems[0], /missing YAML frontmatter/);
 });
 
-test("fires when an ADR file is not linked in INDEX.md", () => {
-  const l = clean();
-  l.indexLinks = [["0001", "0001-a.md"]]; // 0002 unindexed
-  const { problems } = lint(l);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /not linked in INDEX\.md/);
-  assert.match(problems[0], /0002-b\.md/);
+test("fires on a bad/missing frontmatter id", () => {
+  const files = [adr("0001-first.md", { id: "xx" })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /bad\/missing frontmatter id/);
 });
 
-test("fires when an INDEX link points to a missing file", () => {
-  const l = clean();
-  l.indexLinks.push(["0003", "0003-ghost.md"]); // no such file on disk
-  const { problems } = lint(l);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /broken or label != file/);
+test("fires when the frontmatter id does not match the filename", () => {
+  const files = [adr("0001-first.md", { id: "0009" })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /id 0009 != filename/);
 });
 
-test("fires when an INDEX link label does not match its filename", () => {
-  const l = clean();
-  l.indexLinks = [["0001", "0001-a.md"], ["0009", "0002-b.md"]]; // label 0009 != file 0002
-  const { problems } = lint(l);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /broken or label != file/);
+test("fires on a missing title and a missing summary", () => {
+  const files = [adr("0001-first.md", { title: "", summary: "" })];
+  const { problems } = lint({ files, budget: 70 });
+  assert.ok(problems.some(p => /missing frontmatter title/.test(p)));
+  assert.ok(problems.some(p => /missing frontmatter summary/.test(p)));
+});
+
+test("fires on duplicate ids across files", () => {
+  const files = [adr("0001-a.md"), adr("0001-b.md", { id: "0001" })];
+  assert.ok(lint({ files, budget: 70 }).problems.some(p => /Duplicate ADR ids: 0001/.test(p)));
+});
+
+test("fires when an ADR names a release version (version-agnostic)", () => {
+  const files = [adr("0001-first.md", { body: "\n# 0001\n\n## Decision\nShip it in v1.2.0.\n" })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /names a release version.*1\.2\.0/);
+});
+
+test("fires on a dangling cross-ADR cite", () => {
+  const files = [adr("0001-first.md", { body: "\n# 0001\n\nSupersedes ADR 0099.\n" })];
+  assert.match(lint({ files, budget: 70 }).problems[0], /dangling ADR cite\(s\): 0099/);
+});
+
+test("a self-cite is not flagged as dangling", () => {
+  const files = [adr("0001-first.md", { body: "\n# 0001 — see ADR 0001 above\n" })];
+  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+});
+
+test("a resolvable cross-ADR cite is not flagged", () => {
+  const files = [adr("0001-a.md", { body: "\n# 0001\n\nBuilds on ADR 0002.\n" }), adr("0002-b.md")];
+  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
 });
 
 test("fires when an ADR exceeds the line budget", () => {
-  const l = clean();
-  l.lineCounts["0002-b.md"] = 71; // > 70
-  const { problems } = lint(l);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /over the 70-line budget/);
-  assert.match(problems[0], /0002-b\.md:71/);
-});
-
-test("budget is configurable (50 trips the otherwise-fine 55-line ADR)", () => {
-  const l = clean();
-  l.budget = 50;
-  const { problems } = lint(l);
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], /over the 50-line budget/);
+  const files = clean();
+  assert.match(lint({ files, budget: 3 }).problems[0], /lines > 3-line budget/);
 });
 
 test("accumulates independent problems rather than stopping at the first", () => {
-  const l = clean();
-  l.files = ["0001-a.md", "0001-b.md"]; // dup id
-  l.indexLinks = []; // both unindexed
-  l.lineCounts = { "0001-a.md": 99, "0001-b.md": 40 }; // one over budget
-  const { problems } = lint(l);
+  const files = [adr("0001-a.md", { id: "0009", body: "\n# x ships v2.0.0, cites ADR 0077\n" })];
+  const { problems } = lint({ files, budget: 70 });
+  // id!=filename + version + dangling cite = 3
   assert.equal(problems.length, 3);
 });

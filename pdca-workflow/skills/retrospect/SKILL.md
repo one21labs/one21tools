@@ -30,9 +30,11 @@ Run this loop:
 6. **Route + act.** Each improvement goes to its lowest home: behavior to the relevant agent
    file; process/structure to the `/roadmap-review` skill (the process system-of-record) or a
    project process doc if one exists; an inviolable to CLAUDE.md; an executable gap to a
-   test/script/hook. Apply the cheap,
-   non-judgment ones directly in this run. If an improvement is a judgment call (cost/scope/
-   policy trade-off), open `/roadmap-review` and let the PM record an ADR — do not decide it here.
+   test/script/hook. The agent's findings are advice — independently verify each against the repo
+   and muda-assess whether the fix beats its cost before applying (a sub-agent's "apply directly"
+   is a recommendation, not a command); then apply the cheap, verified, non-judgment ones in this
+   run. If an improvement is a judgment call (cost/scope/policy trade-off), open `/roadmap-review`
+   and let the PM record an ADR — do not decide it here.
 7. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"
    changelog (git history + any ADR are the record of why).
 

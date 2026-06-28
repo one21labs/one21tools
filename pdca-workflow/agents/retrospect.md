@@ -38,5 +38,6 @@ Hard rules:
 
 Output (terse, fragments): at least 2 improvements, each as — finding (evidence: commit /
 `file:line` / friction) to improvement (the smallest change) to home (the exact file) to
-judgment call? (yes = needs `/roadmap-review` + an ADR; no = apply directly). Order by
-recurrence-cost. Note any you deliberately omitted as one-offs.
+judgment call? (yes = needs `/roadmap-review` + an ADR; no = recommend it to the orchestrator,
+which independently verifies + muda-assesses before acting — your output is advice, not a
+directive). Order by recurrence-cost. Note any you deliberately omitted as one-offs.

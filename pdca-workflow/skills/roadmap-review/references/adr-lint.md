@@ -1,36 +1,38 @@
-# ADR ledger linter — spec
+# ADR corpus linter — spec
 
-The ADR system is an append-only, manually-numbered ledger. Manual numbering across parallel
-branches invites two silent drifts — duplicate IDs and INDEX↔file divergence — and the line
-budget rots without enforcement. `adr-lint` is the **poka-yoke**: it fails the build on those, so
-they surface at merge instead of being discovered later. Per "no process-gating script without a
-test of its decision logic," it ships with a decision-logic test (`scripts/adr-lint.test.mjs`).
+The ADR system is an append-only, manually-numbered corpus. The cleanest poka-yoke is
+**prevention over detection**: there is no materialized index to keep in sync — a mirror you
+don't maintain can't drift, so the ADR files ARE the catalog (skim them by grepping the
+`summary` / `status` frontmatter). `adr-lint` guards what prevention can't design away: bad
+frontmatter, id collisions across parallel branches, release-version coupling, dangling cites,
+and budget rot. Per "no process-gating script without a test of its decision logic," it ships
+with one (`scripts/adr-lint.test.mjs`).
 
-This file is the **spec** — the four checks, the required INDEX format, and the install path. A
-runnable node reference ships at `scripts/adr-lint.mjs` (zero-dependency, cross-platform); a
-consumer on another stack reimplements the four checks against this spec.
+This file is the **spec**. A runnable node reference ships at `scripts/adr-lint.mjs`
+(zero-dependency, cross-platform); a consumer on another stack reimplements the checks against it.
 
-## The four checks (over `docs/decisions/`)
-1. **No duplicate IDs** — no two `NNNN-*.md` files share the same `NNNN`. (Parallel branches grab
-   the same int; this catches it at merge.)
-2. **Every file is indexed** — every `NNNN-*.md` on disk is linked in `INDEX.md`.
-3. **Every index link resolves** — every `INDEX.md` link points to a file that exists, and the
-   link's ID label matches the filename (`[0007](0007-slug.md)`, not `[0007](0009-slug.md)`).
-4. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from
-   `adr-template.md`; configurable). Over budget = bloat or a missed lower home.
-
-A failure prints the offending IDs/files and exits non-zero. A clean ledger exits zero.
-
-## Required INDEX.md row format (load-bearing)
-Check 2/3 regex the index for markdown links of the exact form:
-
+## Frontmatter schema (every ADR starts with this)
 ```
-| [NNNN](NNNN-slug.md) | <decision, one line> | <ships> |
+---
+id: NNNN                 # 4 digits, matches the filename prefix
+title: "<short title>"
+status: proposed         # proposed | accepted | superseded by NNNN
+summary: "<one line for the skim catalog>"
+---
 ```
 
-`adr-template.md` pins this same format ("INDEX.md — catalog + shared register"). If you change
-the row syntax, change both — the linter and the scaffolded ledger must agree, or the linter fails
-on its own init output.
+## The checks (over `docs/decisions/*.md`)
+1. **Frontmatter valid** — each ADR has frontmatter with a 4-digit `id` that matches its filename,
+   plus a non-empty `title` and `summary` (the catalog skim values).
+2. **Ids unique** — no two files share an `id` (parallel branches grabbing the same int).
+3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
+   the release. (Sequence + ship-state live in the roadmap ladder, not the decision record.)
+4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to a file on
+   disk (the renumber/fold catcher; a self-cite is fine).
+5. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from `adr-template.md`;
+   configurable). Over budget = bloat or a missed lower home.
+
+A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 
 ## Run / install
 ```
@@ -40,5 +42,8 @@ node --test "scripts/*.test.mjs"           # the decision-logic test
 ```
 
 `/pdca-init` copies `adr-lint.mjs` + `adr-lint.test.mjs` into the consuming repo's `scripts/` and
-points the project at running it pre-merge / in CI (alongside the project's own tests). Wire it
-wherever the project gates merges; "monotonic by luck" is not a guard.
+points the project at running it pre-merge / in CI.
+
+**Project-specific guards (add locally).** A project with a roadmap ladder + a versioned
+`package.json` can also assert that ladder strikes agree with the shipped version, and that every
+`ADR NNNN` cited in source resolves — both omitted here because a generic consumer may have neither.

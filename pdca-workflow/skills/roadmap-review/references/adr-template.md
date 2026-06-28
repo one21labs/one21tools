@@ -6,49 +6,57 @@ decision: `NNNN-slug.md` (zero-padded, monotonic). Produced by the `pm` agent in
 `/roadmap-review` flow.
 
 This file is the canonical ADR template. `/pdca-init` copies it into a new project as
-`docs/decisions/README.md`, and creates a sibling `docs/decisions/INDEX.md` (one row per ADR +
-the shared-assumption register).
+`docs/decisions/README.md` (which also holds the shared-assumption register, below).
 
 Rules:
 - The roadmap references a decision by ID; it never re-states or re-argues it.
-- Every record carries justification AND assumptions (tagged) + revisit triggers.
-- **One ADR per PR (max).** A PR captures one decision in one ADR. If that ADR must change
-  before the PR merges, **revise it in place** — never add a second ADR to amend or overrule a
-  still-unmerged sibling (the draft history is squashed away anyway, and two records for one
-  decision is proliferation). Genuinely-separate decisions = separate PRs.
-- Never edit an *already-merged* accepted decision to reverse it — add a new ADR that supersedes
-  it (set the old one's Status to `superseded by NNNN`). **Pre-merge: revise in place.
-  Post-merge: supersede.**
-- **Allocate a number** by `git fetch` first, then `max(local, origin/main, open PRs) + 1` —
-  parallel branches grab the same int otherwise. If your branch's highest ADR is below
-  origin/main's, you are stale: rebase / pull `docs/decisions/` before writing.
-- `/roadmap-review` scans open ADRs' revisit triggers against the current product at the start of
-  each run.
-- **Guard the ledger executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on a duplicate
-  ID, an INDEX↔file mismatch, or an over-budget record — the drifts manual numbering and parallel
-  branches invite. Run it in CI / pre-merge; "monotonic by luck" is not a guard.
+- **Don't narrate backstory.** Git history is the SSoT for how a decision got here — retired /
+  renumbered IDs, what-folded-into-what, draft history, "Learned" logs are drift; state the
+  current decision, cut the story.
+- Every record carries justification AND tagged assumptions + revisit triggers.
+- **One ADR per PR (max).** A PR captures one decision in one ADR. If it must change before the PR
+  merges, **revise it in place** — never add a second ADR to amend or overrule a still-unmerged
+  sibling (proliferation; the draft history is squashed away anyway). Separate decisions = separate PRs.
+- **Rationalize in place.** Correct, re-sequence, or fold an amendment into the ADR it touches — on
+  the next PR that works that area. Don't spawn a new ADR to amend / correct / re-sequence an
+  existing one (an "amends NNNN" ADR folds into NNNN). Reserve `status: superseded by NNNN` for a
+  decision *wholly retired* by a separate one.
+- **No version numbers in an ADR** (version-agnostic): name the feature / cut / relationship
+  ("Cut 1a", "ahead of the cal record"), never a release. Sequence + ship-state live once in the
+  roadmap ladder, not copied into the ADR — coupling a decision to a release means every
+  re-sequence edits every ADR. `adr-lint` fails on any `vX.Y.Z`.
+- **Allocate a number** only after confirming it's a *new* decision (an amend/re-sequence edits the
+  existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, open PRs) + 1`
+  — parallel branches grab the same int otherwise. Below origin/main's highest = stale: rebase first.
+- **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
+  frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, or an
+  over-budget record. `/roadmap-review` scans open ADRs' revisit triggers each run.
 
 ## Template
 
-Telegraphic fragments, not prose — one full sentence budgeted for the crux (load-bearing why +
-weakest assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the
-most visible line in the record. **Budget: ≤50 lines** for a single-decision ADR (the norm); a
-consolidated multi-layer ADR (the one-ADR-per-PR rule) may approach **≤70 absolute max**, and only
-with each layer terse + specs externalized to a lower home (code, roadmap). Over budget = bloat or
-a missed lower home: relocate, keep the crux. The linter enforces the absolute max (configurable;
-default it to this template's number).
+Telegraphic fragments, not prose — one full sentence for the crux (load-bearing *why* + weakest
+assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
+visible line. **Budget: ≤50 lines** for a single-decision ADR (the norm); **≤70 absolute max** for
+a consolidated multi-layer ADR, and only with each layer terse + specs externalized to a lower home.
+Over budget = bloat or a missed lower home: relocate, keep the crux. `adr-lint` enforces the max.
 
 ```
+---
+id: NNNN
+title: "<short decision title>"
+status: proposed        # proposed | accepted | superseded by NNNN
+summary: "<one line for the skim catalog>"
+---
+
 # NNNN — <decision title>
 
-- Status: proposed | accepted | superseded by NNNN
 - Date: YYYY-MM-DD
 - Owner: PM
 - Panel: <which advisors ran + why this subset>
-- Context: <the open question, grounded in the product's current state>
+- Context: <current problem/gap first (crisp, cite file:line), then the open question it raises>
 
 ## Decision
-<what, and the priority/sequence>
+<what, and the priority/sequence — name the cut/feature, not a release>
 
 ## Justification
 <why this over the alternatives — cost x risk x value>
@@ -66,7 +74,7 @@ default it to this template's number).
 ## Revisit triggers
 - <condition that reopens this decision>
 
-## Act (post-ship — vX.Y.Z / YYYY-MM-DD)
+## Act (post-ship — YYYY-MM-DD)
 - [outcome] <assumption> — verified / violated / still-open
 - [process] <what the cycle missed or got right>
 - [pivot] <any REOPEN-IF that fired>
@@ -75,28 +83,23 @@ default it to this template's number).
 Tag routing: **verified** fine; **checkable** (code) the gate verifies, unchecked = defect;
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
-trigger. A shared unverifiable assumption lives once in the INDEX register — reference it, don't
-restate per ADR. Append `## Act` after each tagged release merges; omit lines with nothing to say
-(three lines is the ceiling, not the floor).
+trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
+restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say.
 
-**Status = decision validity, not shipping.** Ship-state reads from the roadmap release ladder
-(strike the row when its tag merges); an ADR is *done* iff every release it maps to is struck. The
-git tag is the one home for "shipped" — no per-ADR shipped field.
+**Status = decision validity**, in the frontmatter `status` — not shipping. Ship-state is read from
+the roadmap ladder (strike the row when its release ships); the git tag / roadmap stay the one home
+for "shipped" — no per-ADR shipped field, no version in the ADR.
 
-## INDEX.md — catalog + shared register
+**No index file (poka-yoke).** The ADR files ARE the catalog — skim them by grepping frontmatter
+(`summary` / `status`); a mirror you don't maintain can't drift, so there is nothing to police.
+`adr-lint` guards frontmatter validity + id↔filename + that no `ADR NNNN` cite dangles.
 
-`INDEX.md` carries one row per ADR; this README owns only the rules + template (add a new ADR's row
-to INDEX, not here). **Pin the row to this link format** — the linter regexes it, so keep it exact:
+## Shared assumption register
 
-```
-| [NNNN](NNNN-slug.md) | <decision, one line> | <ships> |
-```
+Several calls can hinge on the same market/usage fact; one data point then resolves many. Track such
+a shared `[unverifiable]` ONCE here (each dependent ADR references it), so a single signal reopens the
+right ADRs. Don't restate it per ADR.
 
-Ship-state in the `<ships>` column is a **derived mirror**, never a second authority: strike the
-`→ <release>` token (`→ ~~1.2.0~~`) in the same edit that strikes the roadmap ladder row. Docs-only
-ADRs have no release. Decision validity (`Status`) lives in the ADR file, not this table.
-
-**Shared register.** When several decisions hinge on the same unverifiable fact, record that
-assumption ONCE in a register section at the foot of INDEX.md and have each dependent ADR reference
-it — so a single data point reopens every dependent decision. Never restate the same market/usage
-assumption per record.
+| Assumption | Affects | Resolve with |
+|------------|---------|--------------|
+| <a market/usage fact several ADRs depend on> | <ADR ids> | <the signal that resolves it> |

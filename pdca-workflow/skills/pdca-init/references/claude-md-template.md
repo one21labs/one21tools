@@ -19,12 +19,18 @@ File headers own each file's role + constraints. Start at <the core module> (the
 
 ## Conventions
 - Watch for and cut **muda** as you go — duplicated logic / one-home violations, dead code or
-  fields, premature abstraction, drift. Cite-or-silence; don't gold-plate.
+  fields, premature abstraction, drift, git-tellable backstory (git is the SSoT — see Docs).
+  Cite-or-silence; don't gold-plate.
+- Poka-yoke: prefer a design that makes an error impossible over one that only detects it — delete
+  the mirror, don't guard it; derive, don't duplicate; compute the verdict, don't assert it. A
+  guard/test is the fallback when prevention can't be designed in.
 - One component/module per concern; inline until reused in 2+ places.
 - Reuse existing helpers; don't duplicate. Editors patch only their own fields.
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
+Git history is the SSoT for backstory — docs state the current truth, never narrate how it got there
+(retired/renumbered IDs, what-folded-into-what, "Learned" logs = drift; cut on sight).
 Altitude: STRATEGY > ROADMAP > README > CLAUDE.md > source headers > code. Code is bottom-altitude
 but TOP authority for executable facts (schema versions, signatures, filenames, dims) — a doc that
 restates them rots.

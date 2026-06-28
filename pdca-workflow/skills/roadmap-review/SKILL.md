@@ -80,8 +80,10 @@ automatic per subagent — pass each only the files it needs; don't restate isol
    the decision — fix the contradicting document; don't leave the catch. When a fresh finding
    supersedes a shared handoff note (a verdict, an assumption result), overwrite the note before
    the next agent reads it — a stale verdict a sibling consumes is drift (the handoff is SSoT).
-7. **Record.** Write accepted ADRs to `docs/decisions/NNNN-slug.md`; update
-   `docs/decisions/INDEX.md`; add a roadmap entry referencing the ADR ID for every
+7. **Record.** Write accepted ADRs to `docs/decisions/NNNN-slug.md` with frontmatter
+   (`id`/`title`/`status`/`summary`; version-agnostic — ship-state lives in the roadmap, not the
+   ADR). No index to update — the file IS the record (rules + the shared register stay in
+   `docs/decisions/README.md`). Add a roadmap entry referencing the ADR ID for every
    feedback-triggered decision.
 8. **Iterate the system.** Fold what you learned (a missing field, a redundant persona, a better
    stop rule) back into its home — an agent file, this skill, or CLAUDE.md. Automate this Act

@@ -28,11 +28,11 @@ Run this loop:
 
 3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
    `../roadmap-review/references/adr-template.md` into `docs/decisions/README.md` (its canonical
-   home), and create `docs/decisions/INDEX.md` with the pinned table header (`| ID | Decision |
-   Ships |`) plus an `### Open unverifiable assumptions (shared register)` section stub — the
-   formats `adr-template.md` pins. Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs` into the
-   project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge / in CI —
-   the ledger's poka-yoke (`../roadmap-review/references/adr-lint.md`).
+   home — it carries the ADR rules, the template, AND the shared-assumption register). No index
+   file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
+   — a mirror you don't keep can't drift). Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs`
+   into the project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge /
+   in CI — the corpus poka-yoke (`../roadmap-review/references/adr-lint.md`).
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`. Infer the 4-8 advisors THIS project's decisions actually

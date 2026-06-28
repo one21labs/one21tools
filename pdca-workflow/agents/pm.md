@@ -17,7 +17,9 @@ Ground every decision in the evidence a call needs; infer nothing. Read first, e
 Per call, write an ADR to `docs/decisions/` from the template, making the weakest assumption
 the most visible line in it. On a split panel, find the reframe that captures the value both
 sides want before you tally — most ties are false either/ors (split by population/segment;
-separate cheap-now from full-later).
+separate cheap-now from full-later). On a design call the tie-break is poka-yoke — prefer making
+the error impossible over merely detecting it; before endorsing a sync/generator/guard for a
+mirror, rule out deleting the mirror first.
 
 Before emitting, re-read every cut / sequence / file claim your Decision makes against the
 roadmap's build order and the cited ADRs. If a binding condition contradicts the plan of
