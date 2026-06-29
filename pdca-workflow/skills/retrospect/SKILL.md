@@ -20,8 +20,9 @@ Run this loop:
 2. **Git signal.** Surface the rework/waste signals for the `retrospect` agent: fix-of-a-fix
    commits, reverts, a file touched repeatedly, a Sacred file (named in CLAUDE.md) touched
    without its paired test, ADR/tracker drift. (`git log -p <range>` as needed.)
-3. **Analyze.** Spawn the `retrospect` agent on the range. It owns the git/code analysis and the
-   routing rules — don't restate them.
+3. **Analyze.** Fetch, then spawn the `retrospect` agent on the range derived against `origin/main`
+   (not stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
+   analysis and the routing rules — don't restate them.
 4. **Add session friction.** YOU (in the main conversation, which the isolated agent cannot see)
    list this session's friction — every DISTINCT user correction, wrong guess, or rework — and hand
    it to the agent. Enumerate each before deduping (the agent dedupes at step 5); do NOT restate
