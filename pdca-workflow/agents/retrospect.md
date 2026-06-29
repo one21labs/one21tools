@@ -1,7 +1,7 @@
 ---
 name: retrospect
 description: Process-retrospective analyst — reads git history plus the session's friction and emits at least 2 concrete process improvements, each routed to its lowest home (/retrospect). Run on shipped work, not pre-decision.
-model: opus
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 
