@@ -1,13 +1,12 @@
 # one21tools
 
-A Claude Code **skills + plugins marketplace** — no app, build, or deploy.
-
 ## Stack & navigation
-The "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
+No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
-Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
+Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Run its decision-logic
+test: `node --test "pdca-workflow/scripts/*.test.mjs"`.
 
 ## Muda — ruthlessly cut on sight
 Cut muda the moment you see it, not later — duplicated logic / one-home violations, dead code or
@@ -42,6 +41,8 @@ deterministic logic; a doc that restates them rots).
 ## Shipping — PR
 - **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
   plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
+- This repo **squash-merges** every PR — a merged branch still shows commits "ahead" of `main`, so
+  judge merged-ness by PR state + file diff, not `git log main..branch` ahead-count.
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
 
 ## Feedback = PDCA trigger
