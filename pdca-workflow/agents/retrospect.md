@@ -20,6 +20,11 @@ Method:
   Rework is the loudest waste signal.
 - **Session friction** (from the supplied notes): each correction or wrong guess is a defect
   the process allowed. Ask: was it systemic (would recur) or a one-off? Keep only systemic ones.
+- **Friction cross-check (independent witness):** the supplied list is the orchestrator's
+  perception — treat it as one unverified source. Independently scan git (rework / fix-of-a-fix /
+  revert / force-push) and FLAG any git-visible friction ABSENT from the supplied list as a
+  candidate the orchestrator may have missed; feed each flagged item through the systemic-vs-one-off
+  test like any other. This is the only friction the agent can corroborate without the chat.
 - **Agent prompts:** scan only the agent files this session's friction actually implicated — flag
   bloat, a stale capability claim, or a missing guard the friction exposed, and propose the leanest
   edit. Never blanket-audit every agent; prompts stay lean + high-signal — an edit that adds bulk
