@@ -22,8 +22,16 @@ be wrong, plus the decision axes those correctness experts don't own.
    data/privacy). Each axis the correctness experts don't own is a candidate advisor.
 3. **Pick 4-8, no overlap.** One home per lens — if two candidates answer the same question,
    merge them. Fewer, sharper advisors beat a crowd; the PM picks a subset per call anyway.
-4. **Write each advisor** into `.claude/agents/` from `advisor-template.md`. Give it a concrete
-   real-world persona (a role a real person holds), the ONE lens it owns, and `model: sonnet`.
+4. **Write each advisor** into `.claude/agents/` from `advisor-template.md` (Claude Code's
+   project-agent discovery dir). Give it a concrete real-world persona (a role a real person
+   holds), the ONE lens it owns, and `model: sonnet`.
+   **Version-control the panel** (poka-yoke, prevent > detect): the common `.gitignore` rule
+   `.claude/*` silently drops these files, so the advisors a later ADR `Panel:` line references
+   never reach the repo and the user's panel tuning (below) is lost. If the project ignores
+   `.claude/`, make the rule the glob form `.claude/*` (convert a bare `.claude/` FIRST — git cannot
+   re-include a child once the whole dir is excluded, so a negation under `.claude/` is silently
+   inert), then add `!.claude/agents/` so the advisors are tracked. Do NOT relocate them out of
+   `.claude/agents/` (that breaks discovery). The plugin's own meta-roles are tracked the same way.
 5. **Record the roster.** Write `docs/decisions/panel.md`: each advisor, its lens, and one line
    on why this project needs it. This is what the user edits to tune the panel.
 
