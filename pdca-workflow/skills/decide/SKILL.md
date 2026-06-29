@@ -50,8 +50,8 @@ this project by `/pdca-init` (panel-generation). If `.claude/agents/` has no pro
 generate one now — see the `pdca-init` skill, which owns panel generation. Pick the subset a
 call needs; record which advisors ran and why on the ADR.
 
-**Model split** (lead / gate / adversary on the strongest model, advisors + bridge cheaper) — each
-agent's frontmatter `model:` is the SSoT for its tier. Context isolation is automatic per subagent —
+**Model split** (lead / gate / adversary on the strongest model, advisors + bridge + the Act-loop
+retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its tier. Context isolation is automatic per subagent —
 pass each only the files it needs; don't restate isolation in a prompt.
 
 ## The loop
