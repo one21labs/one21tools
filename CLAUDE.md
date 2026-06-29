@@ -42,7 +42,9 @@ deterministic logic; a doc that restates them rots).
 - **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
   plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
 - This repo **squash-merges** every PR — a merged branch still shows commits "ahead" of `main`, so
-  judge merged-ness by PR state + file diff, not `git log main..branch` ahead-count.
+  judge merged-ness by PR state + file diff, not `git log main..branch` ahead-count. After an upstream
+  PR merges, `git fetch` + rebase your live branch onto `origin/main` before ranging or `/retrospect`
+  — a stale local `main` re-adds the squashed commits as a phantom range.
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
 
 ## Feedback = PDCA trigger
