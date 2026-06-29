@@ -30,7 +30,8 @@ Run this loop:
 6. **Route + act.** Route each improvement to its lowest home per the agent's analysis (it owns the
    routing rules). The agent's findings are advice — independently verify each against the repo and
    muda-assess whether the fix beats its cost before applying (a sub-agent's "apply directly" is a
-   recommendation, not a command); then apply the cheap, verified, non-judgment ones in this run. If
+   recommendation, not a command); then apply the cheap, verified, non-judgment ones in this run (e.g.
+   `/simplify`, the Claude Code built-in that owns the reuse/simplification/altitude cleanup pass). If
    an improvement is a judgment call (cost/scope/policy trade-off), open `/decide` and let the PM
    record an ADR — do not decide it here.
 7. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"
