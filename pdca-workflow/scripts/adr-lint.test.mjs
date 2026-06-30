@@ -6,7 +6,24 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { lint } from "./adr-lint.mjs";
+import { ADR_CHAR_BUDGET, ADR_BUDGET_GRANDFATHER } from "./char-budget.mjs";
+
+// The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
+const ADR_DIR = fileURLToPath(new URL("../../docs/decisions/", import.meta.url));
+const corpus = () =>
+  readdirSync(ADR_DIR)
+    .filter(f => /^\d{4}-.*\.md$/.test(f))
+    .map(name => ({ name, text: readFileSync(join(ADR_DIR, name), "utf8").replace(/\r\n/g, "\n") }));
+
+// An ADR body padded to a given char length, so a char-budget case is explicit (not line-count luck).
+const padTo = (id, chars) => {
+  const head = `\n# ${id} — A decision\n\n`;
+  return head + "x".repeat(Math.max(0, chars - head.length)) + "\n";
+};
 
 // Build an ADR file { name, text } with valid frontmatter by default; override to plant a defect.
 // A valid-by-default ADR carries a falsifiable criterion (a `- [checkable]` bullet) so the
@@ -27,71 +44,97 @@ summary: "${o.summary ?? "A one-line summary"}"
 const clean = () => [adr("0001-first.md"), adr("0002-second.md")];
 
 test("clean corpus reports no problems", () => {
-  assert.deepEqual(lint({ files: clean(), budget: 70 }).problems, []);
+  assert.deepEqual(lint({ files: clean() }).problems, []);
 });
 
 test("fires on missing frontmatter", () => {
   const files = [adr("0001-first.md", { frontmatter: "# 0001 — no frontmatter" })];
-  const { problems } = lint({ files, budget: 70 });
+  const { problems } = lint({ files });
   assert.equal(problems.length, 1);
   assert.match(problems[0], /missing YAML frontmatter/);
 });
 
 test("fires on a bad/missing frontmatter id", () => {
   const files = [adr("0001-first.md", { id: "xx" })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /bad\/missing frontmatter id/);
+  assert.match(lint({ files }).problems[0], /bad\/missing frontmatter id/);
 });
 
 test("fires when the frontmatter id does not match the filename", () => {
   const files = [adr("0001-first.md", { id: "0009" })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /id 0009 != filename/);
+  assert.match(lint({ files }).problems[0], /id 0009 != filename/);
 });
 
 test("fires on a missing title and a missing summary", () => {
   const files = [adr("0001-first.md", { title: "", summary: "" })];
-  const { problems } = lint({ files, budget: 70 });
+  const { problems } = lint({ files });
   assert.ok(problems.some(p => /missing frontmatter title/.test(p)));
   assert.ok(problems.some(p => /missing frontmatter summary/.test(p)));
 });
 
 test("fires on duplicate ids across files", () => {
   const files = [adr("0001-a.md"), adr("0001-b.md", { id: "0001" })];
-  assert.ok(lint({ files, budget: 70 }).problems.some(p => /Duplicate ADR ids: 0001/.test(p)));
+  assert.ok(lint({ files }).problems.some(p => /Duplicate ADR ids: 0001/.test(p)));
 });
 
 test("fires when an ADR names a release version (version-agnostic)", () => {
   const files = [adr("0001-first.md", { body: "\n# 0001\n\n## Decision\nShip it in v1.2.0.\n" })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /names a release version.*1\.2\.0/);
+  assert.match(lint({ files }).problems[0], /names a release version.*1\.2\.0/);
 });
 
 test("fires on a dangling cross-ADR cite", () => {
   const files = [adr("0001-first.md", { body: "\n# 0001\n\nSupersedes ADR 0099.\n" })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /dangling ADR cite\(s\): 0099/);
+  assert.match(lint({ files }).problems[0], /dangling ADR cite\(s\): 0099/);
 });
 
 test("fires on a dangling `superseded by NNNN` status pointer (the headline fold-cite)", () => {
   const files = [adr("0001-first.md", { status: "superseded by 0099" })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /dangling ADR cite\(s\): 0099/);
+  assert.match(lint({ files }).problems[0], /dangling ADR cite\(s\): 0099/);
 });
 
 test("a self-cite is not flagged as dangling", () => {
   const files = [adr("0001-first.md", { body: "\n# 0001 — see ADR 0001 above\n" })];
-  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+  assert.deepEqual(lint({ files }).problems, []);
 });
 
 test("a resolvable cross-ADR cite is not flagged", () => {
   const files = [adr("0001-a.md", { body: "\n# 0001\n\nBuilds on ADR 0002.\n" }), adr("0002-b.md")];
-  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+  assert.deepEqual(lint({ files }).problems, []);
 });
 
-test("fires when an ADR exceeds the line budget", () => {
-  const files = clean();
-  assert.match(lint({ files, budget: 3 }).problems[0], /lines > 3-line budget/);
+// Char budget, not lines: a line cap is gameable by long lines (ADR 0008). The decision logic —
+// over cap AND not grandfathered — is unit-tested here on synthetic input, then run over the real
+// corpus (0006 grandfathered -> no firing). staleGrandfather keeps the allowlist shrink-only.
+test("char budget: over the cap fires unless grandfathered (decision logic)", () => {
+  const over = (id) => [adr(`${id}-x.md`, { id, body: padTo(id, ADR_CHAR_BUDGET + 100) })];
+  // A new ADR over the cap -> violation.
+  assert.match(lint({ files: over("9999"), budget: ADR_CHAR_BUDGET, grandfather: new Set() }).problems[0],
+    /chars > \d+-char budget/);
+  // The same ADR, grandfathered -> exempt (no char-budget problem).
+  assert.deepEqual(
+    lint({ files: over("9999"), budget: ADR_CHAR_BUDGET, grandfather: new Set(["9999"]) }).problems, []);
+  // (The strict at-cap boundary — overBudget(6000,6000)===false — is unit-tested in char-budget.test.mjs.)
+});
+
+test("no new/edited ADR exceeds the char budget on the real corpus (legacy grandfathered)", () => {
+  const over = lint({ files: corpus() }).problems.filter(p => /char budget/.test(p));
+  assert.deepEqual(over, []);
+});
+
+test("grandfather allowlist only shrinks — no listed ADR is within budget (real corpus)", () => {
+  const stale = lint({ files: corpus() }).problems.filter(p => /drop it from the allowlist/.test(p));
+  assert.deepEqual(stale, []);
+});
+
+test("staleGrandfather fires when a grandfathered ADR drops within budget (shrink-only guard)", () => {
+  // A present, in-budget ADR that is still on the allowlist must be flagged.
+  const files = [adr("9999-x.md", { id: "9999", body: padTo("9999", 200) })];
+  assert.match(lint({ files, budget: ADR_CHAR_BUDGET, grandfather: new Set(["9999"]) }).problems[0],
+    /9999: grandfathered but now within the \d+-char budget/);
 });
 
 test("fires UNFALSIFIABLE when an ADR states no falsifiable criterion", () => {
   const files = [adr("0001-first.md", { noCriterion: true })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
 test("an [unverifiable] paired with a REOPEN-IF is revisitable, not UNFALSIFIABLE", () => {
@@ -99,7 +142,7 @@ test("an [unverifiable] paired with a REOPEN-IF is revisitable, not UNFALSIFIABL
     noCriterion: true,
     body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X — REOPEN-IF a user asks\n",
   })];
-  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+  assert.deepEqual(lint({ files }).problems, []);
 });
 
 test("an [unverifiable] with no REOPEN-IF is still UNFALSIFIABLE (no fake-criterion escape)", () => {
@@ -107,7 +150,7 @@ test("an [unverifiable] with no REOPEN-IF is still UNFALSIFIABLE (no fake-criter
     noCriterion: true,
     body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n",
   })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
 test("a bare [unverifiable] with a stray REOPEN-IF elsewhere is still UNFALSIFIABLE (pairing is same-bullet)", () => {
@@ -115,7 +158,7 @@ test("a bare [unverifiable] with a stray REOPEN-IF elsewhere is still UNFALSIFIA
     noCriterion: true,
     body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n\n## Revisit triggers\n- REOPEN-IF a user asks\n",
   })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
 test("an asterisk-marked criterion bullet is valid (markdown allows `*` and `-` list markers)", () => {
@@ -123,7 +166,7 @@ test("an asterisk-marked criterion bullet is valid (markdown allows `*` and `-` 
     noCriterion: true,
     body: "\n# 0001\n\n## Assumptions\n* [checkable] it works — owner, verified\n",
   })];
-  assert.deepEqual(lint({ files, budget: 70 }).problems, []);
+  assert.deepEqual(lint({ files }).problems, []);
 });
 
 test("a prose mention of [checkable] is not a criterion bullet (presence, not substring)", () => {
@@ -131,12 +174,12 @@ test("a prose mention of [checkable] is not a criterion bullet (presence, not su
     noCriterion: true,
     body: "\n# 0001\n\nThe gate checks every [checkable] assumption it is given.\n",
   })];
-  assert.match(lint({ files, budget: 70 }).problems[0], /UNFALSIFIABLE/);
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
 test("accumulates independent problems rather than stopping at the first", () => {
   const files = [adr("0001-a.md", { id: "0009", body: "\n# x ships v2.0.0, cites ADR 0077\n" })];
-  const { problems } = lint({ files, budget: 70 });
+  const { problems } = lint({ files });
   // id!=filename + version + dangling cite = 3
   assert.equal(problems.length, 3);
 });
