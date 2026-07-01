@@ -2,7 +2,7 @@
 
 Claude Code skills for software development and engineering workflows.
 
-Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows.
+Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: documentation is held to CI-checked character budgets.
 
 The differentiating idea: manufacturing quality principles translate directly to AI-assisted code. Lean's waste elimination becomes YAGNI and SSoT enforcement. Toyota's poka-yoke becomes boundary validation. Deming's "build quality in" becomes catching defects at source rather than inspecting them out downstream. The skills encode these as Claude directives.
 
@@ -27,7 +27,7 @@ LTconfig.
 | `/retrospect` skill | Automates the Act loop: reads git history + session friction, emits routed process improvements. Run before opening a PR. |
 | `/pdca-init` skill | Scaffolds the workflow into a project: a themed CLAUDE.md, the ADR decision log, and a **project-tailored advisor panel** generated from the project's domain. |
 | Agents | The domain-agnostic meta-roles: `pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`. The advisor panel itself is generated per project by `/pdca-init`. |
-| ADR system + linter | A version-agnostic, frontmatter-cataloged decision-record template (one-ADR-per-PR, fetch-then-max numbering, rationalize-in-place) and `adr-lint.mjs` — a zero-dependency node guard against bad frontmatter, duplicate IDs, dangling cites, and over-budget records. |
+| ADR system + linter | A version-agnostic, frontmatter-cataloged decision-record template (one-ADR-per-PR, fetch-then-max numbering, rationalize-in-place) and `adr-lint.mjs` — a zero-dependency node guard against bad frontmatter, duplicate IDs, dangling cites, and over-budget docs (char budgets on the ADR corpus and CLAUDE.md). |
 | Metrics engine spec | `metrics-engine.md` — a language-neutral `analyze()` contract mapping usage thresholds to PDCA triggers; each project implements it in its own stack. |
 | Hook | A non-blocking reminder to run `/retrospect` when you create a PR. |
 
