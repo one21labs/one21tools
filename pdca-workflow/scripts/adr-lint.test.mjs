@@ -10,7 +10,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { lint } from "./adr-lint.mjs";
-import { ADR_CHAR_BUDGET, ADR_BUDGET_GRANDFATHER } from "./char-budget.mjs";
+import { ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
 const ADR_DIR = fileURLToPath(new URL("../../docs/decisions/", import.meta.url));
@@ -101,35 +101,23 @@ test("a resolvable cross-ADR cite is not flagged", () => {
   assert.deepEqual(lint({ files }).problems, []);
 });
 
-// Char budget, not lines: a line cap is gameable by long lines (ADR 0008). The decision logic —
-// over cap AND not grandfathered — is unit-tested here on synthetic input, then run over the real
-// corpus (0006 grandfathered -> no firing). staleGrandfather keeps the allowlist shrink-only.
-test("char budget: over the cap fires unless grandfathered (decision logic)", () => {
-  const over = (id) => [adr(`${id}-x.md`, { id, body: padTo(id, ADR_CHAR_BUDGET + 100) })];
-  // A new ADR over the cap -> violation.
-  assert.match(lint({ files: over("9999"), budget: ADR_CHAR_BUDGET, grandfather: new Set() }).problems[0],
+// Char budget, not lines: a line cap is gameable by long lines (ADR 0008). No exemptions — an ADR
+// over the cap is a violation. Decision logic unit-tested on synthetic input, then run over the
+// real corpus (every ADR is under budget after 0006's rewrite -> no firing).
+test("char budget: over the cap fires, at/under passes (decision logic)", () => {
+  const at = (id, chars) => [adr(`${id}-x.md`, { id, body: padTo(id, chars) })];
+  // An ADR over the cap -> violation.
+  assert.match(lint({ files: at("9999", ADR_CHAR_BUDGET + 100), budget: ADR_CHAR_BUDGET }).problems[0],
     /chars > \d+-char budget/);
-  // The same ADR, grandfathered -> exempt (no char-budget problem).
+  // An ADR comfortably under the cap -> no char-budget problem.
   assert.deepEqual(
-    lint({ files: over("9999"), budget: ADR_CHAR_BUDGET, grandfather: new Set(["9999"]) }).problems, []);
+    lint({ files: at("9999", ADR_CHAR_BUDGET - 500), budget: ADR_CHAR_BUDGET }).problems, []);
   // (The strict at-cap boundary — overBudget(6000,6000)===false — is unit-tested in char-budget.test.mjs.)
 });
 
-test("no new/edited ADR exceeds the char budget on the real corpus (legacy grandfathered)", () => {
+test("no ADR exceeds the char budget on the real corpus", () => {
   const over = lint({ files: corpus() }).problems.filter(p => /char budget/.test(p));
   assert.deepEqual(over, []);
-});
-
-test("grandfather allowlist only shrinks — no listed ADR is within budget (real corpus)", () => {
-  const stale = lint({ files: corpus() }).problems.filter(p => /drop it from the allowlist/.test(p));
-  assert.deepEqual(stale, []);
-});
-
-test("staleGrandfather fires when a grandfathered ADR drops within budget (shrink-only guard)", () => {
-  // A present, in-budget ADR that is still on the allowlist must be flagged.
-  const files = [adr("9999-x.md", { id: "9999", body: padTo("9999", 200) })];
-  assert.match(lint({ files, budget: ADR_CHAR_BUDGET, grandfather: new Set(["9999"]) }).problems[0],
-    /9999: grandfathered but now within the \d+-char budget/);
 });
 
 test("fires UNFALSIFIABLE when an ADR states no falsifiable criterion", () => {
