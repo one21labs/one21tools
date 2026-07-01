@@ -35,9 +35,9 @@ summary: "<one line for the skim catalog>"
    none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not a prose mention);
    whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic call, not lint's.
 6. **Budget** — no new/edited ADR exceeds the char budget (default 6,000 — the norm from
-   `adr-template.md`; cap + predicate + grandfather allowlist SSoT in `char-budget.mjs`;
-   configurable via `--budget`). A char count can't be gamed by long lines (see ADR 0008). Legacy
-   over-budget ADRs are grandfathered via a shrink-only allowlist. Over budget = bloat or a missed
+   `adr-template.md`; cap + predicate SSoT in `char-budget.mjs`;
+   configurable via `--budget`). A char count can't be gamed by long lines (see ADR 0008). No
+   exemptions — an over-budget ADR is rewritten under the cap, not grandfathered. Over budget = bloat or a missed
    lower home. `main()` also char-checks the named docs (`CLAUDE.md`) via `oversizeDocs()`.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.

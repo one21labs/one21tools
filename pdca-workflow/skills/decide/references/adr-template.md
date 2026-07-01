@@ -47,9 +47,10 @@ Rules:
 Telegraphic fragments, not prose — one full sentence for the crux (load-bearing *why* + weakest
 assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
 visible line. **Budget: ≤6,000 chars (~2 pp) norm** for a single-decision ADR — a char count can't
-be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). Legacy
-over-budget ADRs are grandfathered via a shrink-only allowlist (trim one under budget and it drops
-off). Over budget = bloat or a missed lower home: relocate to a lower home; keep the crux + every
+be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
+an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to a margin (~5,000) and
+measure once (`node -e` char count) before finalizing** — don't write long and trim in N passes.
+Over budget = bloat or a missed lower home: relocate to a lower home; keep the crux + every
 cite + the falsifiable criterion. `adr-lint` enforces the cap.
 
 ```

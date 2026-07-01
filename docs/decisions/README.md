@@ -14,9 +14,9 @@ Guard: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` (run pre-merge).
 
 **Size budget — chars, not lines.** An ADR is capped at **≤6,000 chars (~2 pp)** norm — a char
 count can't be gamed by long lines (ADR 0008; cap + predicate SSoT in
-[char-budget.mjs](../../pdca-workflow/scripts/char-budget.mjs)). New/edited ADRs are held to the
-cap; legacy over-budget ADRs are grandfathered via an allowlist that can only shrink (trim one
-under budget and it drops off). Over budget = a missed lower home: relocate, keep the crux.
+[char-budget.mjs](../../pdca-workflow/scripts/char-budget.mjs)). Every ADR is held to the
+cap — no exemptions; an over-budget ADR is rewritten under it, not grandfathered (ADR 0008). Over
+budget = a missed lower home: relocate, keep the crux.
 
 ## Shared assumption register
 

@@ -31,8 +31,8 @@ breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A cop
 | code | executables | none | — | — |
 
 Both caps + the over-budget predicate are defined **once** in `char-budget.mjs` (the SSoT — one
-place to look). They're **enforced** by `adr-lint.mjs` (ADRs, with the shrink-only grandfather
-allowlist; it also runs `oversizeDocs()` over `CLAUDE.md`) and unit-tested in `adr-lint.test.mjs` +
+place to look). They're **enforced** by `adr-lint.mjs` (ADRs, no exemptions;
+it also runs `oversizeDocs()` over `CLAUDE.md`) and unit-tested in `adr-lint.test.mjs` +
 `char-budget.test.mjs`. Lower a cap when a doc is leaned; never pad it.
 
 **A consumer with a designated detail-home doc** (one other docs reference, so a larger cap is the
