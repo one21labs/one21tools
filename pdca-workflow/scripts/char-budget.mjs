@@ -1,9 +1,9 @@
 /*
  * char-budget.mjs — SSoT for every doc char budget + the over-budget predicate (see ADR 0008).
  * One place to look, so the caps/predicate can't drift across modules. Consumers import from
- * here: adr-lint.mjs applies ADR_CHAR_BUDGET over the ADR corpus (with the grandfather wrinkle,
- * an ADR-domain concern) and runs oversizeDocs() over the named docs. This module owns the
- * numbers + the check; domain-specific corpus walks live with their domain.
+ * here: adr-lint.mjs applies ADR_CHAR_BUDGET over the ADR corpus and runs oversizeDocs() over the
+ * named docs. This module owns the numbers + the check; domain-specific corpus walks live with
+ * their domain.
  *
  * DESIGN CONSTRAINTS:
  * - Zero dependencies, plain `.mjs` run via `node` — same constraint as adr-lint.mjs (Node is the
@@ -30,20 +30,16 @@ export const charLen = (relPath) =>
 export const overBudget = (chars, cap) => chars > cap;
 
 // The named-doc char caps (SSoT; ~3,000 chars/page — doc-budgets.md owns the altitude + token
-// table). Single named files go in DOC_BUDGETS; ADRs are a glob with a grandfather allowlist, so
-// the ADR norm is the sibling ADR_CHAR_BUDGET below — same file, different shape. A consumer whose
-// detail-home doc warrants a larger cap (e.g. a review-system reference) adds its entry here.
+// table). Single named files go in DOC_BUDGETS; ADRs are a glob capped by the sibling
+// ADR_CHAR_BUDGET below — same file, different shape. A consumer whose detail-home doc warrants a
+// larger cap (e.g. a review-system reference) adds its entry here.
 export const DOC_BUDGETS = {
   "CLAUDE.md": 6000, // ~2 pp, the always-loaded layer
 };
 
-// Single-decision ADR norm (~2 pp). The legacy ADRs below predate the char budget; grandfather
-// them while they stay over — a shrink-only allowlist (adr-lint's staleGrandfather fails if a
-// listed ADR drops under budget but stays listed). Never add an id here to dodge the cap.
-// 0006 is the only ADR over budget on this branch (8,813 chars; 0001-0005 are all under 5,000).
-// 0007 lives on its own open PR — add it here when that PR merges over-budget.
+// Single-decision ADR norm (~2 pp). No exemptions — every ADR is held to the cap (ADR 0008 chose
+// rewrite-under-budget over a grandfather allowlist for this small corpus).
 export const ADR_CHAR_BUDGET = 6000;
-export const ADR_BUDGET_GRANDFATHER = new Set(["0006"]);
 
 // Guard: no budgeted doc exceeds its cap. Returns "path:chars/cap" per violation.
 export function oversizeDocs() {

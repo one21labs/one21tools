@@ -12,8 +12,8 @@
  *   - every ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
  *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
  *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
- *   - no new/edited ADR exceeds the char budget (char budgets are ungameable by long lines — see
- *     ADR 0008 + char-budget.mjs; legacy ADRs are grandfathered via an allowlist that can only shrink).
+ *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
+ *     char-budget.mjs; no exemptions — every ADR is held to the cap).
  *   main() also char-checks CLAUDE.md (oversizeDocs) and prints each ADR's char count (compute, don't assert).
  *
  * DESIGN CONSTRAINTS:
@@ -21,8 +21,8 @@
  *   it), so this stays a plain `.mjs` — runs in CI / a git hook / by hand on any stack incl. Windows.
  * - lint() is PURE (no fs/process) so its decision logic is unit-testable, per "no process-gating
  *   script without a test of its decision logic." main() is the thin IO wrapper.
- * - The char caps + the over-budget predicate + the grandfather allowlist are the SSoT in
- *   char-budget.mjs — imported, not redefined here, so they can't drift. This module only applies them.
+ * - The char caps + the over-budget predicate are the SSoT in char-budget.mjs — imported, not
+ *   redefined here, so they can't drift. This module only applies them.
  * - The frontmatter schema (id/title/status/summary) is pinned in adr-template.md — keep in sync.
  * - Project-specific guards a project may add (a ROADMAP-strike check vs the package version, or
  *   `ADR NNNN` cites in source) are intentionally omitted: a generic consumer may have neither.
@@ -37,15 +37,14 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, ADR_CHAR_BUDGET, ADR_BUDGET_GRANDFATHER } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 /**
- * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max;
- * `grandfather` is a Set of legacy over-budget ADR ids exempt from the cap (shrink-only — see below).
- * Both default from char-budget.mjs in main(); passed in so the decision logic stays unit-testable.
+ * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max
+ * (defaults from char-budget.mjs in main(); passed in so the decision logic stays unit-testable).
  * Returns { problems: string[] } — empty = corpus OK.
  */
-export function lint({ files, budget = ADR_CHAR_BUDGET, grandfather = ADR_BUDGET_GRANDFATHER }) {
+export function lint({ files, budget = ADR_CHAR_BUDGET }) {
   const problems = [];
   const adrs = [];
 
@@ -98,20 +97,11 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, grandfather = ADR_BUDGET
     if (!hasCriterion && !hasRevisitable)
       problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
 
-    // Char budget (ungameable by long lines, unlike a line cap — see ADR 0008): an ADR violates the
-    // budget when it's over the cap AND not grandfathered. The legacy over-budget ADRs are exempt
-    // while they stay listed (a destructive rewrite of a settled record risks losing nuance).
-    if (overBudget(a.chars, budget) && !grandfather.has(a.id))
+    // Char budget (ungameable by long lines, unlike a line cap — see ADR 0008): an ADR over the cap
+    // is a violation. No exemptions — 0008 chose rewrite-under-budget over a grandfather allowlist.
+    if (overBudget(a.chars, budget))
       problems.push(`${a.name}: ${a.chars} chars > ${budget}-char budget`);
   }
-
-  // Stale grandfather (shrink-only allowlist): a grandfathered id whose ADR is present on disk and
-  // now within budget must be dropped from the allowlist — else trimming a legacy ADR silently
-  // leaves it exempt. Poka-yoke: the guard fails until the id is removed.
-  const charsById = new Map(adrs.map(a => [a.id, a.chars]));
-  for (const id of grandfather)
-    if (charsById.has(id) && !overBudget(charsById.get(id), budget))
-      problems.push(`${id}: grandfathered but now within the ${budget}-char budget — drop it from the allowlist`);
 
   return { problems };
 }
@@ -134,10 +124,8 @@ function main(argv) {
   }
 
   // Poka-yoke: print each ADR's char count (compute the number, never hand-assert it in prose).
-  for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
-    const gf = ADR_BUDGET_GRANDFATHER.has(name.slice(0, 4)) ? " [grandfathered]" : "";
-    console.log(`  ${name}: ${text.length} chars${gf}`);
-  }
+  for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
+    console.log(`  ${name}: ${text.length} chars`);
 
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) share the char-budget.mjs SSoT.
   const { problems } = lint({ files, budget });
