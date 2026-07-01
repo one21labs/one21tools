@@ -27,13 +27,19 @@ breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A cop
 | CLAUDE.md | `CLAUDE.md` | **6,000** (~2 pp) | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | docs | `docs/decisions/NNNN-*.md` (ADR) | **6,000** (~2 pp) norm | ~1,500 | `char-budget.mjs` (`ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/README.md` (ADR guide) | none | — | — |
+| skill | `SKILL.md` body | **6,000** (~2 pp) | ~1,500 | `validate.py` (`BODY_MAX_CHARS`) |
+| skill | `references/*.md` | **12,000** (TOC >6,000) | ~3,000 | `validate.py` (`REFERENCE_MAX_CHARS`) |
+| agent | `pdca-workflow/agents/*.md` | **3,000** | ~750 | `char-budget.mjs` (`AGENT_CHAR_BUDGET`) |
 | source | header block comments | none — see Extending | — | — |
 | code | executables | none | — | — |
 
-Both caps + the over-budget predicate are defined **once** in `char-budget.mjs` (the SSoT — one
-place to look). They're **enforced** by `adr-lint.mjs` (ADRs, no exemptions;
-it also runs `oversizeDocs()` over `CLAUDE.md`) and unit-tested in `adr-lint.test.mjs` +
-`char-budget.test.mjs`. Lower a cap when a doc is leaned; never pad it.
+Caps split across two gates by invocation model (ADR 0009). **Repo-wide JS gate:** `char-budget.mjs`
+is the SSoT for the CLAUDE.md / ADR / agent caps + the over-budget predicate, enforced by
+`adr-lint.mjs` (ADRs, no exemptions; `oversizeDocs()` over `CLAUDE.md`; `oversizeAgents()` over agent
+prompts), unit-tested in `adr-lint.test.mjs` + `char-budget.test.mjs`. **Per-skill-folder gate:**
+`validate.py` owns the SKILL.md-body + reference caps, tested in `validate_test.py`. Each cap's home
+is the `Cap's home` column; doc prose never re-states the integer. Lower a cap when a doc is leaned;
+never pad it.
 
 **A consumer with a designated detail-home doc** (one other docs reference, so a larger cap is the
 correct altitude) adds its own entry to `DOC_BUDGETS` with a bigger number — e.g. a

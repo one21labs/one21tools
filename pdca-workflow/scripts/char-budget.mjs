@@ -1,9 +1,9 @@
 /*
  * char-budget.mjs — SSoT for every doc char budget + the over-budget predicate (see ADR 0008).
  * One place to look, so the caps/predicate can't drift across modules. Consumers import from
- * here: adr-lint.mjs applies ADR_CHAR_BUDGET over the ADR corpus and runs oversizeDocs() over the
- * named docs. This module owns the numbers + the check; domain-specific corpus walks live with
- * their domain.
+ * here: adr-lint.mjs applies ADR_CHAR_BUDGET over the ADR corpus and runs oversizeDocs() +
+ * oversizeAgents() over the named docs + agent prompts. This module owns the numbers + the check;
+ * domain-specific corpus walks live with their domain.
  *
  * DESIGN CONSTRAINTS:
  * - Zero dependencies, plain `.mjs` run via `node` — same constraint as adr-lint.mjs (Node is the
@@ -15,7 +15,7 @@
  * SEE ALSO: ../skills/decide/references/doc-budgets.md (the altitude ladder + token table).
  * TESTING: char-budget.test.mjs (`node --test "scripts/*.test.mjs"`).
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,12 +41,31 @@ export const DOC_BUDGETS = {
 // rewrite-under-budget over a grandfather allowlist for this small corpus).
 export const ADR_CHAR_BUDGET = 6000;
 
+// Agent prompt files (pdca-workflow/agents/*.md) — a lean-prompt guard (ADR 0009); a glob capped by
+// this sibling budget, same shape as the ADR corpus.
+export const AGENT_CHAR_BUDGET = 3000;
+
 // Guard: no budgeted doc exceeds its cap. Returns "path:chars/cap" per violation.
 export function oversizeDocs() {
   const out = [];
   for (const [path, cap] of Object.entries(DOC_BUDGETS)) {
     const n = charLen(path);
     if (overBudget(n, cap)) out.push(`${path}:${n}/${cap}`);
+  }
+  return out;
+}
+
+// Guard: no agent prompt exceeds AGENT_CHAR_BUDGET. Globs pdca-workflow/agents/*.md (an absent dir
+// is not a violation — a consumer may have no agents). Returns "path:chars/cap" per violation.
+export function oversizeAgents() {
+  const dir = "pdca-workflow/agents";
+  const out = [];
+  let files;
+  try { files = readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")); }
+  catch { return out; }
+  for (const f of files) {
+    const n = charLen(`${dir}/${f}`);
+    if (overBudget(n, AGENT_CHAR_BUDGET)) out.push(`${dir}/${f}:${n}/${AGENT_CHAR_BUDGET}`);
   }
   return out;
 }

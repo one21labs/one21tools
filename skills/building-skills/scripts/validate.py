@@ -29,8 +29,10 @@ import re
 
 NAME_MAX = 64
 DESC_MAX = 1024
-BODY_MAX_LINES = 500
-TOC_THRESHOLD = 150
+BODY_MAX_CHARS = 6000           # SKILL.md body char cap (ADR 0009; ungameable by long lines, cf. line caps)
+TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LINES (a sub-cap readability aid)
+REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)
+REFERENCE_TOC_THRESHOLD = 6000  # a reference past this many CHARS must carry a TOC
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 VALID_TRIGGERS = ["invoke when", "use when", "use for", "apply when"]
@@ -162,16 +164,17 @@ def validate_skill(skill_path: Path) -> ValidationResult:
     if re.search(r'\b(I can|I will|you can|you should)\b', description, re.IGNORECASE):
         warnings.append("Description uses first/second person. Use third person.")
     
-    # R4: Body validation
+    # R4: Body validation (ADR 0009 — char cap, not a gameable line cap)
     body = content[match.end():]
-    body_lines = body.strip().split('\n') if body.strip() else []
-    line_count = len(body_lines)
-    
-    # R4.1: max lines
-    if line_count > BODY_MAX_LINES:
-        return ValidationResult(False, f"Body exceeds {BODY_MAX_LINES} lines ({line_count} lines)")
-    
-    # R4.2: ToC if >150
+    body_norm = body.replace('\r\n', '\n').strip()
+    body_chars = len(body_norm)
+    line_count = len(body_norm.split('\n')) if body_norm else 0
+
+    # R4.1: max chars
+    if body_chars > BODY_MAX_CHARS:
+        return ValidationResult(False, f"Body exceeds {BODY_MAX_CHARS} chars ({body_chars} chars)")
+
+    # R4.2: ToC past the readability line threshold (a sub-cap navigation aid)
     if line_count > TOC_THRESHOLD:
         body_lower = body.lower()
         has_toc = any(m in body_lower for m in TOC_MARKERS)
@@ -189,6 +192,18 @@ def validate_skill(skill_path: Path) -> ValidationResult:
                     return ValidationResult(False, f"Script {rel_path} contains emoji characters (emojis are prohibited)")
             except Exception:
                 pass  # Skip files that can't be read
+
+    # R6: references/*.md char cap + TOC past the threshold (ADR 0009; the depth tier gets a larger cap)
+    refs_dir = skill_path / "references"
+    if refs_dir.exists():
+        for ref in sorted(refs_dir.glob("*.md")):
+            ref_text = ref.read_text(encoding="utf-8")
+            ref_chars = len(ref_text.replace('\r\n', '\n'))
+            rel = ref.relative_to(skill_path)
+            if ref_chars > REFERENCE_MAX_CHARS:
+                return ValidationResult(False, f"Reference {rel} exceeds {REFERENCE_MAX_CHARS} chars ({ref_chars} chars)")
+            if ref_chars > REFERENCE_TOC_THRESHOLD and not any(m in ref_text.lower() for m in TOC_MARKERS):
+                return ValidationResult(False, f"Reference {rel} has {ref_chars} chars (>{REFERENCE_TOC_THRESHOLD}). Add '## Table of Contents'")
 
     return ValidationResult(True, "", warnings)
 
@@ -212,8 +227,12 @@ Description (SECOND field):
   - Must START with: 'Invoke when', 'Use when', 'Use for', 'Apply when'
 
 Body:
-  - Max 500 lines
+  - Max 6000 chars
   - If >150 lines, must have '## Table of Contents'
+
+References (references/*.md):
+  - Max 12000 chars
+  - If >6000 chars, must have '## Table of Contents'
 
 NEXT STEP
 =========
