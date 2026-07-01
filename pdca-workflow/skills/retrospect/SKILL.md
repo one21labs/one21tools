@@ -20,13 +20,19 @@ Run this loop:
 2. **Git signal.** Surface the rework/waste signals for the `retrospect` agent: fix-of-a-fix
    commits, reverts, a file touched repeatedly, a Sacred file (named in CLAUDE.md) touched
    without its paired test, ADR/tracker drift. (`git log -p <range>` as needed.)
-3. **Analyze.** Spawn the `retrospect` agent on the range. It owns the git/code analysis and the
-   routing rules — don't restate them.
+3. **Analyze.** Fetch, then spawn the `retrospect` agent on the range derived against `origin/main`
+   (not stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
+   analysis and the routing rules — don't restate them.
 4. **Add session friction.** YOU (in the main conversation, which the isolated agent cannot see)
-   list this session's friction — every user correction, wrong guess, or rework — and hand it to
-   the agent. This is the input the agent structurally cannot gather itself.
-5. **Curate.** Dedupe; keep only systemic improvements (would recur), at least 2,
-   cite-or-silence — never pad to a count. If under two are real, say so.
+   list this session's friction — every DISTINCT user correction, wrong guess, or rework — and hand
+   it to the agent. Enumerate each before deduping (the agent dedupes at step 5); do NOT restate
+   redundant variants. This is the input the agent structurally cannot gather itself, but it is your
+   PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
+   git-visible miss is caught, a non-git-visible one is not.
+5. **Curate.** Dedupe the enumerated list; drop non-systemic items BEFORE counting toward the
+   at-least-2 (the enumerate-all above must not pressure the no-pad rule); keep only systemic
+   improvements (would recur), at least 2, cite-or-silence — never pad to a count. If under two
+   are real, say so.
 6. **Route + act.** Route each improvement to its lowest home per the agent's analysis (it owns the
    routing rules). The agent's findings are advice — independently verify each against the repo and
    muda-assess whether the fix beats its cost before applying (a sub-agent's "apply directly" is a
