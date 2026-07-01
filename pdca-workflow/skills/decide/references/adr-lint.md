@@ -34,16 +34,19 @@ summary: "<one line for the skim catalog>"
    bullet, OR a `- [unverifiable]` paired with a REOPEN-IF (revisitable on a signal). An ADR with
    none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not a prose mention);
    whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic call, not lint's.
-6. **Budget** — no ADR exceeds the line budget (default 70 — the absolute max from `adr-template.md`;
-   configurable). Over budget = bloat or a missed lower home.
+6. **Budget** — no new/edited ADR exceeds the char budget (default 6,000 — the norm from
+   `adr-template.md`; cap + predicate SSoT in `char-budget.mjs`;
+   configurable via `--budget`). A char count can't be gamed by long lines (see ADR 0008). No
+   exemptions — an over-budget ADR is rewritten under the cap, not grandfathered. Over budget = bloat or a missed
+   lower home. `main()` also char-checks the named docs (`CLAUDE.md`) via `oversizeDocs()`.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 
 ## Run / install
 ```
-node scripts/adr-lint.mjs                  # lints ./docs/decisions, budget 70
-node scripts/adr-lint.mjs docs/decisions --budget=50
-node --test "scripts/*.test.mjs"           # the decision-logic test
+node scripts/adr-lint.mjs                  # lints ./docs/decisions, char budget from char-budget.mjs
+node scripts/adr-lint.mjs docs/decisions --budget=8000
+node --test "scripts/*.test.mjs"           # the decision-logic tests (adr-lint + char-budget)
 ```
 
 `/pdca-init` copies `adr-lint.mjs` + `adr-lint.test.mjs` into the consuming repo's `scripts/` and

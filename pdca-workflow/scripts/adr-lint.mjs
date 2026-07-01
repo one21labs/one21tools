@@ -12,13 +12,17 @@
  *   - every ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
  *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
  *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
- *   - no ADR exceeds the line budget (a missed lower home — relocate, keep the crux).
+ *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
+ *     char-budget.mjs; no exemptions — every ADR is held to the cap).
+ *   main() also char-checks CLAUDE.md (oversizeDocs) and prints each ADR's char count (compute, don't assert).
  *
  * DESIGN CONSTRAINTS:
  * - Zero dependencies. Node is the one runtime every consumer provably has (Claude Code runs on
  *   it), so this stays a plain `.mjs` — runs in CI / a git hook / by hand on any stack incl. Windows.
  * - lint() is PURE (no fs/process) so its decision logic is unit-testable, per "no process-gating
  *   script without a test of its decision logic." main() is the thin IO wrapper.
+ * - The char caps + the over-budget predicate are the SSoT in char-budget.mjs — imported, not
+ *   redefined here, so they can't drift. This module only applies them.
  * - The frontmatter schema (id/title/status/summary) is pinned in adr-template.md — keep in sync.
  * - Project-specific guards a project may add (a ROADMAP-strike check vs the package version, or
  *   `ADR NNNN` cites in source) are intentionally omitted: a generic consumer may have neither.
@@ -28,17 +32,19 @@
  *
  * Usage:
  *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N]
- *   decisionsDir default: docs/decisions   ·   --budget default: 70
+ *   decisionsDir default: docs/decisions   ·   --budget default: ADR_CHAR_BUDGET (char-budget.mjs)
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { overBudget, oversizeDocs, ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 /**
- * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the line max.
+ * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max
+ * (defaults from char-budget.mjs in main(); passed in so the decision logic stays unit-testable).
  * Returns { problems: string[] } — empty = corpus OK.
  */
-export function lint({ files, budget }) {
+export function lint({ files, budget = ADR_CHAR_BUDGET }) {
   const problems = [];
   const adrs = [];
 
@@ -54,7 +60,7 @@ export function lint({ files, budget }) {
     else if (props.id !== name.slice(0, 4)) problems.push(`${name}: id ${props.id} != filename`);
     if (!props.title) problems.push(`${name}: missing frontmatter title`);
     if (!props.summary) problems.push(`${name}: missing frontmatter summary`);
-    adrs.push({ name, id: name.slice(0, 4), text, lines: text.split("\n").length });
+    adrs.push({ name, id: name.slice(0, 4), text, chars: text.length });
   }
 
   // Unique ids (parallel branches grabbing the same int).
@@ -91,8 +97,10 @@ export function lint({ files, budget }) {
     if (!hasCriterion && !hasRevisitable)
       problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
 
-    // Line budget.
-    if (a.lines > budget) problems.push(`${a.name}: ${a.lines} lines > ${budget}-line budget`);
+    // Char budget (ungameable by long lines, unlike a line cap — see ADR 0008): an ADR over the cap
+    // is a violation. No exemptions — 0008 chose rewrite-under-budget over a grandfather allowlist.
+    if (overBudget(a.chars, budget))
+      problems.push(`${a.name}: ${a.chars} chars > ${budget}-char budget`);
   }
 
   return { problems };
@@ -102,26 +110,33 @@ function main(argv) {
   const args = argv.slice(2);
   const dir = args.find(a => !a.startsWith("--")) ?? "docs/decisions";
   const budgetArg = args.find(a => a.startsWith("--budget="));
-  const budget = budgetArg ? Number(budgetArg.split("=")[1]) : 70;
+  const budget = budgetArg ? Number(budgetArg.split("=")[1]) : ADR_CHAR_BUDGET;
 
   let files;
   try {
     files = readdirSync(dir)
       .filter(f => /^\d{4}-.*\.md$/.test(f))
-      .map(name => ({ name, text: readFileSync(join(dir, name), "utf8") }));
+      // CRLF-normalize so the char count is checkout-agnostic, matching char-budget.mjs charLen().
+      .map(name => ({ name, text: readFileSync(join(dir, name), "utf8").replace(/\r\n/g, "\n") }));
   } catch (e) {
     console.error(`adr-lint: cannot read ${dir}/ (need NNNN-*.md ADR files): ${e.message}`);
     process.exit(2);
   }
 
+  // Poka-yoke: print each ADR's char count (compute the number, never hand-assert it in prose).
+  for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
+    console.log(`  ${name}: ${text.length} chars`);
+
+  // ADR corpus + the named-doc self-budgets (CLAUDE.md) share the char-budget.mjs SSoT.
   const { problems } = lint({ files, budget });
+  problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
 
   if (problems.length) {
     console.error(`adr-lint: ${problems.length} problem(s) in ${dir}/`);
     for (const p of problems) console.error(`  - ${p}`);
     process.exit(1);
   }
-  console.log(`adr-lint: ${files.length} ADR(s) in ${dir}/ — corpus OK (budget ${budget}).`);
+  console.log(`adr-lint: ${files.length} ADR(s) in ${dir}/ — corpus OK (ADR budget ${budget} chars).`);
 }
 
 // Run main() only when invoked directly, so the test can import lint() cleanly.
