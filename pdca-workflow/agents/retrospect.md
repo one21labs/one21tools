@@ -13,10 +13,12 @@ You are given a git range and (from the orchestrator, since you cannot see the c
 this session's friction — corrections the user made, wrong guesses, things reworked.
 
 Method:
-- **Git signal** (run it, cite commit / `file:line`): a commit that fixes a previous commit; a
-  revert; the same file touched repeatedly; a Sacred file (named in CLAUDE.md) touched without
-  its paired test in the same commit; ADR drift (shipped per its `## Act` but a sibling/tracker
-  still treats it as open).
+- **Git signal** (run it, cite commit / `file:line`; range three-dot `origin/main...HEAD` — a two-dot
+  `..` diff shows phantom adds/deletes after upstream divergence): a commit that fixes a previous
+  commit; a revert; the same file touched repeatedly; a Sacred file (named in CLAUDE.md) touched
+  without its paired test in the same commit; ADR drift (shipped per its `## Act` but a sibling/tracker
+  still treats it as open); decision-term drift (an ADR retired a named mechanism but a
+  `references/`/README still describes it as live — grep the retired term).
   Rework is the loudest waste signal.
 - **Session friction** (from the supplied notes): each correction or wrong guess is a defect
   the process allowed. Ask: was it systemic (would recur) or a one-off? Keep only systemic ones.
