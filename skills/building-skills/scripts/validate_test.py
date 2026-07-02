@@ -47,6 +47,19 @@ class SkillBodyCharCap(unittest.TestCase):
             self.assertFalse(r.valid)
             self.assertIn("chars", r.error)
 
+    def test_extra_frontmatter_counts_toward_body_cap(self):
+        # A `details: |` block scalar can't smuggle prose past the body cap (red-team #1).
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "fm-evasion"
+            d.mkdir()
+            block = "\n".join("  filler " + "x" * 60 for _ in range(120))  # ~8k of indented block scalar
+            (d / "SKILL.md").write_text(
+                f"---\nname: fm-evasion\ndescription: Use when testing the gate; a trigger phrase.\ndetails: |\n{block}\n---\n\nbody",
+                encoding="utf-8")
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("chars", r.error)
+
 
 class ReferenceCaps(unittest.TestCase):
     def test_small_reference_needs_no_toc(self):
@@ -74,6 +87,14 @@ class ReferenceCaps(unittest.TestCase):
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("exceeds", r.error)
+
+    def test_reference_with_emoji_fails(self):
+        # References are skill content — emoji forbidden (red-team #2).
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "ref-emoji", refs={"r.md": "a checkmark " + chr(0x2713) + " here"})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("emoji", r.error)
 
 
 if __name__ == "__main__":
