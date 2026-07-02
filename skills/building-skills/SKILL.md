@@ -157,7 +157,7 @@ python skills/building-skills/scripts/package.py <skill-folder> [output-director
 - [ ] `name:` FIRST, `description:` SECOND in frontmatter
 - [ ] Name: matches folder, kebab-case, <=64 chars, no reserved words
 - [ ] Description: STARTS with trigger, <=1024 chars, no XML chars
-- [ ] Body: max 6,000 chars, ToC if >150 lines
+- [ ] Body: within the char cap (validate.py owns the number), ToC if >150 lines
 - [ ] No emojis in SKILL.md or scripts (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
 
 ### Process

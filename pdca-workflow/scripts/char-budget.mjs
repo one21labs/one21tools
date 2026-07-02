@@ -9,8 +9,10 @@
  * - Zero dependencies, plain `.mjs` run via `node` — same constraint as adr-lint.mjs (Node is the
  *   one runtime every consumer provably has). Runs in CI / a git hook / by hand on any stack.
  * - The predicate (overBudget) is pure so its decision logic is unit-testable, per "no
- *   process-gating script without a test of its decision logic." charLen / oversizeDocs are the IO.
- * - A literal cap number lives ONCE here; doc prose references this file, never re-states the int.
+ *   process-gating script without a test of its decision logic." charLen + the corpus walks
+ *   (oversizeDocs, oversizeAgents) are the IO; the walks are exercised on a fixture in the test.
+ * - A cap's authoritative value lives ONCE here; doc-budgets.md's table may index the numbers for
+ *   navigation, never as a second source, and prose elsewhere references this file.
  *
  * SEE ALSO: ../skills/decide/references/doc-budgets.md (the altitude ladder + token table).
  * TESTING: char-budget.test.mjs (`node --test "scripts/*.test.mjs"`).
@@ -45,27 +47,29 @@ export const ADR_CHAR_BUDGET = 6000;
 // this sibling budget, same shape as the ADR corpus.
 export const AGENT_CHAR_BUDGET = 3000;
 
+// Shared per-file check — one loop body, so the "path:chars/cap" report format cannot diverge
+// between the doc and agent walks.
+const pushIfOver = (relPath, cap, out) => {
+  const n = charLen(relPath);
+  if (overBudget(n, cap)) out.push(`${relPath}:${n}/${cap}`);
+};
+
 // Guard: no budgeted doc exceeds its cap. Returns "path:chars/cap" per violation.
 export function oversizeDocs() {
   const out = [];
-  for (const [path, cap] of Object.entries(DOC_BUDGETS)) {
-    const n = charLen(path);
-    if (overBudget(n, cap)) out.push(`${path}:${n}/${cap}`);
-  }
+  for (const [path, cap] of Object.entries(DOC_BUDGETS)) pushIfOver(path, cap, out);
   return out;
 }
 
-// Guard: no agent prompt exceeds AGENT_CHAR_BUDGET. Globs pdca-workflow/agents/*.md (an absent dir
-// is not a violation — a consumer may have no agents). Returns "path:chars/cap" per violation.
-export function oversizeAgents() {
-  const dir = "pdca-workflow/agents";
+// Guard: no agent prompt in `dir` (ROOT-relative) exceeds AGENT_CHAR_BUDGET. An ABSENT dir is
+// tolerated — a consumer may have no agents — but ONLY ENOENT: any other readdir failure throws,
+// so the gate cannot go silently vacuous. `dir` is injectable so the test can prove positive
+// detection on a fixture. Returns "path:chars/cap" per violation.
+export function oversizeAgents(dir = "pdca-workflow/agents") {
   const out = [];
-  let files;
-  try { files = readdirSync(join(ROOT, dir)).filter((f) => f.endsWith(".md")); }
-  catch { return out; }
-  for (const f of files) {
-    const n = charLen(`${dir}/${f}`);
-    if (overBudget(n, AGENT_CHAR_BUDGET)) out.push(`${dir}/${f}:${n}/${AGENT_CHAR_BUDGET}`);
-  }
+  let names;
+  try { names = readdirSync(join(ROOT, dir)); }
+  catch (e) { if (e.code === "ENOENT") return out; throw e; }
+  for (const f of names.filter((f) => f.endsWith(".md"))) pushIfOver(`${dir}/${f}`, AGENT_CHAR_BUDGET, out);
   return out;
 }

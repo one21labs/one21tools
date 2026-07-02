@@ -18,15 +18,18 @@ from validate import (
     REFERENCE_TOC_THRESHOLD,
 )
 
-# A minimal valid frontmatter (name FIRST, description SECOND starting with a trigger phrase).
-FM = "---\nname: {name}\ndescription: Use when testing the char gate; a third-person trigger phrase.\n---\n\n"
+# A minimal valid frontmatter opening (name FIRST, description SECOND starting with a trigger
+# phrase); make_skill closes it with ---, injecting any extra frontmatter lines before the fence.
+FM_OPEN = "---\nname: {name}\ndescription: Use when testing the char gate; a third-person trigger phrase.\n"
 
 
-def make_skill(root, name, body="body", refs=None):
-    """Write <root>/<name>/SKILL.md (frontmatter + body) plus optional references/*.md; return the dir."""
+def make_skill(root, name, body="body", refs=None, extra_fm=""):
+    """Write <root>/<name>/SKILL.md (frontmatter [+ extra_fm lines] + body) plus optional
+    references/*.md; return the dir. extra_fm, when given, must end with a newline."""
     d = root / name
     d.mkdir()
-    (d / "SKILL.md").write_text(FM.format(name=name) + body, encoding="utf-8")
+    (d / "SKILL.md").write_text(FM_OPEN.format(name=name) + extra_fm + "---\n\n" + body,
+                                encoding="utf-8")
     if refs:
         (d / "references").mkdir()
         for fname, text in refs.items():
@@ -48,14 +51,20 @@ class SkillBodyCharCap(unittest.TestCase):
             self.assertIn("chars", r.error)
 
     def test_extra_frontmatter_counts_toward_body_cap(self):
-        # A `details: |` block scalar can't smuggle prose past the body cap (red-team #1).
+        # A `details: |` block scalar can't smuggle prose past the body cap.
         with tempfile.TemporaryDirectory() as t:
-            d = Path(t) / "fm-evasion"
-            d.mkdir()
             block = "\n".join("  filler " + "x" * 60 for _ in range(120))  # ~8k of indented block scalar
-            (d / "SKILL.md").write_text(
-                f"---\nname: fm-evasion\ndescription: Use when testing the gate; a trigger phrase.\ndetails: |\n{block}\n---\n\nbody",
-                encoding="utf-8")
+            d = make_skill(Path(t), "fm-evasion", extra_fm=f"details: |\n{block}\n")
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("chars", r.error)
+
+    def test_duplicate_description_key_counts_toward_body_cap(self):
+        # Nor can a DUPLICATED name:/description: key — only the first two frontmatter lines
+        # (which carry their own caps) are exempt from the body budget.
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "dup-key",
+                           extra_fm="description: " + "y" * (BODY_MAX_CHARS + 1) + "\n")
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("chars", r.error)
@@ -80,6 +89,16 @@ class ReferenceCaps(unittest.TestCase):
             d = make_skill(Path(t), "ref-with-toc", refs={"r.md": text})
             self.assertTrue(validate_skill(d).valid)
 
+    def test_quoted_toc_marker_does_not_satisfy_the_gate(self):
+        # The TOC check demands a real heading at line start — prose merely quoting the marker
+        # string ("## Table of Contents") must not pass.
+        with tempfile.TemporaryDirectory() as t:
+            text = "must have '## Table of Contents' somewhere " + "x" * (REFERENCE_TOC_THRESHOLD + 1)
+            d = make_skill(Path(t), "ref-quoted-toc", refs={"r.md": text})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("Table of Contents", r.error)
+
     def test_reference_over_max_fails_even_with_toc(self):
         with tempfile.TemporaryDirectory() as t:
             text = "## Table of Contents\n\n" + "x" * (REFERENCE_MAX_CHARS + 1)
@@ -89,7 +108,7 @@ class ReferenceCaps(unittest.TestCase):
             self.assertIn("exceeds", r.error)
 
     def test_reference_with_emoji_fails(self):
-        # References are skill content — emoji forbidden (red-team #2).
+        # References are skill content — emoji forbidden.
         with tempfile.TemporaryDirectory() as t:
             d = make_skill(Path(t), "ref-emoji", refs={"r.md": "a checkmark " + chr(0x2713) + " here"})
             r = validate_skill(d)

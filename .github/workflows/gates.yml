@@ -1,0 +1,38 @@
+# gates.yml — the REQUIRED check (ADR 0012): every char-budget/structure gate script, run on every
+# PR and push to main. This is the enforcement layer ADR 0008/0009 record — the scripts exit
+# nonzero on a violation, so any over-budget SKILL.md/reference/agent/ADR/CLAUDE.md fails the
+# check. Mark `gates` required in Settings -> Branches (claude-review.yml stays advisory).
+# Zero setup: the gate scripts are zero-dependency by design and run on the runner's
+# preinstalled python3 + node.
+name: gates
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Skill gate — validate.py over every skill (frontmatter, body/reference caps, emoji)
+        run: |
+          for d in skills/*/ pdca-workflow/skills/*/; do
+            echo "== $d"
+            python3 skills/building-skills/scripts/validate.py "$d"
+          done
+
+      - name: validate.py decision-logic tests
+        run: cd skills/building-skills/scripts && python3 validate_test.py
+
+      - name: JS gate tests (char budgets + adr-lint decision logic)
+        # unquoted so the shell expands the glob — works on every node version
+        run: node --test pdca-workflow/scripts/*.test.mjs
+
+      - name: adr-lint — ADR structure + ADR/CLAUDE.md/agent char budgets
+        run: node pdca-workflow/scripts/adr-lint.mjs docs/decisions

@@ -14,10 +14,11 @@ friction: user corrections, wrong guesses, reworks.
 
 Method:
 - **Git signal** (run it, cite commit / `file:line`; range three-dot `origin/main...HEAD`, not
-  two-dot): a commit that fixes a previous commit; a revert; a file touched repeatedly; a Sacred
-  file (named in CLAUDE.md) touched without its paired test; ADR drift (shipped per its `## Act` but
-  a sibling still treats it as open); decision-term drift (an ADR retired a named mechanism a
-  `references/`/README still calls live — grep the term). Rework is the loudest waste signal.
+  two-dot): a commit that fixes a previous commit; a revert; a force-push; a file touched
+  repeatedly; a Sacred file (named in CLAUDE.md) touched without its paired test in the same
+  commit; ADR drift (shipped per its `## Act` but a sibling still treats it as open); decision-term
+  drift (an ADR retired a named mechanism a `references/`/README still calls live — grep the term).
+  Rework is the loudest waste signal.
 - **Session friction:** each supplied correction or wrong guess is a defect the process allowed —
   ask if it was systemic (would recur) or a one-off; keep only systemic ones.
 - **Friction cross-check (independent witness):** the supplied list is the orchestrator's
