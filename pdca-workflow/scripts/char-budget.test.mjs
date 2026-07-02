@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { overBudget, oversizeDocs, DOC_BUDGETS } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, DOC_BUDGETS, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
 
 test("overBudget: over the cap fails, at/under passes (decision logic)", () => {
   assert.equal(overBudget(6001, 6000), true);  // over -> violation
@@ -21,4 +21,12 @@ test("budgets CLAUDE.md (enforcement isn't silently gutted)", () => {
 
 test("no budgeted doc exceeds its char cap", () => {
   assert.deepEqual(oversizeDocs(), []);
+});
+
+test("AGENT_CHAR_BUDGET is the agent-prompt cap (enforcement isn't silently gutted)", () => {
+  assert.equal(AGENT_CHAR_BUDGET, 3000);
+});
+
+test("no agent prompt exceeds its char cap", () => {
+  assert.deepEqual(oversizeAgents(), []);
 });

@@ -1,6 +1,10 @@
 # Engineering Principles
 
-Manufacturing engineering principles applied to all work - software, documentation, processes, and physical workspaces. These principles synthesize Lean and Agile foundations and adapt them for modern software development and engineering workflows.
+## Table of Contents
+
+[Foundations](#foundations) | [Key Quotes](#key-quotes) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [5 Whys](#root-cause-analysis-5-whys) | [Design First](#design-first-implementation-second) | [Process](#process-principles) | [Pareto](#pareto-application-guide) | [5S](#5s-applied-to-software) | [Docs for AI](#documentation-for-ai-consumption) | [Application Hierarchy](#application-hierarchy) | [References](#references)
+
+Manufacturing engineering principles for all work - software, documentation, processes, and physical workspaces. They synthesize Lean and Agile foundations for modern software development and engineering workflows.
 
 ## Foundations
 
@@ -74,16 +78,12 @@ Foundational workflow: get design right before implementing. Rework is waste.
 
 **Why design first:**
 - Fixing design is cheap; fixing implementation is expensive
-- Implementation follows from design (parent-child relationship)
-- Prevents rework (Lean waste elimination)
+- Implementation follows from design (parent-child); prevents rework
 - "Plan" in PDSA means design, not jump to "Do"
 
-**In documentation:**
-- Docs show design intent (pseudocode, diagrams)
-- Code shows implementation (follows from design)
-- Code is SSoT for "how"; design docs are SSoT for "what/why"
+**In documentation:** docs show design intent (pseudocode, diagrams); code shows implementation. Code is SSoT for "how"; design docs are SSoT for "what/why".
 
-**Anti-pattern:** Implement first, fix later. This causes rework, wasted effort, and in AI contexts, token waste.
+**Anti-pattern:** Implement first, fix later - causes rework, wasted effort, and in AI contexts, token waste.
 
 ## Process Principles
 
@@ -120,7 +120,7 @@ Foundational workflow: get design right before implementing. Rework is waste.
 
 ## Documentation for AI Consumption
 
-LLM context windows impose physical constraints analogous to A3's one-page limit. Context engineering applies TPS principles to AI-consumed documentation.
+LLM context windows impose constraints analogous to A3's one-page limit. Context engineering applies TPS principles to AI-consumed documentation.
 
 ### Context Windows as Physical Constraints
 
@@ -157,21 +157,18 @@ LLM context windows impose physical constraints analogous to A3's one-page limit
 
 ### CLAUDE.md Files: AI-First, Human-Maintainable
 
-CLAUDE.md loads into Claude Code's system prompt. Primary consumer: AI. Secondary: humans maintaining the file.
+CLAUDE.md loads into the system prompt. Primary consumer: AI; secondary: humans maintaining it.
 
 **For AI (optimize first):**
 - Frontload critical facts (constraints, principles, conventions)
 - Explicit rules ("Do X" not "Consider X")
 - SSoT - reference canonical sources, no contradictions
 - Token efficient - tables for dense info, no redundancy
-- Structured sections, clear boundaries
-- Examples demonstrating desired behavior
+- Structured sections; examples demonstrating desired behavior
 
 **For humans (maintainability):**
-- Clear headers (findable)
-- Predictable structure (know where to add info)
-- Version control friendly (meaningful diffs)
-- Understandable for validation
+- Clear headers, predictable structure (know where to add info)
+- Version control friendly (meaningful diffs), understandable for validation
 
 **Exclude:** Narrative about why CLAUDE.md exists, tutorials, marketing language.
 
@@ -187,14 +184,14 @@ CLAUDE.md loads into Claude Code's system prompt. Primary consumer: AI. Secondar
 
 ### Actionable Guidance
 
-1. **Structure first**: Design clear hierarchy before writing content
+1. **Structure first**: Design hierarchy before writing content
 2. **Frontload**: Critical facts in first 50 lines (high-value real estate)
 3. **Reference > Duplicate**: Link to canonical sources (e.g., ENGINEERING_PRINCIPLES.md)
 4. **Be explicit**: "Do X" not "Consider doing X" (unless truly optional)
 5. **Examples over description**: Show desired output format
 6. **Tables for density**: Lower token cost than prose for structured info
 7. **Version control**: Context files are code - review with same rigor
-8. **Measure context usage**: Track token consumption, optimize high-cost sections
+8. **Measure usage**: Track token consumption, optimize high-cost sections
 
 ## Application Hierarchy
 

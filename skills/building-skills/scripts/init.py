@@ -54,7 +54,7 @@ description: Invoke when [TODO: conditions]. Use for [TODO: tasks]. [TODO: immed
 
 - Use imperative form ("Extract text", not "This extracts text")
 - Reference files with "when to read" guidance
-- Keep under 500 lines (move details to references/)
+- Keep under 6,000 chars (move details to references/)
 """
 
 

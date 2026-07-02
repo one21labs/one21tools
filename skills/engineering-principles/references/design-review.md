@@ -1,5 +1,16 @@
 # Design Review
 
+## Table of Contents
+
+- [Core Principle](#core-principle)
+- [When to Use](#when-to-use)
+- [Software Design Checklist](#software-design-checklist)
+- [Documentation Design Checklist](#documentation-design-checklist)
+- [Process Design Checklist](#process-design-checklist)
+- [Feature/Product Design Checklist](#featureproduct-design-checklist)
+- [Review Process](#review-process)
+- [Anti-Patterns](#anti-patterns)
+
 Checklists to verify design completeness before implementation. Fixing design is cheap; fixing implementation is expensive.
 
 ## Core Principle

@@ -1,5 +1,13 @@
 # Waste Identification
 
+## Table of Contents
+
+- [Core Principle](#core-principle)
+- [Seven Wastes by Domain](#seven-wastes-by-domain)
+- [Audit Process](#audit-process)
+- [Common Patterns](#common-patterns)
+- [Ohno's Insight](#ohnos-insight)
+
 Framework for identifying and eliminating non-value-adding activities.
 
 ## Core Principle
