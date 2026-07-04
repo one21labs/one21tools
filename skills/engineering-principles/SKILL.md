@@ -72,7 +72,7 @@ TPS principles apply differently depending on whether work is repetitive or expl
 | Traditional software | Partial | Selective | Discovery work; cycle time targets don't translate |
 | AI-assisted workflows | Essential | Direct | Stochastic outputs require variation reduction |
 
-**Traditional software caveat**: Software development is primarily discovery work (Poppendieck, Fowler). The goal is not to reduce cycle time variation — it is to solve novel problems. Kanban, pull systems, waste identification, and SSoT translate well. Standardized production rates and defect-per-unit targets borrowed from manufacturing miss the point. DORA (2024) reflects this: it moved away from performance tiers toward team archetypes that combine delivery metrics with human factors (burnout, friction, perceived value).
+**Traditional software caveat**: Software development is primarily discovery work (Poppendieck, Fowler). The goal is not to reduce cycle time variation — it is to solve novel problems. Kanban, pull systems, waste identification, and SSoT translate well. Standardized production rates and defect-per-unit targets borrowed from manufacturing miss the point. DORA (2025) reflects this: its seven team archetypes combine delivery metrics with human factors (burnout, friction, perceived value).
 
 **AI workflow exception — TPS applies more directly than to software**: LLM outputs are stochastic; the same prompt can produce different outputs on each run. Variation reduction becomes essential infrastructure:
 
@@ -80,7 +80,7 @@ TPS principles apply differently depending on whether work is repetitive or expl
 - **Standardized work** → Skills and CLAUDE.md are standardized work instructions; they reduce behavioral variation across agent runs
 - **Jidoka** → Trust scoring and automated evals flag out-of-spec outputs for human review in real time; first two Jidoka steps (detect, alert) automate; fix + root cause require human judgment
 - **SPC** → Temperature and seed pinning statistically control output variance (as of June 2026, no major hosted LLM guarantees bitwise determinism — best-effort only)
-- **Yield engineering** → Multi-step agent reliability compounds: 95% per-step accuracy = 59% success over 10 steps; 0.6% over 100 steps. Semiconductor fab yield engineering (Jiao, 2025) applies directly
+- **Yield engineering** → Multi-step agent reliability compounds: 95% per-step accuracy = 59% success over 10 steps; 0.6% over 100 steps — the same yield arithmetic semiconductor fabs engineer against
 
 Context engineering — curating what reaches the LLM at inference time — IS variation reduction. This is not a metaphor: it is the primary mechanism by which skills, CLAUDE.md, and structured prompts produce reliable behavior.
 
