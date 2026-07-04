@@ -13,7 +13,7 @@ description: Invoke when writing, reviewing, or auditing code for quality, style
 | **SRP** | Functions do one thing. Modules have one reason to change. |
 | **Quality built in** | Validate at boundaries. Catch errors at source, not downstream. |
 | **SSoT** | Each fact exists in exactly one place. No duplicated logic or constants. |
-| **Lean** | Add only what is needed. Every line earns its place. Remove dead code immediately. |
+| **Lean** | Add only what is needed. Every char earns its place. Remove dead code immediately. |
 | **Design first** | Understand the problem, and what a function owns, before writing it. |
 | **Poka-yoke** | Error-proof at boundaries. Validate external inputs at entry points, not deep in call chains. |
 
