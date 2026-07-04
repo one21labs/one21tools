@@ -110,9 +110,9 @@ Test with all target models. What works for Opus may need more detail for Haiku.
 
 ## Creation Framework
 
-### 1. Build Evaluations First
+### 1. Draft Evaluations First
 
-Create 3+ test cases BEFORE writing documentation. Establish baseline without the skill. See [evaluation-patterns.md](references/evaluation-patterns.md) for test structure.
+Draft 3+ test cases before writing documentation — a manual authoring discipline, not a tooled gate. Empirical execution (baselines, grading, benchmarks) is delegated; see [evaluation-patterns.md](references/evaluation-patterns.md) for test structure and the delegation pointer.
 
 ### 2. Develop Iteratively
 
@@ -162,7 +162,7 @@ python skills/building-skills/scripts/package.py <skill-folder> [output-director
 
 ### Process
 
-- [ ] 3+ evaluations before documentation
+- [ ] 3+ test cases drafted before documentation (manual; empirical eval delegated)
 - [ ] Tested with target models
 - [ ] Core principles applied (conciseness, description-as-instruction)
 - [ ] References inline at point of need, one level deep
