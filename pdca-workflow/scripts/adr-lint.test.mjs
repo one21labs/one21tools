@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint } from "./adr-lint.mjs";
+import { lint, manifestDrift } from "./adr-lint.mjs";
 import { ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
@@ -170,4 +170,20 @@ test("accumulates independent problems rather than stopping at the first", () =>
   const { problems } = lint({ files });
   // id!=filename + version + dangling cite = 3
   assert.equal(problems.length, 3);
+});
+
+// Marketplace<->plugin.json mirror (ADR 0011): a field stated in both homes must be identical.
+test("manifestDrift: identical shared fields report no problems", () => {
+  const pairs = [{ name: "p", entry: { description: "d" }, plugin: { description: "d", version: "1" } }];
+  assert.deepEqual(manifestDrift(pairs), []);
+});
+
+test("manifestDrift: a drifted description fires", () => {
+  const pairs = [{ name: "p", entry: { description: "a" }, plugin: { description: "b" } }];
+  assert.match(manifestDrift(pairs)[0], /marketplace description drifts/);
+});
+
+test("manifestDrift: a field omitted from the marketplace entry is not drift (derive, don't mirror)", () => {
+  const pairs = [{ name: "p", entry: {}, plugin: { description: "d", version: "1" } }];
+  assert.deepEqual(manifestDrift(pairs), []);
 });
