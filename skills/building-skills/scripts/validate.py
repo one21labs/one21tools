@@ -58,6 +58,42 @@ def contains_emoji(text: str) -> bool:
     return bool(EMOJI_PATTERN.search(text))
 
 
+def validate_name(name: str) -> tuple[bool, str]:
+    """R2.2-R2.8: the name rules, shared with init.py (ADR 0010). Excludes the folder-match
+    check (R2.9), which needs an existing folder and stays in validate_skill."""
+    # R2.2: non-empty name
+    if not name:
+        return False, "Name is empty"
+
+    # R2.8: no XML chars (check before kebab-case for clearer error)
+    if '<' in name or '>' in name:
+        return False, "Name cannot contain XML characters (< or >)"
+
+    # R2.3: max length
+    if len(name) > NAME_MAX:
+        return False, f"Name exceeds {NAME_MAX} chars ({len(name)} chars)"
+
+    # R2.4: kebab-case
+    if not NAME_PATTERN.match(name):
+        return False, f"Name must be lowercase kebab-case (a-z, 0-9, hyphens). Got: '{name}'"
+
+    # R2.5: no edge hyphens
+    if name.startswith('-'):
+        return False, "Name cannot start with hyphen"
+    if name.endswith('-'):
+        return False, "Name cannot end with hyphen"
+
+    # R2.6: no consecutive hyphens
+    if '--' in name:
+        return False, "Name cannot have consecutive hyphens (--)"
+
+    # R2.7: no reserved words
+    if name in RESERVED_WORDS:
+        return False, f"'{name}' is a reserved word"
+
+    return True, ""
+
+
 @dataclass
 class ValidationResult:
     valid: bool
@@ -102,36 +138,11 @@ def validate_skill(skill_path: Path) -> ValidationResult:
     name = lines[0].split(':', 1)[1].strip() if ':' in lines[0] else ''
     description = lines[1].split(':', 1)[1].strip() if ':' in lines[1] else ''
     
-    # R2.2: non-empty name
-    if not name:
-        return ValidationResult(False, "Name is empty")
-    
-    # R2.8: no XML chars (check before kebab-case for clearer error)
-    if '<' in name or '>' in name:
-        return ValidationResult(False, "Name cannot contain XML characters (< or >)")
-    
-    # R2.3: max length
-    if len(name) > NAME_MAX:
-        return ValidationResult(False, f"Name exceeds {NAME_MAX} chars ({len(name)} chars)")
-    
-    # R2.4: kebab-case
-    if not NAME_PATTERN.match(name):
-        return ValidationResult(False, f"Name must be lowercase kebab-case (a-z, 0-9, hyphens). Got: '{name}'")
-    
-    # R2.5: no edge hyphens
-    if name.startswith('-'):
-        return ValidationResult(False, "Name cannot start with hyphen")
-    if name.endswith('-'):
-        return ValidationResult(False, "Name cannot end with hyphen")
-    
-    # R2.6: no consecutive hyphens
-    if '--' in name:
-        return ValidationResult(False, "Name cannot have consecutive hyphens (--)")
-    
-    # R2.7: no reserved words
-    if name in RESERVED_WORDS:
-        return ValidationResult(False, f"'{name}' is a reserved word")
-    
+    # R2.2-R2.8: the shared name rules (validate_name above; init.py imports it too, ADR 0010)
+    ok, err = validate_name(name)
+    if not ok:
+        return ValidationResult(False, err)
+
     # R2.9: match folder
     if name != folder_name:
         return ValidationResult(False, f"Name '{name}' must match folder name '{folder_name}'")
