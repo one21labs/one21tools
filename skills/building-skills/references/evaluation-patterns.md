@@ -8,10 +8,15 @@ Read this when designing tests for your skill.
 2. [Test Matrix](#test-matrix)
 3. [Triggering Tests](#triggering-tests)
 4. [Functional Tests](#functional-tests)
+5. [Baseline Comparison](#baseline-comparison)
+6. [Empirical Evaluation (Delegated)](#empirical-evaluation-delegated)
 
 ---
 
 ## Evaluation Structure
+
+Illustrative shape for hand-authored test cases — NOT skill-creator's `evals.json` wire format,
+which differs on every key (see [Empirical Evaluation](#empirical-evaluation-delegated)):
 
 ```json
 {
@@ -25,6 +30,10 @@ Read this when designing tests for your skill.
   ]
 }
 ```
+
+Authorship discipline — a delta on the Claude A/B split ([creation-process.md](creation-process.md)):
+have fresh Claude B write the `expected_behavior` assertions, not the skill's author. An author
+grades their own intent; a fresh instance grades the artifact.
 
 ---
 
@@ -86,3 +95,22 @@ Test similar but distinct requests:
    - Error recovery
 
 Skill is effective only if it measurably improves baseline.
+
+---
+
+## Empirical Evaluation (Delegated)
+
+This skill owns authoring-time checks and the deterministic gate (validate.py). It does not own
+quality measurement. If Anthropic's skill-creator skill is installed (anthropic agent-skills
+marketplace — NOT bundled with Claude Code, NOT shipped by this marketplace), run its empirical
+harness for with/without-skill baselines, graded assertions, and benchmark deltas; otherwise the
+manual steps above suffice. Method writeup:
+https://agentskills.io/skill-creation/evaluating-skills
+
+Caveats when crossing over:
+- skill-creator's `evals.json` schema differs from the illustrative shape above — author harness
+  eval files against its `references/schemas.md`, not this page.
+- validate.py stays authoritative for skills in this repo: its description-trigger rule is
+  stricter than skill-creator's own conventions (skill-creator's own description would fail it).
+- On the harness path, grade with a fresh, ideally different, model — the bundled grader
+  otherwise inherits the session model.
