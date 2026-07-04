@@ -16,7 +16,7 @@ summary: "Wire the existing gates — validate.py over every skill folder, valid
 ## Decision
 One `gates` workflow (`.github/workflows/gates.yml`) on `pull_request` + `push` to main:
 validate.py over each `skills/*/` and `pdca-workflow/skills/*/`; `validate_test.py`;
-`node --test pdca-workflow/scripts` (char-budget + adr-lint decision logic); adr-lint over
+`node --test pdca-workflow/scripts/*.test.mjs` (char-budget + adr-lint decision logic); adr-lint over
 `docs/decisions`. Zero new dependencies — runner-preinstalled python3 + node, matching the gate
 scripts' own zero-dep constraint. `gates` becomes the required check in branch protection;
 claude-review stays advisory (its own header demands exactly this split).
