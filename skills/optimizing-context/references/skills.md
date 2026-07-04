@@ -1,6 +1,6 @@
 # Skills: When and Why
 
-Skills are modular packages that extend Claude's capabilities with procedural knowledge, workflows, and bundled resources. This reference covers **when to use skills** and **what makes them effective**. For **how to build skills**, see the `skill-creator` skill.
+Skills are modular packages that extend Claude's capabilities with procedural knowledge, workflows, and bundled resources. This reference covers **when to use skills** and **what makes them effective**. For **how to build skills**, see the `building-skills` skill.
 
 ## When Skill vs Other Mechanisms
 
@@ -66,4 +66,4 @@ Don't create a skill when:
 
 ## Implementation
 
-For how to actually build skills—structure, scripts, patterns, validation, packaging—see the `skill-builder` skill.
+For how to actually build skills—structure, scripts, patterns, validation, packaging—see the `building-skills` skill.
