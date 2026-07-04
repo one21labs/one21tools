@@ -137,6 +137,9 @@ This skill is for PDFs. Use when needed. # Trigger not at start
 | References: max 12,000 chars each | Error | Char budget (progressive-disclosure tier) |
 | References: ToC required if >6,000 chars | Error | Best practice |
 
+Draft to a margin (~5,000 body / ~10,000 reference) and measure once before finalizing — a file
+at the cap edge taxes every future one-line fix. (Same convention as the ADR template's margin.)
+
 ### Table of Contents Formats
 
 Any of these headers are recognized:

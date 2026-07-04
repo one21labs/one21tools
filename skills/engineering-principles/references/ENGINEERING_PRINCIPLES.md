@@ -186,8 +186,8 @@ CLAUDE.md loads into the system prompt. Primary consumer: AI; secondary: humans 
 
 1. **Structure first**: Design hierarchy before writing content
 2. **Frontload**: Critical facts in first 50 lines (high-value real estate)
-3. **Reference > Duplicate**: Link to canonical sources (e.g., ENGINEERING_PRINCIPLES.md)
-4. **Be explicit**: "Do X" not "Consider doing X" (unless truly optional)
+3. **Reference > Duplicate**: Link to canonical sources
+4. **Be explicit**: "Do X" not "Consider doing X"
 5. **Examples over description**: Show desired output format
 6. **Tables for density**: Lower token cost than prose for structured info
 7. **Version control**: Context files are code - review with same rigor
@@ -211,3 +211,4 @@ CLAUDE.md loads into the system prompt. Primary consumer: AI; secondary: humans 
 - Blank, S. & Dorf, B. (2012). *The Startup Owner's Manual*
 - Osterwalder, A. et al. (2014). *Value Proposition Design*
 - Ries, E. (2011). *The Lean Startup*
+- DORA (2025). *State of AI-assisted Software Development* — dora.dev

@@ -61,7 +61,8 @@ context isolation is automatic — pass each only the files it needs.
    For genuinely two-sided calls, run opposing counsel (each steelmans one side). Require effort x
    risk x value grounded in current code/output, returned terse.
 5. **Decide (PM).** Invoke `pm`. It weighs them and writes an ADR per call (justification + tagged
-   assumptions + rejected alternatives + revisit triggers) per `references/adr-template.md`.
+   assumptions + rejected alternatives + revisit triggers) per `references/adr-template.md`
+   (char caps: `references/doc-budgets.md`).
 6. **Verify + red-team + tech-lead.** Invoke `verifier` (reproduces load-bearing claims, CHECKS
    every `[checkable]` assumption). If any ADR folds a safety caveat in as a BLOCKER, `red-team`
    AND `tech-lead` are required. All fresh, uncontaminated by the PM's intent. A verified
@@ -80,5 +81,5 @@ context isolation is automatic — pass each only the files it needs.
 If behavior/code changed, run the project's test + build (per CLAUDE.md) and bump the version per
 CLAUDE.md's Shipping rule (exempts meta/tooling) before committing.
 
-A panel returning unanimous consensus either way (all-accept or all-reject) is a mis-scope signal
-— re-confirm the ask with the user before acting.
+A panel returning unanimous consensus either way is a mis-scope signal — re-confirm the ask with
+the user before acting.

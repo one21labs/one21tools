@@ -13,7 +13,9 @@
  *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
  *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
  *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
- *     char-budget.mjs; no exemptions — every ADR is held to the cap).
+ *     char-budget.mjs; no exemptions — every ADR is held to the cap);
+ *   - a marketplace plugin entry's metadata matches its plugin's own plugin.json where both state
+ *     a field (manifestDrift — the marketplace copy may not silently diverge from the lower home).
  *   main() also char-checks CLAUDE.md (oversizeDocs) + agent prompts (oversizeAgents) and prints each ADR's char count (compute, don't assert).
  *
  * DESIGN CONSTRAINTS:
@@ -38,6 +40,9 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { overBudget, oversizeDocs, oversizeAgents, ADR_CHAR_BUDGET } from "./char-budget.mjs";
+
+// Repo root (this file lives at <root>/pdca-workflow/scripts/), matching char-budget.mjs.
+const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
  * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max
@@ -106,6 +111,36 @@ export function lint({ files, budget = ADR_CHAR_BUDGET }) {
   return { problems };
 }
 
+/**
+ * Pure decision logic for the marketplace<->plugin.json metadata mirror (ADR 0011): a field
+ * present in BOTH a marketplace plugin entry and that plugin's own plugin.json must be identical —
+ * plugin.json is the lower home; the marketplace copy exists only for the pre-install listing.
+ * An entry-side omission is NOT drift (derive, don't mirror). `pairs` = [{ name, entry, plugin }].
+ */
+export function manifestDrift(pairs) {
+  const problems = [];
+  for (const { name, entry, plugin } of pairs)
+    for (const f of ["description", "version"])
+      if (entry?.[f] !== undefined && plugin?.[f] !== undefined && entry[f] !== plugin[f])
+        problems.push(`${name}: marketplace ${f} drifts from its plugin.json`);
+  return problems;
+}
+
+// IO wrapper: pair each marketplace plugin entry with its plugin.json where one exists. An ABSENT
+// file is tolerated (a consumer repo may ship neither manifest) — ENOENT only, like oversizeAgents;
+// invalid JSON throws (the manifests ARE the registry — a broken one must fail the gate loudly).
+function manifestPairs() {
+  const read = (rel) => {
+    try { return JSON.parse(readFileSync(join(ROOT, rel), "utf8")); }
+    catch (e) { if (e.code === "ENOENT") return null; throw e; }
+  };
+  const marketplace = read(".claude-plugin/marketplace.json");
+  return (marketplace?.plugins ?? []).flatMap((entry) => {
+    const plugin = entry.source && read(join(entry.source, ".claude-plugin", "plugin.json"));
+    return plugin ? [{ name: entry.name, entry, plugin }] : [];
+  });
+}
+
 function main(argv) {
   const args = argv.slice(2);
   const dir = args.find(a => !a.startsWith("--")) ?? "docs/decisions";
@@ -131,6 +166,7 @@ function main(argv) {
   const { problems } = lint({ files, budget });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
   problems.push(...oversizeAgents().map(a => `agent over budget: ${a}`));
+  problems.push(...manifestDrift(manifestPairs()));
 
   if (problems.length) {
     console.error(`adr-lint: ${problems.length} problem(s) in ${dir}/`);

@@ -1,6 +1,6 @@
 ---
 name: code-standards
-description: Invoke when writing, reviewing, or auditing code for quality, style, readability, or correctness. Apply these standards before presenting any code. Check header comments, naming, error handling, and structure.
+description: Invoke when writing, reviewing, or auditing code for quality, style, or readability. Apply these standards before presenting any code. Check header comments, naming, error handling, and structure.
 ---
 
 # Code Standards

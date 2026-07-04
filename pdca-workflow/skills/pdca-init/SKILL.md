@@ -34,7 +34,10 @@ Run this loop:
 
 3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
-   home — it carries the ADR rules, the template, AND the shared-assumption register). No index
+   home — it carries the ADR rules, the template, AND the shared-assumption register). The copy is
+   deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
+   decision rules, and the plugin cache is per-user (a link would dangle for teammates/CI). Only a
+   repo hosting the plugin source itself links instead of copying. No index
    file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
    — a mirror you don't keep can't drift). Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs`
    into the project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge /
