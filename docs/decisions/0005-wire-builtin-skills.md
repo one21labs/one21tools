@@ -51,3 +51,5 @@ them behind the existing conditional keeps portability. Guidance wiring only —
 ## Revisit triggers
 - A Claude Code built-in named here is renamed/removed -> update the "e.g." aside.
 - A consumer finds the generic seam too implicit to discover the built-ins -> reconsider naming them more prominently.
+
+## Act (post-ship — 2026-06-28, PR #8)

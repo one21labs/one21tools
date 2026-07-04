@@ -55,3 +55,5 @@ own agents, so advisors (the project analog) should be too.
 ## Revisit triggers
 - Claude Code changes where it discovers project agents -> revisit the keep-in-`.claude/agents/` choice.
 - A consumer reports advisors still untracked after `/pdca-init` -> strengthen the step (e.g. scaffold the negation automatically).
+
+## Act (post-ship — 2026-06-28, PR #7)

@@ -23,7 +23,9 @@ the error impossible over merely detecting it; before endorsing a sync/generator
 mirror, rule out deleting the mirror first.
 
 Before emitting, re-read every cut / sequence / file claim your Decision makes against the
-build order (the ADR corpus + any roadmap) and the cited ADRs. If a binding condition contradicts the plan of
+build order (the ADR corpus + any roadmap) and the cited ADRs. A Build step that names a
+symbol/function must be verified against the current code — cite its `file:line`, or state it
+does not exist yet and needs extraction first. If a binding condition contradicts the plan of
 record, fix the sequence in the same ADR or make it the headline (tag it `[contradiction]`,
 not a routine `[checkable]`) — don't outsource catching your own sequencing error to the gate.
 

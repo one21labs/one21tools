@@ -5,7 +5,8 @@ process-gating script without a test of its decision logic"). Zero-dependency: P
 unittest. Run: python validate_test.py  (or: python -m unittest validate_test) from this dir.
 
 Each case builds a throwaway skill folder in a temp dir and asserts validate_skill's verdict, so the
-decision logic (body char cap, reference char cap, reference TOC threshold) is exercised end to end.
+decision logic (name rules, body char cap, reference char cap, reference TOC threshold) is
+exercised end to end.
 """
 import unittest
 import tempfile
@@ -23,12 +24,15 @@ from validate import (
 FM_OPEN = "---\nname: {name}\ndescription: Use when testing the char gate; a third-person trigger phrase.\n"
 
 
-def make_skill(root, name, body="body", refs=None, extra_fm=""):
+def make_skill(root, name, body="body", refs=None, extra_fm="", fm_name=None):
     """Write <root>/<name>/SKILL.md (frontmatter [+ extra_fm lines] + body) plus optional
-    references/*.md; return the dir. extra_fm, when given, must end with a newline."""
+    references/*.md; return the dir. extra_fm, when given, must end with a newline.
+    fm_name overrides the frontmatter name: (defaults to the folder name) to probe name rules
+    with values a filesystem path can't carry (empty, XML chars)."""
     d = root / name
     d.mkdir()
-    (d / "SKILL.md").write_text(FM_OPEN.format(name=name) + extra_fm + "---\n\n" + body,
+    (d / "SKILL.md").write_text(FM_OPEN.format(name=name if fm_name is None else fm_name)
+                                + extra_fm + "---\n\n" + body,
                                 encoding="utf-8")
     if refs:
         (d / "references").mkdir()
@@ -68,6 +72,43 @@ class SkillBodyCharCap(unittest.TestCase):
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("chars", r.error)
+
+
+class SkillNameRules(unittest.TestCase):
+    """R2.2-R2.8 name-rule decision logic (ADR 0010: one shared home, imported by init.py).
+    Each invalid frontmatter name must fail on ITS rule — all run before the folder-match check,
+    so a valid folder with a bad frontmatter name isolates the rule under test."""
+
+    def assert_name_fails(self, fm_name, error_fragment):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "name-probe", fm_name=fm_name)
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn(error_fragment, r.error)
+
+    def test_empty_name_fails(self):
+        self.assert_name_fails("", "empty")
+
+    def test_xml_chars_fail(self):
+        self.assert_name_fails("bad<name", "XML")
+
+    def test_over_max_length_fails(self):
+        self.assert_name_fails("a" * 65, "exceeds 64")
+
+    def test_uppercase_fails(self):
+        self.assert_name_fails("BadName", "kebab-case")
+
+    def test_leading_hyphen_fails(self):
+        self.assert_name_fails("-bad", "start with hyphen")
+
+    def test_trailing_hyphen_fails(self):
+        self.assert_name_fails("bad-", "end with hyphen")
+
+    def test_consecutive_hyphens_fail(self):
+        self.assert_name_fails("bad--name", "consecutive")
+
+    def test_reserved_word_fails(self):
+        self.assert_name_fails("claude", "reserved")
 
 
 class ReferenceCaps(unittest.TestCase):

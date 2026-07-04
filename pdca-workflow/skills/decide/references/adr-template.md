@@ -54,6 +54,8 @@ visible line. **Budget: ≤6,000 chars (~2 pp) norm** for a single-decision ADR 
 be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
 an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to a margin (~5,000) and
 measure once (`node -e` char count) before finalizing** — don't write long and trim in N passes.
+The margin also reserves room for the `## Act` block appended at ship (below); an ADR finalized
+at the cap edge forces a trim at close time.
 Over budget = bloat or a missed lower home: relocate to a lower home; keep the crux + every
 cite + the falsifiable criterion. `adr-lint` enforces the cap.
 

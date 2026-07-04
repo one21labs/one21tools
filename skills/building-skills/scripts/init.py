@@ -3,7 +3,7 @@
 Skill Initialization Script
 
 Creates valid skill directory structure with TODO placeholders.
-Validates name immediately using same rules as validate.py.
+Validates the name immediately via validate.py's shared validate_name (ADR 0010).
 
 Evidence Sources:
 - agentskills.io spec: Field constraints, max lengths
@@ -19,17 +19,12 @@ Creates:
     └── SKILL.md (with valid frontmatter + TODO placeholders)
 """
 import sys
-import re
 import argparse
 from pathlib import Path
 
-# Same constants as validate.py
-NAME_MAX = 64
-NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
-RESERVED_WORDS = ["anthropic", "claude"]
-
-# The body cap is validate.py's (the SSoT) — imported so the scaffold can't drift from the gate.
-from validate import BODY_MAX_CHARS
+# The name rules and body cap are validate.py's (the SSoT) — imported so neither the check
+# nor the scaffold can drift from the gate (ADR 0010).
+from validate import BODY_MAX_CHARS, NAME_MAX, RESERVED_WORDS, validate_name
 
 SKILL_TEMPLATE = """---
 name: {name}
@@ -61,46 +56,17 @@ description: Invoke when [TODO: conditions]. Use for [TODO: tasks]. [TODO: immed
 """
 
 
-def validate_name(name: str) -> tuple[bool, str]:
-    """Validate skill name. Returns (valid, error_message)."""
-    if not name:
-        return False, "Name is empty"
-    
-    if '<' in name or '>' in name:
-        return False, "Name cannot contain XML characters (< or >)"
-    
-    if len(name) > NAME_MAX:
-        return False, f"Name exceeds {NAME_MAX} chars ({len(name)} chars)"
-    
-    if not NAME_PATTERN.match(name):
-        return False, f"Name must be lowercase kebab-case (a-z, 0-9, hyphens). Got: '{name}'"
-    
-    if name.startswith('-'):
-        return False, "Name cannot start with hyphen"
-    
-    if name.endswith('-'):
-        return False, "Name cannot end with hyphen"
-    
-    if '--' in name:
-        return False, "Name cannot have consecutive hyphens (--)"
-    
-    if name in RESERVED_WORDS:
-        return False, f"'{name}' is a reserved word"
-    
-    return True, ""
-
-
 def main():
     parser = argparse.ArgumentParser(
         prog="init.py",
         description="Initialize new skill with valid structure.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 NAME RULES
 ==========
-  - Max 64 chars, kebab-case (a-z, 0-9, hyphens)
+  - Max {NAME_MAX} chars, kebab-case (a-z, 0-9, hyphens)
   - No leading/trailing/consecutive hyphens
-  - No reserved words: 'anthropic', 'claude'
+  - No reserved words: {', '.join(repr(w) for w in RESERVED_WORDS)}
 
 EXAMPLE
 =======

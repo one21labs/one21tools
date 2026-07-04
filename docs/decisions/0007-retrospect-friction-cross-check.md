@@ -36,3 +36,6 @@ The red-team break is correct: the trap was never perceived, so a fix that only 
 - **Feasibility-gated full fix:** the residual same-author conflict + non-git-visible failures survive any orchestrator-fed channel. OWNER: PM/verifier — at the next plugin-harness update, check once whether a clean, portable, low-cost raw-transcript channel to a context-isolated subagent exists; if YES -> `/decide` an independent extractor (re-opens ADR 0006).
 - A `/retrospect` drops a git-VISIBLE friction despite the cross-check -> mis-specified clause; a non-git-visible one -> escalate to the extractor.
 - ADR 0006's A/B test lands sonnet-inadequate, OR retrospect is wired to auto-apply a finding -> re-evaluate this contract and the tier together.
+
+## Act (post-ship — 2026-07-01, PR #11)
+- [outcome] weakest [checkable] (cross-check clause) — still-open.
