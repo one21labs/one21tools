@@ -2,6 +2,21 @@
 
 Claude Code plugins package agents, skills, commands, and hooks for distribution and selective installation.
 
+## Table of Contents
+
+1. [When to Use Plugins](#when-to-use-plugins)
+2. [Critical Behavior: Auto-Discovery](#critical-behavior-auto-discovery)
+3. [Solution: Component Directories as Sources](#solution-component-directories-as-sources)
+4. [Marketplace.json Structure](#marketplacejson-structure)
+5. [Monorepo Pattern](#monorepo-pattern)
+6. [Plugin Caching](#plugin-caching)
+7. [Verification](#verification)
+8. [Common Patterns](#common-patterns)
+9. [Key Takeaways](#key-takeaways)
+10. [References](#references)
+
+---
+
 ## When to Use Plugins
 
 Use plugins to distribute reusable tools that users can selectively install:

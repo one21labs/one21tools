@@ -28,6 +28,9 @@ NAME_MAX = 64
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 
+# The body cap is validate.py's (the SSoT) — imported so the scaffold can't drift from the gate.
+from validate import BODY_MAX_CHARS
+
 SKILL_TEMPLATE = """---
 name: {name}
 description: Invoke when [TODO: conditions]. Use for [TODO: tasks]. [TODO: immediate instructions].
@@ -54,7 +57,7 @@ description: Invoke when [TODO: conditions]. Use for [TODO: tasks]. [TODO: immed
 
 - Use imperative form ("Extract text", not "This extracts text")
 - Reference files with "when to read" guidance
-- Keep under 500 lines (move details to references/)
+- Keep under {body_max:,} chars (move details to references/)
 """
 
 
@@ -133,7 +136,7 @@ NEXT STEPS
 
     # Create SKILL.md with template
     title = args.skill_name.replace('-', ' ').title()
-    content = SKILL_TEMPLATE.format(name=args.skill_name, title=title)
+    content = SKILL_TEMPLATE.format(name=args.skill_name, title=title, body_max=BODY_MAX_CHARS)
     (skill_dir / "SKILL.md").write_text(content)
 
     print(f"[OK] Created: {skill_dir}/")

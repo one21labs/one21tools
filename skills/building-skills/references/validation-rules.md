@@ -132,8 +132,10 @@ This skill is for PDFs. Use when needed. # Trigger not at start
 
 | Constraint | Type | Source |
 |------------|------|--------|
-| Max 500 lines | Error | agentskills.io spec |
+| Max 6,000 chars | Error | Char budget (a line cap is gameable by long lines) |
 | ToC required if >150 lines | Error | Best practice |
+| References: max 12,000 chars each | Error | Char budget (progressive-disclosure tier) |
+| References: ToC required if >6,000 chars | Error | Best practice |
 
 ### Table of Contents Formats
 

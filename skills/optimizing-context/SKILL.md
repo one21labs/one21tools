@@ -7,19 +7,6 @@ description: Invoke when advising on context engineering, writing CLAUDE.md file
 
 Context engineering is curating tokens during LLM inference to maximize desired outcomes.
 
-## Table of Contents
-
-1. [Why This Matters](#why-this-matters)
-2. [Context Hierarchy by Product](#context-hierarchy-by-product)
-3. [Decision Matrix](#decision-matrix)
-4. [Concrete Examples](#concrete-examples)
-5. [Core Principles](#core-principles)
-6. [Documentation Altitude & SSoT](#documentation-altitude--ssot)
-7. [Measuring Success](#measuring-success)
-8. [Mechanism Guides](#mechanism-guides)
-
----
-
 ## Why This Matters
 
 Model performance degrades non-uniformly as context grows:
@@ -28,8 +15,6 @@ Model performance degrades non-uniformly as context grows:
 - Position affects retrieval (primacy/recency effects)
 
 **Implication**: Token efficiency is fundamental. Every token competes in a finite window with diminishing returns.
-
----
 
 ## Context Hierarchy by Product
 
@@ -41,8 +26,6 @@ Model performance degrades non-uniformly as context grows:
 | On-demand | Skills | Skills | Skills |
 | External | Integrations | MCP servers, Hooks | MCP servers |
 
----
-
 ## Decision Matrix: Which Mechanism?
 
 | Need | Mechanism | Why |
@@ -53,166 +36,54 @@ Model performance degrades non-uniformly as context grows:
 | External data or tool connectivity | **MCP** | Real-time access, data gateway pattern |
 | Deterministic automation on events | **Hooks** | Lifecycle events for validation, formatting, CI |
 | Independent task with own context | **Subagent** | Context isolation, tool restrictions |
-| Distribute tools with selective installation | **Plugin** | Package agents/skills/commands, users install only what they need |
+| Distribute tools with selective installation | **Plugin** | Package agents/skills/commands, install only what's needed |
 | One-time instruction | **Prompt** | Ephemeral, conversational |
 | User behavior defaults (all chats) | **User Preferences** (Claude.ai) or **User CLAUDE.md** (Claude Code) | Permanent, account-wide |
 | Project-specific behavior | **Project Instructions** | Scoped to initiative |
 
-```
-Need repeated procedure? ─────────────► Skill
-Need project context always loaded? ──► CLAUDE.md (Code) or Project (claude.ai)
-Need external data/tools? ────────────► MCP
-Need deterministic automation? ───────► Hooks
-Need isolated task execution? ────────► Subagent (prefer Task() over custom)
-One-time request? ────────────────────► Prompt
-Personal defaults? ───────────────────► User Preferences (claude.ai) or ~/.claude/CLAUDE.md (Code)
-```
+Quick routing:
+- Repeated procedure -> Skill
+- Project context always loaded -> CLAUDE.md (Code) or Project (Claude.ai)
+- External data/tools -> MCP
+- Deterministic automation -> Hooks
+- Isolated task execution -> Subagent (prefer Task() over custom)
+- One-time request -> Prompt
+- Personal defaults -> User Preferences (Claude.ai) or ~/.claude/CLAUDE.md (Code)
 
----
-
-## Concrete Examples
-
-### Example 1: Bloated CLAUDE.md → Lean Version
-
-**Before** (wastes tokens on what Claude knows):
-```markdown
-# Project Guidelines
-
-## About This Project
-This is a Python web application using Flask. Flask is a micro web 
-framework written in Python. It is classified as a microframework 
-because it does not require particular tools or libraries...
-
-## Code Style
-We use Python. Python is an interpreted, high-level programming language.
-Always use 4 spaces for indentation because that is the Python standard...
-```
-
-**After** (only project-specific corrections):
-```markdown
-# CLAUDE.md
-
-## Conventions
-- Flask app, pytest for tests
-- 4-space indent, type hints required
-- Run `make lint` before commits
-
-## Common Errors to Avoid
-- Don't use `datetime.now()` — use `datetime.utcnow()`
-- Always close DB connections in finally blocks
-```
-
-**Why**: Claude knows what Flask and Python are. CLAUDE.md captures project-specific corrections only.
-
-### Example 2: Wrong Mechanism Choice
-
-**Situation**: User wants SQL queries formatted with uppercase keywords.
-
-| Choice | Mechanism | Problem |
-|--------|-----------|---------|
-| ✗ Wrong | Skill | Creates portable package for a personal preference |
-| OK | User Preferences (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
-| OK | ~/.claude/CLAUDE.md (Claude Code) | User-level defaults for all Claude Code sessions |
-
-### Example 3: Skill vs. CLAUDE.md
-
-**Situation**: Team has Kubernetes deployment procedures.
-
-**Use Skill when** procedure is reusable across projects:
-```
-deploying-k8s/
-├── SKILL.md
-└── scripts/deploy.sh
-```
-
-**Use CLAUDE.md when** procedure is repo-specific:
-```markdown
-# In repo's CLAUDE.md
-## Deployment
-Run `./deploy.sh staging` then verify at https://staging.example.com
-```
-
-### Example 4: MCP vs. Skill
-
-**Situation**: Need to query company's BigQuery tables.
-
-| Choice | Mechanism | Why |
-|--------|-----------|-----|
-| ✗ Wrong | Skill alone | Can't access live data |
-| ✓ Right | MCP + Skill | MCP provides connection, Skill provides schemas/patterns |
-
-### Example 5: Plugin Marketplace Structure
-
-**Situation**: Monorepo with skills for different domains. Want users to install only what they need.
-
-| Choice | Approach | Result |
-|--------|----------|--------|
-| ✗ Wrong | Use repo root as source | Auto-discovery loads all skills for every plugin |
-| ✓ Right | Use component directories as sources | Each plugin loads only specified skills |
-
-**Why**: Default directories (`/skills/`, `/agents/`, `/commands/`) at plugin root trigger auto-discovery that loads everything. Using component directories as sources avoids this. See [plugins.md](references/plugins.md) for implementation.
-
----
+For worked before/after examples of these choices (bloated vs. lean CLAUDE.md, Skill vs.
+CLAUDE.md, MCP vs. Skill, plugin marketplace structure), see
+[mechanism-selection.md](references/mechanism-selection.md).
 
 ## Core Principles
 
 1. **Smallest High-Signal Tokens**: Every token must justify its cost. Ask: "Does Claude already know this?"
 2. **Right Altitude**: Not brittle hardcoded logic (too low), not vague guidance (too high). Match degrees of freedom to task fragility.
-3. **Progressive Disclosure**: Metadata first → content when triggered → deep resources as needed.
+3. **Progressive Disclosure**: Metadata first, then content when triggered, then deep resources as needed.
 4. **Constitution, Not Manual**: CLAUDE.md captures guardrails for what Claude gets wrong, not comprehensive documentation.
 
----
+## Documentation Altitude and SSoT (in brief)
 
-## Documentation Altitude & SSoT
+Two orthogonal rules decide where a fact lives:
+- **Altitude routing**: a fact belongs at the altitude matching its abstraction and time-horizon
+  (STRATEGY > ROADMAP > README / CLAUDE.md > file headers > code).
+- **SSoT uniqueness**: one home per fact, at the lowest altitude where it is fully determined;
+  every higher mention is a reference, not a copy. A fact copied above its home is drift.
 
-Two orthogonal rules — not one axis — determine where a fact lives:
-
-**Altitude routing** — a fact belongs at the altitude matching its abstraction and time-horizon:
-
-| Altitude | Document | Contains |
-|----------|----------|---------|
-| Strategic | STRATEGY | Why/positioning, year-horizon |
-| Tactical | ROADMAP | What's next, quarter-horizon |
-| Orientation | README | Getting started (newcomers, read once) |
-| Operating contract | CLAUDE.md | Constraints for agents and editors (read repeatedly) |
-| Local design intent | File headers | Module role, constraints, non-obvious patterns |
-| Exact behavior | Code | Canonical truth for executable facts |
-
-README and CLAUDE.md are roughly the same altitude — the split is audience (orientation vs. operating contract), not authority.
-
-**SSoT uniqueness** — one home per fact, at the lowest altitude where it is fully determined. Every higher mention must be a reference, not a copy. Drift = a fact copied above its home.
-
-The axis inverts for executable facts: code sits at the bottom of altitude but the top of authority. Schema versions, function signatures, filenames — code owns them. Any doc that restates them will rot.
-
-Common drift patterns (cure: reference or omit):
-- Schema version stated in CLAUDE.md → rotted when code changed
-- Filenames in SEE ALSO blocks → rotted on rename
-- Deleted features described in CLAUDE.md → documented behavior that no longer exists
-
----
+Executable facts invert the axis: code sits lowest in altitude but highest in authority. Schema
+versions, function signatures, and filenames are owned by code; any doc that restates them rots.
+Full altitude table and common drift patterns:
+[mechanism-selection.md](references/mechanism-selection.md).
 
 ## Measuring Success
 
-After changes, verify improvement:
-
-| Metric | How to Measure |
-|--------|----------------|
-| Token count | Compare context size before/after |
-| Task success | Does Claude complete previously-failed tasks? |
-| Retrieval accuracy | Does Claude find relevant info when needed? |
-| No regressions | Do previously-working tasks still work? |
-| Plugin selectivity | Install test plugin, verify only specified content in `/context` |
-| Skill activation | Does the skill trigger on 3+ realistic user phrasings (not documentation language)? |
-
-**Skill size targets** (SkillReducer empirical baselines, 2026): description ≤100 tokens; body ≤500 lines (enforced). Descriptions >200 tokens show diminishing returns. Body content >60% non-actionable (preamble, examples, documentation) is a documented waste pattern.
-
-If no measurable improvement, revert changes.
-
----
+After changes, verify token count dropped, previously-failed tasks now succeed, retrieval stays
+accurate, and no regressions appear. For skills, confirm activation on 3+ realistic user
+phrasings. Skill size targets and the full metrics table:
+[mechanism-selection.md](references/mechanism-selection.md). If no measurable improvement, revert.
 
 ## Mechanism Guides
 
-Read appropriate reference when creating/optimizing:
+Read the appropriate reference when creating/optimizing:
 
 | Mechanism | Reference | When to Read |
 |-----------|-----------|--------------|
@@ -225,5 +96,4 @@ Read appropriate reference when creating/optimizing:
 | MCP | [mcp.md](references/mcp.md) | Server design |
 | Subagents | [subagents.md](references/subagents.md) | Task delegation |
 | Hooks | [hooks.md](references/hooks.md) | Automation |
-
----
+| Examples / altitude depth | [mechanism-selection.md](references/mechanism-selection.md) | Worked examples, full SSoT rules, metrics |

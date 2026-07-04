@@ -1,5 +1,9 @@
 # Decision log — Authoritative Decision Records (ADRs)
 
+## Table of Contents
+- [Template](#template)
+- [Shared assumption register](#shared-assumption-register)
+
 An **ADR** is a dated note capturing one judgment call: its context, the decision, the
 justification, the assumptions (tagged), and the triggers that would reopen it. It is the
 **authoritative current statement** of that decision — kept current in place (rationalize, don't
