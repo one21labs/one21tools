@@ -54,3 +54,5 @@ the PM anchor is for ACCOUNTABILITY, not error-immunity (humans are fooled by ob
 - An ADR is legitimately criterion-less yet correct -> the fail-condition is wrong; reopen it.
 - A /retrospect sample shows ADRs gaming the gate with hollow `[checkable]` bullets -> add a substance check or move the judgment fully to the gate.
 - A consumer wires adr-lint into CI and the UNFALSIFIABLE flag misfires -> tune the regex.
+
+## Act (post-ship — 2026-06-28, PR #5)

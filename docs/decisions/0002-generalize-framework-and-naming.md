@@ -53,3 +53,5 @@ opt-out by making the always-present ADR corpus the plan — prevention over a p
 ## Revisit triggers
 - A consumer reports a remaining hardcoded stack/UI/artifact/process assumption — fold the fix in place, don't spawn an ADR.
 - "Authoritative" or "/decide" reads wrong to a consumer — reopen that naming only.
+
+## Act (post-ship — 2026-06-28, PR #2)

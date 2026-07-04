@@ -53,3 +53,5 @@ runtime, no app coupling.
 ## Revisit triggers
 - A second consumer needs the runnable metrics engine (then port ltconfig's `analyze()` behind the adapter seam).
 - The plugin's `adr-template.md` diverges from ltconfig's in a way that matters to a consumer.
+
+## Act (post-ship — 2026-06-28, PR #2)
