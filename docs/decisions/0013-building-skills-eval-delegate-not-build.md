@@ -31,7 +31,7 @@ DELEGATE: LOW / LOW, self-sufficiency preserved. EXTEND: value unrealized until 
 
 ## Assumptions
 - [verified] No eval artifacts in-repo — grep for evals.json/benchmark.json/grading.json returns nothing; a gate over them guards air.
-- [verified] SKILL.md body 5,341/6,000 (validate.py normalization); evaluation-patterns.md 1,889 — pointer + lines fit the reference; the SKILL.md change is the softening only.
+- [verified] shipped sizes (validate.py normalization): SKILL.md body 5,489/6,000 (5,341 pre-edit); evaluation-patterns.md 3,489/12,000 — the SKILL.md change is the softening only.
 - [checkable] the pointer ships conditional-with-fallback, never bare, carrying both caveats; the agentskills.io URL resolves live. — owner: verifier (diff + WebFetch).
 - **[unverifiable] WEAKEST: no consumer needs an OWNED harness — the empty eval-artifact road reads as no-demand, NOT as an unfollowable mandate now cemented.** Softening the mandate (4c) makes the discipline followable manually, removing that reading. REOPEN-IF a consumer authors evals.json in-repo -> then Advisor 2's tested schema-validator is worth building (a local gate, not the loop).
 
