@@ -71,3 +71,5 @@ exact cost this ADR cites (a shipped tokenizer, per-model counts).
 - The corpus accumulates MANY settled ADRs over budget at once (e.g. a large import) — the rewrite
   cost flips, so re-evaluate a grandfather allowlist for that batch.
 - A `count_tokens` run on the corpus shows the ~3,000 chars/page anchor is materially off — re-state it.
+
+## Act (post-ship — 2026-07-01, PR #12)

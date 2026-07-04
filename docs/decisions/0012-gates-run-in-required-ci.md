@@ -39,3 +39,5 @@ claude-review stays advisory (its own header demands exactly this split).
 - The workflow's runtime or flakiness materially slows PRs -> split or cache.
 - A consumer installs the plugins without GitHub -> document the manual gate invocation as their
   required check equivalent.
+
+## Act (post-ship — 2026-07-03, PR #13)

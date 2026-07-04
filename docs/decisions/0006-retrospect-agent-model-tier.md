@@ -35,3 +35,6 @@ retrospect has two failure modes, both backstopped. (a) Fabrication (padded comm
 - The weakest-assumption A/B test shows sonnet drops a systemic finding opus caught, or auto-apply wiring lands -> revert / reopen (see the assumption REOPEN-IFs).
 - DEFERRED (separate `/decide`, do NOT fold here): the "advisors=sonnet" rule appears in 3 homes — `decide/SKILL.md:53` (SSoT rule) vs `panel-generation.md:27` + `advisor-template.md:8` (literal `model: sonnet` scaffolding). Evaluate whether the two scaffolding lines are a one-home violation or legitimate derive-don't-duplicate.
 - Claude Code adds/renames a subagent `model:` tier, or Opus/Sonnet pricing shifts the ~1.67x gap materially -> re-evaluate the whole split.
+
+## Act (post-ship — 2026-06-29, PR #9)
+- [outcome] weakest [checkable] (sonnet A/B over shipped branches) — still-open; owner: verifier.
