@@ -15,7 +15,7 @@ the **`engineering-principles`** skill (`waste-identification` / `ssot-enforceme
 don't restate. Operationalized, not a slogan:
 - **Cite-or-silence:** every muda call cites a `file:line`; never manufacture a "consolidation" to
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
-- **Poka-yoke (prevent > detect):** delete the mirror, don't guard it; derive, don't duplicate.
+- **Poka-yoke (prevent > detect):** delete the mirror, don't guard or resync it; derive, don't duplicate.
 - **Forcing functions:** `/retrospect` before every PR; `adr-lint` guards the decision log; the
   advisory muda-review CI (`pdca-workflow/templates/claude-review.yml`) when wired.
 

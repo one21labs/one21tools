@@ -81,7 +81,7 @@ summary: "<one line for the skim catalog>"
 <why this over the alternatives — cost x risk x value>
 
 ## Assumptions
-- [verified] <proven against code/render — cite file:line or output>
+- [verified] <proven against code/render — cite file:line or output; recompute post-edit if the ADR's own decision edits the artifact>
 - [checkable] <reproduce against code/logic/render — the gate's job> — owner, result
 - [checkable-doc] <a planning fact, checked vs roadmap/ADRs — PM verifies before emitting>
 - [contradiction] <Decision contradicts the plan of record — headline + fix the sequence here>
