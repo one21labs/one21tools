@@ -43,16 +43,16 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
 context isolation is automatic — pass each only the files it needs.
 
 ## The loop
-1. **Inherit.** Read `docs/decisions/` so settled calls aren't re-litigated. Scan each open ADR's
-   revisit triggers against the current product; flag any that fire. The corpus IS the plan: flag
-   drift — an ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an
-   accepted ADR long stalled with no `## Act`; if a roadmap/changelog/tracker exists, flag where it
-   is out of sync. Cite the line; omit if none. If the project configures a metrics command
-   (CLAUDE.md), run it before any gating or conversion call and fold the fired triggers into the
-   panel — see `references/metrics-engine.md` (window-decoupling + min-sample discipline;
-   thresholds are project config). No metrics command = skip.
+1. **Inherit.** `git fetch`; check open PRs for in-flight ADRs (Allocate rule). Read
+   `docs/decisions/` so settled calls aren't re-litigated. Scan open ADRs' revisit
+   triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift — an
+   ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an accepted ADR
+   long stalled with no `## Act`; flag any roadmap/changelog/tracker out of sync. Cite the line;
+   omit if none. A CLAUDE.md-configured metrics command runs before any gating/conversion call;
+   fold fired triggers into the panel — see `references/metrics-engine.md` (window-decoupling +
+   min-sample discipline; thresholds are project config). No metrics command = skip.
 2. **Frame.** Clarify scope FIRST — resolve an ambiguous or multi-item ask into a stated scope
-   before any advisor runs (a fuzzy question wastes the spend and anchors wrong). List the open
+   before any advisor runs (a fuzzy ask wastes spend + anchors wrong). List the open
    calls. One decision register.
 3. **Check output.** Grade the real produced output, not the source — for any claim about what the
    product renders/prints/exports/writes, run the project's render/verify step (per CLAUDE.md) and
