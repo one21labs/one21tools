@@ -24,17 +24,18 @@ from pathlib import Path
 from typing import List
 
 
-import re
-
-
 NAME_MAX = 64
 DESC_MAX = 1024
-BODY_MAX_LINES = 500
-TOC_THRESHOLD = 150
+BODY_MAX_CHARS = 6000           # SKILL.md body char cap (ADR 0009; ungameable by long lines, cf. line caps)
+TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LINES (a sub-cap readability aid)
+REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)
+REFERENCE_TOC_THRESHOLD = 6000  # a reference past this many CHARS must carry a TOC
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 VALID_TRIGGERS = ["invoke when", "use when", "use for", "apply when"]
-TOC_MARKERS = ["## table of contents", "## toc", "## contents"]
+# Recognized TOC headings, anchored at line start (see validation-rules.md "Table of Contents
+# Formats") — prose or a code block merely QUOTING a marker does not satisfy the gate.
+TOC_RE = re.compile(r'(?im)^##\s*(table of contents|toc|contents)\b')
 
 # Emoji detection pattern - matches most emoji ranges
 # Covers: emoticons, dingbats, symbols, pictographs, transport, flags, etc.
@@ -162,21 +163,24 @@ def validate_skill(skill_path: Path) -> ValidationResult:
     if re.search(r'\b(I can|I will|you can|you should)\b', description, re.IGNORECASE):
         warnings.append("Description uses first/second person. Use third person.")
     
-    # R4: Body validation
+    # R4: Body validation (ADR 0009 — char cap, not a gameable line cap). read_text() already
+    # normalizes newlines to \n (universal newlines), so counts are checkout-agnostic like charLen.
     body = content[match.end():]
-    body_lines = body.strip().split('\n') if body.strip() else []
-    line_count = len(body_lines)
-    
-    # R4.1: max lines
-    if line_count > BODY_MAX_LINES:
-        return ValidationResult(False, f"Body exceeds {BODY_MAX_LINES} lines ({line_count} lines)")
-    
-    # R4.2: ToC if >150
-    if line_count > TOC_THRESHOLD:
-        body_lower = body.lower()
-        has_toc = any(m in body_lower for m in TOC_MARKERS)
-        if not has_toc:
-            return ValidationResult(False, f"Body has {line_count} lines (>{TOC_THRESHOLD}). Add '## Table of Contents'")
+    body_norm = body.strip()
+    # Everything in the frontmatter beyond the first two lines (name/description, which carry their
+    # own caps) counts toward the body budget — else a `details: |` block scalar or a DUPLICATED
+    # name:/description: key would smuggle unbounded prose past the cap.
+    extra_fm = "\n".join(lines[2:])
+    body_chars = len(body_norm) + len(extra_fm.strip())
+    line_count = len(body_norm.split('\n')) if body_norm else 0
+
+    # R4.1: max chars
+    if body_chars > BODY_MAX_CHARS:
+        return ValidationResult(False, f"Body exceeds {BODY_MAX_CHARS} chars ({body_chars} chars)")
+
+    # R4.2: ToC past the readability line threshold (a sub-cap navigation aid)
+    if line_count > TOC_THRESHOLD and not TOC_RE.search(body):
+        return ValidationResult(False, f"Body has {line_count} lines (>{TOC_THRESHOLD}). Add '## Table of Contents'")
 
     # R5.2: No emojis in script files
     scripts_dir = skill_path / "scripts"
@@ -190,6 +194,20 @@ def validate_skill(skill_path: Path) -> ValidationResult:
             except Exception:
                 pass  # Skip files that can't be read
 
+    # R6: references/*.md — no emoji (skill content, per CLAUDE.md), char cap + TOC past the threshold (ADR 0009)
+    refs_dir = skill_path / "references"
+    if refs_dir.exists():
+        for ref in sorted(refs_dir.glob("*.md")):
+            ref_text = ref.read_text(encoding="utf-8")  # newline-normalized by text mode, like the body
+            ref_chars = len(ref_text)
+            rel = ref.relative_to(skill_path)
+            if contains_emoji(ref_text):
+                return ValidationResult(False, f"Reference {rel} contains emoji characters (emojis are prohibited)")
+            if ref_chars > REFERENCE_MAX_CHARS:
+                return ValidationResult(False, f"Reference {rel} exceeds {REFERENCE_MAX_CHARS} chars ({ref_chars} chars)")
+            if ref_chars > REFERENCE_TOC_THRESHOLD and not TOC_RE.search(ref_text):
+                return ValidationResult(False, f"Reference {rel} has {ref_chars} chars (>{REFERENCE_TOC_THRESHOLD}). Add '## Table of Contents'")
+
     return ValidationResult(True, "", warnings)
 
 
@@ -198,22 +216,26 @@ def main():
         prog="validate.py",
         description="Validate Claude skill structure.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+        epilog=f"""
 RULES
 =====
 Name (FIRST field):
-  - Max 64 chars, kebab-case (a-z, 0-9, hyphens)
+  - Max {NAME_MAX} chars, kebab-case (a-z, 0-9, hyphens)
   - Must match folder name
   - No leading/trailing/consecutive hyphens
   - No reserved words: 'anthropic', 'claude'
 
 Description (SECOND field):
-  - Max 1024 chars
+  - Max {DESC_MAX} chars
   - Must START with: 'Invoke when', 'Use when', 'Use for', 'Apply when'
 
 Body:
-  - Max 500 lines
-  - If >150 lines, must have '## Table of Contents'
+  - Max {BODY_MAX_CHARS} chars
+  - If >{TOC_THRESHOLD} lines, must have '## Table of Contents'
+
+References (references/*.md):
+  - Max {REFERENCE_MAX_CHARS} chars
+  - If >{REFERENCE_TOC_THRESHOLD} chars, must have '## Table of Contents'
 
 NEXT STEP
 =========

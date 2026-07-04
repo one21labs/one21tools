@@ -108,8 +108,8 @@ REQUEST_TIMEOUT = 30
 Always use forward slashes, even on Windows.
 
 ```
-✓ scripts/helper.py
-✗ scripts\helper.py
+GOOD  scripts/helper.py
+BAD   scripts\helper.py
 ```
 
 ### Dependencies

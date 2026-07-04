@@ -14,7 +14,7 @@
  *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
  *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
  *     char-budget.mjs; no exemptions — every ADR is held to the cap).
- *   main() also char-checks CLAUDE.md (oversizeDocs) and prints each ADR's char count (compute, don't assert).
+ *   main() also char-checks CLAUDE.md (oversizeDocs) + agent prompts (oversizeAgents) and prints each ADR's char count (compute, don't assert).
  *
  * DESIGN CONSTRAINTS:
  * - Zero dependencies. Node is the one runtime every consumer provably has (Claude Code runs on
@@ -37,7 +37,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 /**
  * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max
@@ -127,9 +127,10 @@ function main(argv) {
   for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
     console.log(`  ${name}: ${text.length} chars`);
 
-  // ADR corpus + the named-doc self-budgets (CLAUDE.md) share the char-budget.mjs SSoT.
+  // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
   const { problems } = lint({ files, budget });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
+  problems.push(...oversizeAgents().map(a => `agent over budget: ${a}`));
 
   if (problems.length) {
     console.error(`adr-lint: ${problems.length} problem(s) in ${dir}/`);
