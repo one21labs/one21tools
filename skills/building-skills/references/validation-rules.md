@@ -139,6 +139,8 @@ This skill is for PDFs. Use when needed. # Trigger not at start
 
 Draft to a margin (~5,000 body / ~10,000 reference) and measure once before finalizing — a file
 at the cap edge taxes every future one-line fix. (Same convention as the ADR template's margin.)
+Measure with `validate.py` itself, not a re-derivation: the gate folds frontmatter lines beyond
+`name`/`description` into the body count, which a hand count silently misses.
 
 ### Table of Contents Formats
 
