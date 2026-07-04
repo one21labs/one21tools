@@ -14,10 +14,11 @@ summary: "Wire the existing gates — validate.py over every skill folder, valid
   check). An over-budget artifact could merge green.
 
 ## Decision
-One `gates` workflow (`.github/workflows/gates.yml`) on `pull_request` + `push` to main:
-validate.py over each `skills/*/` and `pdca-workflow/skills/*/`; `validate_test.py`;
-`node --test pdca-workflow/scripts/*.test.mjs` (char-budget + adr-lint decision logic); adr-lint over
-`docs/decisions`. Zero new dependencies — runner-preinstalled python3 + node, matching the gate
+One `gates` workflow (`.github/workflows/gates.yml`) on `pull_request` + `push` to main, running
+four gates: validate.py over every skill folder; validate_test.py; the JS decision-logic tests
+(char-budget + adr-lint); adr-lint over the decision corpus. Exact invocations live in gates.yml —
+the SSoT; a command quoted here is a mirror that drifts (this line held one, day one).
+Zero new dependencies — runner-preinstalled python3 + node, matching the gate
 scripts' own zero-dep constraint. `gates` becomes the required check in branch protection;
 claude-review stays advisory (its own header demands exactly this split).
 
