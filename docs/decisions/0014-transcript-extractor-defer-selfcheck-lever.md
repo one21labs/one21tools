@@ -9,7 +9,7 @@ summary: "0007's feasibility trigger fired; the CHECK ran, precondition FAILED �
 
 - Date: 2026-07-04
 - Owner: PM
-- Panel: opposing counsel (EXTRACTOR / STATUS-QUO) + 1 neutral empirical channel lens arbitrating on the real JSONL. verifier + red-team next. Reopens 0007 (0007:36); touches 0006.
+- Panel: opposing counsel (EXTRACTOR / STATUS-QUO) + 1 neutral empirical channel lens arbitrating on the real JSONL; verifier PASS-with-notes; red-team 3 breaks folded. Reopens 0007 (0007:36); touches 0006.
 - Context: 0007 deferred an independent transcript-extractor behind a trigger (0007:36) — build only if a "clean, portable, low-cost raw-transcript channel" exists. The trigger fired (harness review). Open call: does it exist; if not, what captures 0007's residual non-git-visible friction?
 
 ## Decision
@@ -23,8 +23,8 @@ summary: "0007's feasibility trigger fired; the CHECK ran, precondition FAILED �
 The extractor's value is an INDEPENDENT witness — but the only feasible build is a shipped parser (secrets + unversioned schema, reopening 0006): HIGH surface, for ONE case that was itself git-visible (caught by 0007's cross-check). The step-4 self-check captures most of that value at zero surface — cheap-now beats build-expensive until the channel is clean.
 
 ## Assumptions
-- [checkable] **WEAKEST** — the step-4 self-check meaningfully catches non-git-visible friction the git cross-check misses. It nudges the SAME author to introspect — a targeted prompt beats silence, but does NOT sever author-from-curator (the extractor's full cure), so it is no structural guarantee. TEST (owner: verifier): the step-4 edit names the git-visible tag + the self-check question, feeds step 5, cannot pad findings. — result: pending.
-- [checkable] the lever is orchestrator-side `SKILL.md` only — no script/CI, no agent-model change; adr-lint stays green, incl. 0007 under its 6,000 cap (5,975 now): the L36 rewrite + L25/L37 trims free ~118 chars, offsetting the ~96-char `[pivot]` = net -22, so 0007 -> ~5,953 (B2). 0006 untripped. — owner: verifier.
+- [checkable] **WEAKEST** — the step-4 self-check meaningfully catches non-git-visible friction the git cross-check misses. It nudges the SAME author to introspect but does NOT sever author-from-curator (the extractor's full cure) — no structural guarantee. TEST (owner: verifier): the step-4 edit names the git-visible tag + the self-check question, feeds step 5, cannot pad findings. — result: verified (edit ships this PR; both present).
+- [checkable] the lever is orchestrator-side `SKILL.md` only — no script/CI, no agent-model change; adr-lint stays green, incl. 0007 under its cap — the trigger rewrites offset the `[pivot]` (net -22 -> 5,954, verified) (B2). 0006 untripped. — owner: verifier.
 - [contradiction] 0007's live triggers (0007:36-37,:25) contradict this Decision — pointing at the rejected extractor + old loose condition. FIXED this PR: rewrite them to 0014's precondition (Decision 4). — PM-verified vs 0007.
 - [unverifiable] no clean+versioned transcript channel exists today. — REOPEN-IF: Claude Code ships a documented/versioned transcript schema or a transcript-query API -> re-run the extractor call (re-opens 0006).
 
@@ -35,3 +35,6 @@ The extractor's value is an INDEPENDENT witness — but the only feasible build 
 ## Revisit triggers
 - A USER later surfaces a non-git-visible retro miss the step-4 self-check should have caught (the only EXTERNAL observer — the author can't self-observe the miss, which is why the extractor's independent witness would be the full cure) -> lever insufficient; re-weigh the extractor.
 - retrospect wired to auto-apply a finding, or 0006's A/B lands sonnet-inadequate -> re-evaluate lever + tier together.
+
+## Act (post-ship — 2026-07-04, PR #18)
+- [outcome] step-4 lever + 0007 rationalization shipped; corpus green (0007 at 5,954).
