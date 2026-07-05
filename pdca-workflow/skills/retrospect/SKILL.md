@@ -25,7 +25,10 @@ Run this loop:
    analysis and the routing rules — don't restate them.
 4. **Add session friction.** YOU (in the main conversation, which the isolated agent cannot see)
    list this session's friction — every DISTINCT user correction, wrong guess, or rework — and hand
-   it to the agent. Enumerate each before deduping (the agent dedupes at step 5); do NOT restate
+   it to the agent. Mark each item git-visible? (yes/no) — the agent can only corroborate the yes
+   class. Self-check before handing off: "did the user correct anything not reflected in a
+   commit?" — add those items; that class has no other witness (ADR 0014).
+   Enumerate each before deduping (the agent dedupes at step 5); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
    git-visible miss is caught, a non-git-visible one is not.
