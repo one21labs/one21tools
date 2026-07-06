@@ -5,8 +5,7 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
-Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Run its decision-logic
-test: `node --test "pdca-workflow/scripts/*.test.mjs"`.
+Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
 
 ## Muda — ruthlessly cut on sight
 Cut muda the moment you see it, not later — duplicated logic / one-home violations, dead code or

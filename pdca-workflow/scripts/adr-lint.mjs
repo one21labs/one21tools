@@ -30,7 +30,7 @@
  *   `ADR NNNN` cites in source) are intentionally omitted: a generic consumer may have neither.
  *
  * SEE ALSO: ../skills/decide/references/adr-lint.md (spec), adr-template.md (the rules).
- * TESTING: adr-lint.test.mjs (`node --test "scripts/*.test.mjs"`).
+ * TESTING: adr-lint.test.mjs (`node --test pdca-workflow/scripts/*.test.mjs` from the repo root).
  *
  * Usage:
  *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N]

@@ -15,7 +15,7 @@
  *   navigation, never as a second source, and prose elsewhere references this file.
  *
  * SEE ALSO: ../skills/decide/references/doc-budgets.md (the altitude ladder + token table).
- * TESTING: char-budget.test.mjs (`node --test "scripts/*.test.mjs"`).
+ * TESTING: char-budget.test.mjs (`node --test pdca-workflow/scripts/*.test.mjs` from the repo root).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
