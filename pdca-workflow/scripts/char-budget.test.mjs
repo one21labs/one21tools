@@ -1,7 +1,7 @@
 /*
  * char-budget.test.mjs — decision-logic test for the doc char budgets (ADR 0008/0009; "never ship
  * a process-gating script without a test of its decision logic"). Zero-dependency: node's built-in
- * test runner + assert, run via `node --test "scripts/*.test.mjs"`. The predicate `overBudget` is
+ * test runner + assert, run via `node --test pdca-workflow/scripts/*.test.mjs` (repo root). The predicate `overBudget` is
  * unit-tested on synthetic input; the corpus walks run over the real docs/agents AND a synthetic
  * fixture proving positive detection — a walk that always returns [] cannot pass this file.
  * (The ADR-corpus application of the same SSoT is tested in adr-lint.test.mjs.)

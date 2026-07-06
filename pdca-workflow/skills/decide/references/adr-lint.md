@@ -46,7 +46,7 @@ A failure prints the offending files and exits non-zero; a clean corpus exits ze
 ```
 node scripts/adr-lint.mjs                  # lints ./docs/decisions, char budget from char-budget.mjs
 node scripts/adr-lint.mjs docs/decisions --budget=8000
-node --test "scripts/*.test.mjs"           # the decision-logic tests (adr-lint + char-budget)
+node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)
 ```
 
 `/pdca-init` copies `adr-lint.mjs` + `adr-lint.test.mjs` into the consuming repo's `scripts/` and
