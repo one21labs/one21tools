@@ -81,9 +81,35 @@ Grading disciplines:
   that sees `with_skill` in the path grades with an expectation; blinding removes that cue.
 - Grade from the produced output/transcript, never from intent.
 
-Residual (ADR 0019, named not fixed): a Claude grader scoring Claude output carries family
-self-preference that blinding does not remove — a non-Claude grader or a human spot-check is
-the only close. Treat Claude-only verdicts as directional, not exact.
+### Grading reliability under the Claude-only constraint (ADR 0019)
+
+Only Claude can grade here — a fixed constraint, not a choice. The paired design already
+cancels raw self-preference (both arms are Claude output); what survives is style-alignment
+bias, family blind spots, and judge noise. Mitigation stack, in priority order:
+
+1. **Mechanize first.** Any assertion that CAN execute MUST: run the produced script against
+   the failure input, run a linter for dead code, grep for the banned pattern — grade from
+   observed behavior. The model judges only what cannot execute. An executable check has no
+   family bias at all; eval authors write assertions to be executable wherever possible.
+2. **Planted-defect calibration.** Per benchmark cycle, grade a small known-truth set: real
+   outputs with deliberately injected violations plus known-clean ones. The grader's
+   false-pass / false-fail rate per assertion class is ground truth by construction — it
+   MEASURES the family blind spot instead of guessing at it. Report it in the snapshot.
+3. **Prosecutor pass.** Every PASS verdict is re-examined by a second, fresh grader
+   instructed to refute it from the artifact; the pass stands only if the evidence survives.
+   Attacks leniency and style halo.
+4. **Sampled agreement.** Re-grade ~10% of cells with independent grader instances; report
+   per-assertion agreement. Low-agreement assertions are judgment, not measurement — rewrite
+   or mechanize them.
+5. **Pairwise cross-check** (delegated: skill-creator's blind comparator). Where a verdict is
+   decision-relevant, confirm the blind A/B winner agrees with the assertion-delta direction;
+   flag disagreement.
+6. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
+   (assertion, output) pairs; agreement bounds the residual empirically — the only external
+   anchor available.
+
+Residual after all of the above: family bias on genuinely judgment-only assertions. Named,
+bounded by (2)/(6), not eliminated. Treat those verdict components as directional.
 
 ## The verdict
 
