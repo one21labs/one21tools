@@ -33,7 +33,7 @@ function adr(name, o = {}) {
   const fm = o.frontmatter ?? `---
 id: ${id}
 title: "${o.title ?? "A decision"}"
-status: ${o.status ?? "accepted"}
+status: ${o.status ?? "accepted"}${o.tier ? `\ntier: ${o.tier}` : ""}
 summary: "${o.summary ?? "A one-line summary"}"
 ---`;
   const body = o.body ?? `\n# ${id} — A decision\n\n- Date: 2026-06-27\n`;
@@ -170,6 +170,55 @@ test("accumulates independent problems rather than stopping at the first", () =>
   const { problems } = lint({ files });
   // id!=filename + version + dangling cite = 3
   assert.equal(problems.length, 3);
+});
+
+// Lite tier (`tier: lite`): a SETTLED decision — exempt from the criterion gate, held to the
+// lite budget, and REJECTED if it smuggles in a revisit trigger (must graduate to a full ADR).
+test("lite: a settled decision without a criterion passes", () => {
+  const files = [adr("0001-first.md", {
+    tier: "lite", noCriterion: true,
+    body: "\n# 0001 — a settled call\n\nDecision + why. Enforced: some.test.mjs.\n",
+  })];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("lite: a REOPEN-IF must graduate to a full ADR", () => {
+  const files = [adr("0001-first.md", {
+    tier: "lite", noCriterion: true,
+    body: "\n# 0001\n\nDecision. REOPEN-IF: usage grows.\n",
+  })];
+  assert.match(lint({ files }).problems[0], /graduate it to a full ADR/);
+});
+
+test("lite: an [unverifiable] bullet or Revisit triggers section must graduate", () => {
+  const withBullet = [adr("0001-a.md", {
+    tier: "lite", noCriterion: true,
+    body: "\n# 0001\n\n- [unverifiable] this holds\n",
+  })];
+  assert.match(lint({ files: withBullet }).problems[0], /graduate/);
+  const withSection = [adr("0002-b.md", {
+    tier: "lite", noCriterion: true,
+    body: "\n# 0002\n\n## Revisit triggers\n- something changes\n",
+  })];
+  assert.match(lint({ files: withSection }).problems[0], /graduate/);
+});
+
+test("lite: held to the lite budget while a full ADR of the same size passes", () => {
+  const big = padTo("0001", 2000);
+  const lite = [adr("0001-a.md", { tier: "lite", noCriterion: true, body: big })];
+  assert.match(lint({ files: lite }).problems[0], /lite budget/);
+  const full = [adr("0001-a.md", { body: big })];
+  assert.deepEqual(lint({ files: full }).problems, []);
+});
+
+test("lite: still subject to version-agnostic and dangling-cite guards", () => {
+  const files = [adr("0001-a.md", {
+    tier: "lite", noCriterion: true,
+    body: "\n# 0001\n\nShipped in v1.2.3 per ADR 0099.\n",
+  })];
+  const { problems } = lint({ files });
+  assert.ok(problems.some(p => /release version/.test(p)));
+  assert.ok(problems.some(p => /dangling ADR cite/.test(p)));
 });
 
 // Marketplace<->plugin.json mirror (ADR 0011): a field stated in both homes must be identical.
