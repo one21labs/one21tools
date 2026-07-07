@@ -84,9 +84,11 @@ def fmt_report(agg: dict, content_chars: int, tok_delta: float) -> str:
         f"skill body: {content_chars} chars; mean run-time token delta: {tok_delta:+.0f}",
         f"VERDICT - delta per 1k chars of context: {per_1k:+.4f}",
     ]
-    if agg["pairs"] < 9:
-        lines.append("[WARN] under 9 pairs - the CI is wide; add evals or replicates "
-                     "before trusting the verdict")
+    # The CI is over non-tied pairs (ties carry no direction), so the width guard
+    # must count them - 12 pairs with 11 ties is an n=1 interval, not an n=12 one.
+    if agg["wins"] + agg["losses"] < 9:
+        lines.append("[WARN] under 9 non-tied pairs - the CI is wide; add evals or "
+                     "replicates before trusting the verdict")
     return "\n".join(lines)
 
 

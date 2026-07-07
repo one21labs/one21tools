@@ -93,6 +93,12 @@ class Report(unittest.TestCase):
         big = fmt_report(aggregate([(0.4, 0.8)] * 12), content_chars=4000, tok_delta=0.0)
         self.assertNotIn("[WARN]", big)
 
+    def test_warning_counts_non_tied_pairs_not_total(self):
+        # 12 pairs but 11 ties -> the CI is over n=1; the guard must fire.
+        pairs = [(0.4, 0.8)] + [(0.5, 0.5)] * 11
+        report = fmt_report(aggregate(pairs), content_chars=4000, tok_delta=0.0)
+        self.assertIn("[WARN]", report)
+
     def test_zero_content_chars_does_not_divide_by_zero(self):
         report = fmt_report(aggregate([(0.4, 0.8)]), content_chars=0, tok_delta=0.0)
         self.assertIn("+0.0000", report)

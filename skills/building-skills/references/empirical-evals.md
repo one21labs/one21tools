@@ -86,7 +86,7 @@ python skills/building-skills/scripts/eval_verdict.py <benchmark.json> --skill <
 It pairs each eval's runs across configurations and reports:
 
 - **Win rate with a Wilson 95% CI** over non-tied pairs — trust the interval, not the point
-  estimate; under ~9 pairs it prints a width warning (add evals or replicates).
+  estimate; under ~9 non-tied pairs it prints a width warning (add evals or replicates).
 - **Mean pass-rate delta** and the mean run-time token delta.
 - **VERDICT — delta per 1k chars** of SKILL.md body: the cost-per-benefit number. A skill
   whose CI straddles zero delta is not yet shown to justify ANY chars; a positive verdict
