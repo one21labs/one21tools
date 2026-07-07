@@ -6,6 +6,8 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
+Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>` — writes the
+version's one home (plugin.json when the plugin has one, else the marketplace entry).
 
 ## Muda — ruthlessly cut on sight
 Cut muda the moment you see it, not later — duplicated logic / one-home violations, dead code or
