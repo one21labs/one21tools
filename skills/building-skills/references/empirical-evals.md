@@ -63,17 +63,53 @@ Disciplines:
 ## Running the benchmark
 
 Run skill-creator's benchmark mode over the eval set with **at least 3 runs per
-configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation:
+configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation.
+Escalate sequentially (ADR 0019): after aggregating, add replicates or evals ONLY where the
+eval-level CI straddles the verdict boundary (0.5 win rate / zero delta) — never spend runs
+on an already-unambiguous cell.
 
 ```
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
 ```
 
-Grading disciplines (both from ADR 0013):
+Grading disciplines:
 
-- **Fresh grader, different model** — the bundled grader otherwise inherits the session
-  model and its biases.
+- **Fresh grader, different model** (ADR 0013) — the bundled grader otherwise inherits the
+  session model and its biases.
+- **Blind the arm** (ADR 0019) — stage each run under a neutral label (`arm-A`/`arm-B`) and
+  withhold the arm->config mapping from the grader; reveal it only at aggregation. A grader
+  that sees `with_skill` in the path grades with an expectation; blinding removes that cue.
 - Grade from the produced output/transcript, never from intent.
+
+### Grading reliability under the Claude-only constraint (ADR 0019)
+
+Only Claude can grade here — a fixed constraint, not a choice. The paired design already
+cancels raw self-preference (both arms are Claude output); what survives is style-alignment
+bias, family blind spots, and judge noise. Mitigation stack, in priority order:
+
+1. **Mechanize first.** Any assertion that CAN execute MUST: run the produced script against
+   the failure input, run a linter for dead code, grep for the banned pattern — grade from
+   observed behavior. The model judges only what cannot execute. An executable check has no
+   family bias at all; eval authors write assertions to be executable wherever possible.
+2. **Planted-defect calibration.** Per benchmark cycle, grade a small known-truth set: real
+   outputs with deliberately injected violations plus known-clean ones. The grader's
+   false-pass / false-fail rate per assertion class is ground truth by construction — it
+   MEASURES the family blind spot instead of guessing at it. Report it in the snapshot.
+3. **Prosecutor pass.** Every PASS verdict is re-examined by a second, fresh grader
+   instructed to refute it from the artifact; the pass stands only if the evidence survives.
+   Attacks leniency and style halo.
+4. **Sampled agreement.** Re-grade ~10% of cells with independent grader instances; report
+   per-assertion agreement. Low-agreement assertions are judgment, not measurement — rewrite
+   or mechanize them.
+5. **Pairwise cross-check** (delegated: skill-creator's blind comparator). Where a verdict is
+   decision-relevant, confirm the blind A/B winner agrees with the assertion-delta direction;
+   flag disagreement.
+6. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
+   (assertion, output) pairs; agreement bounds the residual empirically — the only external
+   anchor available.
+
+Residual after all of the above: family bias on genuinely judgment-only assertions. Named,
+bounded by (2)/(6), not eliminated. Treat those verdict components as directional.
 
 ## The verdict
 
@@ -85,16 +121,31 @@ python skills/building-skills/scripts/eval_verdict.py <benchmark.json> --skill <
 
 It pairs each eval's runs across configurations and reports:
 
-- **Win rate with a Wilson 95% CI** over non-tied pairs — trust the interval, not the point
-  estimate; under ~9 non-tied pairs it prints a width warning (add evals or replicates).
+- **Win rate with a Wilson 95% CI, eval-clustered** (ADR 0019): replicates of one eval are
+  correlated, so each eval's mean delta becomes one win/loss/tie and the headline interval
+  is over non-tied EVALS — trust the interval, not the point estimate; under 4 non-tied
+  evals (the authoring floor) it prints a width warning. Pair-level W/L/T stays as detail.
 - **Mean pass-rate delta** and the mean run-time token delta.
-- **VERDICT — delta per 1k chars** of SKILL.md body: the cost-per-benefit number. A skill
-  whose CI straddles zero delta is not yet shown to justify ANY chars; a positive verdict
-  ranks skills by value density and tells you which near-cap skill deserves its budget.
+- **VERDICT — delta per 1k chars of loaded context**: the cost-per-benefit number. The
+  denominator (ADR 0019) defaults to SKILL.md body (the always-on cost); `--include-references`
+  charges body + all references/*.md (an upper bound — assumes every reference loaded), and
+  `--loaded-chars N` takes an exact measured count. For a reference-heavy skill the two bounds
+  diverge sharply (engineering-principles: +0.0235 body-only vs +0.0029 with references) — report
+  BOTH; the truth is between them. A skill whose CI straddles zero delta is not yet shown to
+  justify ANY chars; a positive verdict ranks skills by value density.
 
 `--fail-under <delta>` exits nonzero below a floor — for local regression checks when
 iterating on a skill. It is NOT a CI gate: benchmark runs are non-deterministic, so gates.yml
 runs only `eval_verdict_test.py` (the deterministic decision logic), never the benchmark.
+
+## Result snapshots
+
+Benchmark verdicts are model- and eval-relative and the raw runs are ephemeral, so append a
+dated snapshot under `benchmarks/` after each run (ADR 0019) — the per-cell verdict lines plus
+metadata: executor model, eval-set content hash, protocol/ADR version, blinded (y/n), and the
+denominator basis. Append-only, never edited: a snapshot is a measurement record as of its
+date, not current truth (so it is not a stale mirror). This is what makes `--fail-under` and
+regression-vs-history possible — without a stored baseline there is nothing to regress against.
 
 ## Tier 2 — section ablation
 
