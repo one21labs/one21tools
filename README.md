@@ -12,7 +12,7 @@ The differentiating idea: manufacturing quality principles translate directly to
 |-------|--------------|
 | `code-standards` | Language-agnostic code quality standards: file headers, naming, error handling, logging. SSoT and altitude as the governing tests for what belongs in a comment. |
 | `engineering-principles` | Lean/TPS/Deming manufacturing principles applied to software, documentation, and process. Includes context engineering mapped to TPS. |
-| `building-skills` | Framework for creating, testing, and validating Claude Code skills. Covers conciseness, description-as-instruction, and iterative testing. |
+| `building-skills` | Framework for creating, testing, and validating Claude Code skills. Covers conciseness, description-as-instruction, and iterative testing — plus empirical measurement: evals gated by schema, run on skill-creator's paired benchmark, judged by an owned cost-per-benefit verdict (`eval_verdict.py`). |
 | `optimizing-context` | Patterns for structuring Claude's context efficiently: CLAUDE.md, skills, plugins, subagents, MCP, hooks. |
 
 ## PDCA workflow plugin

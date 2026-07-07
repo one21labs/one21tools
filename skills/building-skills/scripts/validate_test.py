@@ -157,5 +157,57 @@ class ReferenceCaps(unittest.TestCase):
             self.assertIn("emoji", r.error)
 
 
+class EvalsJsonGate(unittest.TestCase):
+    """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema."""
+
+    EVAL = {"id": 1, "prompt": "Do the thing", "expected_output": "The thing, done",
+            "expectations": ["Output includes X"]}
+
+    def write_evals(self, d, data):
+        (d / "evals").mkdir()
+        import json
+        (d / "evals" / "evals.json").write_text(json.dumps(data), encoding="utf-8")
+
+    def test_valid_evals_pass(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            self.write_evals(d, {"skill_name": "with-evals", "evals": [self.EVAL]})
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_skill_name_mismatch_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            self.write_evals(d, {"skill_name": "other", "evals": [self.EVAL]})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("skill_name", r.error)
+
+    def test_duplicate_ids_fail(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            self.write_evals(d, {"skill_name": "with-evals", "evals": [self.EVAL, self.EVAL]})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("duplicate id", r.error)
+
+    def test_empty_expectations_fail(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            self.write_evals(d, {"skill_name": "with-evals",
+                                 "evals": [{**self.EVAL, "expectations": []}]})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("expectations", r.error)
+
+    def test_invalid_json_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            (d / "evals").mkdir()
+            (d / "evals" / "evals.json").write_text("{not json", encoding="utf-8")
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("not valid JSON", r.error)
+
+
 if __name__ == "__main__":
     unittest.main()
