@@ -10,7 +10,7 @@ summary: "Empirical skill evals are HYBRID: execution stays DELEGATED to skill-c
 - Date: 2026-07-04
 - Owner: PM
 - Panel: original call — opposing counsel (2 sonnet advisors) + neutral harness-design lens, verifier + red-team gate. Verdict-layer amendment — owner-direct in a cross-repo review session (owner stated the requirement); gates (validate.py, unit tests, adr-lint) ran as Check.
-- Context: building-skills forked the OLD skill-creator; the NEW skill-creator ships a benchmark harness (paired with_skill/without_skill runs, graded assertions, token/time stats) but is NOT in this marketplace nor bundled in Claude Code. The repo's core claim — "token efficiency enforced, not aspirational" — was enforced on the COST side only (char budgets); no mechanism measured whether a skill's content BUYS anything. The owner requires skills be empirically shown to justify their context cost.
+- Context: skill-creator's benchmark harness (paired with_skill/without_skill runs, graded assertions, token/time stats) is NOT in this marketplace nor bundled in Claude Code. Char budgets enforce only the COST side of a skill; no mechanism measured whether its content BUYS anything. The owner requires skills be empirically shown to justify their context cost.
 
 ## Decision
 **Delegate execution; own the schema gate + the verdict. No owned harness — one concern, one PR.**
