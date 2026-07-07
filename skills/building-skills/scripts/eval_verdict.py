@@ -28,16 +28,70 @@ def strip_frontmatter(text: str) -> str:
     return text[match.end():].strip() if match else text.strip()
 
 
-def pair_runs(runs: list) -> list:
-    """Pair benchmark runs by (eval_id, run_number) across the two configurations.
-    Returns [(without_rate, with_rate), ...]; runs missing their twin are dropped."""
+def body_chars(skill_path: Path) -> int:
+    """Chars of SKILL.md body - the always-loaded context cost."""
+    return len(strip_frontmatter((skill_path / "SKILL.md").read_text(encoding="utf-8")))
+
+
+def reference_chars(skill_path: Path) -> int:
+    """Total chars of the skill's references/*.md - the on-demand surface a with_skill run
+    may ALSO load. Uncounted by the body-only denominator, so reference-heavy skills are
+    otherwise flattered (ADR 0019). 0 when there is no references/ dir."""
+    refs = skill_path / "references"
+    if not refs.is_dir():
+        return 0
+    return sum(len(f.read_text(encoding="utf-8")) for f in sorted(refs.glob("*.md")))
+
+
+def denominator(skill_path: Path, loaded_chars, include_references):
+    """The context cost the delta is charged against (ADR 0019). Precedence: an explicit
+    measured --loaded-chars wins; else body + references when --include-references (an UPPER
+    bound - assumes every reference loaded); else body-only (the always-on cost). Returns
+    (chars, basis-label)."""
+    if loaded_chars is not None:
+        return loaded_chars, "measured loaded chars"
+    if include_references:
+        return body_chars(skill_path) + reference_chars(skill_path), "SKILL.md body + references"
+    return body_chars(skill_path), "SKILL.md body"
+
+
+def pairs_by_eval(runs: list) -> dict:
+    """Pair benchmark runs by (eval_id, run_number) across the two configurations,
+    grouped by eval: {eval_id: [(without_rate, with_rate), ...]}. Replicates of one
+    eval are correlated (same task), so eval_id is the clustering unit (ADR 0019).
+    Runs missing their twin are dropped."""
     by_key = {}
     for run in runs:
         key = (run["eval_id"], run["run_number"])
         by_key.setdefault(key, {})[run["configuration"]] = run["result"]["pass_rate"]
-    return [(pair["without_skill"], pair["with_skill"])
-            for _, pair in sorted(by_key.items())
-            if "with_skill" in pair and "without_skill" in pair]
+    grouped = {}
+    for (eval_id, _), pair in sorted(by_key.items()):
+        if "with_skill" in pair and "without_skill" in pair:
+            grouped.setdefault(eval_id, []).append(
+                (pair["without_skill"], pair["with_skill"]))
+    return grouped
+
+
+def pair_runs(runs: list) -> list:
+    """Flat [(without_rate, with_rate), ...] across all evals (pair-level detail)."""
+    return [p for pairs in pairs_by_eval(runs).values() for p in pairs]
+
+
+def eval_level(by_eval: dict) -> dict:
+    """Cluster replicates per eval (ADR 0019): an eval's mean delta > 0 is a win,
+    < 0 a loss, 0 a tie. The headline Wilson CI is over non-tied EVALS - replicates
+    within an eval are correlated and must not inflate n."""
+    wins = losses = ties = 0
+    for pairs in by_eval.values():
+        mean_delta = sum(wi - wo for wo, wi in pairs) / len(pairs)
+        if mean_delta > 0:
+            wins += 1
+        elif mean_delta < 0:
+            losses += 1
+        else:
+            ties += 1
+    return {"evals": len(by_eval), "wins": wins, "losses": losses, "ties": ties,
+            "win_ci": wilson_ci(wins, wins + losses)}
 
 
 def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
@@ -73,22 +127,26 @@ def token_cost(run_summary: dict) -> float:
         return 0.0
 
 
-def fmt_report(agg: dict, content_chars: int, tok_delta: float) -> str:
+def fmt_report(agg: dict, evals: dict, content_chars: int, tok_delta: float,
+               basis: str = "SKILL.md body") -> str:
     per_1k = (agg["mean_delta"] / content_chars * 1000) if content_chars else 0.0
-    lo, hi = agg["win_ci"]
+    lo, hi = evals["win_ci"]
     lines = [
         f"paired runs: {agg['pairs']}  wins: {agg['wins']}  losses: {agg['losses']}  "
         f"ties: {agg['ties']}",
-        f"win rate (excl. ties): {lo:.2f}-{hi:.2f} (Wilson 95% CI)",
+        f"evals: {evals['evals']}  wins: {evals['wins']}  losses: {evals['losses']}  "
+        f"ties: {evals['ties']}",
+        f"win rate (eval-clustered, excl. ties): {lo:.2f}-{hi:.2f} (Wilson 95% CI)",
         f"mean pass-rate delta: {agg['mean_delta']:+.3f}",
-        f"skill body: {content_chars} chars; mean run-time token delta: {tok_delta:+.0f}",
+        f"context cost: {content_chars} chars ({basis}); "
+        f"mean run-time token delta: {tok_delta:+.0f}",
         f"VERDICT - delta per 1k chars of context: {per_1k:+.4f}",
     ]
-    # The CI is over non-tied pairs (ties carry no direction), so the width guard
-    # must count them - 12 pairs with 11 ties is an n=1 interval, not an n=12 one.
-    if agg["wins"] + agg["losses"] < 9:
-        lines.append("[WARN] under 9 non-tied pairs - the CI is wide; add evals or "
-                     "replicates before trusting the verdict")
+    # The headline CI is over non-tied EVALS (replicates are correlated - ADR 0019),
+    # so the width guard counts them; 4 matches the authoring floor of 4+ cases.
+    if evals["wins"] + evals["losses"] < 4:
+        lines.append("[WARN] under 4 non-tied evals - the CI is wide; add evals "
+                     "before trusting the verdict")
     return "\n".join(lines)
 
 
@@ -97,21 +155,28 @@ def main() -> int:
         description="Cost-per-benefit verdict over a skill-creator benchmark.json.")
     parser.add_argument("benchmark_json", type=Path)
     parser.add_argument("--skill", type=Path, required=True,
-                        help="skill folder (its SKILL.md body is the measured context cost)")
+                        help="skill folder (its SKILL.md body is the default context cost)")
+    parser.add_argument("--include-references", action="store_true",
+                        help="charge the delta against SKILL.md body + all references/*.md "
+                             "(upper bound: assumes every reference loaded) - ADR 0019")
+    parser.add_argument("--loaded-chars", type=int, default=None,
+                        help="exact measured chars loaded per with_skill run; overrides the "
+                             "body/references estimate (ADR 0019)")
     parser.add_argument("--fail-under", type=float, default=None,
                         help="exit 1 if the mean pass-rate delta falls below this")
     args = parser.parse_args()
 
     benchmark = json.loads(args.benchmark_json.read_text(encoding="utf-8"))
-    pairs = pair_runs(benchmark.get("runs", []))
+    by_eval = pairs_by_eval(benchmark.get("runs", []))
+    pairs = [p for ps in by_eval.values() for p in ps]
     if not pairs:
         print("[FAIL] no paired with_skill/without_skill runs in benchmark.json - "
               "run skill-creator's benchmark mode with both configurations")
         return 1
-    body_chars = len(strip_frontmatter(
-        (args.skill / "SKILL.md").read_text(encoding="utf-8")))
+    chars, basis = denominator(args.skill, args.loaded_chars, args.include_references)
     agg = aggregate(pairs)
-    print(fmt_report(agg, body_chars, token_cost(benchmark.get("run_summary", {}))))
+    print(fmt_report(agg, eval_level(by_eval), chars,
+                     token_cost(benchmark.get("run_summary", {})), basis))
     if args.fail_under is not None and agg["mean_delta"] < args.fail_under:
         print(f"[FAIL] mean delta {agg['mean_delta']:+.3f} < --fail-under {args.fail_under}")
         return 1
