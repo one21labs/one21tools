@@ -16,6 +16,7 @@ Usage:
     python validate.py <skill-folder>
     python validate.py --help
 """
+import json
 import re
 import sys
 import argparse
@@ -99,6 +100,48 @@ class ValidationResult:
     valid: bool
     error: str = ""
     warnings: List[str] = field(default_factory=list)
+
+
+def validate_evals_json(skill_path: Path, folder_name: str) -> str:
+    """R7: evals/evals.json, when present, matches skill-creator's schema (its
+    references/schemas.md is the schema SSoT; this gate pins the shape the harness and
+    eval_verdict.py consume — ADR 0013). Absent file = OK (evals are encouraged, not forced).
+    Returns "" when valid, else the error."""
+    evals_file = skill_path / "evals" / "evals.json"
+    if not evals_file.exists():
+        return ""
+    try:
+        data = json.loads(evals_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return f"evals/evals.json is not valid JSON: {e}"
+    if not isinstance(data, dict):
+        return "evals/evals.json must be an object with 'skill_name' and 'evals'"
+    if data.get("skill_name") != folder_name:
+        return f"evals/evals.json skill_name '{data.get('skill_name')}' must match folder '{folder_name}'"
+    evals = data.get("evals")
+    if not isinstance(evals, list) or not evals:
+        return "evals/evals.json 'evals' must be a non-empty array"
+    seen_ids = set()
+    for i, ev in enumerate(evals):
+        where = f"evals[{i}]"
+        if not isinstance(ev, dict):
+            return f"{where} must be an object"
+        if not isinstance(ev.get("id"), int):
+            return f"{where}: 'id' must be an integer"
+        if ev["id"] in seen_ids:
+            return f"{where}: duplicate id {ev['id']}"
+        seen_ids.add(ev["id"])
+        for key in ("prompt", "expected_output"):
+            if not isinstance(ev.get(key), str) or not ev[key].strip():
+                return f"{where}: '{key}' must be a non-empty string"
+        exps = ev.get("expectations")
+        if (not isinstance(exps, list) or not exps
+                or not all(isinstance(x, str) and x.strip() for x in exps)):
+            return f"{where}: 'expectations' must be a non-empty array of strings"
+        files = ev.get("files", [])
+        if not isinstance(files, list) or not all(isinstance(f, str) for f in files):
+            return f"{where}: 'files' must be an array of paths"
+    return ""
 
 
 def validate_skill(skill_path: Path) -> ValidationResult:
@@ -219,6 +262,11 @@ def validate_skill(skill_path: Path) -> ValidationResult:
             if ref_chars > REFERENCE_TOC_THRESHOLD and not TOC_RE.search(ref_text):
                 return ValidationResult(False, f"Reference {rel} has {ref_chars} chars (>{REFERENCE_TOC_THRESHOLD}). Add '## Table of Contents'")
 
+    # R7: evals/evals.json shape, when present (skill-creator schema; ADR 0013)
+    evals_error = validate_evals_json(skill_path, folder_name)
+    if evals_error:
+        return ValidationResult(False, evals_error)
+
     return ValidationResult(True, "", warnings)
 
 
@@ -247,6 +295,10 @@ Body:
 References (references/*.md):
   - Max {REFERENCE_MAX_CHARS} chars
   - If >{REFERENCE_TOC_THRESHOLD} chars, must have '## Table of Contents'
+
+Evals (evals/evals.json, optional):
+  - skill-creator schema: skill_name matches folder; unique integer ids;
+    non-empty prompt/expected_output; non-empty expectations array
 
 NEXT STEP
 =========
