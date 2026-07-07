@@ -112,7 +112,7 @@ Test with all target models. What works for Opus may need more detail for Haiku.
 
 ### 1. Draft Evaluations First
 
-Draft 3+ test cases before writing documentation — a manual authoring discipline, not a tooled gate. Empirical execution (baselines, grading, benchmarks) is delegated; see [evaluation-patterns.md](references/evaluation-patterns.md) for test structure and the delegation pointer.
+Draft 3+ test cases (`evals/evals.json`, validate.py gates the shape) before writing documentation. Execution runs on skill-creator's harness; `scripts/eval_verdict.py` turns its benchmark into the cost-per-benefit verdict. Authoring: [evaluation-patterns.md](references/evaluation-patterns.md); measurement protocol: [empirical-evals.md](references/empirical-evals.md).
 
 ### 2. Develop Iteratively
 
@@ -162,7 +162,7 @@ python skills/building-skills/scripts/package.py <skill-folder> [output-director
 
 ### Process
 
-- [ ] 3+ test cases drafted before documentation (manual; empirical eval delegated)
+- [ ] 3+ test cases drafted before documentation; measured verdict for always-on or near-cap skills
 - [ ] Tested with target models
 - [ ] Core principles applied (conciseness, description-as-instruction)
 - [ ] References inline at point of need, one level deep
