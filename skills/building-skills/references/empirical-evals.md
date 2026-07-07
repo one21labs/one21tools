@@ -63,17 +63,27 @@ Disciplines:
 ## Running the benchmark
 
 Run skill-creator's benchmark mode over the eval set with **at least 3 runs per
-configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation:
+configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation.
+Escalate sequentially (ADR 0019): after aggregating, add replicates or evals ONLY where the
+eval-level CI straddles the verdict boundary (0.5 win rate / zero delta) — never spend runs
+on an already-unambiguous cell.
 
 ```
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
 ```
 
-Grading disciplines (both from ADR 0013):
+Grading disciplines:
 
-- **Fresh grader, different model** — the bundled grader otherwise inherits the session
-  model and its biases.
+- **Fresh grader, different model** (ADR 0013) — the bundled grader otherwise inherits the
+  session model and its biases.
+- **Blind the arm** (ADR 0019) — stage each run under a neutral label (`arm-A`/`arm-B`) and
+  withhold the arm->config mapping from the grader; reveal it only at aggregation. A grader
+  that sees `with_skill` in the path grades with an expectation; blinding removes that cue.
 - Grade from the produced output/transcript, never from intent.
+
+Residual (ADR 0019, named not fixed): a Claude grader scoring Claude output carries family
+self-preference that blinding does not remove — a non-Claude grader or a human spot-check is
+the only close. Treat Claude-only verdicts as directional, not exact.
 
 ## The verdict
 
@@ -85,16 +95,31 @@ python skills/building-skills/scripts/eval_verdict.py <benchmark.json> --skill <
 
 It pairs each eval's runs across configurations and reports:
 
-- **Win rate with a Wilson 95% CI** over non-tied pairs — trust the interval, not the point
-  estimate; under ~9 non-tied pairs it prints a width warning (add evals or replicates).
+- **Win rate with a Wilson 95% CI, eval-clustered** (ADR 0019): replicates of one eval are
+  correlated, so each eval's mean delta becomes one win/loss/tie and the headline interval
+  is over non-tied EVALS — trust the interval, not the point estimate; under 4 non-tied
+  evals (the authoring floor) it prints a width warning. Pair-level W/L/T stays as detail.
 - **Mean pass-rate delta** and the mean run-time token delta.
-- **VERDICT — delta per 1k chars** of SKILL.md body: the cost-per-benefit number. A skill
-  whose CI straddles zero delta is not yet shown to justify ANY chars; a positive verdict
-  ranks skills by value density and tells you which near-cap skill deserves its budget.
+- **VERDICT — delta per 1k chars of loaded context**: the cost-per-benefit number. The
+  denominator (ADR 0019) defaults to SKILL.md body (the always-on cost); `--include-references`
+  charges body + all references/*.md (an upper bound — assumes every reference loaded), and
+  `--loaded-chars N` takes an exact measured count. For a reference-heavy skill the two bounds
+  diverge sharply (engineering-principles: +0.0235 body-only vs +0.0029 with references) — report
+  BOTH; the truth is between them. A skill whose CI straddles zero delta is not yet shown to
+  justify ANY chars; a positive verdict ranks skills by value density.
 
 `--fail-under <delta>` exits nonzero below a floor — for local regression checks when
 iterating on a skill. It is NOT a CI gate: benchmark runs are non-deterministic, so gates.yml
 runs only `eval_verdict_test.py` (the deterministic decision logic), never the benchmark.
+
+## Result snapshots
+
+Benchmark verdicts are model- and eval-relative and the raw runs are ephemeral, so append a
+dated snapshot under `benchmarks/` after each run (ADR 0019) — the per-cell verdict lines plus
+metadata: executor model, eval-set content hash, protocol/ADR version, blinded (y/n), and the
+denominator basis. Append-only, never edited: a snapshot is a measurement record as of its
+date, not current truth (so it is not a stale mirror). This is what makes `--fail-under` and
+regression-vs-history possible — without a stored baseline there is nothing to regress against.
 
 ## Tier 2 — section ablation
 
