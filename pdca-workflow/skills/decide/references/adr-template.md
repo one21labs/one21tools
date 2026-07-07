@@ -39,8 +39,9 @@ Rules:
   `## Act` (the plan-of-record note below) — coupling a decision to a release number means every
   re-sequence edits every ADR. `adr-lint` fails on any `vX.Y.Z`.
 - **Allocate a number** only after confirming it's a *new* decision (an amend/re-sequence edits the
-  existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, open PRs) + 1`
-  — parallel branches grab the same int otherwise. Below origin/main's highest = stale: rebase first.
+  existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, every origin/*
+  branch's docs/decisions/) + 1` — a parallel or never-PR'd branch's ADR collides otherwise. Below
+  origin/main's highest = stale: rebase first.
 - **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
   frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, an
   unfalsifiable decision (no stated criterion), or an over-budget record. `/decide` scans open ADRs'
