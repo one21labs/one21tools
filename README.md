@@ -24,6 +24,7 @@ LTconfig.
 | Component | What it is |
 |-----------|------------|
 | `/decide` skill | The decision panel: advisors argue, one PM decides and writes an ADR, an independent gate verifies, red-team breaks it. Triggered by any user feedback or open judgment call. |
+| `/advise`, `/verify`, `/red-team` skills | The panel primitives standalone: situational advice, independent verification, adversarial break — right-sized checks without the ADR ceremony. `/decide` composes them. |
 | `/retrospect` skill | Automates the Act loop: reads git history + session friction, emits routed process improvements. Run before opening a PR. |
 | `/pdca-init` skill | Scaffolds the workflow into a project: a themed CLAUDE.md, the ADR decision log, and a **project-tailored advisor panel** generated from the project's domain. |
 | Agents | The domain-agnostic meta-roles: `pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`. The advisor panel itself is generated per project by `/pdca-init`. |

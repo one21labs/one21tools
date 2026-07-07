@@ -20,6 +20,8 @@ less. The human stays accountable; the agents earn more of the work.
 
 Three jobs are split on purpose — **advise, decide, verify** — because a correctness panel
 finds problems but can't decide trade-offs, and averaging hides the one accountable decision.
+The panel pieces also ship standalone — `/advise`, `/verify`, `/red-team` — for calls that
+need one right-sized check, not the ceremony; `/decide` composes them and adds the record.
 
 ## What's in the box
 
@@ -27,6 +29,7 @@ finds problems but can't decide trade-offs, and averaging hides the one accounta
 agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
 skills/
   decide/   the decision panel + the process system-of-record
+  advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
     references/       adr-template, adr-lint, metrics-engine, doc-budgets
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
