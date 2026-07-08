@@ -9,9 +9,11 @@
  *   - no ADR names a release version (version-agnostic — name the cut/feature, not the release);
  *   - every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to an ADR on disk (the
  *     renumber/fold catcher — a stale cite would pass review otherwise);
- *   - every ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
+ *   - every FULL ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
  *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
  *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
+ *   - `tier: lite` records (settled decisions — ADR 0020) are exempt from the criterion gate but
+ *     capped at LITE_ADR_CHAR_BUDGET and REJECTED if they carry a revisit trigger (must graduate);
  *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
  *     char-budget.mjs; no exemptions — every ADR is held to the cap);
  *   - a marketplace plugin entry's metadata matches its plugin's own plugin.json where both state
@@ -39,7 +41,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, ADR_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // Repo root (this file lives at <root>/pdca-workflow/scripts/), matching char-budget.mjs.
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -49,7 +51,7 @@ const ROOT = fileURLToPath(new URL("../../", import.meta.url));
  * (defaults from char-budget.mjs in main(); passed in so the decision logic stays unit-testable).
  * Returns { problems: string[] } — empty = corpus OK.
  */
-export function lint({ files, budget = ADR_CHAR_BUDGET }) {
+export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET }) {
   const problems = [];
   const adrs = [];
 
@@ -65,7 +67,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET }) {
     else if (props.id !== name.slice(0, 4)) problems.push(`${name}: id ${props.id} != filename`);
     if (!props.title) problems.push(`${name}: missing frontmatter title`);
     if (!props.summary) problems.push(`${name}: missing frontmatter summary`);
-    adrs.push({ name, id: name.slice(0, 4), text, chars: text.length });
+    adrs.push({ name, id: name.slice(0, 4), text, chars: text.length, lite: props.tier === "lite" });
   }
 
   // Unique ids (parallel branches grabbing the same int).
@@ -97,6 +99,19 @@ export function lint({ files, budget = ADR_CHAR_BUDGET }) {
     // in the file, else a bare `[unverifiable]` + a stray REOPEN-IF (e.g. the `## Revisit triggers`
     // header's idiom) would fail open. PRESENCE only (a real tagged bullet, `-` or `*`, not a prose
     // mention); whether a stated criterion is GENUINELY falsifiable is the PM's/gate's call, not lint's.
+    // Tier boundary (`tier: lite` frontmatter): a lite ADR records a SETTLED decision —
+    // decision + why + where it's enforced, under the lite budget. The boundary is mechanical:
+    // a live revisit trigger or open assumption means the decision is NOT settled, so a lite
+    // ADR carrying one must GRADUATE to a full ADR (where the criterion gate below applies).
+    if (a.lite) {
+      if (/REOPEN-IF/i.test(a.text) || /^## Revisit triggers/m.test(a.text)
+          || /^\s*[-*]\s*\[unverifiable\]/m.test(a.text))
+        problems.push(`${a.name}: lite ADR carries a revisit trigger/open assumption — graduate it to a full ADR`);
+      if (overBudget(a.chars, liteBudget))
+        problems.push(`${a.name}: ${a.chars} chars > ${liteBudget}-char lite budget`);
+      continue; // the falsifiability gate below is a FULL-ADR requirement (settled = nothing to test)
+    }
+
     const hasCriterion = /^\s*[-*]\s*\[(?:checkable|checkable-doc|contradiction)\]/m.test(a.text);
     const hasRevisitable = /^\s*[-*]\s*\[unverifiable\][^\n]*REOPEN-IF/im.test(a.text);
     if (!hasCriterion && !hasRevisitable)

@@ -43,6 +43,11 @@ export const DOC_BUDGETS = {
 // rewrite-under-budget over a grandfather allowlist for this small corpus).
 export const ADR_CHAR_BUDGET = 6000;
 
+// Lite-tier ADR cap (`tier: lite` frontmatter): a SETTLED decision — decision + why + where it's
+// enforced, no panel/assumptions/revisit machinery. A quarter page keeps the tier honest: anything
+// needing more argument than this likely has a live trade-off and belongs in a full ADR.
+export const LITE_ADR_CHAR_BUDGET = 1500;
+
 // Agent prompt files (pdca-workflow/agents/*.md) — a lean-prompt guard (ADR 0009); a glob capped by
 // this sibling budget, same shape as the ADR corpus.
 export const AGENT_CHAR_BUDGET = 3000;

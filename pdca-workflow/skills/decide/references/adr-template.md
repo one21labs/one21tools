@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Template](#template)
+- [Lite tier](#lite-tier)
 - [Shared assumption register](#shared-assumption-register)
 
 An **ADR** is a dated note capturing one judgment call: its context, the decision, the
@@ -121,6 +122,35 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 **No index file (poka-yoke).** The ADR files ARE the catalog — skim them by grepping frontmatter
 (`summary` / `status`); a mirror you don't maintain can't drift, so there is nothing to police.
 `adr-lint` guards frontmatter validity + id↔filename + that no `ADR NNNN` cite dangles.
+
+## Lite tier
+
+For SETTLED decisions only — the boundary is mechanical, not judgment: **a decision that carries a
+live revisit trigger or an open assumption needs a full ADR; one that is settled (no trigger,
+enforced by a test/script/commit) records as `tier: lite`.** Same directory, same catalog, same id
+sequence; `adr-lint` enforces the tier: a lite record containing `REOPEN-IF`, an `[unverifiable]`
+bullet, or a `## Revisit triggers` section fails with "graduate it to a full ADR". **Budget:
+≤1,500 chars** (`LITE_ADR_CHAR_BUDGET`); the criterion gate does not apply (settled = nothing left
+to test). Shape — three parts, no panel/assumptions/alternatives machinery:
+
+```
+---
+id: NNNN
+title: "<short decision title>"
+status: accepted
+tier: lite
+summary: "<one line for the skim catalog>"
+---
+
+# NNNN — <decision title>
+
+- Decision: <what, in one or two fragments>
+- Why: <the one load-bearing reason>
+- Enforced: <test / script / gate file that makes it stick>
+```
+
+If a lite record later gains a trigger (something changed), graduate it: rewrite as a full ADR in
+place, same id — the tier field is state, not history.
 
 ## Shared assumption register
 
