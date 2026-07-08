@@ -59,6 +59,13 @@ Disciplines:
   in the skill text.
 - **Author-separation** (ADR 0013): a fresh Claude B writes the expectations, not the
   skill's author — an author grades their own intent; a fresh instance grades the artifact.
+- **Keep cleanly-measured nulls.** A whole eval that ties across models — the skill genuinely
+  does not help that task — is a valid measurement, not dead weight. Deleting nulls biases the
+  set toward skill-favorable evals (survivorship) and the delta-per-1k verdict then overstates.
+  Fix a non-discriminating eval by REWRITING it to a harder case after transcript-level
+  diagnosis — never a blind "make it harder" pass (that regressed 6 cells; see
+  benchmarks/2026-07-07-toolkit-grid/retune-results.md), never by deletion. (Distinct from a
+  non-discriminating ASSERTION within an eval, which IS cut — see the DISCRIMINATE rule above.)
 
 ## Running the benchmark
 
@@ -152,6 +159,17 @@ set, same replicates, and compare verdicts. A section whose removal moves the de
 than the CI width is a cut candidate — the empirical form of "every char earns its place."
 Full factorial designs over many sections multiply run cost fast; ablate the few sections
 you actually doubt, and only for skills whose cost makes the answer worth buying.
+
+The same method applies to **any always-loaded prose**, not just a SKILL.md — a repo `CLAUDE.md`
+or the `pdca-workflow/skills/pdca-init/references/claude-md-template.md` it seeds. These pay their
+cost on EVERY request (like a description), so ablation matters more, not less; vary the CLAUDE.md
+per variant instead of the skill, over a small task set the section targets, mechanize-first
+graded. This is the VERIFY step of the retrospect -> PDCA loop: when `/retrospect` proposes adding
+or cutting an always-loaded line, `/decide`'s verify runs the ablation and the same bar decides —
+removal moving the delta less than the CI width means the line does not earn its always-loaded
+cost (cut or relocate to a gate/script); a line whose absence measurably drops the delta stays.
+Add-what-recurs (retrospect) / cut-what-does-not (ablation): keep the always-loaded surface
+minimal-but-sufficient.
 
 ## Scope and limits
 
