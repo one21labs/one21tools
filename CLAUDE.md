@@ -48,6 +48,9 @@ deterministic logic; a doc that restates them rots).
   branch onto `origin/main` before ranging or `/retrospect` — a stale local `main` re-adds the
   squashed commits as a phantom range.
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
+- **Deferred = issues** (ADR 0021): a deferred item someone must act on gets a GitHub issue; the
+  PR's Deferred section links it. No handoff/TODO files — work-state tracks in issues,
+  decision-state stays in ADRs.
 
 ## Feedback = PDCA trigger
 This repo dogfoods its own `pdca-workflow` plugin. A judgment call (a threshold, scope, or policy

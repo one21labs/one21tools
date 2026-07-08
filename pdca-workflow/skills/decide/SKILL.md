@@ -44,7 +44,7 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
 context isolation is automatic — pass each only the files it needs.
 
 ## The loop
-1. **Inherit.** `git fetch`; check open PRs for in-flight ADRs (Allocate rule). Read
+1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs (Allocate rule). Read
    `docs/decisions/` so settled calls aren't re-litigated. Scan open ADRs' revisit
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift — an
    ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an accepted ADR
