@@ -98,18 +98,12 @@ bias, family blind spots, and judge noise. Mitigation stack, in priority order:
 3. **Prosecutor pass.** Every PASS verdict is re-examined by a second, fresh grader
    instructed to refute it from the artifact; the pass stands only if the evidence survives.
    Attacks leniency and style halo.
-4. **Sampled agreement.** Re-grade ~10% of cells with independent grader instances; report
-   per-assertion agreement. Low-agreement assertions are judgment, not measurement — rewrite
-   or mechanize them.
-5. **Pairwise cross-check** (delegated: skill-creator's blind comparator). Where a verdict is
-   decision-relevant, confirm the blind A/B winner agrees with the assertion-delta direction;
-   flag disagreement.
-6. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
+4. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
    (assertion, output) pairs; agreement bounds the residual empirically — the only external
    anchor available.
 
 Residual after all of the above: family bias on genuinely judgment-only assertions. Named,
-bounded by (2)/(6), not eliminated. Treat those verdict components as directional.
+bounded by (2)/(4), not eliminated. Treat those verdict components as directional.
 
 ## The verdict
 
