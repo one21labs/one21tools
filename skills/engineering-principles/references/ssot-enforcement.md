@@ -2,6 +2,16 @@
 
 Single Source of Truth: each fact has ONE canonical location. Reference, don't duplicate.
 
+## Table of Contents
+
+1. [Core Principle](#core-principle)
+2. [Violation Indicators](#violation-indicators)
+3. [Common SSoT Violations by Domain](#common-ssot-violations-by-domain)
+4. [Audit Process](#audit-process)
+5. [SSoT Registry](#ssot-registry)
+6. [Edge Cases](#edge-cases)
+7. [Verification Questions](#verification-questions)
+
 ## Core Principle
 
 > "Every piece of knowledge must have a single, unambiguous, authoritative representation within a system."
@@ -52,7 +62,7 @@ When information exists in multiple places:
 | API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
 | Architecture described twice | Design doc AND wiki page | One location, deprecate other |
 | Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
-| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, cut the story |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into ADRs or comments |
 
 ### Data
 
@@ -141,7 +151,7 @@ For larger systems, maintain a registry:
 
 ### Intentional Duplication
 
-Sometimes duplication is correct:
+Sometimes duplication is correct (runtime only — never a doc copy of a code value kept in sync):
 - **Caching** - Duplicate for performance, with clear invalidation
 - **Denormalization** - Duplicate for query performance, with sync mechanism
 - **Redundancy** - Duplicate for fault tolerance
