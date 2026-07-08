@@ -2,7 +2,7 @@
 id: 0004
 title: "Version-control the generated advisor panel; close the .claude/agents gitignore trap"
 status: accepted
-summary: "pdca-init writes advisors to .claude/agents/, but the common `.claude/*` gitignore silently drops them, so a Panel:-referenced roster never reaches the repo and the documented panel-tuning workflow breaks. Fix: panel-generation tells consumers to version-control the panel via a glob-form `.claude/*` + `!.claude/agents/` negation (a bare `.claude/` must be converted first; prevent>detect); keep the discovery dir, no relocation, no new machinery. This framework repo stays per-call (no standing roster)."
+summary: "pdca-init writes advisors to .claude/agents/, but the common `.claude/*` gitignore silently drops them, so a Panel:-referenced roster never reaches the repo and the documented panel-tuning workflow breaks. Fix: panel-generation tells consumers to version-control the panel via a glob-form `.claude/*` + `!.claude/agents/` negation (a bare `.claude/` must be converted first; prevent>detect); keep the discovery dir, no relocation, no new machinery. This repo's own panel is version-controlled (0023)."
 ---
 
 # 0004 — Version-control the advisor panel
@@ -27,8 +27,8 @@ project-agent discovery dir — do NOT relocate) and, when the project ignores `
 rule is the glob form `.claude/*` (a bare `.claude/` excludes the dir itself and no negation can
 re-include its children — convert it first) then add `!.claude/agents/`, so generated advisors are
 tracked-by-default. No new script/CI/linter (consumer-side;
-machinery would be muda). This framework repo keeps per-call lenses (no standing roster — inherits
-0001/0002); each decision's lenses are recorded in its ADR `Panel:` line.
+machinery would be muda). This repo version-controls its own tuned panel (0023); each decision
+still records which lenses ran on its ADR `Panel:` line.
 
 ## Justification
 Prevent>detect beats a caveat: the trap silently breaks the documented panel-tuning workflow, so a
@@ -49,8 +49,7 @@ own agents, so advisors (the project analog) should be too.
 - Relocate advisors out of `.claude/agents/` to a tracked dir — breaks Claude Code's project-agent discovery.
 - Caveat-only ("track them if you want") — detect-not-prevent; the trap is silent, so it keeps biting.
 - Do nothing — the generate->edit->tune workflow stays broken for any `.claude/`-ignoring consumer.
-- A standing advisor roster for THIS repo — framework-not-product (0001/0002); per-call lenses + the ADR `Panel:` line suffice.
-- A new adr-lint/CI guard for advisor tracking — consumer-side; machinery the plugin can't run = muda.
+- A new adr-lint/CI guard to FORCE consumer advisor-tracking — unenforceable from a plugin = muda (0023 later budget/name-checks THIS repo's own tracked panel, which is a different guard).
 
 ## Revisit triggers
 - Claude Code changes where it discovers project agents -> revisit the keep-in-`.claude/agents/` choice.

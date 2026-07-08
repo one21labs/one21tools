@@ -41,7 +41,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, ADR_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // Repo root (this file lives at <root>/pdca-workflow/scripts/), matching char-budget.mjs.
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -180,7 +180,13 @@ function main(argv) {
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
   const { problems } = lint({ files, budget });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
-  problems.push(...oversizeAgents().map(a => `agent over budget: ${a}`));
+  // Both agent homes get the same budget + name-matches-filename checks: the plugin's shipped
+  // meta-roles (pdca-workflow/agents) and this repo's advisor panel (.claude/agents, ADR 0023).
+  // Both walks are ENOENT-tolerant, so a consumer with neither dir is unaffected.
+  for (const d of ["pdca-workflow/agents", ".claude/agents"]) {
+    problems.push(...oversizeAgents(d).map(a => `agent over budget: ${a}`));
+    problems.push(...agentNameMismatches(d).map(a => `agent name mismatch: ${a}`));
+  }
   problems.push(...manifestDrift(manifestPairs()));
 
   if (problems.length) {

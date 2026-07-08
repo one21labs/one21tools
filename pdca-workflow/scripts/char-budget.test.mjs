@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, readdirSync, rmSync } from "node:fs";
 import { join, basename } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, DOC_BUDGETS, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, DOC_BUDGETS, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
 
 // The same repo root the module under test resolves against (it joins ROOT + a relative dir).
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -56,4 +56,25 @@ test("oversizeAgents flags an over-cap prompt (positive detection)", () => {
 
 test("an absent agents dir is tolerated (a consumer may have no agents)", () => {
   assert.deepEqual(oversizeAgents("no-such-agents-dir"), []);
+});
+
+test("agentNameMismatches flags name != filename and missing frontmatter (positive detection)", () => {
+  const abs = mkdtempSync(join(ROOT, "tmp-agent-name-fixture-"));
+  const dir = basename(abs); // ROOT-relative, as the module expects
+  try {
+    writeFileSync(join(abs, "good.md"), "---\nname: good\ndescription: x\n---\nbody\n");
+    writeFileSync(join(abs, "bad.md"), "---\nname: wrong-name\ndescription: x\n---\nbody\n");
+    writeFileSync(join(abs, "nofm.md"), "no frontmatter here\n");
+    writeFileSync(join(abs, "notes.txt"), "---\nname: nope\n---\n"); // non-.md ignored
+    assert.deepEqual(agentNameMismatches(dir).sort(), [
+      `${dir}/bad.md: name 'wrong-name' != 'bad'`,
+      `${dir}/nofm.md: name '(none)' != 'nofm'`,
+    ].sort());
+  } finally {
+    rmSync(abs, { recursive: true, force: true });
+  }
+});
+
+test("agentNameMismatches tolerates an absent dir (ENOENT), like the char walk", () => {
+  assert.deepEqual(agentNameMismatches("no-such-agents-dir"), []);
 });
