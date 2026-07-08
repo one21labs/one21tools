@@ -32,9 +32,17 @@ as `benchmarks/2026-07-07-toolkit-grid/trigger-kit/FINDINGS.md` (nested sessions
 skills), now confirmed for the benefit-benchmark, not just triggering.
 
 A valid run needs an executor with **no repo/skill file access and no installed plugins** — only the
-injected doc text in the with arm. Until then, the mechanics are proven (fan-out + blind grade +
-eval-clustered CI ran with 0 agent errors) but no keep/cut verdict can be trusted.
+injected doc text in the with arm. This is now the verdict precondition in **ADR 0023** (`hermetic
+(y/n)` in metadata; a non-hermetic run is a recorded null, never a verdict). Until then, the
+mechanics are proven (fan-out + blind grade + eval-clustered CI ran with 0 agent errors) but no
+keep/cut verdict can be trusted.
 
 ## Re-run
 `Workflow({ scriptPath: "harness.workflow.js" })` after making the executor hermetic (fresh env /
-plugins disabled). Snapshots are append-only JSONL per ADR 0019.
+plugins disabled — see ADR 0023 for the exact lockdown). Snapshots are append-only JSONL per ADR 0019.
+
+## Snapshot note
+`results.jsonl`'s `leaked_skill` / `last_tool` columns are **transcript-derived** — a manual read of
+each executor transcript, NOT computed by `harness.workflow.js` (which returns `{task, arm, rep,
+pass, why}`). A bare re-run of the script will not reproduce them; the hermetic re-run should fold
+leak-detection into the harness so the confound check is script-computed, not hand-audited.
