@@ -141,11 +141,13 @@ runs only `eval_verdict_test.py` (the deterministic decision logic), never the b
 ## Result snapshots
 
 Benchmark verdicts are model- and eval-relative and the raw runs are ephemeral, so append a
-dated snapshot under `benchmarks/` after each run (ADR 0019) — the per-cell verdict lines plus
-metadata: executor model, eval-set content hash, protocol/ADR version, blinded (y/n), and the
-denominator basis. Append-only, never edited: a snapshot is a measurement record as of its
-date, not current truth (so it is not a stale mirror). This is what makes `--fail-under` and
-regression-vs-history possible — without a stored baseline there is nothing to regress against.
+dated machine-readable snapshot under `benchmarks/` after each run (ADR 0019) — a `.jsonl` of
+per-cell verdict records plus a `metadata.json`: executor model, eval-set content hash,
+protocol/ADR version, blinded (y/n), and the denominator basis. JSON/JSONL is the SSoT; any
+markdown view is rendered from it, never hand-maintained. Append-only, never edited: a snapshot
+is a measurement record as of its date, not current truth (so it is not a stale mirror). This is
+what makes `--fail-under` and regression-vs-history possible — without a stored baseline there is
+nothing to regress against.
 
 ## Tier 2 — section ablation
 
