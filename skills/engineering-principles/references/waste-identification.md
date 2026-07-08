@@ -20,7 +20,7 @@ Framework for identifying and eliminating non-value-adding activities.
 
 | Waste | Manifestation | Questions to Ask | Mitigation |
 |-------|---------------|------------------|------------|
-| **Overproduction** | Features no one uses, YAGNI violations, speculative generalization | Is this needed *right now*? Who requested this? | Build only what's validated |
+| **Overproduction** | Features no one uses, YAGNI violations, speculative generalization | Is this needed *right now*? Who requested this? | Build only what's validated; delete half-built speculation — sunk cost never justifies finishing it |
 | **Waiting** | Blocked on review, slow CI/CD, waiting for decisions, environment access | Where are the queues? What's the cycle time? | Async reviews, fast pipelines, decision rights |
 | **Transportation** | Handoffs between teams, ticket shuffling, information relay chains | How many handoffs? Who touches this? | Cross-functional teams, reduce handoffs |
 | **Overprocessing** | Unnecessary abstraction, premature optimization, gold-plating | Is this complexity necessary? What's simplest solution? | YAGNI, simplicity, defer optimization |
