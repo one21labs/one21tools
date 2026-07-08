@@ -176,15 +176,15 @@ Full factorial designs over many sections multiply run cost fast; ablate the few
 you actually doubt, and only for skills whose cost makes the answer worth buying.
 
 The same method applies to **any always-loaded prose**, not just a SKILL.md — a repo `CLAUDE.md`
-or the `pdca-workflow/skills/pdca-init/references/claude-md-template.md` it seeds. These pay their
-cost on EVERY request (like a description), so ablation matters more, not less; vary the CLAUDE.md
-per variant instead of the skill, over a small task set the section targets, mechanize-first
-graded. This is the VERIFY step of the retrospect -> PDCA loop: when `/retrospect` proposes adding
-or cutting an always-loaded line, `/decide`'s verify runs the ablation and the same bar decides —
-removal moving the delta less than the CI width means the line does not earn its always-loaded
-cost (cut or relocate to a gate/script); a line whose absence measurably drops the delta stays.
-Add-what-recurs (retrospect) / cut-what-does-not (ablation): keep the always-loaded surface
-minimal-but-sufficient.
+or the pdca-init `claude-md-template.md` it seeds. These pay their cost on EVERY request, so
+ablation matters more; vary the prose per variant over a small task set the section targets.
+**Hold the executor's base framing NEUTRAL** — prose ablation is framing-sensitive: a biased
+framing swamps the treatment (one section measured +0.17/0.00/+0.375 across
+tool-denied/implement-biased/neutral framings; ADR 0024). This is the VERIFY step of retrospect ->
+PDCA: `/retrospect` proposes an always-loaded line, `/decide`'s verify runs the ablation, the same
+bar decides — removal moving the delta less than the CI width means the line does not earn its cost
+(cut or relocate to a gate/script); a line whose absence measurably drops the delta stays.
+Add-what-recurs, cut-what-does-not: keep the always-loaded surface minimal.
 
 ## Scope and limits
 
