@@ -1,0 +1,11 @@
+I'm in a headless session right now — no filesystem or code-execution tools — so I can't open your repo, see your current signup handler, or write files directly. I can still give you a concrete recommendation, but "show me the code" will need to wait until you're in an interactive session (or you paste the relevant handler here).
+
+Before writing anything, this is worth a quick Plan step rather than a blind fix, because "duplicate signup" usually means one of three different bugs, and the fix differs:
+
+1. **Race condition** (two concurrent requests both pass a "does this email exist?" check before either finishes inserting) — the real killer in most "duplicate signup" reports. Fix: a **unique constraint/index on email at the DB level**, with the app catching the constraint-violation error and returning a friendly "account already exists." App-level checks alone (`SELECT` then `INSERT`) can't close this race.
+2. **Double-submit** (user double-clicks the button, or a retry resends the form) — a UX/idempotency issue, not a data integrity one. Fix: disable-on-submit + an idempotency key on the request.
+3. **Fuzzy duplicates** (`Foo@x.com` vs `foo@x.com`, or trailing whitespace) — fix: normalize (lowercase + trim) email before both the uniqueness check and the insert.
+
+My recommendation: DB unique constraint on normalized (lowercased/trimmed) email as the core fix — it's the one that actually guarantees no duplicates regardless of timing — plus submit-button debounce for the UX case. The main tradeoff is scope: that covers #1 and #3 cheaply; #2 needs a bit more plumbing (idempotency key) if you're seeing genuine double-submits rather than DB races.
+
+Which of these are you actually seeing (or is it unclear from the reports)? And what's your stack (language/framework/ORM)? Once I know that, paste the current signup handler and I'll write the actual diff.

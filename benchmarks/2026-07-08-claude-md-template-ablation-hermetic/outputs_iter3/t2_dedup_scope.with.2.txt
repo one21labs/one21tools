@@ -1,0 +1,30 @@
+I can't access your project in this session (no file or code-execution tools here), so I can't inspect your actual signup code or apply a real fix. A few things worth pinning down before writing this, since "deduplication" hides some real decisions:
+
+1. **What counts as a duplicate?** Exact email match, case/whitespace-normalized email, phone number, or same person via multiple auth methods (e.g., Google OAuth + password signup with the same email)?
+2. **Is this a race condition or a true duplicate over time?** If it's concurrent double-clicks/retries on the signup endpoint, an application-level "check if exists, then insert" is the likely root cause (classic TOCTOU) — the fix is a DB-level unique constraint, not just a pre-check. If it's duplicate accounts created days/weeks apart, that's a different problem (probably missing constraint entirely, or normalization issue).
+3. **What should happen when a duplicate is caught?** Reject with "account exists, log in instead," silently merge, or resend a verification email?
+4. **Stack** — language/framework and DB (e.g., Node/Express + Postgres, Django, Rails)? I can write real code once I know this.
+
+Generic pattern for the common case (concurrent submits bypassing an app-level check):
+
+```sql
+-- source of truth: enforce at the DB, not just in app code
+ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (lower(email));
+```
+
+```js
+// signup handler — let the DB reject duplicates, don't pre-check-then-insert
+try {
+  const user = await db.query(
+    'INSERT INTO users (email, ...) VALUES (lower($1), ...) RETURNING id',
+    [email]
+  );
+} catch (err) {
+  if (err.code === '23505') { // unique_violation
+    return res.status(409).json({ error: 'account already exists' });
+  }
+  throw err;
+}
+```
+
+This is illustrative only — not wired to your codebase. Once you confirm the stack and the dedupe key, I can write the actual patch against your models/migrations and the endpoint's error handling.

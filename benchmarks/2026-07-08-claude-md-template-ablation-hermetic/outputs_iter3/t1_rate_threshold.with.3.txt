@@ -1,0 +1,60 @@
+Since I can't access your codebase in this session, here's what to do — starting with what actually stops the hammering right now, then the durable fix.
+
+## 1. Immediate stopgap (minutes, no app deploy)
+
+If you're behind nginx, this is the fastest lever — apply and reload, no app restart needed:
+
+```nginx
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=10r/s;
+
+location /search {
+    limit_req zone=search_limit burst=20 nodelay;
+    limit_req_status 429;
+    proxy_pass http://backend;
+}
+```
+
+If you're behind Cloudflare, AWS API Gateway/ALB+WAF, or Kong/Nginx-Ingress, each has a rate-limit rule you can turn on for just `/search` in a couple minutes without touching app code — tell me which and I'll give you the exact config.
+
+## 2. Durable application-level fix
+
+Key by API key if you have one (falls back to IP for anonymous callers), use Redis so it works across instances, return `429` + `Retry-After` per RFC 6585.
+
+Fixed-window counter (simple, one round trip, good enough for most APIs):
+
+```js
+// rateLimiter.js — Express + ioredis
+const Redis = require('ioredis');
+const client = new Redis(process.env.REDIS_URL);
+
+const WINDOW_SECONDS = 60;
+const MAX_REQUESTS = 30; // tune to real traffic
+
+async function rateLimitMiddleware(req, res, next) {
+  const identity = req.apiKey || req.ip;
+  const key = `ratelimit:search:${identity}`;
+
+  const current = await client.incr(key);
+  if (current === 1) await client.expire(key, WINDOW_SECONDS);
+
+  const ttl = current > 1 ? await client.ttl(key) : WINDOW_SECONDS;
+  res.set('X-RateLimit-Limit', MAX_REQUESTS);
+  res.set('X-RateLimit-Remaining', Math.max(0, MAX_REQUESTS - current));
+
+  if (current > MAX_REQUESTS) {
+    res.set('Retry-After', ttl);
+    return res.status(429).json({ error: 'rate_limit_exceeded', retry_after: ttl });
+  }
+  next();
+}
+
+module.exports = rateLimitMiddleware;
+```
+
+```js
+app.use('/search', rateLimitMiddleware, searchHandler);
+```
+
+Caveat: fixed-window allows up to 2x burst at window boundaries. If `/search` is expensive enough that this matters, swap to a sliding-window-log or token-bucket via a Lua script (atomic INCR+check in one round trip) — say the word and I'll give you that version instead.
+
+**What stack/infra are you actually running** (Express/Django/Spring/nginx/API Gateway)? I gave you the most common default (Node/Express + Redis + nginx) — if it's different I'll rewrite this for your real setup rather than you having to translate it.

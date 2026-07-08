@@ -1,0 +1,37 @@
+I can't access your files or run code in this session, so I can't open your project directly — but I can give you a concrete implementation to drop in once you confirm a couple of details.
+
+To tailor it correctly, what's your stack?
+- **Framework/language** (Express/Node, Django, Flask, Spring, Rails, etc.)
+- **Auth mechanism** — cookie-based sessions (server-side store like Redis) vs. stateless JWTs?
+- Do you want **idle timeout** (expires after N minutes of inactivity) or **absolute timeout** (expires N minutes after login regardless of activity), or both?
+
+As a reference, here's the common pattern for a **Node/Express + JWT** setup (idle + absolute timeout), which you can adapt:
+
+```js
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000;   // 30 min inactivity
+const SESSION_ABSOLUTE_TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hr max
+
+function sessionTimeoutMiddleware(req, res, next) {
+  const session = req.session; // or decoded JWT payload
+  if (!session) return res.status(401).json({ error: 'Not authenticated' });
+
+  const now = Date.now();
+
+  if (now - session.loginAt > SESSION_ABSOLUTE_TIMEOUT_MS) {
+    return res.status(401).json({ error: 'Session expired (absolute timeout)' });
+  }
+
+  if (now - session.lastActivityAt > SESSION_IDLE_TIMEOUT_MS) {
+    return res.status(401).json({ error: 'Session expired (idle timeout)' });
+  }
+
+  session.lastActivityAt = now; // refresh on each authenticated request
+  next();
+}
+```
+
+For a **cookie/session-store** setup (e.g. `express-session` + Redis), the idle timeout is usually just the store's TTL (`cookie.maxAge`, refreshed via `rolling: true`), and you'd add the absolute-timeout check as middleware on top since stores don't track that natively.
+
+For **JWT**, the idle timeout is trickier since tokens are stateless — you'd typically encode `iat` (issued-at) for the absolute check, and either keep a short-lived access token + refresh token pattern, or track `lastActivityAt` server-side (e.g. Redis) keyed by token/session id for the idle check.
+
+Let me know your stack and I'll write the exact middleware for your codebase.

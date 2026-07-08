@@ -1,0 +1,104 @@
+Since this is a live incident, the fastest fix is at the infra layer (no code deploy needed), then a proper app-level implementation behind it. I don't know your stack yet, so I'm giving you both a drop-in infra stopgap and a Node/Express+Redis reference implementation — tell me your actual language/framework/infra and I'll tailor the code exactly.
+
+## 1. Stop the bleeding now (minutes, no deploy)
+
+**If you're behind nginx:**
+```nginx
+# in http{} block
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=10r/s;
+
+# in the /search location block
+location /search {
+    limit_req zone=search_limit burst=20 nodelay;
+    limit_req_status 429;
+    ...
+}
+```
+`nginx -s reload` — no downtime, applies immediately.
+
+**If you're behind Cloudflare:** add a Rate Limiting Rule on the `/search` path (e.g. 60 req/min per IP, action: Block/Challenge). Takes effect in seconds, zero code changes.
+
+**If you're on AWS ALB:** attach a WAF rate-based rule scoped to that path. A few minutes to propagate.
+
+Any of these buys you time to ship the real fix below.
+
+## 2. Application-level rate limiter (durable fix)
+
+Assuming Node/Express with Redis available (swap notes below if not):
+
+```js
+// rateLimiter.js
+const Redis = require('ioredis');
+const redis = new Redis(process.env.REDIS_URL);
+
+// Sliding-window counter, atomic via Lua so concurrent requests can't race past the limit.
+const SLIDING_WINDOW_SCRIPT = `
+local key = KEYS[1]
+local now = tonumber(ARGV[1])
+local window = tonumber(ARGV[2])
+local limit = tonumber(ARGV[3])
+
+redis.call('ZREMRANGEBYSCORE', key, 0, now - window)
+local count = redis.call('ZCARD', key)
+
+if count < limit then
+  redis.call('ZADD', key, now, now .. '-' .. math.random())
+  redis.call('PEXPIRE', key, window)
+  return {1, limit - count - 1}
+else
+  return {0, 0}
+end
+`;
+
+function rateLimit({ windowMs = 60000, max = 60, keyFn }) {
+  return async (req, res, next) => {
+    const identity = keyFn ? keyFn(req) : req.ip;
+    const key = `rl:search:${identity}`;
+
+    try {
+      const [allowed, remaining] = await redis.eval(
+        SLIDING_WINDOW_SCRIPT,
+        1,
+        key,
+        Date.now(),
+        windowMs,
+        max
+      );
+
+      res.set('X-RateLimit-Limit', max);
+      res.set('X-RateLimit-Remaining', Math.max(remaining, 0));
+
+      if (!allowed) {
+        res.set('Retry-After', Math.ceil(windowMs / 1000));
+        return res.status(429).json({ error: 'rate_limited', message: 'Too many requests, slow down.' });
+      }
+      next();
+    } catch (err) {
+      // Redis down: fail open (don't 500 the API) but log loudly — you're unprotected until it recovers.
+      console.error('rate limiter error, failing open', err);
+      next();
+    }
+  };
+}
+
+module.exports = rateLimit;
+```
+
+```js
+// app.js
+const rateLimit = require('./rateLimiter');
+
+app.get('/search', rateLimit({
+  windowMs: 60_000,
+  max: 60, // tune to real traffic — see below
+  keyFn: (req) => req.headers['x-api-key'] || req.ip, // prefer API key over IP if you have auth
+}), searchHandler);
+```
+
+Notes:
+- **Key by API key, not just IP**, if you have one — otherwise NATed/corporate users behind one IP get punished together, and a single abusive key doesn't get isolated.
+- **Fail open on Redis errors** so a cache blip doesn't take down the whole API — but alert on it, since you're unprotected while it's down.
+- **No Redis / single instance?** Swap in an in-memory token bucket (e.g. `express-rate-limit` with default memory store) — works instantly but resets on deploy and doesn't coordinate across instances, so only use it as a bridge until Redis is wired up.
+- Set `max` based on what "getting hammered" actually looks like — check your access logs for the offending IPs/keys' actual req/s so you don't set a limit that also throttles legitimate traffic.
+
+**What's your stack (language/framework) and do you have Redis or a shared cache available?** I'll give you the exact drop-in for it instead of the Node/Express version above.

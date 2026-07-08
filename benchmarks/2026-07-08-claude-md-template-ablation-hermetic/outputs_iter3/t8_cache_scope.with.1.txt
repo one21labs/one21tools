@@ -1,0 +1,76 @@
+I can't access your actual codebase in this session (no file-system or code-execution tools here), so I can't see your current product-detail endpoint or what caching infra you already have. A couple of quick questions so the code I show actually fits:
+
+1. **Stack** — what language/framework is the endpoint in (Node/Express, Python/Django/FastAPI, Go, Java/Spring, etc.)?
+2. **Cache backend** — do you already run Redis/Memcached, or is this meant to be in-process (single instance) caching?
+3. **Invalidation** — does product data change often (needs cache-busting on update/delete), or is staleness for a few minutes acceptable?
+
+Those are the real judgment calls (backend choice, TTL, invalidation strategy) — worth deciding deliberately since a wrong TTL or missed invalidation path means either serving stale prices/stock or barely any speedup.
+
+In the meantime, here's the standard shape for this — **cache-aside with Redis and TTL**, using Node/Express as the illustrative stack:
+
+```js
+// cache.js
+const redis = require('./redisClient'); // ioredis or node-redis client
+
+const DEFAULT_TTL_SECONDS = 300; // 5 min — tune based on how often product data changes
+
+function productCacheKey(productId) {
+  return `product:${productId}`;
+}
+
+async function getCachedProduct(productId) {
+  const raw = await redis.get(productCacheKey(productId));
+  return raw ? JSON.parse(raw) : null;
+}
+
+async function setCachedProduct(productId, product, ttl = DEFAULT_TTL_SECONDS) {
+  await redis.set(productCacheKey(productId), JSON.stringify(product), 'EX', ttl);
+}
+
+async function invalidateProductCache(productId) {
+  await redis.del(productCacheKey(productId));
+}
+
+module.exports = { getCachedProduct, setCachedProduct, invalidateProductCache };
+```
+
+```js
+// productDetailRoute.js
+const { getCachedProduct, setCachedProduct } = require('./cache');
+const db = require('./db');
+
+app.get('/products/:id', async (req, res) => {
+  const { id } = req.params;
+
+  const cached = await getCachedProduct(id);
+  if (cached) {
+    res.set('X-Cache', 'HIT');
+    return res.json(cached);
+  }
+
+  const product = await db.getProductById(id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+
+  await setCachedProduct(id, product);
+  res.set('X-Cache', 'MISS');
+  res.json(product);
+});
+```
+
+```js
+// wherever products are updated/deleted, invalidate the entry
+const { invalidateProductCache } = require('./cache');
+
+app.put('/products/:id', async (req, res) => {
+  const product = await db.updateProduct(req.params.id, req.body);
+  await invalidateProductCache(req.params.id);
+  res.json(product);
+});
+```
+
+Key points this pattern relies on:
+- **Cache-aside**, not write-through — reads populate the cache, writes invalidate it. Simple and avoids stale-write races for a single endpoint.
+- **TTL as a safety net** even with invalidation, in case an update path is missed elsewhere.
+- **`X-Cache` header** so you can verify hit/miss behavior in staging before trusting the speedup.
+
+Tell me your actual stack and I'll adjust this to match it exactly (or point out if you already have a caching layer elsewhere I should wire this into instead of duplicating).
