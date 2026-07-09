@@ -1,0 +1,197 @@
+I don't have file-system access in this session, so I can't write these files to `outputs/sanitizing-customer-exports/` directly — here's the complete skill as plain text for you to save at that path.
+
+---
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Use when a customer CSV export must be redacted before sharing outside the company. Triggers on requests like "redact this export", "sanitize this CSV before sending to the vendor", "strip PII from this customer file". Drops email/phone/ssn columns, replaces name with an opaque id, masks embedded emails/phones in notes/comments text, and writes output to <original>.redacted.csv — the original is never modified.
+---
+
+# Sanitizing Customer Exports
+
+Redact PII from a customer CSV before it leaves the company. Rules are fixed —
+do not improvise alternatives (e.g. hashing email instead of dropping it).
+
+## Fixed rules
+
+- `email`, `phone`, `ssn` columns (case-insensitive, exact header match) — **dropped**.
+- `name` column — **replaced with an opaque id** (`CUST_<12 hex chars>`), not reversible.
+- `notes`, `comments` columns — **kept**, but any email or phone number substring
+  found inside the text is masked in place.
+- Output is written to `<original>.redacted.csv` next to the original file.
+- The original file is opened read-only and is **never** edited in place.
+
+## Usage
+
+```bash
+python scripts/redact_export.py path/to/export.csv
+```
+
+This prints the output path and a summary (row count, columns dropped, names
+pseudonymized, free-text redactions made).
+
+Column matching, exact regex patterns, and the invariants they encode are in
+[references/rules.md](references/rules.md) — read it before changing the script.
+
+A small file for a dry run is at `fixtures/sample_export.csv`.
+
+## After running
+
+1. Confirm the reported dropped columns match what you expected for this export
+   (a fixed-rule column that's absent from the file is skipped silently, not an error).
+2. Open the `.redacted.csv` and spot-check a few rows, especially any `notes`/
+   `comments` cells, before telling the user it's safe to share.
+3. If the export has PII in columns outside the fixed set (e.g. a `home_address`
+   column), stop and flag it to the user — this skill only handles the fixed rules
+   above, it does not infer new PII columns.
+
+## Edge cases
+
+- CSV parsing uses Python's `csv` module, never manual comma-splitting, so quoted
+  fields containing commas/newlines are handled correctly.
+- If `notes`/`comments` are both absent, the free-text scan step is skipped.
+- Re-running on the same input overwrites the `.redacted.csv` (it's a derived
+  artifact, not source data).
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/scripts/redact_export.py`
+
+```python
+#!/usr/bin/env python3
+import csv
+import hashlib
+import os
+import re
+import sys
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+
+
+def opaque_id(value, salt):
+    digest = hashlib.sha256(f"{salt}|{value}".encode("utf-8")).hexdigest()
+    return f"CUST_{digest[:12]}"
+
+
+def output_path(src: Path) -> Path:
+    if src.suffix.lower() == ".csv":
+        return src.parent / f"{src.stem}.redacted.csv"
+    return src.parent / f"{src.name}.redacted.csv"
+
+
+def redact(path: str):
+    src = Path(path)
+    dest = output_path(src)
+    salt = os.urandom(16).hex()
+
+    with src.open("r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        lower_map = {fn.lower(): fn for fn in fieldnames}
+
+        drop_cols = [lower_map[c] for c in DROP_COLUMNS if c in lower_map]
+        name_col = lower_map.get(NAME_COLUMN)
+        free_text_cols = [lower_map[c] for c in FREE_TEXT_COLUMNS if c in lower_map]
+        out_fields = [fn for fn in fieldnames if fn not in drop_cols]
+
+        rows = list(reader)
+
+    stats = {
+        "rows": len(rows),
+        "dropped_columns": drop_cols,
+        "name_column": name_col,
+        "free_text_columns": free_text_cols,
+        "names_pseudonymized": 0,
+        "free_text_redactions": 0,
+    }
+
+    with dest.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fields)
+        writer.writeheader()
+        for row in rows:
+            out_row = {}
+            for fn in out_fields:
+                val = row.get(fn, "") or ""
+                if name_col and fn == name_col:
+                    if val:
+                        val = opaque_id(val, salt)
+                        stats["names_pseudonymized"] += 1
+                elif fn in free_text_cols and val:
+                    val, n_email = EMAIL_RE.subn("[REDACTED_EMAIL]", val)
+                    val, n_phone = PHONE_RE.subn("[REDACTED_PHONE]", val)
+                    stats["free_text_redactions"] += n_email + n_phone
+                out_row[fn] = val
+            writer.writerow(out_row)
+
+    return dest, stats
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("usage: redact_export.py <path-to-export.csv>", file=sys.stderr)
+        sys.exit(1)
+
+    dest_path, result = redact(sys.argv[1])
+    print(f"wrote {dest_path}")
+    for key, value in result.items():
+        print(f"{key}: {value}")
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/references/rules.md`
+
+```markdown
+# Redaction rules reference
+
+## Column matching
+
+Matching is case-insensitive against the literal header text, **exact match
+only** — a column named `email_address` is NOT treated as the `email` column.
+
+- Always dropped: `email`, `phone`, `ssn`
+- Pseudonymized: `name` → `CUST_<12 hex chars>`, derived from a run-scoped
+  random salt + the original value via SHA-256. The salt is never written to
+  output, so ids are not reversible across runs and don't let you re-link a
+  redacted row to the same customer in a different export.
+- Scanned in place (column kept, substrings masked): `notes`, `comments`
+
+## Free-text detection patterns
+
+- Email: `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
+- Phone (US-style): `(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b`
+
+Both favor precision over exhaustive international coverage. If an export
+contains other locales' phone formats, extend `PHONE_RE` in
+`scripts/redact_export.py` rather than adding ad hoc post-processing.
+
+## Non-negotiable invariants
+
+- The original file is opened read-only and is never written to.
+- Output path is always `<original-stem>.redacted.csv` next to the original.
+- A fixed-rule column absent from a given export is skipped, not an error.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/fixtures/sample_export.csv`
+
+```csv
+name,email,phone,ssn,notes,comments
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Reach me at jane.doe@example.com if needed","Called from 555-987-6543 last week"
+John Smith,john.smith@example.com,(555) 234-5678,987-65-4321,"No issues","Prefers email contact"
+```
+
+---
+
+Save these four files under `outputs/sanitizing-customer-exports/` preserving the subfolder structure (`scripts/`, `references/`, `fixtures/`). Let me know if you'd like me to adjust the phone/email regex coverage or the opaque-id format.

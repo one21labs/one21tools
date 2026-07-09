@@ -1,0 +1,30 @@
+```python
+import json
+import time
+import urllib.request
+
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    backoff = d.get("backoff_seconds", 0)
+    return r, to, backoff
+
+
+def snd(u, pl, r, to, backoff=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1 and backoff:
+                time.sleep(backoff)
+    return None
+```
+
+Changes: `ld` now also reads `backoff_seconds` from the config (defaults to `0`, i.e. no wait, if absent) and returns it alongside `r`/`to`. `snd` takes that value and sleeps between attempts — only after a failed attempt and only if there's another retry left, so it won't sleep needlessly after the final failure or on success. Removed the dead commented-out `load` function. Call sites need updating from `r, to = ld(p)` / `snd(u, pl, r, to)` to `r, to, backoff = ld(p)` / `snd(u, pl, r, to, backoff)`.

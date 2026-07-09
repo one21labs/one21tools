@@ -1,0 +1,34 @@
+```python
+import json
+import time
+import urllib.request
+
+# old loader, kept for reference
+# def load(f):
+#     return json.loads(open(f).read())
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1 and bo:
+                time.sleep(bo)
+    return None
+```
+
+Changes: `ld` now also reads `backoff_seconds` from the config (default `0`, so behavior is unchanged if it's absent), and `snd` takes it as a new `bo` parameter, sleeping between attempts — but not after the final one, and not at all if `bo` is `0`.
+
+Note: I can't write this to disk or run it in this session (no file-system/execution tools here) — you'll need to save it as `notifier.py` yourself, updating any call sites that unpack `ld()`'s return (now 3 values) and pass `bo` into `snd()`.

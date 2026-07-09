@@ -1,0 +1,250 @@
+I need to flag a constraint upfront: this session has no file-system or code-execution tools available to me (only findings/scheduling/workflow tools), so I can't actually write files into `outputs/sanitizing-customer-exports/` for you. What I can do is produce the complete, ready-to-save contents of every file the skill needs — copy each block below into the matching path.
+
+**Directory layout to create:**
+```
+outputs/sanitizing-customer-exports/
+  SKILL.md
+  scripts/redact_csv.py
+  reference.md
+  examples/sample_input.csv
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Redacts PII from a customer CSV export before it is shared outside the company. Drops the email, phone, and ssn columns; replaces the name column with an opaque id; masks email addresses and phone numbers found inside free-text columns (notes, comments); and writes the result as <original>.redacted.csv, leaving the original file untouched. Use this any time a customer data CSV is about to leave the company — email, Slack, a partner, a ticket, a support case, etc.
+---
+
+# Sanitizing Customer Exports
+
+Use this skill whenever someone is about to share a customer CSV export
+outside the company (email, Slack to a partner, attaching to a support
+ticket, uploading to a third-party tool, etc.). The goal is to never let
+raw PII leave the building.
+
+## Fixed rules (do not deviate from these without the user explicitly asking to)
+
+1. **Dropped columns** — `email`, `phone`, `ssn` are removed entirely
+   (matched case-insensitively on the exact column name).
+2. **Name column** — `name` is replaced with an opaque, non-reversible-looking
+   id (`CUST_<12 hex chars>`), derived deterministically so the same name
+   always maps to the same id within one run of the tool.
+3. **Free-text columns** — `notes` and `comments` are scanned and any
+   embedded email addresses or phone numbers are masked in place with
+   `[EMAIL_REDACTED]` / `[PHONE_REDACTED]`. The rest of the free text is
+   left untouched.
+4. **Output file** — the redacted copy is written next to the input as
+   `<original-stem>.redacted.csv` (e.g. `customers.csv` →
+   `customers.redacted.csv`).
+5. **The original file is never modified, moved, or deleted.** The script
+   only ever writes the new `.redacted.csv` file.
+
+## How to run it
+
+```bash
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+This prints the path of the redacted file it wrote. Confirm that path with
+the user before they attach/share it.
+
+Optional: pass `--salt <value>` to change the salt used to derive the
+opaque name ids (only needed if you specifically want ids that don't match
+ids generated in a previous run — otherwise leave it at the default so ids
+stay stable across exports).
+
+## What to check before telling the user it's safe to share
+
+- Open the `.redacted.csv` and confirm there is no `email`, `phone`, or
+  `ssn` column in the header.
+- Spot-check a couple of rows in `notes`/`comments` for leftover PII the
+  regexes might miss (see Known limitations in `reference.md`) — international
+  phone formats and obfuscated emails (e.g. `jane at example dot com`) are not
+  caught.
+- Confirm the original input file's contents/timestamp are unchanged.
+
+## When NOT to use this as-is
+
+If the export has PII columns beyond `email`/`phone`/`ssn`/`name` (e.g.
+`address`, `date_of_birth`, `credit_card`), flag that to the user — this
+skill's column list is fixed by design and won't silently pick up new PII
+fields. Extend `DROP_COLUMNS`/`NAME_COLUMNS`/`FREE_TEXT_COLUMNS` in
+`scripts/redact_csv.py` deliberately, with the user's sign-off, rather than
+guessing.
+
+See `reference.md` for the exact matching rules, regexes used, and known
+limitations.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it leaves the company.
+
+Usage:
+    python redact_csv.py <input.csv> [--salt SALT]
+
+Writes <input-stem>.redacted.csv next to the input file. The input file
+is never modified.
+"""
+import argparse
+import csv
+import hashlib
+import re
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMNS = {"name"}
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(
+    r"(?<!\d)(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)"
+)
+
+DEFAULT_SALT = "sanitizing-customer-exports-v1"
+
+
+def opaque_id(value, salt):
+    if value == "":
+        return ""
+    digest = hashlib.sha256(f"{salt}:{value}".encode("utf-8")).hexdigest()
+    return f"CUST_{digest[:12]}"
+
+
+def mask_free_text(value):
+    if not value:
+        return value
+    value = EMAIL_RE.sub("[EMAIL_REDACTED]", value)
+    value = PHONE_RE.sub("[PHONE_REDACTED]", value)
+    return value
+
+
+def redact_row(fieldnames, row, salt):
+    out = {}
+    for field in fieldnames:
+        key = field.strip().lower()
+        if key in DROP_COLUMNS:
+            continue
+        value = row.get(field, "")
+        if key in NAME_COLUMNS:
+            value = opaque_id(value, salt)
+        elif key in FREE_TEXT_COLUMNS:
+            value = mask_free_text(value)
+        out[field] = value
+    return out
+
+
+def redact_csv(input_path, salt):
+    input_path = Path(input_path)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    output_path = input_path.with_name(input_path.stem + ".redacted.csv")
+
+    with input_path.open("r", newline="", encoding="utf-8-sig") as f_in:
+        reader = csv.DictReader(f_in)
+        fieldnames = reader.fieldnames or []
+        kept_fields = [f for f in fieldnames if f.strip().lower() not in DROP_COLUMNS]
+        rows = [redact_row(fieldnames, row, salt) for row in reader]
+
+    with output_path.open("w", newline="", encoding="utf-8") as f_out:
+        writer = csv.DictWriter(f_out, fieldnames=kept_fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return output_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input_csv", help="Path to the customer CSV export")
+    parser.add_argument(
+        "--salt",
+        default=DEFAULT_SALT,
+        help="Salt used to derive opaque customer ids "
+             "(keep consistent across runs for stable ids)",
+    )
+    args = parser.parse_args()
+
+    output_path = redact_csv(args.input_csv, args.salt)
+    print(f"Redacted CSV written to: {output_path}")
+    print("Original file was not modified.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/reference.md`
+
+```markdown
+# Reference: redaction rules and limitations
+
+## Column matching
+Column names are matched case-insensitively, with surrounding whitespace
+stripped, but otherwise must match **exactly**:
+- `email`, `phone`, `ssn` → dropped
+- `name` → replaced with opaque id
+- `notes`, `comments` → free-text masking applied
+
+Variants like `Email Address`, `phone_number`, `Full Name` will **not** be
+picked up automatically. If your export uses different column names, either
+rename the header before running the script or update the column sets at
+the top of `scripts/redact_csv.py` with the user's explicit sign-off.
+
+## Opaque id derivation
+`CUST_<first 12 hex chars of sha256(salt:name)>`. Deterministic within a
+fixed salt, so the same name always produces the same id in a given run —
+useful if a support agent needs to correlate rows across the same export.
+It is a pseudonym, not a cryptographically strong anonymization: someone
+who already knows (or can guess) the customer's name and the default salt
+could confirm a match. Do not rely on it as an irreversible anonymization
+guarantee for adversarial threat models — it is meant to keep a *raw name*
+out of a file being shared externally.
+
+## Free-text masking regexes
+- Email: `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
+- Phone: `(\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}` (US/NANP-style,
+  optionally with a leading `+1`, optional parentheses/dashes/dots/spaces)
+
+### Known limitations
+- International phone number formats outside NANP (e.g. `+44 20 7946 0958`)
+  are not matched.
+- Obfuscated contact info (`jane at example dot com`, phone numbers spelled
+  out in words) is not matched.
+- Only the `notes` and `comments` columns are scanned — PII typed into any
+  other free-text column will pass through unredacted.
+
+Always spot-check a sample of the redacted output before sharing, especially
+for exports with unusual/international data.
+
+## File naming
+`customers.csv` → `customers.redacted.csv` (the original extension is
+replaced, not appended after). The script never writes to the input path.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/examples/sample_input.csv`
+
+```csv
+id,name,email,phone,ssn,notes
+1,Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Called about billing issue, reach at jane.doe@example.com or 555-123-4567"
+2,John Smith,john.smith@example.com,(555) 987-6543,987-65-4321,"No issues reported"
+```
+
+Run `python scripts/redact_csv.py examples/sample_input.csv` yourself to generate `examples/sample_input.redacted.csv` and verify the output — I didn't include a precomputed "expected" redacted file here since I have no code execution available in this session to verify the exact hash values would be correct.
+
+---
+
+**What's left for you:** create the four files above at those paths, then run the script once against `examples/sample_input.csv` in an environment where you can execute Python to confirm it behaves as documented.

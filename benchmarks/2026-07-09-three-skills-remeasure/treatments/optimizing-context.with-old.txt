@@ -1,0 +1,403 @@
+# Optimizing Context
+
+Context engineering is curating tokens during LLM inference to maximize desired outcomes.
+
+## Why This Matters
+
+Model performance degrades non-uniformly as context grows:
+- Simple tasks degrade with longer context
+- Distractors amplify negative impact at length
+- Position affects retrieval (primacy/recency effects)
+
+**Implication**: Token efficiency is fundamental. Every token competes in a finite window with diminishing returns.
+
+## Context Hierarchy by Product
+
+| Layer | Claude.ai | Claude Code | API |
+|-------|-----------|-------------|-----|
+| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
+| Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
+| Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
+| On-demand | Skills | Skills | Skills |
+| External | Integrations | MCP servers, Hooks | MCP servers |
+
+## Decision Matrix: Which Mechanism?
+
+| Need | Mechanism | Why |
+|------|-----------|-----|
+| Repeated procedures across conversations | **Skill** | Loads on-demand, portable, progressive disclosure |
+| Codebase conventions and guardrails | **CLAUDE.md** | Always-loaded project context for Claude Code |
+| Background knowledge for initiative | **Project** | Always-loaded reference material for Claude.ai |
+| External data or tool connectivity | **MCP** | Real-time access, data gateway pattern |
+| Deterministic automation on events | **Hooks** | Lifecycle events for validation, formatting, CI |
+| Independent task with own context | **Subagent** | Context isolation, tool restrictions |
+| Distribute tools with selective installation | **Plugin** | Package agents/skills/commands, install only what's needed |
+| One-time instruction | **Prompt** | Ephemeral, conversational |
+| User behavior defaults (all chats) | **User Preferences** (Claude.ai) or **User CLAUDE.md** (Claude Code) | Permanent, account-wide |
+| Project-specific behavior | **Project Instructions** | Scoped to initiative |
+
+Quick routing:
+- Repeated procedure -> Skill
+- Project context always loaded -> CLAUDE.md (Code) or Project (Claude.ai)
+- External data/tools -> MCP
+- Deterministic automation -> Hooks
+- Isolated task execution -> Subagent (prefer Task() over custom)
+- One-time request -> Prompt
+- Personal defaults -> User Preferences (Claude.ai) or ~/.claude/CLAUDE.md (Code)
+
+For worked before/after examples of these choices (bloated vs. lean CLAUDE.md, Skill vs.
+CLAUDE.md, MCP vs. Skill, plugin marketplace structure), see
+[mechanism-selection.md](references/mechanism-selection.md).
+
+## Core Principles
+
+1. **Smallest High-Signal Tokens**: Every token must justify its cost. Ask: "Does Claude already know this?"
+2. **Right Altitude**: Not brittle hardcoded logic (too low), not vague guidance (too high). Match degrees of freedom to task fragility.
+3. **Progressive Disclosure**: Metadata first, then content when triggered, then deep resources as needed.
+4. **Constitution, Not Manual**: CLAUDE.md captures guardrails for what Claude gets wrong, not comprehensive documentation.
+
+## Documentation Altitude and SSoT (in brief)
+
+Two orthogonal rules decide where a fact lives:
+- **Altitude routing**: a fact belongs at the altitude matching its abstraction and time-horizon
+  (STRATEGY > ROADMAP > README / CLAUDE.md > file headers > code).
+- **SSoT uniqueness**: one home per fact, at the lowest altitude where it is fully determined;
+  every higher mention is a reference, not a copy. A fact copied above its home is drift.
+
+Executable facts invert the axis: code sits lowest in altitude but highest in authority. Schema
+versions, function signatures, and filenames are owned by code; any doc that restates them rots.
+Full altitude table and common drift patterns:
+[mechanism-selection.md](references/mechanism-selection.md).
+
+## Measuring Success
+
+After changes, verify token count dropped, previously-failed tasks now succeed, retrieval stays
+accurate, and no regressions appear. For skills, confirm activation on 3+ realistic user
+phrasings. Skill size targets and the full metrics table:
+[mechanism-selection.md](references/mechanism-selection.md). If no measurable improvement, revert.
+
+## Mechanism Guides
+
+Read the appropriate reference when creating/optimizing:
+
+| Mechanism | Reference | When to Read |
+|-----------|-----------|--------------|
+| CLAUDE.md | [claude-md.md](references/claude-md.md) | Writing for Claude Code |
+| Skills | [skills.md](references/skills.md) | Creating skills |
+| Plugins | [plugins.md](references/plugins.md) | Marketplace structure, auto-discovery |
+| Projects | [projects.md](references/projects.md) | Claude.ai projects |
+| User Preferences | [user-preferences.md](references/user-preferences.md) | Claude.ai defaults |
+| Prompts | [prompts.md](references/prompts.md) | Designing prompts, including slash commands |
+| MCP | [mcp.md](references/mcp.md) | Server design |
+| Subagents | [subagents.md](references/subagents.md) | Task delegation |
+| Hooks | [hooks.md](references/hooks.md) | Automation |
+| Format efficiency | [token-format-efficiency.md](references/token-format-efficiency.md) | Formatting stored data/tool outputs (not SKILL.md/CLAUDE.md bodies) |
+| Examples / altitude depth | [mechanism-selection.md](references/mechanism-selection.md) | Worked examples, full SSoT rules, metrics |
+
+=== references/claude-md.md ===
+
+# CLAUDE.md Guide
+
+CLAUDE.md is Claude Code's project-level context mechanism. It's loaded automatically at session start.
+
+## When to Use Which File
+
+| File | Scope | Use Case |
+|------|-------|----------|
+| `~/.claude/CLAUDE.md` | User (all projects) | Personal conventions, global preferences |
+| `./CLAUDE.md` | Project root | Team conventions, project architecture |
+| `./.claude/CLAUDE.local.md` | Project (gitignored) | Personal project overrides, experiments |
+
+Precedence: Project overrides user. Local overrides project.
+
+## Core Philosophy: Constitution, Not Manual
+
+CLAUDE.md is a set of guardrails, not comprehensive documentation.
+
+**Start with what Claude gets wrong**, not what it should know. If Claude makes the same mistake repeatedly, add a guardrail. If Claude handles something well already, don't document it.
+
+**Anti-pattern**: Documenting your entire codebase architecture
+**Pattern**: Noting the non-obvious decisions Claude keeps missing
+
+## What to Include
+
+### High-Value Content
+
+1. **Correction patterns**: "When X, do Y instead of Z"
+2. **Non-obvious conventions**: Things that differ from common practice
+3. **Tool-specific quirks**: Your linter config, test runner flags, deployment targets
+4. **Path hints**: Where to find schemas, configs, key modules
+5. **Decision rationale**: Why unusual choices were made (so Claude doesn't "fix" them)
+
+### Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Instead |
+|--------------|---------|---------|
+| `@`-file entire docs | Bloats context, Claude may not read | Pitch *why* to read specific files |
+| "Never do X" without alternative | Claude needs a path forward | "Instead of X, do Y because Z" |
+| Comprehensive architecture docs | Too long, low signal | Note only non-obvious parts |
+| Duplicating README content | Redundant, SSoT violation | Reference README location |
+| Style guide regurgitation | Claude knows common styles | Note only deviations |
+
+## Pitching References
+
+Don't just mention files exist—explain *why* Claude should read them:
+
+**Weak**: "See docs/api.md for API documentation"
+
+**Strong**: "Before implementing new endpoints, read docs/api.md for our auth pattern—we use a custom header scheme that differs from standard Bearer tokens"
+
+## Structure Guidance
+
+Be specific: "Use 2-space indentation" is better than "Format code properly". Use bullet points for each memory item regardless of file size ([official guidance](https://docs.claude.com/en/docs/claude-code/memory.md)).
+
+| File Size | Formatting | Rationale |
+|-----------|------------|-----------|
+| <15 lines | Bullets only | Headers add overhead without navigation benefit |
+| 15-50 lines | Minimal headers | Light grouping aids clarity |
+| 50+ lines | Full sections | Navigation and instruction separation matter |
+
+Keep CLAUDE.md lean. Suggested sections:
+
+```markdown
+# Project Name
+
+Brief one-liner on what this is.
+
+## Key Decisions
+
+Non-obvious architectural choices Claude should respect.
+
+## Common Mistakes
+
+Things Claude gets wrong; corrections.
+
+## Commands
+
+Project-specific commands Claude should use.
+
+## Where to Look
+
+Pointers to key files with *why* they matter.
+```
+
+## Token Allocation
+
+For large projects, budget tokens deliberately:
+
+| Section | Approximate Tokens | Priority |
+|---------|-------------------|----------|
+| Key decisions | 200-400 | Critical |
+| Common mistakes | 200-400 | Critical |
+| Commands | 100-200 | High |
+| Path hints | 100-200 | Medium |
+| Background | 50-100 | Low |
+
+Target: Under 1,000 tokens for most projects. Enterprise monorepos may need up to 3,000.
+
+**Line count heuristic**: 1,000 tokens maps to roughly 60–100 lines depending on density. Target under 60; treat 100 as a hard ceiling to prune before adding. Anthropic: "Bloated CLAUDE.md files cause Claude to ignore your actual instructions." Community empirical data: adherence degrades noticeably around 80 lines, significantly past 200. No official line count exists — prune by the token target and the per-line test ("would removing this cause Claude to make mistakes?").
+
+## CLAUDE.md as Forcing Function
+
+If CLAUDE.md is getting too long, it's a signal that your tooling is too complex. Use CLAUDE.md maintenance as a forcing function to simplify:
+- Consolidate scripts
+- Standardize conventions
+- Reduce special cases
+
+## Examples
+
+### Good: Correction Pattern
+
+```markdown
+## Common Mistakes
+
+When running tests, always use `npm run test:unit` not `npm test`—the latter runs E2E which requires a running server.
+```
+
+### Good: Non-Obvious Convention
+
+```markdown
+## Key Decisions
+
+We use barrel exports (`index.ts`) only at module boundaries, not within modules. This is intentional to avoid circular dependency issues we had previously.
+```
+
+### Bad: Over-Documentation
+
+```markdown
+## Architecture
+
+This is a Next.js application using React 18 with TypeScript. We use Tailwind for styling and Prisma for database access...
+[300 more lines]
+```
+
+Claude already knows what Next.js, React, Tailwind, and Prisma are. Only document deviations.
+
+## Iteration
+
+CLAUDE.md should evolve:
+
+1. Start minimal (or empty)
+2. Notice when Claude makes mistakes
+3. Add targeted corrections
+4. Remove entries when Claude stops needing them
+5. Simplify tooling when CLAUDE.md grows too large
+
+## Sources
+
+- [Memory documentation](https://docs.claude.com/en/docs/claude-code/memory.md) - Official formatting guidance (bullets, headings)
+- [Using CLAUDE.md Files](https://claude.com/blog/using-claude-md-files) - Official guidance
+- [How I Use Claude Code](https://shrivastava.io/p/how-i-use-claude-code) - Practical patterns, constitution-not-manual philosophy
+
+=== references/mechanism-selection.md ===
+
+# Mechanism Selection: Worked Examples and Depth
+
+Concrete before/after examples, mechanism trade-off tables, and the documentation-altitude
+deep-dive that back the decision framework in SKILL.md. Read when you need a worked example
+for a specific mechanism choice or the full altitude/SSoT rules.
+
+## Table of Contents
+
+1. [Concrete Examples](#concrete-examples)
+2. [Documentation Altitude and SSoT](#documentation-altitude-and-ssot)
+3. [Measuring Success](#measuring-success)
+
+---
+
+## Concrete Examples
+
+### Example 1: Bloated CLAUDE.md to Lean Version
+
+**Before** (wastes tokens on what Claude knows):
+```markdown
+# Project Guidelines
+
+## About This Project
+This is a Python web application using Flask. Flask is a micro web 
+framework written in Python. It is classified as a microframework 
+because it does not require particular tools or libraries...
+
+## Code Style
+We use Python. Python is an interpreted, high-level programming language.
+Always use 4 spaces for indentation because that is the Python standard...
+```
+
+**After** (only project-specific corrections):
+```markdown
+# CLAUDE.md
+
+## Conventions
+- Flask app, pytest for tests
+- 4-space indent, type hints required
+- Run `make lint` before commits
+
+## Common Errors to Avoid
+- Don't use `datetime.now()` — use `datetime.utcnow()`
+- Always close DB connections in finally blocks
+```
+
+**Why**: Claude knows what Flask and Python are. CLAUDE.md captures project-specific corrections only.
+
+### Example 2: Wrong Mechanism Choice
+
+**Situation**: User wants SQL queries formatted with uppercase keywords.
+
+| Choice | Mechanism | Problem |
+|--------|-----------|---------|
+| Avoid | Skill | Creates portable package for a personal preference |
+| Prefer | User Preferences (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
+| Prefer | ~/.claude/CLAUDE.md (Claude Code) | User-level defaults for all Claude Code sessions |
+
+### Example 3: Skill vs. CLAUDE.md
+
+**Situation**: Team has Kubernetes deployment procedures.
+
+**Use Skill when** procedure is reusable across projects:
+```
+deploying-k8s/
+  SKILL.md
+  scripts/deploy.sh
+```
+
+**Use CLAUDE.md when** procedure is repo-specific:
+```markdown
+# In repo's CLAUDE.md
+## Deployment
+Run `./deploy.sh staging` then verify at https://staging.example.com
+```
+
+### Example 4: MCP vs. Skill
+
+**Situation**: Need to query company's BigQuery tables.
+
+| Choice | Mechanism | Why |
+|--------|-----------|-----|
+| Avoid | Skill alone | Can't access live data |
+| Prefer | MCP + Skill | MCP provides connection, Skill provides schemas/patterns |
+
+### Example 5: Plugin Marketplace Structure
+
+**Situation**: Monorepo with skills for different domains. Want users to install only what they need.
+
+| Choice | Approach | Result |
+|--------|----------|--------|
+| Avoid | Use repo root as source | Auto-discovery loads all skills for every plugin |
+| Prefer | Use component directories as sources | Each plugin loads only specified skills |
+
+**Why**: Default directories (`/skills/`, `/agents/`, `/commands/`) at plugin root trigger
+auto-discovery that loads everything. Using component directories as sources avoids this.
+See [plugins.md](plugins.md) for implementation.
+
+---
+
+## Documentation Altitude and SSoT
+
+Two orthogonal rules — not one axis — determine where a fact lives.
+
+**Altitude routing** — a fact belongs at the altitude matching its abstraction and time-horizon:
+
+| Altitude | Document | Contains |
+|----------|----------|---------|
+| Strategic | STRATEGY | Why/positioning, year-horizon |
+| Tactical | ROADMAP | What's next, quarter-horizon |
+| Orientation | README | Getting started (newcomers, read once) |
+| Operating contract | CLAUDE.md | Constraints for agents and editors (read repeatedly) |
+| Local design intent | File headers | Module role, constraints, non-obvious patterns |
+| Exact behavior | Code | Canonical truth for executable facts |
+
+README and CLAUDE.md are roughly the same altitude — the split is audience (orientation vs.
+operating contract), not authority.
+
+**SSoT uniqueness** — one home per fact, at the lowest altitude where it is fully determined.
+Every higher mention must be a reference, not a copy. Drift = a fact copied above its home.
+
+The axis inverts for executable facts: code sits at the bottom of altitude but the top of
+authority. Schema versions, function signatures, filenames — code owns them. Any doc that
+restates them will rot.
+
+Common drift patterns (cure: reference or omit):
+- Schema version stated in CLAUDE.md, rotted when code changed
+- Filenames in SEE ALSO blocks, rotted on rename
+- Deleted features described in CLAUDE.md, documented behavior that no longer exists
+
+---
+
+## Measuring Success
+
+After changes, verify improvement:
+
+| Metric | How to Measure |
+|--------|----------------|
+| Token count | Compare context size before/after |
+| Task success | Does Claude complete previously-failed tasks? |
+| Retrieval accuracy | Does Claude find relevant info when needed? |
+| No regressions | Do previously-working tasks still work? |
+| Plugin selectivity | Install test plugin, verify only specified content in `/context` |
+| Skill activation | Does the skill trigger on 3+ realistic user phrasings (not documentation language)? |
+
+**Skill size targets** (SkillReducer empirical baselines, 2026): description <=100 tokens;
+body enforced by char cap. Descriptions >200 tokens show diminishing returns. Body content
+>60% non-actionable (preamble, examples, documentation) is a documented waste pattern.
+
+If no measurable improvement, revert changes.
