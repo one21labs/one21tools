@@ -19,16 +19,31 @@ and is positive (ADR 0024).
 | **OVERALL** | **+0.250** | **[+0.033, +0.467]** | | **KEEP** |
 
 **Overall the sections beat their no-treatment baseline** (CI excludes 0); `shipping` carries it
-cleanly. Two per-section flags are diagnosis targets for the improvement loop, NOT clean cuts:
+cleanly. Per-section power is low (n=4 tasks -> wide CIs); only `shipping` clears the per-section
+bar. The underpowered INCONCLUSIVE sections are a power limit, not evidence of no effect.
 
-- **`never` scores 0.00 in both arms on all 4 tasks** - nobody passes with or without. That points
-  at **mis-calibrated evals** (pass_criterion too strict), not a dead section. Measurement-fix
-  candidate before any cut.
-- **`docs` d3_restate_code** is with=0.00 / without=1.00 - the section arm did *worse* on one task.
-  Possible spurious negative (cf. #27); read the transcripts before concluding.
+## 2026-07-09 instrument repair (issues #49/#50)
 
-Per-section power is low (n=4 tasks -> wide CIs); only `shipping` clears the per-section bar. The
-underpowered INCONCLUSIVE sections are a power limit, not evidence of no effect.
+The original grading pipeline persisted the FIRST grader's evidence even when the prosecutor
+produced the final pass/met — 8 of 120 verdicts were self-contradictory (evidence asserting the
+expectation was satisfied next to `pass:false`). Fixed in `grade.workflow.js`; the 4 `never`
+criteria were recalibrated for discrimination (worked-example paths added; clarifying-question-only
+responses explicitly fail); all 30 affected cells (`never.*` + `docs.d3_restate_code`) were
+blind-regraded against the archived outputs (no new sampling) into
+`graded/verdicts-2026-07-09-regrade.jsonl`, which `aggregate.py` overlays (append-only, ADR 0019).
+Post-repair findings:
+
+- **`never` stays floored on 3 of 4 tasks** (n3_lint_rule floats to 0.33/0.33) with consistent
+  evidence: the tasks under-elicit verification behavior in BOTH arms (models ship the artifact
+  with no boundary demonstration regardless of treatment). A task-redesign, not a further criterion
+  edit, is what could make these cells discriminate — a 0/0 cell remains a measurement limit, not
+  a verdict on the section.
+- **`docs` d3_restate_code stays with=0.00 / without=1.00** under the consistent regrade: the
+  with-arm's flag-then-comply-anyway responses genuinely fail the criterion's "instead of"
+  condition while without-arm responses recommend the switch directly. At n=3/arm on a binary
+  task metric this is not distinguishable from noise (the docs CI spans [-0.706,+0.706]) — the
+  original "pipeline artifact" hypothesis is resolved (the contradictory evidence WAS an
+  artifact), but the direction survived it; unresolved at this n.
 
 ## Files
 
