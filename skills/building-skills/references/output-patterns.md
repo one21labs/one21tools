@@ -57,6 +57,8 @@ ALWAYS use this exact template:
 2. Specific action
 ```
 
+For token efficiency when the output is structured/tabular data (not prose), see optimizing-context's [token-format-efficiency.md](../../optimizing-context/references/token-format-efficiency.md).
+
 ### Flexible (when adaptation useful)
 
 ```markdown

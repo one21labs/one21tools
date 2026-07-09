@@ -11,3 +11,10 @@ skills; an organic "review this code for quality" query fires the REAL `code-rev
 skill over the planted description. Absolute trigger rates measured here are therefore
 competitive rates, not isolated ones. Description-ABLATION A/B remains valid (identical
 competitor field per variant). Use --description on the runner for variants.
+
+Permission finding: auto-mode sessions HARD-DENY (no prompt) two action classes when running
+this kit — executing modified third-party code like the patched `run_eval.py` above ("Untrusted
+Code Integration") and editing `.claude/settings.local.json` to self-grant a Bash allow-rule
+("Self-Modification"). The agent cannot self-authorize; the sanctioned unblock is the owner
+adding the allow-rule (e.g. `Bash(wsl bash /home/user/trigger-kit/run_trigger.sh:*)`) or relaxing
+auto mode to normal approval prompts.
