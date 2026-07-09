@@ -1,0 +1,44 @@
+Quick flag before the code: the real fix here is to stop storing `name_length` as an independently-writable field at all — derive it, don't duplicate it. A validation check only *detects* drift after the fact; it doesn't stop it recurring every time someone adds a new code path that writes `full_name` and forgets `name_length`. If your DB supports generated/computed columns, that eliminates the bug class entirely:
+
+**Postgres:**
+```sql
+ALTER TABLE users DROP COLUMN name_length;
+ALTER TABLE users ADD COLUMN name_length INT GENERATED ALWAYS AS (char_length(full_name)) STORED;
+```
+
+**MySQL:**
+```sql
+ALTER TABLE users MODIFY COLUMN name_length INT GENERATED ALWAYS AS (CHAR_LENGTH(full_name)) STORED;
+```
+
+With this, `name_length` can never drift — it's not writable, it's computed on read/write by the engine, and you still get the fast indexed sort.
+
+---
+
+If you can't migrate the schema right now (e.g. you're on a DB/ORM that doesn't support generated columns, or you need an audit first), here's a validation check to find and flag drifted rows:
+
+**SQL — find mismatches:**
+```sql
+SELECT id, full_name, name_length, LENGTH(full_name) AS actual_length
+FROM users
+WHERE name_length <> LENGTH(full_name);
+```
+
+**Application-level guard (Python, e.g. in a save hook / pre-commit validator):**
+```python
+def validate_name_length(record):
+    if record.name_length != len(record.full_name):
+        raise ValueError(
+            f"name_length drift on record {record.id}: "
+            f"stored={record.name_length}, actual={len(record.full_name)}"
+        )
+```
+
+**As a DB constraint (if generated columns aren't an option but CHECK constraints are, e.g. Postgres/SQLite):**
+```sql
+ALTER TABLE users ADD CONSTRAINT name_length_matches
+  CHECK (name_length = char_length(full_name));
+```
+Note this only *rejects* future writes that violate it — you'd still need the SELECT above to clean up existing drift first, or the ALTER will fail.
+
+Let me know what DB/ORM you're on and whether a migration to a generated column is feasible — that's the version I'd actually recommend shipping.

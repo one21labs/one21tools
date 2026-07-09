@@ -1,0 +1,36 @@
+I don't have access to your codebase in this session, so here's a stack-agnostic version you can drop in — let me know your language/DB and I'll tailor it.
+
+**Database-level (Postgres CHECK constraint — best if drift must never happen):**
+```sql
+ALTER TABLE users
+ADD CONSTRAINT name_length_matches_full_name
+CHECK (name_length = char_length(full_name));
+```
+This rejects any insert/update where the two go out of sync, so the bug can't recur regardless of which code path writes the record.
+
+**Application-level validator (Python example, adapt to your language):**
+```python
+def validate_name_length(record):
+    expected = len(record.full_name)
+    if record.name_length != expected:
+        raise ValueError(
+            f"name_length mismatch for user {record.id}: "
+            f"stored={record.name_length}, actual={expected}"
+        )
+```
+
+**One-off audit query to find existing drifted rows (Postgres):**
+```sql
+SELECT id, full_name, name_length, char_length(full_name) AS actual_length
+FROM users
+WHERE name_length != char_length(full_name);
+```
+
+A few things worth deciding:
+- **Root cause vs. patch**: the real fix is usually to stop storing `name_length` as a separate writable column and instead compute it (a generated column) so it can't drift at all:
+  ```sql
+  ALTER TABLE users DROP COLUMN name_length;
+  ALTER TABLE users ADD COLUMN name_length INT GENERATED ALWAYS AS (char_length(full_name)) STORED;
+  ```
+  That fully eliminates the sync bug rather than just detecting it.
+- If you're not on Postgres, tell me the DB (MySQL, SQLite, etc.) or ORM (Django, SQLAlchemy, ActiveRecord, Prisma...) and I'll give you the exact syntax/hook (e.g., a `before_save` callback vs. a DB trigger vs. a generated column).

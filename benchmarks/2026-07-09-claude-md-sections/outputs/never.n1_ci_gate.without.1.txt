@@ -1,0 +1,50 @@
+Here's a portable bash script you can drop into your CI pipeline (e.g., as `scripts/check-file-length.sh`):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+FAILED=0
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "Error: '$SRC_DIR' directory not found." >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (limit: $MAX_LINES)"
+    FAILED=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$FAILED" -eq 1 ]; then
+  echo ""
+  echo "Build failed: one or more files under '$SRC_DIR/' exceed $MAX_LINES lines."
+  exit 1
+fi
+
+echo "All files under '$SRC_DIR/' are within the $MAX_LINES line limit."
+exit 0
+```
+
+Make it executable and wire it into CI:
+
+```bash
+chmod +x scripts/check-file-length.sh
+```
+
+Example GitHub Actions step:
+
+```yaml
+- name: Check file length limits
+  run: ./scripts/check-file-length.sh
+```
+
+Notes:
+- `wc -l` counts newlines, so a file missing a trailing newline on its last line will be undercounted by 1 — usually not worth compensating for, but flag it if you need exact counts.
+- If you want to restrict to specific extensions (e.g., only `.js`/`.ts`), add `-name '*.ts' -o -name '*.js'` type filters to the `find` call — let me know your language(s) and I can tailor it.
+- If you'd rather exclude generated/vendored subfolders (e.g. `src/generated`), tell me the paths and I'll add `-not -path`.

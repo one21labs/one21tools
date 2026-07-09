@@ -1,0 +1,29 @@
+Since I can't see your codebase in this session, here's a database-agnostic detection query plus the actual root-cause fix.
+
+**Detection query** (finds already-drifted rows):
+
+```sql
+SELECT id, full_name, name_length, LENGTH(full_name) AS actual_length
+FROM users
+WHERE name_length <> LENGTH(full_name);
+```
+
+**Better fix — stop storing the mirror, derive it instead** (poka-yoke: this makes drift impossible rather than just flagging it after the fact):
+
+Postgres:
+```sql
+ALTER TABLE users DROP COLUMN name_length;
+ALTER TABLE users ADD COLUMN name_length INTEGER
+  GENERATED ALWAYS AS (LENGTH(full_name)) STORED;
+```
+
+MySQL:
+```sql
+ALTER TABLE users DROP COLUMN name_length;
+ALTER TABLE users ADD COLUMN name_length INT
+  GENERATED ALWAYS AS (CHAR_LENGTH(full_name)) STORED;
+```
+
+Once it's a generated column, the value updates automatically on every write and can still be indexed for fast sort-by-length — no validation check needed because the two values can never disagree.
+
+If you're on a DB without generated-column support (or the column is computed in application code/ORM), tell me the stack (Postgres/MySQL/SQLite, Rails/Django/Prisma/etc.) and I'll give you the exact equivalent — either a CHECK constraint for immediate flagging, or the ORM-level computed-property version.

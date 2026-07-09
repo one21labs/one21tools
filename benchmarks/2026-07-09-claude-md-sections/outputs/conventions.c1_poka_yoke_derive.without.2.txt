@@ -1,0 +1,39 @@
+Here's a query to flag drifted rows, plus the fix that actually stops the drift.
+
+**1. Audit query — find existing drift**
+
+```sql
+SELECT id, full_name, name_length, LENGTH(full_name) AS actual_length
+FROM users
+WHERE name_length <> LENGTH(full_name);
+```
+
+(Swap `LENGTH` for `LEN` on SQL Server, `CHAR_LENGTH` on MySQL if you want character count instead of byte count.)
+
+**2. Root cause fix — stop storing it as two independent values**
+
+Since `name_length` only exists to make sorting fast, the real fix is to derive it automatically instead of trusting every write path to update both fields. Two options depending on your DB:
+
+*Generated column (Postgres/MySQL 8+/SQL Server) — no application code needed, can't drift:*
+
+```sql
+ALTER TABLE users DROP COLUMN name_length;
+ALTER TABLE users ADD COLUMN name_length INT GENERATED ALWAYS AS (LENGTH(full_name)) STORED;
+```
+
+*Trigger (if your engine doesn't support generated columns, or you're not ready to drop the column):*
+
+```sql
+CREATE OR REPLACE FUNCTION sync_name_length() RETURNS trigger AS $$
+BEGIN
+  NEW.name_length := LENGTH(NEW.full_name);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_sync_name_length
+BEFORE INSERT OR UPDATE OF full_name ON users
+FOR EACH ROW EXECUTE FUNCTION sync_name_length();
+```
+
+If you'd rather keep this as an app-level check (e.g. no DB trigger access, or you want it in a specific language/ORM), tell me the stack and I'll write that version instead.

@@ -1,0 +1,62 @@
+Here's a CI script that checks file line counts under `src/`, plus a small test exercising its pass/fail logic (per the "never ship a gating script without a test" rule):
+
+**`check_file_lengths.sh`**
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+STATUS=0
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "error: '$SRC_DIR' directory not found" >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (max $MAX_LINES)"
+    STATUS=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$STATUS" -eq 0 ]; then
+  echo "OK: all files under $SRC_DIR are within $MAX_LINES lines"
+fi
+
+exit "$STATUS"
+```
+
+**`check_file_lengths.test.sh`** — verifies the script actually fails on an oversized file and passes when none exceed the limit:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+mkdir -p "$TMP/src"
+yes "line" | head -n 10  > "$TMP/src/small.js"
+yes "line" | head -n 501 > "$TMP/src/big.js"
+
+cp check_file_lengths.sh "$TMP/check_file_lengths.sh"
+chmod +x "$TMP/check_file_lengths.sh"
+cd "$TMP"
+
+if ./check_file_lengths.sh; then
+  echo "TEST FAILED: should have exited non-zero for big.js"
+  exit 1
+fi
+echo "PASS: correctly fails on oversized file"
+
+rm src/big.js
+if ! ./check_file_lengths.sh; then
+  echo "TEST FAILED: should have exited zero with no oversized files"
+  exit 1
+fi
+echo "PASS: correctly succeeds with no oversized files"
+```
+
+Make both executable (`chmod +x`), run `check_file_lengths.test.sh` once to confirm the logic, then wire `check_file_lengths.sh` into your CI as a build step.
