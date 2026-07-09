@@ -78,3 +78,21 @@ export function oversizeAgents(dir = "pdca-workflow/agents") {
   for (const f of names.filter((f) => f.endsWith(".md"))) pushIfOver(`${dir}/${f}`, AGENT_CHAR_BUDGET, out);
   return out;
 }
+
+// Guard: each agent prompt's frontmatter `name:` matches its filename (mirrors adr-lint's
+// id-matches-filename check — so a renamed or malformed advisor a Panel: line refers to cannot
+// silently drift). Injectable dir, ENOENT-tolerant like oversizeAgents. One message per mismatch.
+export function agentNameMismatches(dir = ".claude/agents") {
+  const out = [];
+  let names;
+  try { names = readdirSync(join(ROOT, dir)); }
+  catch (e) { if (e.code === "ENOENT") return out; throw e; }
+  for (const f of names.filter((f) => f.endsWith(".md"))) {
+    const fm = readFileSync(join(ROOT, dir, f), "utf8").match(/^---\n([\s\S]*?)\n---/);
+    const nameLine = fm && fm[1].match(/^name:\s*(.*)$/m);
+    const name = nameLine ? nameLine[1].trim() : null;
+    const expected = f.replace(/\.md$/, "");
+    if (name !== expected) out.push(`${dir}/${f}: name '${name ?? "(none)"}' != '${expected}'`);
+  }
+  return out;
+}
