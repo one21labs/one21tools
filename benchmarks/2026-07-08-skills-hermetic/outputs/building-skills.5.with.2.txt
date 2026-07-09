@@ -1,0 +1,76 @@
+I'm in a headless session for this task, which means I don't have file-system or code-execution tools available — I can't actually write to `outputs/generating-release-notes/` myself. I'll give you the complete skill content below so you (or another session with file access) can save it directly.
+
+One structural choice worth flagging: I split your documentation into two files rather than one. `SKILL.md` holds only the actionable process (steps, mapping table, output rules) — that's what should load into context every time the skill fires. The **Background** and **History of This Process** sections don't change how the skill executes, so they go in a linked reference file instead. This is standard progressive-disclosure practice for skills (keep SKILL.md lean so it doesn't compete with everything else in context; put supporting material one hop away). Nothing is cut — both sections are preserved verbatim in `references/background.md`, including the promotional closing line, since you asked not to lose any of the work. I did not put marketing language in `SKILL.md` itself, since that file's job is to instruct, not to sell.
+
+---
+
+**`outputs/generating-release-notes/SKILL.md`**
+
+```markdown
+---
+name: generating-release-notes
+description: Generate release notes when the user asks to create release notes, a changelog, or a summary of changes since the last release/tag. Determines the commit range from git tags, groups commits by conventional-commit type, and writes markdown output to RELEASE_NOTES.md.
+---
+
+# Generating Release Notes
+
+## Process
+
+1. Find the last release tag: `git describe --tags --abbrev=0`
+2. Collect commits since that tag: `git log <tag>..HEAD --oneline`
+3. Parse each commit's conventional-commit type, scope, and `!` marker, and group accordingly (see mapping below).
+4. Write the result to `RELEASE_NOTES.md` at the repo root, following the output rules below.
+
+## Commit Type Mapping
+
+| Prefix | Section | Notes |
+|---|---|---|
+| `feat` | Features | |
+| `fix` | Bug Fixes | |
+| `perf` | Performance | |
+| `docs`, `chore`, `ci`, `build` | — | omit |
+| `refactor` | — | omit unless user-facing |
+| `revert` | Reverts | also drop the reverted entry if it's in the same release |
+| any type with `!` (e.g. `feat!`) | Breaking Changes | always the first section |
+| `fix(security)` / any security scope | Security | always listed before Bug Fixes |
+
+## Output Rules
+
+- File: `RELEASE_NOTES.md` at repo root, markdown.
+- One line per entry, imperative mood, no trailing period.
+- Every entry links its PR number as `[#123]`.
+- Section order: Breaking Changes, Security, Features, Performance, Bug Fixes, Reverts.
+- Omit empty sections.
+
+## Background
+
+For the rationale behind this process and its history, see [references/background.md](references/background.md).
+```
+
+---
+
+**`outputs/generating-release-notes/references/background.md`**
+
+```markdown
+# Background & History
+
+## Background
+
+Release notes are documents distributed with a software release that describe the changes, improvements, and fixes included in that release. They help users and stakeholders understand what changed.
+
+Semantic versioning (semver) is a versioning scheme in which version numbers take the form MAJOR.MINOR.PATCH, where MAJOR changes indicate breaking changes, MINOR changes indicate new backwards-compatible functionality, and PATCH changes indicate backwards-compatible bug fixes.
+
+Git is a distributed version control system that records changes to files over time; a git tag marks a specific point in history, typically a release.
+
+## History of This Process
+
+We used to write release notes by hand in Confluence, which took hours every sprint. In Q3 2025 we moved to a shell script that dumped raw git log output, but nobody could read it. In January 2026 Priya rewrote it around conventional commits, and in March we retired the old script after the mobile team migrated. This skill replaces all of that.
+
+---
+
+This tool is ABSOLUTELY AMAZING and will save your team HOURS of tedious work every single sprint!!!
+```
+
+---
+
+Save those two files at the paths shown (creating the `references/` subfolder), then run `validate.py outputs/generating-release-notes` in a session with tool access to confirm it passes frontmatter/structure checks.

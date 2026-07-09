@@ -1,0 +1,63 @@
+I don't have filesystem or code-execution tools in this session (it's running headless — no Write/Read/Bash access), so I can't actually create `outputs/review.md` or `outputs/json-config-check/SKILL.md` on disk. Here's both documents in full — please save them yourself at those paths.
+
+## outputs/review.md
+
+**Defects found in the draft:**
+
+1. **Frontmatter field order is wrong.** `description` appears before `name`; the spec requires `name:` first, `description:` second.
+2. **Description doesn't act as an activation instruction.** "This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed" gives no concrete trigger conditions and no immediate action — it's marketing copy, not a routing instruction Claude can match against a real request.
+3. **Filler/marketing language throughout** — "really helpful," "stuff," "lots of things," "incredibly powerful," "fantastic time-saver that your whole team will love." This costs tokens on every load and carries zero instructional value.
+4. **"Introduction" section explains what JSON is.** Claude already knows this; per the conciseness principle, only include context Claude doesn't already have.
+5. **"About This Amazing Skill" section is pure marketing** with no actionable content — should be deleted entirely, not trimmed.
+6. **"How It Works" is hedged narrative, not instructions.** "might be validated," "could be reported," "You might want to consider possibly using" — this is a narrow, procedural task (parse → find schema → validate → report), which calls for a low-degrees-of-freedom concrete recipe, not vague prose. No actual code is given despite naming `json` and `jsonschema`.
+7. **No concrete schema-discovery rule.** "If a schema file happens to be available in the same directory" doesn't specify a filename convention or lookup order, so Claude has to guess.
+8. **No error-reporting format specified.** Doesn't say what a good report looks like (line/column for syntax errors, JSON path + message for schema violations).
+9. **Body is almost entirely preamble.** Against the "~40%+ actionable instructions" baseline, essentially none of the current body is actionable — it's explanation and enthusiasm, not steps.
+
+## outputs/json-config-check/SKILL.md
+
+```markdown
+---
+name: json-config-check
+description: Validate JSON configuration files for syntax errors and schema compliance. Use when a user asks to validate, lint, or debug a JSON config file, or reports one failing to load. Parses the file, locates a matching schema, and reports errors with location and message.
+---
+
+# JSON Config Check
+
+## Steps
+
+1. Parse the target file with `json.load`. On `json.JSONDecodeError`, report the line, column, and message — stop here; do not attempt schema validation on invalid JSON.
+2. Look for a schema: a `$schema` key inside the config pointing to a file, or a sibling file named `<config-name>.schema.json`. If neither exists, report the config is syntactically valid and stop.
+3. Validate with `jsonschema`, collecting all `ValidationError`s (don't stop at the first).
+4. Report each error as `<json-path>: <message>`.
+
+## Code
+
+\`\`\`python
+import json
+import jsonschema
+
+def check(config_path, schema_path=None):
+    with open(config_path) as f:
+        try:
+            config = json.load(f)
+        except json.JSONDecodeError as e:
+            return [f"Syntax error at line {e.lineno}, column {e.colno}: {e.msg}"]
+
+    if not schema_path:
+        return []  # valid JSON, no schema to check against
+
+    with open(schema_path) as f:
+        schema = json.load(f)
+
+    validator = jsonschema.Draft202012Validator(schema)
+    errors = sorted(validator.iter_errors(config), key=lambda e: list(e.path))
+    return [f"{'.'.join(map(str, e.path)) or '<root>'}: {e.message}" for e in errors]
+\`\`\`
+
+## Output
+
+Report a syntax error and stop if parsing fails. Otherwise list each schema violation as `path: message`, or state that the config is valid.
+```
+
+**Summary of the fix:** reordered frontmatter, rewrote the description as a concrete trigger+action instruction, deleted all marketing/preamble content, and replaced hedged narrative with a numbered procedure plus working code and a defined output format.

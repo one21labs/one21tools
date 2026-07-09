@@ -1,0 +1,23 @@
+```python
+"""
+webhook.py - Billing provider webhook handler
+
+ARCHITECTURE ROLE:
+    Applies invoice.paid events to the ledger. Trusts payload shape
+    and values as pre-validated by the upstream billing provider.
+
+SEE ALSO:
+    ledger - dict of invoice_id -> amount_cents
+"""
+
+
+def handle_invoice_event(ledger, payload):
+    if payload["event_type"] != "invoice.paid":
+        return
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+That's the lean version as specified. One flag before you ship it: "the provider validates every event" only holds if something upstream of this function verifies the webhook came from the provider in the first place — typically an HMAC signature check on the raw request body (e.g. Stripe's `Stripe-Signature` header) before the JSON is even parsed. That's a different concern from shape/type validation of the payload dict, and it's the part that actually matters for a billing handler — without it, anyone who can reach the endpoint can POST a fake `invoice.paid` event and credit arbitrary amounts into the ledger.
+
+If signature verification already happens in the layer that calls this (router/middleware), you're fine and this is a reasonable lean implementation. If it doesn't exist yet, that's worth confirming with your tech lead specifically, since it's easy for "skip input validation" to get conflated with "skip auth."

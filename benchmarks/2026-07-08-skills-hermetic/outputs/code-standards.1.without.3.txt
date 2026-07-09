@@ -1,0 +1,37 @@
+Since this is a headless session I can't write to disk directly — here's the full updated module content for `notifier.py`:
+
+```python
+import json
+import time
+import urllib.request
+
+# old loader, kept for reference
+# def load(f):
+#     return json.loads(open(f).read())
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1 and bo:
+                time.sleep(bo)
+    return None
+```
+
+Notes:
+- `ld()` now returns a 3-tuple `(r, to, bo)` instead of 2 — any caller unpacking `r, to = ld(p)` needs updating to `r, to, bo = ld(p)`.
+- `snd()` takes `bo` as a new param and sleeps `bo` seconds between failed attempts, but skips the sleep after the final attempt so it doesn't wait pointlessly before giving up.
+- `backoff_seconds` defaults to `0` (no wait) if absent from the config, matching the existing defaulting style for `retries`/`timeout`.

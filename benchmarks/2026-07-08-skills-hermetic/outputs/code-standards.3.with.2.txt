@@ -1,0 +1,202 @@
+Here are both modules with structured, correlated logging added. Key design: every log line carries a `run_id` (one per `run()` invocation) and a `record_id` (one per input line — taken from the record's own `id` field if present, otherwise synthesized from `run_id` + line number). Filtering logs on either field reconstructs a record's full path across both modules. Logs are emitted as JSON to stdout so they're directly ingestible by log aggregation tools, and per-record failures are isolated so one bad line can't silently kill the whole run or take down the process with an unlabeled traceback.
+
+```python
+# ingest.py
+"""
+ingest.py - Reads JSON-line records, enriches them, and persists results.
+
+ARCHITECTURE ROLE:
+  Entry point and orchestration. Owns line-by-line reading, per-record
+  error isolation, and structured logging configuration for the whole
+  pipeline (enrich.py's logger propagates up to the handler configured
+  here, so both modules' logs share one format and destination).
+
+DESIGN CONSTRAINTS:
+  - A malformed line or a single record's enrichment/save failure must
+    not abort the run; every other line still gets processed.
+  - Every per-record log line carries run_id and record_id so a
+    record's path can be reconstructed by filtering logs on either.
+
+SEE ALSO:
+  enrich.py - enrichment logic and its own logging
+"""
+import datetime
+import json
+import logging
+import sys
+import time
+import uuid
+
+from enrich import EnrichmentError, enrich_record
+
+_LOG_FIELDS = ("run_id", "record_id", "line_no", "path", "region", "zone",
+               "error", "total", "succeeded", "skipped", "failed", "duration_s")
+
+
+class JsonLogFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.datetime.fromtimestamp(
+                record.created, tz=datetime.timezone.utc
+            ).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for field in _LOG_FIELDS:
+            value = getattr(record, field, None)
+            if value is not None:
+                payload[field] = value
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+def _configure_logging():
+    logger = logging.getLogger("pipeline")
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(JsonLogFormatter())
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        logger.propagate = False
+    return logger
+
+
+logger = _configure_logging()
+
+
+def run(path):
+    run_id = uuid.uuid4().hex[:12]
+    started_at = time.monotonic()
+    total = succeeded = skipped = failed = 0
+
+    logger.info("run started", extra={"run_id": run_id, "path": path})
+
+    try:
+        f = open(path)
+    except OSError:
+        logger.exception(
+            "run aborted: could not open input file",
+            extra={"run_id": run_id, "path": path},
+        )
+        raise
+
+    with f:
+        for line_no, raw_line in enumerate(f, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            total += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                failed += 1
+                logger.error(
+                    "record dropped: invalid JSON",
+                    extra={"run_id": run_id, "line_no": line_no, "error": str(exc)},
+                )
+                continue
+
+            record_id = str(rec.get("id") or f"{run_id}-L{line_no}")
+            ctx = {"run_id": run_id, "record_id": record_id, "line_no": line_no}
+
+            try:
+                out = enrich_record(rec, run_id=run_id, record_id=record_id)
+            except EnrichmentError as exc:
+                failed += 1
+                logger.warning(f"record dropped: {exc}", extra=ctx)
+                continue
+            except Exception:
+                failed += 1
+                logger.exception("record dropped: unexpected enrichment error", extra=ctx)
+                continue
+
+            if out is None:
+                skipped += 1
+                logger.info("record skipped: enrichment declined record", extra=ctx)
+                continue
+
+            try:
+                save(out)
+            except OSError:
+                failed += 1
+                logger.exception("record dropped: failed to persist output", extra=ctx)
+                continue
+
+            succeeded += 1
+            logger.info("record processed", extra=ctx)
+
+    logger.info(
+        "run finished",
+        extra={
+            "run_id": run_id,
+            "total": total,
+            "succeeded": succeeded,
+            "skipped": skipped,
+            "failed": failed,
+            "duration_s": round(time.monotonic() - started_at, 3),
+        },
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+```python
+# enrich.py
+"""
+enrich.py - Adds geographic zone data to a record.
+
+ARCHITECTURE ROLE:
+  Pure enrichment logic. Does not configure logging or perform I/O
+  beyond emitting log records; the application entry point (ingest.py)
+  owns logging configuration and destinations.
+
+DESIGN CONSTRAINTS:
+  - Raises EnrichmentError for records missing required fields (a data
+    quality problem the caller should surface as a failure).
+  - Returns None for records with a recognized shape but an
+    unsupported region (an expected, non-error skip).
+
+SEE ALSO:
+  ingest.py - orchestration, logging configuration, and correlation IDs
+"""
+import logging
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+logger = logging.getLogger("pipeline.enrich")
+
+
+class EnrichmentError(Exception):
+    """Raised when a record is missing data required for enrichment."""
+
+
+def enrich_record(rec, run_id=None, record_id=None):
+    ctx = {"run_id": run_id, "record_id": record_id}
+
+    region_code = rec.get("region")
+    if region_code is None:
+        raise EnrichmentError("missing required field 'region'")
+
+    zone = GEO.get(region_code)
+    if zone is None:
+        logger.info(
+            f"record declined: unrecognized region '{region_code}'",
+            extra={**ctx, "region": region_code},
+        )
+        return None
+
+    rec["zone"] = zone
+    logger.debug(
+        f"record enriched: '{region_code}' -> '{zone}'",
+        extra={**ctx, "region": region_code, "zone": zone},
+    )
+    return rec
+```
+
+How to trace a record: `grep '"record_id":"<id>"'` across the log stream shows that record's full lifecycle (parse → enrich decision → save), spanning both modules since `pipeline.enrich`'s logger propagates to the handler `pipeline` configures. `grep '"run_id":"<id>"'` shows everything from one invocation, ending in a `run finished` summary line with total/succeeded/skipped/failed counts for quick triage.

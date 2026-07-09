@@ -1,0 +1,204 @@
+Here's the redesigned pipeline. Key idea: `ingest.py` owns logging setup and builds a per-record logger carrying `run_id` + `record_id`; it hands that logger into `enrich_record` so both modules tag every line the same way without `enrich.py` knowing anything about run/record identity. Logs are JSON-lines so they're grep/aggregator-friendly, and per-record failures (bad JSON, enrichment exceptions, save I/O errors) no longer abort the whole run — they're logged with full context and the loop continues.
+
+```python
+# ingest.py
+"""
+ingest.py - Pipeline entry point: reads records, enriches, persists them.
+
+ARCHITECTURE ROLE:
+    Orchestrates one run: reads a JSONL file line by line, delegates
+    enrichment to enrich.py, and persists accepted records. Owns all
+    logging configuration (formatter, handler, level) for the whole
+    pipeline; enrich.py only emits through the logger it's handed.
+
+DESIGN CONSTRAINTS:
+    - A bad line, a failed enrichment, or a failed save must not abort
+      the run: log it with full context and move to the next record.
+      (Previously any single bad record killed the whole batch.)
+    - run_id (one per run() call) and record_id (one per input line)
+      are carried on a LoggerAdapter and passed into enrich_record, so
+      every log line for a record is tagged the same way in both
+      modules without enrich.py knowing about run/record identity.
+    - Logs are emitted as one JSON object per line so they can be
+      grepped by record_id/run_id or shipped to a log aggregator.
+
+SEE ALSO:
+    enrich.py - enrichment logic, logs through the adapter it receives
+"""
+import datetime
+import json
+import logging
+import os
+import uuid
+
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+_RESERVED_LOG_RECORD_ATTRS = {
+    "name", "msg", "args", "levelname", "levelno", "pathname", "filename",
+    "module", "exc_info", "exc_text", "stack_info", "lineno", "funcName",
+    "created", "msecs", "relativeCreated", "thread", "threadName",
+    "processName", "process", "message", "asctime",
+}
+
+
+class JsonFormatter(logging.Formatter):
+    """Renders each LogRecord as one JSON object, including any extra fields."""
+
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.datetime.fromtimestamp(
+                record.created, tz=datetime.timezone.utc
+            ).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for key, value in vars(record).items():
+            if key not in _RESERVED_LOG_RECORD_ATTRS:
+                payload[key] = value
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload, default=str)
+
+
+class ContextAdapter(logging.LoggerAdapter):
+    """LoggerAdapter that merges its bound context with any per-call extra."""
+
+    def process(self, msg, kwargs):
+        kwargs["extra"] = {**self.extra, **kwargs.get("extra", {})}
+        return msg, kwargs
+
+
+def configure_logging():
+    root = logging.getLogger()
+    if root.handlers:
+        return  # already configured; avoid duplicate log lines
+    handler = logging.StreamHandler()
+    handler.setFormatter(JsonFormatter())
+    root.addHandler(handler)
+    root.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
+
+
+def run(path):
+    configure_logging()
+    run_id = uuid.uuid4().hex[:8]
+    run_logger = ContextAdapter(logger, {"run_id": run_id, "record_id": "-"})
+    run_logger.info("Run started", extra={"path": path})
+
+    stats = {"processed": 0, "accepted": 0, "rejected": 0, "failed": 0}
+
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, start=1):
+                outcome = _process_line(line, line_num, run_id)
+                if outcome is not None:
+                    stats["processed"] += 1
+                    stats[outcome] += 1
+    except OSError:
+        run_logger.exception("Run aborted: could not read input file")
+        raise
+
+    run_logger.info("Run finished", extra=stats)
+
+
+def _process_line(line, line_num, run_id):
+    if not line.strip():
+        return None  # blank line, not a record
+
+    record_id = f"L{line_num}"
+    record_logger = ContextAdapter(logger, {"run_id": run_id, "record_id": record_id})
+
+    try:
+        rec = json.loads(line)
+    except json.JSONDecodeError as exc:
+        record_logger.error(
+            "Record rejected: invalid JSON",
+            extra={"raw_line": line.strip()[:200], "error": str(exc)},
+        )
+        return "failed"
+
+    if not isinstance(rec, dict):
+        record_logger.error(
+            "Record rejected: JSON payload is not an object",
+            extra={"payload_type": type(rec).__name__},
+        )
+        return "failed"
+
+    if "id" in rec:
+        record_id = f"{record_id}:{rec['id']}"
+        record_logger = ContextAdapter(logger, {"run_id": run_id, "record_id": record_id})
+
+    try:
+        out = enrich_record(rec, record_logger)
+    except Exception:
+        record_logger.exception("Record rejected: enrichment raised an exception")
+        return "failed"
+
+    if out is None:
+        return "rejected"
+
+    try:
+        save(out)
+    except OSError:
+        record_logger.exception("Record rejected: failed to save enriched output")
+        return "failed"
+
+    record_logger.debug("Record saved")
+    return "accepted"
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+```python
+# enrich.py
+"""
+enrich.py - Adds geo zone data to a record.
+
+ARCHITECTURE ROLE:
+    Pure business logic only: no I/O, no logging configuration. Emits
+    through the logger the caller passes in, so its log lines carry
+    whatever run/record identity ingest.py has attached to it.
+
+DESIGN CONSTRAINTS:
+    - Assumes rec is a dict; the caller validates that at the boundary.
+    - record_logger is optional only so this function stays directly
+      unit-testable without constructing a caller-side adapter.
+
+USED BY:
+    ingest.py
+"""
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, record_logger=None):
+    record_logger = record_logger or logger
+    raw_region = rec.get("region")
+    region = GEO.get(raw_region)
+
+    if region is None:
+        record_logger.warning(
+            "Record rejected: unrecognized or missing region",
+            extra={"region": raw_region},
+        )
+        return None
+
+    rec["zone"] = region
+    record_logger.debug("Record enriched", extra={"region": raw_region, "zone": region})
+    return rec
+```
+
+Notes on what changed and why:
+- **Traceability**: every log line carries `run_id` (one per `run()` call) and `record_id` (`L<line_number>`, plus the record's own `id` if present) — grep one `record_id` to see that record's full path through both modules.
+- **No more run-killing bugs**: originally an unhandled exception (e.g. `rec["region"]` `KeyError`, or a bad JSON line) would crash `run()` and silently drop every remaining record in the file. Now each failure mode (bad JSON, non-object payload, enrichment exception, save I/O error) is caught, logged with `logger.exception`/context, and the run continues.
+- **Structured JSON logs**: one JSON object per line (timestamp, level, logger, message, run_id, record_id, plus whatever extra context each call adds) — parseable by log aggregators, no ad-hoc string parsing needed on-call.
+- **Run-level summary**: start/end logs with `processed/accepted/rejected/failed` counts give the big picture before drilling into a specific `record_id`.
+- **`LOG_LEVEL` env var**: defaults to INFO in production; on-call can set `LOG_LEVEL=DEBUG` to see per-record enrichment detail without a code change.

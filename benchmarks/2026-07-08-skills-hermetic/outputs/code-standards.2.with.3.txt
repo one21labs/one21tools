@@ -1,0 +1,52 @@
+I don't have file-system tools in this session, so I can't write `review.md` directly — here's the full review as text; you can save it yourself.
+
+# Code Review: `process_refund`
+
+## Critical
+
+**1. Order state is mutated *before* the refund API call succeeds, with no rollback on failure.**
+`order.status = "refunded"` and `order.refunded_amount = amount` run before `payments_api.refund(...)` is even attempted. If the call raises, the function returns `False` (signaling failure) but the order object is left permanently marked as refunded. Any code reading `order.status` afterward believes money was returned when it wasn't.
+*Fix:* only mutate `order` after `payments_api.refund` returns a confirmed success. Compute/validate everything first, call the API, and commit state changes last.
+
+**2. A non-`"ok"` result is only logged, not treated as failure — the function still returns `True` and charges a fee.**
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok")
+order.fee = amount * FEE_RATE
+return True
+```
+This falls through regardless of the warning, so a declined/failed refund is reported to the caller as success, and a fee is applied to a refund that didn't actually happen.
+*Fix:* treat non-`"ok"` as a failure path — `return False` and skip the `order.status`/`fee` mutations.
+
+## High
+
+**3. No idempotency guard.** There's no check on entry for `order.status` already being `"refunded"` (or similar terminal state). Calling this twice — e.g., a retried request — double-refunds via the payments API and overwrites `refunded_amount`/`fee`.
+*Fix:* short-circuit at the top, e.g. `if order.status == "refunded": return False`, and pass an idempotency key to `payments_api.refund` if the provider supports one.
+
+**4. `amount` is never validated.** Nothing stops a negative amount, zero, or an amount exceeding what was actually paid on the order.
+*Fix:* validate `0 < amount <= order.refundable_amount` (or equivalent) before calling the API.
+
+## Medium
+
+**5. Fee is computed from the requested `amount`, not the amount actually confirmed refunded by `result`.** If the payment processor partially fulfills or normalizes the amount (currency rounding, etc.), the fee will be wrong.
+*Fix:* derive the fee from `result`'s actual refunded amount if the API exposes it, not the input parameter.
+
+**6. Exception is swallowed without context.** `log.error("refund error")` loses the exception message/traceback and doesn't include `order_id` or `payment_ref`, making production triage hard.
+*Fix:* `log.error("refund failed for order_id=%s: %s", order_id, e, exc_info=True)`.
+
+**7. Same problem for the warning log** — `log.warning("refund not ok")` doesn't include `order_id` or the `result` payload, so you can't correlate it back to anything.
+*Fix:* `log.warning("refund not ok for order_id=%s: %s", order_id, result)`.
+
+**8. `orders[order_id]` can raise an unhandled `KeyError`.** Unlike the API call, this isn't guarded or logged, so an invalid `order_id` produces an unhandled exception with no context, inconsistent with how the rest of the function handles errors.
+*Fix:* explicitly look up and handle the missing case (log + return `False`, or a distinct error signal), or document that callers must guarantee `order_id` exists.
+
+## Low
+
+**9. Money math uses `float`.** `amount * FEE_RATE` on floats can introduce rounding artifacts in currency calculations.
+*Fix:* use `Decimal` (or integer minor units/cents) for all monetary arithmetic.
+
+**10. No transactional boundary around the state mutation + API call.** If `orders` is backed by a database or shared across threads/requests, there's no lock/transaction ensuring the local mutation and the external call stay consistent under concurrent access.
+*Fix:* wrap in a transaction/lock appropriate to the storage layer, committed only after the API confirms success.
+
+**11. `bool` return type can't distinguish failure reasons** (not found, API exception, declined, invalid amount) — callers can't react differently (e.g., retry vs. surface to user).
+*Fix:* return a richer result (enum/result object) or raise distinct exception types for each failure mode.

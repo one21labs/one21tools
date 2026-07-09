@@ -1,0 +1,117 @@
+I don't have file-system tools available in this session (it's running headless — no Write/Edit/Bash), so I can't create `outputs/review.md` or `outputs/json-config-check/SKILL.md` directly. Here's the review and the rewritten skill as text — copy each into the indicated path.
+
+## outputs/review.md
+
+```markdown
+# Review: json-config-check SKILL.md (draft)
+
+## Defects found
+
+1. **`description` frontmatter is not usable for skill triggering.**
+   Skill descriptions are what Claude (or the harness) uses to decide *when* to invoke
+   the skill. "This skill is really helpful for working with JSON configuration files
+   and stuff. It can do lots of things! Use when needed." contains no concrete trigger
+   condition and no concrete capability — "stuff" and "lots of things" describe nothing.
+   A model reading this cannot decide whether a given task matches it.
+
+2. **Body is marketing copy, not instructions.**
+   Lines like "This incredibly powerful skill", "This amazing skill", and "fantastic
+   time-saver that your whole team will love" don't tell Claude what to do. Skill
+   bodies should be written as direct, actionable instructions to the model executing
+   the task, not sales copy.
+
+3. **"How It Works" is hedged into uselessness.**
+   Phrases like "might be validated," "could be reported," "You might want to consider
+   possibly using ... which can be a good choice" give no committed procedure. An
+   executable skill needs imperative steps (do X, then Y), not a list of possibilities.
+
+4. **No concrete schema-discovery rule.**
+   "If a schema file happens to be available in the same directory" doesn't say how to
+   find it — by what name, by what convention, or via a `$schema` key in the JSON
+   itself. Without this the instruction is unfollowable.
+
+5. **No distinction between JSON syntax errors and schema validation failures.**
+   The draft treats "parsing" and "validating" as one blurry step. These are different
+   failure modes needing different handling (a syntax error means schema validation
+   can't even run) and the draft never says so.
+
+6. **No specification of error-reporting format.**
+   "Errors could be reported to the user if any are found" doesn't say what a useful
+   error report contains (path within the JSON, expected vs. actual, line/column for
+   syntax errors).
+
+7. **Generic JSON background material adds no value.**
+   The "Introduction" paragraph explains what JSON is in general — this is encyclopedic
+   filler that consumes context budget without helping Claude perform the task (Claude
+   already knows what JSON is).
+
+8. **No example of invocation or output.**
+   The draft gives no sense of what a successful run or a failure report looks like,
+   making it hard to verify the skill is being followed correctly.
+
+## Summary
+The draft describes intent but contains no executable procedure. Rewritten version
+below replaces marketing language with a specific, scoped description and a concrete,
+imperative step-by-step procedure, including schema discovery rules, error handling,
+and an example output.
+```
+
+## outputs/json-config-check/SKILL.md
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file for syntax correctness and, if a matching JSON Schema can be found, checks the config against it. Use when the user asks to validate, lint, or check a JSON config file, or before committing/deploying JSON configuration changes.
+---
+
+# JSON Config Check
+
+Validate a JSON configuration file's syntax, then validate it against a JSON Schema
+if one can be found.
+
+## Steps
+
+1. **Identify the target file.** Use the path the user gave. If none was given, ask
+   which file to check rather than guessing.
+
+2. **Parse the JSON.**
+   - Load the file and parse it (e.g. `json.load()` in Python, or `python -m json.tool
+     config.json` from the shell).
+   - If parsing fails, report the exact error message and the line/column it points to,
+     then stop. Do not attempt schema validation on invalid JSON.
+
+3. **Look for a schema**, in this order:
+   - A `"$schema"` key inside the JSON file itself (a URL or relative path).
+   - A sibling file with the same base name and a `.schema.json` suffix
+     (e.g. `config.json` → `config.schema.json`).
+   - If neither is found, report that the file is syntactically valid JSON and that no
+     schema was found to validate against, then stop.
+
+4. **Validate against the schema.**
+   - Use Python's `jsonschema` package.
+   - Collect *all* violations, not just the first, via
+     `jsonschema.Draft202012Validator(schema).iter_errors(config)`.
+
+5. **Report results.**
+   - Success: state that the file is valid JSON and, if applicable, conforms to its
+     schema.
+   - Failure: list each violation with its JSON path (e.g. `.server.port`), the
+     constraint that was violated, and the actual value found.
+
+## Example output
+
+```
+config.json: valid JSON
+config.json: 2 schema violations
+  - .server.port: expected integer, got string ("8080")
+  - .server.host: required property missing
+```
+
+## Notes
+
+- If both a `$schema` reference and a sibling `.schema.json` file exist and disagree,
+  prefer the `$schema` reference and mention the discrepancy to the user.
+- Don't guess at ambiguous schema intent — surface the ambiguity instead.
+```
+
+Let me know if you'd like me to adjust scope (e.g., support YAML configs, or a specific validator library your team already uses) before you save these.

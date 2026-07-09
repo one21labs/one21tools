@@ -1,0 +1,47 @@
+I'm in a headless session for this turn and don't have file-system or execution tools available, so I can't write to `process-review.md` directly. Here's the full review — save this content into that file yourself, or ask me to write it in a normal session and I will.
+
+---
+
+# Release Process Review
+
+## Summary
+The team is optimizing for **utilization** (everyone stays busy, gates get followed) rather than **flow** (value reaches users quickly). The result is a large amount of work-in-progress sitting idle between "done" and "released," released in one big, stressful batch. Little's Law explains the felt slowness: with ~40 changes queued for up to 2 weeks plus a 3-stage sequential sign-off, the average lead time from code-complete to production is likely 2–4 weeks, even though each individual change was "finished" long ago.
+
+The single highest-leverage fix is the hotfix path — it currently has zero blast-radius reduction despite being the case that most needs one.
+
+## Diagnosis (waste identified)
+
+1. **Waiting / inventory** — Merged PRs sit on main for up to 2 weeks as inventory before they generate any value. This is the dominant source of "feels slow."
+2. **Batching risk** — Shipping ~40 changes at once means when something breaks, the blast radius and root-cause search space are both large. This is what makes each release "stressful."
+3. **Over-processing** — The release manager hand-copies changelog entries out of PR descriptions. The PR description is already the source of truth; retyping it is pure transcription waste and an error-prone extra step (SSoT violation — the changelog is a second, manually-synced copy of information that already exists).
+4. **Uniform process for non-uniform risk** — Every release, and every hotfix, goes through the identical 3-stage sequential sign-off (QA → EM → PM) regardless of how big or risky the change is. Applying the heaviest-weight gate to a one-line fix is over-processing at the extreme.
+5. **Sequential gating** — Even when all three sign-offs are genuinely warranted, running them in sequence rather than in parallel means the wait time is the *sum* of three people's response times rather than the *max*.
+6. **No expedite path (the critical defect)** — Hotfixes take the exact same path as routine releases. This is a Jidoka failure: there's no "stop the line and fix now" mechanism. An urgent one-line fix waiting up to 2 weeks behind 40 unrelated changes is the clearest signal that the process is tuned for batch efficiency, not for responding to defects.
+
+## Recommendations (prioritized)
+
+### 1. Create a hotfix/expedite lane — do this first
+Urgent fixes should never ride the same train as routine changes. Define objective criteria for "hotfix" (e.g., production-impacting, low-diff, revertable), and give it its own lightweight path: one reviewer, one sign-off (or pre-authorized criteria requiring none, e.g. a straight revert), deployed independently and immediately. This is the single change most likely to fix the "shipping feels slow" complaint, because it fixes the case where slowness is most painful.
+
+### 2. Automate the changelog
+Stop hand-copying. Require a structured PR description (template or conventional-commit-style title) and generate the release changelog from merged-PR metadata via CI script. The PR description becomes the single source of truth instead of being re-typed into a second document — removes a manual, error-prone step and frees the release manager's time.
+
+### 3. Reduce release batch size / increase cadence
+Move off the biweekly big-bang model toward smaller, more frequent releases (weekly is a reasonable next step; daily/continuous is the eventual target). Smaller batches mean: smaller blast radius when something breaks, faster and easier root-causing (fewer candidate changes), and less ceremony/stress per release. This is the core lever — most of the other pain (stress, slow feedback, hard debugging) is downstream of batch size.
+
+### 4. Right-size and parallelize the sign-off gate
+Not every change carries the same risk, so not every change needs the same gate:
+- Introduce risk tiers (e.g., trivial/low-risk changes — docs, copy, config — skip PM sign-off; customer-facing or data-affecting changes get the full chain).
+- Where all three sign-offs are genuinely needed, run them in parallel rather than sequentially — this alone turns a 3-person sum-of-wait-times into a single max-of-wait-times.
+
+### 5. Address the 2-day PR review wait
+Root-cause it before prescribing a fix — is it reviewer availability, unclear ownership, or PRs that are too large to review quickly? Likely levers: WIP limits on open PRs per developer, a review-response SLA, and smaller PRs (the batch-size principle applied one level down, at the PR itself).
+
+## Suggested Target State
+Trunk-based development with small, frequently-merged PRs; fast review turnaround; changelog generated automatically from PR metadata; risk-tiered approval (lightweight for low-risk, full parallel sign-off for high-risk); a standing hotfix lane measured in hours, not weeks; and release cadence moved from biweekly batches toward weekly, then continuous delivery.
+
+## Suggested Rollout (PDSA)
+1. **Plan/Do**: Ship the hotfix lane and changelog automation first — both are low-risk, high-value, and don't require renegotiating the sign-off policy.
+2. **Study**: After 2–4 weeks, measure hotfix lead time and release-manager time spent on changelogs.
+3. **Act**: Use those results to make the case for risk-tiered sign-offs and batch-size reduction, which require more cross-team agreement (QA/EM/PM need to agree on tiering criteria).
+4. Repeat the cycle for cadence increases (biweekly → weekly → continuous), predicting the effect on lead time and stress each time, and checking the prediction against what actually happens.

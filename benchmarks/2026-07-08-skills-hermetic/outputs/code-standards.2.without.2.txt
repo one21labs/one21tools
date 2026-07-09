@@ -1,0 +1,71 @@
+I can't write to `review.md` — this session has no file-system or code-execution tools available, so I can't touch your project directory. Here's the full review as plain text; you can paste it into `review.md` yourself.
+
+## Code Review: `process_refund`
+
+### Critical
+
+**1. Order is marked "refunded" before the refund is confirmed to succeed**
+`order.status = "refunded"` and `order.refunded_amount = amount` are set *before* `payments_api.refund(...)` is even called. If the call raises or comes back non-"ok", the order is left permanently marked as refunded with a refunded amount recorded, even though no money moved. This corrupts financial state and can mask a failed refund from anyone looking at the order later.
+**Fix:** Only mutate `order.status` / `order.refunded_amount` after `result.get("status") == "ok"` is confirmed. Move those two lines below the success check.
+
+**2. A non-"ok" result is treated as a success**
+When `result.get("status") != "ok"`, the code only logs a warning and then falls through to set `order.fee` and `return True`. The caller has no way to distinguish a real success from a failed refund that the payment processor rejected.
+**Fix:** `return False` (and skip setting `fee`/order state) in the non-"ok" branch, e.g.:
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok: order=%s result=%s", order_id, result)
+    return False
+```
+
+**3. No idempotency / double-refund guard**
+There's no check of `order.status` before proceeding. If this function is called twice for the same order (retry, duplicate request, race), it will call `payments_api.refund` a second time and refund the customer twice.
+**Fix:** At the top, check `if order.status == "refunded": return False` (or raise a specific `AlreadyRefundedError`), before touching the payments API.
+
+### High
+
+**4. No validation on `amount`**
+There's no check that `amount` is positive, non-zero, or does not exceed what was actually paid on the order. A negative or zero amount, or an amount larger than the original charge, would be sent straight to the payment API.
+**Fix:** Validate `0 < amount <= order.amount_paid` (or equivalent) up front and reject/raise otherwise.
+
+**5. Unhandled `KeyError` if `order_id` doesn't exist**
+`orders[order_id]` will raise `KeyError` for an unknown order, and nothing catches it — it propagates as an unhandled exception straight out of the function, with no logging.
+**Fix:** Look up explicitly and handle the missing case:
+```python
+order = orders.get(order_id)
+if order is None:
+    log.error("refund failed: unknown order_id=%s", order_id)
+    return False
+```
+
+### Medium
+
+**6. Floating-point arithmetic for money**
+`amount * FEE_RATE` uses `float`, which is unsafe for currency — accumulates rounding error over repeated operations and can produce values like `0.1 + 0.2 = 0.30000000000000004` when combined elsewhere.
+**Fix:** Use `Decimal` for `amount`, `FEE_RATE`, and `order.fee` throughout.
+
+**7. Overly broad exception handling with no diagnostic detail**
+`except Exception` swallows everything — network errors, but also programming bugs like `AttributeError` on a malformed `order` — and `log.error("refund error")` records no exception info, order id, or amount, making the failure nearly impossible to diagnose from logs.
+**Fix:** Catch a narrower exception type from the payments client if one exists, and log with context and traceback:
+```python
+except PaymentAPIError:
+    log.exception("refund error: order=%s amount=%s", order_id, amount)
+    return False
+```
+
+**8. Log messages lack correlating context generally**
+Same issue as #7 applies to the warning branch — `log.warning("refund not ok")` doesn't include `order_id`, `amount`, or the API result, so it can't be tied back to a specific refund when triaging.
+**Fix:** Include `order_id`, `order.payment_ref`, and the result payload in all log statements.
+
+### Low
+
+**9. Unclear whether order state is persisted**
+The function mutates `order.status`/`order.refunded_amount`/`order.fee` on the in-memory object but never appears to save/commit it. Depending on whether `orders` is a live ORM-backed store or a plain dict, this may or may not be a real bug — worth confirming.
+**Fix:** If a repository/session pattern is used elsewhere in the codebase, add the corresponding `orders.save(order)` / `db.commit()` call.
+
+**10. No type hints or docstring on a financial function**
+Given this handles money, a docstring stating the contract (return value meaning, what exceptions can propagate) and type hints (`amount: Decimal`, `-> bool`) would reduce misuse risk at call sites.
+**Fix:** Add a short docstring and type annotations.
+
+---
+
+**Priority to fix before merge:** #1, #2, #3 are the ones that can actually lose or duplicate money or corrupt order state — those should block the merge. #4/#5 are close behind since they're straightforward crashes/bad-input holes in a payment path.
