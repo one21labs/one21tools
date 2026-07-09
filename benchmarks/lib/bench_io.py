@@ -66,7 +66,7 @@ def dump_records(records, path, fmt="csv"):
             writer.writeheader()
             writer.writerows(flat_records)
     elif fmt == "jsonl":
-        with open(path, "w", encoding="utf-8") as fh:
+        with open(path, "w", newline="", encoding="utf-8") as fh:
             for record in records:
                 fh.write(json.dumps(record, separators=(",", ":")) + "\n")
     else:

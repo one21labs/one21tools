@@ -53,6 +53,16 @@ class DumpLoadRoundTripTest(unittest.TestCase):
             self.assertEqual(len(lines), len(RECORDS))
             self.assertNotIn(" ", lines[0].rstrip("\n"))  # minified: no space after ':' or ','
 
+    def test_jsonl_bytes_contain_no_cr(self):
+        # The jsonl writer lacked newline="" — on Windows that silently CRLF-corrupted every JSONL
+        # artifact (git's recurring CRLF-warning noise). Assert the raw bytes stay LF-only.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "records.jsonl")
+            dump_records(RECORDS, path, fmt="jsonl")
+            with open(path, "rb") as fh:
+                raw = fh.read()
+            self.assertNotIn(b"\r", raw)
+
     def test_empty_records_tsv_writes_empty_file(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "empty.tsv")
