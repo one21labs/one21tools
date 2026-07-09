@@ -1,0 +1,45 @@
+Here's a portable bash script you can drop into CI:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+STATUS=0
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "Directory '$SRC_DIR' not found." >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (max $MAX_LINES)"
+    STATUS=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$STATUS" -ne 0 ]; then
+  echo "One or more files exceed the $MAX_LINES line limit."
+  exit 1
+fi
+
+echo "All files under $SRC_DIR are within the $MAX_LINES line limit."
+exit 0
+```
+
+Notes:
+- Uses `find ... -print0` / `read -d ''` so it's safe with spaces/newlines in filenames.
+- `wc -l` counts newlines — a file with content but no trailing newline on its last line will be undercounted by 1; usually not worth worrying about, but flag if you need exactness.
+- Checks **every** file under `src/`. If you only want specific extensions (e.g. `.js`/`.ts`/`.py`), add `-name '*.ts'` (repeat with `-o -name` for multiple) to the `find` call.
+
+Example usage in a GitHub Actions step:
+
+```yaml
+- name: Check file line limits
+  run: bash scripts/check-line-limits.sh
+```
+
+Want me to adjust it for a specific file extension, a different language's CI (e.g. a Node/Python script instead of bash), or wire it into an actual CI config file?
