@@ -78,13 +78,11 @@ waste here compounds across every user x every iteration (rationale:
 - **Avoid FALSE serialization** — don't chain independent steps just because they touch the "same"
   repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
   that applies them.
-- **`isolation:'worktree'` agents run under a DIFFERENT project root** — an Agent-tool worktree
-  spawns under `<repo>/.claude/worktrees/…`, whose OWN `.claude/settings.local.json` governs its
-  permissions, not the session's. A narrow allow-list there floods approval prompts per command.
-  Prefer in-process Workflow/Task for repo-internal work; if you must isolate, a bare `"Bash"` in
-  user-global `~/.claude/settings.json` covers all roots.
-- **A Workflow's `.output` is a wrapper** `{summary, log, …, result}`, not the raw returned array —
-  read the result field before parsing; assuming the file IS the array silently mis-parses.
+- **`isolation:'worktree'` agents obey a DIFFERENT root's permissions** — the spawned worktree's own
+  `.claude/settings.local.json`, not the session's; a narrow allow-list there floods prompts. Prefer
+  in-process Workflow/Task; a bare `"Bash"` in user-global settings covers all roots.
+- **A Workflow's `.output` is a wrapper** `{summary, log, …, result}` — unwrap before parsing; the
+  file is not the raw returned array.
 
 ## Custom Subagent Configuration
 
@@ -131,12 +129,6 @@ tools: Read, Grep, Glob
 # Test runner: can execute
 tools: Read, Bash, Write
 ```
-
-### Model Selection
-- **Fast tier**: Quick exploration, simple tasks
-- **Balanced tier**: Most tasks, good capability-to-speed ratio
-- **Capable tier**: Complex reasoning (use when needed)
-- **inherit**: Match main conversation's model
 
 ## Resumable Subagents
 
