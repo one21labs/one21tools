@@ -57,6 +57,10 @@ deterministic logic; a doc that restates them rots).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
+- **No external publication without approval**: never file or edit issues/PRs/comments in a repo
+  outside one21labs/* without the owner's per-item approval of the exact text. An internal issue
+  saying "file upstream" authorizes DRAFTING, not posting — leave the draft in the internal issue
+  and stop.
 - **Deferred = issues** (ADR 0021): a deferred item someone must act on gets a GitHub issue; the
   PR's Deferred section links it. No handoff/TODO files — work-state tracks in issues,
   decision-state stays in ADRs.
