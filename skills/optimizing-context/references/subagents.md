@@ -51,6 +51,34 @@ General delegation:
 
 For current model assignments, see Claude Code documentation.
 
+## Model Tiering + Parallelism (match tier and concurrency to task)
+
+Two first-class efficiency levers: this repo is the main workflow people run loops through, so
+waste here compounds across every user x every iteration (rationale:
+[token-format-efficiency.md](token-format-efficiency.md)).
+
+### Model Tiering
+
+- **Top tier (Opus) orchestrates and judges.** Planning, routing, and final adjudication — work
+  where capability gates outcome quality.
+- **Delegate BULK to cheaper/faster tiers (Sonnet/Haiku).** Implementation, extraction, and grading
+  fan out across many agents — run the bulk on the cheapest tier that clears the quality bar.
+- **ALWAYS set the worker/grader model explicitly** — subagents INHERIT the session model when
+  `model` is unset, so a 100+-agent grid launched from an Opus session silently runs every worker
+  on the expensive tier. Real miss: two 144-agent grading passes ran on Opus because the tier was
+  left implicit. Set `model: sonnet`/`haiku` explicitly; use `inherit` only when you mean it.
+
+### Parallelism
+
+- **Fan out INDEPENDENT work concurrently** — Workflow `parallel()`/`pipeline()` for many agents or
+  items at once, not chained one-by-one.
+- **Serialize ONLY what shares a singleton resource** — a single git worktree/branch, or the
+  hermetic-executor's user-CLAUDE.md relocation symlink, can't take concurrent writers without
+  corrupting state.
+- **Avoid FALSE serialization** — don't chain independent steps just because they touch the "same"
+  repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
+  that applies them.
+
 ## Custom Subagent Configuration
 
 ```yaml
