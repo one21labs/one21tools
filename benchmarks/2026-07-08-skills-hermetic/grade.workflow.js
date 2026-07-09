@@ -40,10 +40,10 @@ Return: total, met (your count of genuinely-met), pass = true ONLY if you also f
 
 const results = await pipeline(
   bids,
-  (bid) => agent(grade(bid), { label: `grade:${bid}`, phase: 'Grade', schema: SCHEMA })
+  (bid) => agent(grade(bid), { label: `grade:${bid}`, phase: 'Grade', schema: SCHEMA, model: 'sonnet' })
     .then((v) => ({ bid, ...(v || { pass: false, met: 0, total: 0, evidence: 'NULL grader' }) })),
   (v) => (v && v.pass)
-    ? agent(prosecute(v.bid), { label: `verify:${v.bid}`, phase: 'Verify', schema: SCHEMA })
+    ? agent(prosecute(v.bid), { label: `verify:${v.bid}`, phase: 'Verify', schema: SCHEMA, model: 'sonnet' })
         .then((pv) => ({ ...v, pass: !!(pv && pv.pass), met: pv ? pv.met : v.met, prosecutor: pv || null }))
     : v,
 )

@@ -44,10 +44,10 @@ Return pass=true ONLY if the PASS survives (no real implementation of the choice
 
 const results = await pipeline(
   bids,
-  (bid) => agent(grade(bid), { label: `grade:${bid}`, phase: 'Grade', schema: SCHEMA })
+  (bid) => agent(grade(bid), { label: `grade:${bid}`, phase: 'Grade', schema: SCHEMA, model: 'sonnet' })
     .then((v) => ({ bid, ...(v || { pass: false, behavior: 'implemented', evidence: 'NULL grader' }) })),
   (v) => (v && v.pass)
-    ? agent(prosecute(v.bid, v), { label: `verify:${v.bid}`, phase: 'Verify', schema: SCHEMA })
+    ? agent(prosecute(v.bid, v), { label: `verify:${v.bid}`, phase: 'Verify', schema: SCHEMA, model: 'sonnet' })
         .then((pv) => ({ ...v, pass: !!(pv && pv.pass), prosecutor: pv || null }))
     : v,
 )

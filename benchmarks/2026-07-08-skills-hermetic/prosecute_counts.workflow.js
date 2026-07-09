@@ -33,7 +33,7 @@ Return: total = number of expectations; met = your strict count of genuinely-and
 
 const results = await pipeline(
   bids,
-  (bid) => agent(prosecute(bid), { label: `prosecute:${bid}`, phase: 'Prosecute', schema: SCHEMA })
+  (bid) => agent(prosecute(bid), { label: `prosecute:${bid}`, phase: 'Prosecute', schema: SCHEMA, model: 'sonnet' })
     .then((v) => ({ bid, ...(v || { met: 0, total: 0, evidence: 'NULL prosecutor' }) })),
 )
 
