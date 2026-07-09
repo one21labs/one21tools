@@ -1,6 +1,6 @@
 # Advisor panel — one21tools
 
-This repo's own tuned advisor panel (dogfooding pdca-workflow; adopted in ADR 0023). It is NOT a
+This repo's own tuned advisor panel (dogfooding pdca-workflow; adopted in ADR 0028). It is NOT a
 shipped standard — a consumer generates their own via `/pdca-init` (a borrowed panel gives
 confident-but-irrelevant advice). The `advise` skill picks the 2-3 lenses a call needs; the
 definitions live in `.claude/agents/*.md`, tracked via the `.claude/* + !.claude/agents/` negation

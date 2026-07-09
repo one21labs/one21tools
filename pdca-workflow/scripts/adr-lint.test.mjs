@@ -9,8 +9,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift } from "./adr-lint.mjs";
-import { ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { lint, manifestDrift, agentProblems } from "./adr-lint.mjs";
+import { ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { basename } from "node:path";
 
 // The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
 const ADR_DIR = fileURLToPath(new URL("../../docs/decisions/", import.meta.url));
@@ -219,6 +221,34 @@ test("lite: still subject to version-agnostic and dangling-cite guards", () => {
   const { problems } = lint({ files });
   assert.ok(problems.some(p => /release version/.test(p)));
   assert.ok(problems.some(p => /dangling ADR cite/.test(p)));
+});
+
+// Agent homes (ADR 0028): both agent dirs get the budget + name-matches-filename checks, and a
+// defect surfaces as a formatted lint problem (the integration adr-lint's exit code rides on).
+const AGENT_ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
+test("agentProblems formats mismatch and over-budget defects as lint problems", () => {
+  const abs = mkdtempSync(join(AGENT_ROOT, "tmp-agent-lint-fixture-"));
+  const dir = basename(abs); // ROOT-relative, as char-budget.mjs expects
+  try {
+    writeFileSync(join(abs, "good.md"), "---\nname: good\ndescription: x\n---\nbody\n");
+    writeFileSync(join(abs, "bad.md"), "---\nname: wrong\ndescription: x\n---\nbody\n");
+    writeFileSync(join(abs, "huge.md"), `---\nname: huge\ndescription: x\n---\n${"x".repeat(AGENT_CHAR_BUDGET + 1)}\n`);
+    const problems = agentProblems([dir]);
+    assert.ok(problems.some(p => p.startsWith("agent name mismatch: ") && p.includes("bad.md")), problems.join("; "));
+    assert.ok(problems.some(p => p.startsWith("agent over budget: ") && p.includes("huge.md")), problems.join("; "));
+    assert.equal(problems.filter(p => p.includes("good.md")).length, 0);
+  } finally {
+    rmSync(abs, { recursive: true, force: true });
+  }
+});
+
+test("agentProblems tolerates absent dirs (a consumer may have neither agent home)", () => {
+  assert.deepEqual(agentProblems(["no-such-dir-a", "no-such-dir-b"]), []);
+});
+
+test("both real agent homes are clean (the corpus the gate actually runs on)", () => {
+  assert.deepEqual(agentProblems(), []);
 });
 
 // Marketplace<->plugin.json mirror (ADR 0011): a field stated in both homes must be identical.
