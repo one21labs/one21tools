@@ -1,0 +1,82 @@
+I don't have file-system or code-execution tools available in this session, so I can't create `review.md` directly — here's the full review as text; please save it yourself.
+
+## Code Review: `process_refund`
+
+### 1. (Critical) Order state is mutated *before* the refund call succeeds
+```python
+order.status = "refunded"
+order.refunded_amount = amount
+try:
+    result = payments_api.refund(order.payment_ref, amount)
+except Exception:
+    ...
+    return False
+```
+If `payments_api.refund` raises, the function returns `False`, but `order.status`/`order.refunded_amount` were already written — the order is now permanently marked "refunded" even though the refund never happened.
+**Fix:** only write order state after the API call confirms success. Compute/validate first, call the API, then mutate:
+```python
+result = payments_api.refund(order.payment_ref, amount)
+...
+order.status = "refunded"
+order.refunded_amount = amount
+```
+
+### 2. (Critical) A non-`"ok"` result is logged but still treated as success
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok")
+order.fee = amount * FEE_RATE
+return True
+```
+Even when the payment processor reports failure, the function falls through, sets `order.fee`, and returns `True`. Callers and financial records will treat a failed refund as completed.
+**Fix:**
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok: order_id=%s result=%s", order_id, result)
+    return False
+```
+
+### 3. (Major) No idempotency / duplicate-refund guard
+Nothing checks whether the order is already refunded before processing. A retry (e.g. duplicate webhook, upstream retry-on-timeout) will refund the same order twice.
+**Fix:** check state up front and short-circuit:
+```python
+if order.status == "refunded":
+    log.info("order %s already refunded, skipping", order_id)
+    return True
+```
+
+### 4. (Major) No validation of `amount`
+`amount` could be zero, negative, or exceed the order's total/remaining refundable balance — none of this is checked before calling the payment API and mutating state.
+**Fix:** validate before proceeding, e.g. `if amount <= 0 or amount > order.remaining_refundable: return False` (adjust to actual domain rules).
+
+### 5. (Major) Unhandled `KeyError` on order lookup
+`orders[order_id]` will raise `KeyError` if `order_id` doesn't exist, crashing the caller with no clear error.
+**Fix:**
+```python
+order = orders.get(order_id)
+if order is None:
+    log.error("refund failed: unknown order_id=%s", order_id)
+    return False
+```
+
+### 6. (Moderate) `refunded_amount`/`fee` are overwritten, not accumulated
+If partial refunds are ever allowed (or this function is called more than once for the same order), `order.refunded_amount = amount` and `order.fee = amount * FEE_RATE` clobber any prior refund/fee rather than accumulating. If only full, single refunds are intended, that invariant should be enforced explicitly (see #3); otherwise these should be `+=`.
+
+### 7. (Minor) Exception handling swallows context
+```python
+except Exception:
+    log.error("refund error")
+```
+Catches all exceptions with no `order_id`, `amount`, or traceback — hard to debug in production.
+**Fix:** `log.error("refund error order_id=%s amount=%s", order_id, amount, exc_info=True)`
+
+### 8. (Minor) Return type is an uninformative bool
+`True`/`False` can't distinguish "already refunded," "unknown order," "API down," and "API rejected." Callers that need to react differently (e.g. retry vs. alert) can't.
+**Fix:** raise distinct exceptions or return a small result enum/object instead of a bare bool.
+
+### 9. (Minor) No explicit persistence step
+If `orders` is backed by a DB/ORM, there's no visible commit/save after mutating `order` — depending on the surrounding framework this may silently not persist. Worth confirming and making explicit (e.g. `orders.save(order)` or a transaction wrapping the whole operation, including the external API call).
+
+---
+
+**Summary ordering:** #1 and #2 are data-integrity bugs that will produce incorrect refund records and should block merge outright; #3–#5 are missing safeguards that create real financial/crash risk; #6–#9 are robustness/clarity improvements.

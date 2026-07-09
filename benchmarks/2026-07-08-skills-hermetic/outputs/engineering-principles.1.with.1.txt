@@ -1,0 +1,91 @@
+I don't have file-write access in this session (no Write/Edit/Bash tools are available here), so I can't create `rca.md` directly. Here's the full post-incident analysis — please save this as `rca.md` yourself, or let me know if you'd like to continue this in a session where I have file tools.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export File Silently Delivered
+
+**Status:** Draft for team review
+**Severity:** High (client-visible data delivery failure, third recurrence)
+**Date of incident:** 2026-07-08 (nightly run)
+**Author:** Data Platform Team (drafted via Claude Code)
+
+## Summary
+
+The nightly customer-export job ran to completion, exited with status 0, and delivered an empty output file to a client. This is the **third occurrence in two months** of the same outcome — empty file, exit 0, no internal alert, client discovers it first. Each occurrence had a different proximate trigger, but all three share the same systemic failure: **the job's "success" signal (exit code) is decoupled from whether it actually produced valid data**, and there is no independent, automated check on output content.
+
+This document treats the recurrence itself as the primary problem to solve, not the individual trigger.
+
+## Impact
+
+- Client received an empty export file with no indication of failure.
+- Third such incident in two months; client trust in export reliability is now a named concern.
+- Detection depended entirely on the client noticing, not on internal monitoring — mean time to detection was effectively "whenever the client reads their email."
+
+## Timeline (this occurrence)
+
+| Time | Event |
+|---|---|
+| Prior to run | Priya modifies the export SQL query as part of planned work. |
+| Prior to run | Manual verification step ("run it once by hand and eyeball the row count," documented in team wiki) is not performed. |
+| Nightly run | Job executes modified query, returns zero rows, writes an empty file, exits 0. |
+| Nightly run | Monitoring evaluates exit code only; sees 0; records success; no alert fires. |
+| Post-run | Empty file delivered to client via normal delivery pipeline. |
+| Later | Client notices the empty file and reports it. |
+
+## Incident History (pattern across all three)
+
+| # | Trigger | Why the job still exited 0 | Detection |
+|---|---|---|---|
+| 1 | Schema rename broke query silently | Query executed without error against renamed schema, matched nothing | Client noticed |
+| 2 | Expired credential | Job swallowed the auth error and proceeded to write file | Client noticed |
+| 3 (this one) | New engineer changed query, skipped manual row-count check | Query was valid SQL, just returned 0 rows for the given parameters | Client noticed |
+
+**Key observation:** three unrelated proximate causes produced an identical outcome and an identical detection failure. When the failure mode is invariant across varied triggers, the trigger is not the root cause — the absence of a safeguard that is trigger-agnostic is.
+
+## Root Cause Analysis (5 Whys)
+
+1. **Why was an empty file delivered to the client?**
+   Because the pipeline delivered whatever the export job wrote, with no gate on the content of that output.
+
+2. **Why didn't monitoring catch the empty output before delivery?**
+   Because monitoring only checks the process exit code, not the output itself (row count, file size, schema conformance).
+
+3. **Why does the job exit 0 when it produces zero rows or swallows an error?**
+   Because "zero rows returned" and "credential rejected" are not treated as failure conditions in the job's logic — the job's definition of success is "ran without throwing," not "produced a valid deliverable."
+
+4. **Why does the team rely on a human manually eyeballing row counts to catch this, rather than an automated check?**
+   Because the only existing safeguard against bad output is a documented manual step, not a system control — it depends entirely on an engineer remembering to run it, every time, forever, including engineers who joined six weeks ago and have not yet internalized undocumented team norms.
+
+5. **Why, after two prior incidents with this exact outcome, is the safeguard still a manual wiki step rather than an automated one?**
+   Because the fixes after incidents #1 and #2 (if any were made) addressed the specific trigger — e.g., handling that particular schema-rename case or that particular credential scenario — rather than the shared systemic gap: no independent validation of job output, and no alerting on data-quality signals. Each fix was scoped to the symptom, so the underlying hole remained open for the next unrelated trigger to fall through.
+
+**Root cause:** The pipeline has no automated, trigger-independent check that a "successful" run actually produced valid, non-empty, expected data. Success is currently defined as "process exit code 0," which is neither necessary nor sufficient for "correct export delivered."
+
+**Contributing factor (not root cause):** A safety-critical step ("verify row count after query changes") exists only as tribal/wiki knowledge with no system enforcement, making it dependent on individual recall — a control that predictably fails for new team members and, eventually, for everyone, since humans reliably forget manual steps that aren't enforced by tooling.
+
+## Why This Is a Blameless Finding, Not a Priya Problem
+
+Priya did exactly what an unenforced manual process should be expected to produce: a missed step. A process that depends on every engineer remembering an undocumented-in-code, wiki-only ritual — with no reminder, no CI gate, no code review checklist item, no runtime check — is not a control, it's a hope. The fact that this is the specific trigger this time, after two entirely different triggers previously, is itself evidence that the fix belongs in the system, not in reminding people harder. Singling out Priya would also address a symptom rather than the root cause, and would leave the system exposed to the fourth trigger.
+
+## What We Should Change
+
+### Immediate (this week)
+1. **Add a data-quality gate to the export job itself**, independent of exit code: fail the job (non-zero exit, or an explicit "quarantine" state) if row count is zero or falls outside an expected historical band (e.g., >X% deviation from trailing 7-day average). Do this before the next scheduled run.
+2. **Quarantine, don't deliver, on failure.** The job should never hand an empty or anomalous file to the delivery step. Delivery should be conditional on passing the quality gate, not on the job merely finishing.
+3. **Fix monitoring to check output, not just exit code.** Alert on: zero-row output, file size below a floor, or the new quarantine state above. Exit-code-only monitoring is confirmed insufficient by three incidents; stop treating it as the detection layer for this job.
+
+### Short-term (this month)
+4. **Convert the manual verification step into an automated, enforced check.** If a query change requires a sanity check, run that check automatically as part of the deploy/merge process for query changes (e.g., a CI step that runs the modified query against a safe target and asserts row count > 0 and within expected bounds), not as a wiki instruction that depends on memory.
+5. **Make credential and dependency failures loud.** Audit the job for any place it currently catches/swallows exceptions (as in incident #2) and ensure auth/connection errors abort the run with an alert rather than falling through to "write whatever we got."
+6. **Add a review checklist item (enforced via PR template or similar) for any change to export queries**, requiring either the automated check in #4 to have run, or a linked verification artifact — not just a wiki reminder.
+
+### Longer-term (this quarter)
+7. **Treat "zero rows" and "anomalous row count" as first-class failure classes across all export/delivery jobs**, not just this one — audit other client-facing jobs for the same exit-code-only blind spot, since this class of bug is likely not unique to this pipeline.
+8. **Post-incident-fix tracking:** when closing out an incident, explicitly ask "does this fix address the trigger, or the systemic gap that let this class of trigger through?" This incident recurred three times because prior fixes (if made) likely answered "the trigger." Add this question to the team's incident closure template.
+9. **Onboarding review:** six-week-old engineers inheriting undocumented-in-tooling manual rituals is a broader onboarding gap. Identify other "documented in wiki, enforced nowhere" steps on the team and prioritize converting the highest-risk ones to automated checks.
+
+## Success Criteria for Closing This Incident
+
+- The export job cannot deliver a file when row count is zero or anomalous — this is enforced in code, not documentation.
+- Monitoring alerts on output content/data-quality signals, not exit code alone.
+- A fourth occurrence, under a fourth unrelated trigger, is prevented by the same generic safeguard — proving the fix addressed the systemic gap rather than this specific trigger.

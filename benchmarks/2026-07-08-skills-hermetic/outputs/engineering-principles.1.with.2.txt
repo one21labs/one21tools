@@ -1,0 +1,154 @@
+I'm running in a headless session for this turn and don't have file-system access, so I can't write `rca.md` directly — you'll need to save the content below into that file yourself. Here's the full post-incident analysis:
+
+```markdown
+# Post-Incident Analysis: Empty Customer Export File Delivered to Client
+
+**Status:** Complete
+**Severity:** SEV-2 (client-facing data delivery failure, third recurrence)
+**Date of incident:** 2026-07-08 (reporting date; job runs nightly)
+**Author:** Data Platform team
+
+## Summary
+
+The nightly customer-export job produced a file containing zero rows. The job
+exited with status 0, no internal alert fired, and the empty file was
+delivered to the client automatically. The client noticed and reported it
+before the team did. This is the **third occurrence of this exact outcome in
+two months**, each time triggered by a different underlying cause.
+
+## Impact
+
+- Client received an empty export file instead of their nightly data.
+- Client detected the failure before the team did, for the third time in
+  two months — this is now a trust/reliability concern independent of any
+  single incident.
+- Engineering time spent on reactive investigation instead of the job
+  producing trustworthy signal on its own.
+
+## Timeline of the three incidents (last two months)
+
+| # | Trigger | Failure mode | Detected by |
+|---|---------|--------------|-------------|
+| 1 | Schema rename upstream | Query silently returned 0 rows | Client |
+| 2 | Expired credential | Job caught/swallowed the auth error, wrote empty output | Client |
+| 3 | Priya changed the export SQL query; manual "run once and eyeball row count" wiki step was not performed | New query returned 0 rows | Client |
+
+In all three cases: job exited 0, monitoring saw a healthy exit code, no
+alert fired, and the empty file was delivered.
+
+## Root Cause Analysis (Five Whys)
+
+1. **Why did the client receive an empty file?**
+   Because the job produced zero rows and delivery proceeded automatically —
+   nothing checked the output before sending it.
+
+2. **Why did nothing check the output?**
+   Because monitoring only checks the job's exit code. The job's exit code
+   is not correlated with output correctness — it can legitimately return 0
+   while writing zero rows.
+
+3. **Why is "job succeeded" defined only by exit code?**
+   Because no output-validation step (row count, volume-anomaly check, etc.)
+   was ever built into the job or its monitoring. Correctness of the
+   *result* was never verified by the system — only that the process didn't
+   crash.
+
+4. **Why wasn't this gap closed after incident #1 or #2?**
+   Because each prior post-incident fix (implicitly) addressed the specific
+   *trigger* — the schema rename, the credential expiry — rather than the
+   shared *failure mode*: the job can silently produce zero rows and nothing
+   downstream catches it. Fixing triggers one at a time guarantees a fourth
+   incident with a fourth, different trigger.
+
+5. **Why did incident #3's trigger (a query change without verification)
+   reach production?**
+   Because the only safeguard for query changes is a documented manual step
+   ("run it by hand, eyeball the row count") with no tooling enforcement.
+   This safeguard depends entirely on an individual remembering and choosing
+   to follow a wiki page — it is invisible to automation, unenforceable, and
+   was unknown or forgotten by an engineer six weeks into the role.
+
+**Root cause:** The export pipeline has no automated, enforced check that
+distinguishes "the job ran without crashing" from "the job produced the
+correct data." Every safeguard in place is either non-functional for this
+failure mode (exit-code monitoring) or dependent on unenforced human memory
+(the wiki step). Three different triggers produced the identical outcome
+because the outcome was never actually guarded against — only specific
+causes were patched after the fact.
+
+## Contributing factors
+
+- **Silent failure swallowing:** in incident #2, the job caught the
+  credential error internally and continued to write an (empty) output
+  instead of failing loudly. This is a broader anti-pattern worth auditing:
+  any exception during data retrieval should fail the job, not degrade it
+  into a "successful" empty result.
+- **No last-line-of-defense before external delivery:** even if every
+  internal check fails, nothing gates the client-facing delivery step
+  itself. Delivery is unconditional on job exit code alone.
+- **Process-as-control-for-code-changes:** query changes are not reviewed,
+  tested, or validated by tooling — the only control is a manual,
+  undiscoverable-to-newcomers wiki instruction.
+- **Onboarding exposure:** a 6-week-old engineer was in a position to ship
+  an unverified query change to a production, client-facing job with no
+  automated backstop. This is a systems gap, not an individual one — the
+  same change from a 5-year veteran under time pressure could fail the same
+  way.
+- **Detection is outsourced to the client:** across all three incidents,
+  the client found out before the team did. This indicates the team has no
+  functioning internal detection for this failure class at all, not just a
+  gap for this one job.
+
+## What went well
+
+- The proximate trigger for this incident was identified quickly and is
+  well understood.
+- The team has now recognized the pattern across three incidents rather
+  than treating this as an isolated one-off, which is what surfaces the
+  real root cause below.
+
+## Corrective actions
+
+### Immediate (this week) — close the shared failure mode directly
+
+| Action | Why it addresses root cause |
+|---|---|
+| Add an output-validation step to the export job: fail explicitly (non-zero exit + alert) if row count is 0, or falls below a sane threshold (e.g., <50% of trailing 7-day median). | Directly catches all three incidents' common outcome regardless of trigger. |
+| Gate client delivery on that validation step passing — do not deliver the file until output is confirmed non-empty/sane. | Last line of defense even if upstream checks are bypassed or buggy. |
+| Fix the credential-swallowing bug: any auth/connection exception must fail the job loudly, not degrade to an empty successful result. Audit the job's other exception handlers for the same pattern. | Removes the specific mechanism behind incident #2 and likely others. |
+| Update monitoring to alert on job *semantics* (output row count / anomaly), not exit code alone. | Exit code has been proven repeatedly to be insufficient signal for this job. |
+
+### Short/medium-term (next few weeks)
+
+| Action | Why |
+|---|---|
+| Replace the manual "eyeball the row count" wiki step with an automated, enforced check — e.g., a required CI/pre-deploy step that runs a changed query against staging and diffs row count/schema against baseline before it can ship. | Removes reliance on an individual remembering an undiscoverable manual step; scales to new hires by default. |
+| Add row-count/volume anomaly alerting as a standard capability for export jobs generally (control-chart style: trailing mean/stddev of daily row counts), not just this one job. | Other export jobs almost certainly have the same latent gap; this incident class is generic. |
+| Audit all client-facing delivery jobs for: (a) exit-code-only monitoring, (b) swallowed exceptions, (c) no delivery gate. | The three triggers here were different; the missing control was the same. Other jobs likely share the missing control. |
+
+### Long-term / systemic
+
+| Action | Why |
+|---|---|
+| Establish a standard "safe export job" pattern/template (mandatory output validation + anomaly detection + delivery gate) that new jobs adopt by default. | Prevents this class of gap from being reintroduced by future jobs built the same way this one was. |
+| In future post-incident reviews, explicitly ask "would this fix have caught the same failure mode from a *different* trigger?" before closing the action items. | This is the meta-lesson from this incident: two prior fixes each patched a trigger, not the underlying gap, which is why a third, different trigger produced the identical outcome. |
+
+## Lessons learned
+
+The recurring element across all three incidents was never the trigger — it
+was that the system has no way to know "we ran successfully but produced
+nothing," and no way to stop that nothing from reaching a client. Treating
+each trigger (schema rename, expired credential, unverified query change)
+as its own root cause is why this happened three times. The fix is
+structural: make "empty/anomalous output" a first-class failure state that
+the system detects and blocks on, rather than relying on exit codes or an
+individual engineer's memory of a wiki page.
+
+This incident is not attributable to Priya's error; a documentation-only
+control that depends on an individual remembering to run a manual step will
+eventually be missed by someone, new hire or not — that is what happened
+here, and the corrective action is to remove the dependency on memory, not
+to ask people to remember harder.
+```
+
+Once you've saved this, let me know if you'd like me to also draft the audit checklist for the other export jobs mentioned in the long-term action item — that's a good next piece of work.

@@ -1,0 +1,216 @@
+## Design
+
+Both modules share one **correlation ID** per record — `"{run_id}:{line_no}"`, generated once in `ingest.py` and passed as an explicit parameter into `enrich_record`. Grepping that one ID across combined logs from both modules replays exactly what happened to that record: parsed → enriched (or dropped, with the specific reason) → saved (or failed to save). `run_id` alone (the ID's prefix) brackets an entire run.
+
+The other change is per-record fault isolation: today a single malformed line or a record missing `"region"` throws an uncaught exception (`json.JSONDecodeError` / `KeyError`) that kills the whole run with no indication of which record or why. Every per-record step is now wrapped so one bad record is logged with full context and skipped, not fatal.
+
+Logs are structured JSON (`timestamp`, `level`, `logger`, `correlation_id`, `message`, `context`) to stdout, which is what makes them greppable/queryable by an on-call engineer or a log aggregator.
+
+```python
+# ingest.py
+"""
+ingest.py - Pipeline entry point: reads JSONL records and drives enrichment
+
+ARCHITECTURE ROLE:
+    Owns file I/O and per-record error isolation. Delegates all
+    enrichment logic to enrich.py. A single malformed or failing
+    record must never abort the run.
+
+DESIGN CONSTRAINTS:
+    - One record failing (bad JSON, enrichment error, save error) must
+      not stop processing of the rest.
+    - Every record gets a stable correlation_id ("run_id:line_no")
+      that is passed into enrich_record so its logs can be joined with
+      ingest's logs for the same record.
+    - Structured JSON logs to stdout: {timestamp, level, correlation_id,
+      message, context}.
+
+SEE ALSO:
+    enrich.py - enrichment logic, consumes the same correlation_id
+"""
+import json
+import logging
+import sys
+import uuid
+from datetime import datetime, timezone
+
+from enrich import enrich_record
+
+logger = logging.getLogger("pipeline.ingest")
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "correlation_id": getattr(record, "correlation_id", None),
+            "message": record.getMessage(),
+        }
+        context = getattr(record, "context", None)
+        if context:
+            payload["context"] = context
+        if record.exc_info:
+            payload["exc_info"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+def configure_logging(level=logging.INFO):
+    root = logging.getLogger("pipeline")
+    if root.handlers:
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter())
+    root.setLevel(level)
+    root.addHandler(handler)
+    root.propagate = False
+
+
+def run(path):
+    configure_logging()
+    run_id = uuid.uuid4().hex[:8]
+    logger.info("run started", extra={"correlation_id": run_id, "context": {"path": path}})
+
+    processed = succeeded = dropped = failed = 0
+
+    try:
+        f = open(path)
+    except OSError:
+        logger.error(
+            "failed to open input file",
+            extra={"correlation_id": run_id, "context": {"path": path}},
+            exc_info=True,
+        )
+        raise
+
+    with f:
+        for line_no, raw_line in enumerate(f, start=1):
+            correlation_id = f"{run_id}:{line_no}"
+            line = raw_line.strip()
+            if not line:
+                continue
+            processed += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                failed += 1
+                logger.error(
+                    "failed to parse record: invalid JSON",
+                    extra={"correlation_id": correlation_id, "context": {"line_no": line_no, "raw": line[:200]}},
+                    exc_info=True,
+                )
+                continue
+
+            try:
+                out = enrich_record(rec, correlation_id=correlation_id)
+            except Exception:
+                failed += 1
+                logger.error(
+                    "enrichment raised an unexpected error",
+                    extra={"correlation_id": correlation_id, "context": {"line_no": line_no, "record": rec}},
+                    exc_info=True,
+                )
+                continue
+
+            if out is None:
+                dropped += 1
+                logger.info(
+                    "record dropped by enrichment",
+                    extra={"correlation_id": correlation_id, "context": {"line_no": line_no}},
+                )
+                continue
+
+            try:
+                save(out)
+            except OSError:
+                failed += 1
+                logger.error(
+                    "failed to persist enriched record",
+                    extra={"correlation_id": correlation_id, "context": {"line_no": line_no}},
+                    exc_info=True,
+                )
+                continue
+
+            succeeded += 1
+            logger.info(
+                "record saved",
+                extra={"correlation_id": correlation_id, "context": {"line_no": line_no}},
+            )
+
+    logger.info(
+        "run finished",
+        extra={
+            "correlation_id": run_id,
+            "context": {"processed": processed, "succeeded": succeeded, "dropped": dropped, "failed": failed},
+        },
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("usage: python ingest.py <path>", file=sys.stderr)
+        sys.exit(1)
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+"""
+enrich.py - Adds geo zone metadata to a record
+
+ARCHITECTURE ROLE:
+    Pure enrichment logic. No file or network I/O. Takes a record and
+    the caller's correlation_id (for log tracing) and returns the
+    enriched record, or None if it cannot be enriched.
+
+DESIGN CONSTRAINTS:
+    - Never raises for a malformed record; missing/unknown fields are
+      reported via WARNING logs and a None return, mirroring ingest's
+      per-record error isolation.
+    - Logs carry the correlation_id passed in by the caller so a
+      record's story can be reconstructed by grepping one ID across
+      both modules' logs.
+
+SEE ALSO:
+    ingest.py - drives this function per record, owns the correlation_id
+"""
+import logging
+
+logger = logging.getLogger("pipeline.enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, correlation_id=None):
+    region_key = rec.get("region")
+    if region_key is None:
+        logger.warning(
+            "record missing 'region' field",
+            extra={"correlation_id": correlation_id, "context": {"record_keys": list(rec.keys())}},
+        )
+        return None
+
+    region = GEO.get(region_key)
+    if region is None:
+        logger.warning(
+            "unknown region: no zone mapping",
+            extra={"correlation_id": correlation_id, "context": {"region": region_key, "known_regions": list(GEO)}},
+        )
+        return None
+
+    rec["zone"] = region
+    logger.debug(
+        "record enriched",
+        extra={"correlation_id": correlation_id, "context": {"region": region_key, "zone": region}},
+    )
+    return rec
+```
+
+Key behavior changes from the original: `rec["region"]` (which would `KeyError`-crash the whole run on one bad record) became `rec.get("region")` with a logged, isolated drop — the same failure mode as an unknown region, just distinguishable in the logs. Everything else preserves the original logic exactly.

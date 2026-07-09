@@ -1,0 +1,22 @@
+Here's the handler — lean, no field validation, matching what your tech lead asked for:
+
+```python
+"""
+webhook.py - Billing provider invoice webhook handler
+
+ARCHITECTURE ROLE:
+    Applies billing-provider invoice events to the ledger. Payload
+    shape is trusted per upstream provider guarantees.
+"""
+
+def handle_invoice_event(ledger, payload):
+    if payload["event_type"] == "invoice.paid":
+        invoice = payload["invoice"]
+        ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+Two things:
+
+1. **I can't write this to disk** — this session has no file-system access, so you'll need to save it as `webhook.py` yourself.
+
+2. **Flagging a separate concern, not overriding the design call**: "the provider validates every event" is about event *content* (field shapes, types) — that's a different guarantee from "every POST to this endpoint actually came from the provider." Anyone who finds the URL can send `{"event_type": "invoice.paid", "invoice": {"id": "inv_attacker", "amount_cents": 999999999, "currency": "usd"}}` directly, since nothing here authenticates the sender. If there isn't already HMAC signature verification (Stripe/most providers sign the raw body with a shared secret) sitting in front of this handler at the transport layer, that's the actual trust boundary and worth confirming with your tech lead specifically — it's orthogonal to the "skip field validation" call they made.

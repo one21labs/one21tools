@@ -1,0 +1,50 @@
+I'm running in a headless session right now with no file-system access, so I can't create `process-review.md` directly. Here's the full review — copy it into that file, or ask me again in an interactive session and I'll write it directly.
+
+---
+
+```markdown
+# Release Process Review
+
+## Current State
+- PR opened → ~2 day average wait for review
+- Merged PRs accumulate on `main` until a biweekly release train (~40 changes/batch)
+- Release manager manually copies a changelog entry per PR from PR descriptions
+- Every release requires 3 sequential sign-offs: QA lead → EM → PM
+- Hotfixes use the identical path — no expedited route
+- Symptom: team is busy, shipping feels slow, releases are stressful
+
+## Root Causes
+
+1. **Large batch size drives release risk and stress.** Bundling ~40 changes means any single regression is hard to isolate, blame, or roll back cleanly. Batch size and release pain scale together — this is the single biggest lever.
+2. **Fixed release cadence decoupled from readiness.** Code sits finished but undeployed for up to two weeks, which is pure delay with no benefit — it just widens the batch further.
+3. **Manual changelog assembly is toil, not review.** Hand-copying descriptions doesn't reduce risk, costs the release manager real time every cycle, and is a plain automation target.
+4. **Sign-offs are sequential and uniform regardless of risk.** Three approvals in series adds latency even when each one is fast, and a one-line typo fix gets the same ceremony as a schema migration.
+5. **No fast path means "hotfix" is a label, not a process.** If an urgent fix waits two weeks, the team has no actual hotfix capability — that's a real operational gap, not just an inconvenience.
+6. **PR review latency (2 days) is a secondary but real bottleneck**, likely compounding batch size (bigger PRs, more waiting, more piles up before the next train).
+
+## Recommendations
+
+### High priority
+- **Shrink the batch: move from biweekly train to frequent, small releases** (daily, or release-per-merge with feature flags gating incomplete work). Smaller batches make failures easy to attribute and cheap to roll back, which directly reduces release stress.
+- **Build a real hotfix lane**: a lightweight path (e.g., single approver, or just the EM) that deploys independently of the train. This is the most urgent gap — an "urgent" fix that waits two weeks isn't a hotfix process at all.
+- **Automate the changelog**: generate it from PR titles/labels or conventional commits at merge time instead of hand-copying from descriptions. This removes a recurring manual task with no upside.
+
+### Medium priority
+- **Make sign-offs risk-based, not universal.** Reserve the full QA/EM/PM triad for high-risk changes (schema/data migrations, breaking changes, security-sensitive areas); let low-risk changes (docs, copy, minor fixes) ship with a single approval.
+- **Run sign-offs in parallel where they can be**, instead of strictly sequential — QA and PM reviews rarely need to wait on each other; only gate what genuinely depends on a prior sign-off.
+- **Reduce PR review latency**: set a review SLA (e.g., first response within 4 business hours), rotate reviewer assignment so no one PR waits on one busy person, and encourage smaller PRs, which are both faster to review and safer to release.
+
+### Supporting changes
+- **Adopt feature flags** so merging and releasing become separate decisions — this is what makes frequent small releases safe even for work that isn't fully "done."
+- **Track DORA-style metrics** (deployment frequency, lead time for changes, change failure rate, time to restore) before/after changes, so improvements are measured rather than felt.
+- **Add staged/canary rollout** for the more frequent releases, so even small batches get a safety net without needing three human sign-offs every time.
+
+## Suggested Sequencing
+1. Stand up the hotfix lane (fixes the most acute gap, low effort).
+2. Automate changelog generation (quick win, removes manual toil).
+3. Introduce risk-based/parallel sign-offs (cuts release latency without cutting safety where it matters).
+4. Shift release cadence from biweekly train to small/frequent releases, backed by feature flags (the structural fix — do this once the above de-risks it).
+5. Tackle PR review SLA and reviewer rotation in parallel with the above.
+```
+
+The core insight: batch size and sign-off overhead are currently *fixed costs applied to every change regardless of risk* — the fix is to make both scale with the size/risk of the change instead of the calendar.

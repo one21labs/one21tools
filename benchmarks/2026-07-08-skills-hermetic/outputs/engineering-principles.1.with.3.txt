@@ -1,0 +1,217 @@
+I'm in a headless session for this turn, without file-system tools — I can't write to `rca.md` directly. Here's the full analysis in Markdown; copy it into `rca.md` (or tell me to hand it off to a session with file access and I'll do it there).
+
+Also, one framing note before the doc: **the recurring factor across all three incidents isn't Priya, or any individual** — it's that three unrelated triggers (schema rename, swallowed expired credential, un-verified query change) all produced the identical undetected outcome. That's a signal the system has no safety net for "job ran but output is wrong," not that people keep forgetting a step. I've written the RCA around that.
+
+---
+
+```markdown
+# Post-Incident Analysis: Nightly Customer Export — Empty File Silently Delivered (3rd Occurrence)
+
+**Status:** Draft — needs owner, timestamps, and severity sign-off
+**Incident date:** 2026-07-08 (fill in exact run time)
+**Author:** [fill in]
+**Severity:** [fill in — recommend Sev-2 given repeat + client-facing data delivery]
+
+## 1. Summary
+
+The nightly customer-export job ran, wrote zero rows to its output file, exited 0,
+and the empty file was delivered to a client without any internal alert. The client
+noticed and reported it before the team did. This is the **third occurrence of the
+same failure mode in two months**, each time with a different trigger.
+
+| # | Trigger | Detection | Outcome |
+|---|---|---|---|
+| 1 | Schema rename broke a column reference | Client reported | Empty file delivered |
+| 2 | Expired credential, error swallowed by job | Client reported | Empty file delivered |
+| 3 | Query changed by new engineer (Priya); manual verification step skipped | Client reported | Empty file delivered |
+
+Three different proximate causes, identical outcome, identical detection method
+(the client). That repetition is itself the primary finding.
+
+## 2. Impact
+
+- [Fill in: which client, how long the empty file was live, any downstream effect
+  on their systems, any SLA/contract exposure.]
+- Reputational: third occurrence in two months to the same external audience.
+- Internal: no alert fired; time-to-detection was fully outsourced to the client.
+
+## 3. Timeline
+
+*(Reconstruct with exact timestamps — placeholders below)*
+
+| Time | Event |
+|---|---|
+| T-? | Priya modifies export SQL query |
+| T-? | Manual verification step ("run by hand, eyeball row count") not performed |
+| 00:xx | Nightly job runs, query returns 0 rows |
+| 00:xx | Job writes empty output file |
+| 00:xx | Job exits 0 |
+| 00:xx | Monitoring evaluates exit code only → green, no alert |
+| 00:xx | Empty file delivered to client |
+| T+? | Client contacts team reporting empty/missing data |
+| T+? | Team confirms empty file, begins investigation |
+
+## 4. Root Cause Analysis
+
+### 4.1 Immediate trigger (this occurrence)
+Export SQL query was changed without running the documented manual verification
+step, so the query's new zero-row behavior went unnoticed before it ran in
+production.
+
+### 4.2 Five Whys — why did this reach the client?
+
+1. **Why was an empty file delivered to the client?**
+   Because the job produced zero rows and nothing stopped delivery.
+2. **Why did nothing stop delivery?**
+   Because the only success signal the pipeline checks is the process exit code,
+   and the job exits 0 regardless of row count.
+3. **Why does the job exit 0 on zero rows?**
+   Because "job completed without throwing" and "job produced correct output" are
+   treated as the same condition — there is no output-data validation step.
+4. **Why is there no output-data validation step?**
+   Because the only safeguard against a bad query/data problem is a *manual,
+   human-executed* check ("eyeball the row count"), documented in a wiki rather
+   than enforced in the pipeline.
+5. **Why does the team rely on a manual, undocumented-as-enforced check for a
+   correctness-critical, client-facing job?**
+   Because verification has been treated as a process/documentation problem
+   (write it in the wiki, expect people to follow it) rather than an engineering
+   control problem (make the pipeline itself unable to ship bad output).
+
+### 4.3 Systemic root cause
+
+**There is no automated gate between "job produced output" and "output is
+delivered to the client."** Correctness depends entirely on (a) an individual
+remembering an undocumented-as-enforced manual step, and (b) exit code, which is
+provably not a proxy for output correctness. This root cause is trigger-agnostic —
+it's why a schema rename, a swallowed credential error, and a skipped manual step
+all funneled into the exact same undetected outcome.
+
+A secondary, related root cause specific to Incident #2: the job **swallows
+errors** (expired credential didn't cause a failure) instead of failing loudly on
+conditions that should abort the run. This is the same underlying pattern —
+success is measured by "didn't crash," not "did the right thing."
+
+## 5. Contributing Factors
+
+- **No poka-yoke on the query-change workflow.** The verification step exists
+  only as institutional knowledge (wiki), with no technical enforcement (e.g., a
+  required CI check, a required PR reviewer sign-off, a staging dry-run gate).
+  This makes the control's reliability a function of who happens to be doing the
+  work — predictably fragile for anyone new to the team, not a Priya-specific gap.
+- **Monitoring measures the wrong thing.** Exit code is a *process* health
+  signal, not a *data* correctness signal. For a job whose entire purpose is
+  "produce correct data," data-shape checks (row count, file size, schema) should
+  be a first-class monitor, not absent.
+- **Delivery is not gated on validation.** Even if validation existed, nothing in
+  this incident suggests output is held/quarantined pending a sanity check before
+  it reaches the client — it appears to ship unconditionally on job completion.
+- **Exception handling swallows failures** (seen directly in Incident #2, and
+  plausibly relevant here too) — errors are absorbed rather than surfaced, which
+  converts "the job broke" into "the job silently did nothing," the worst possible
+  failure mode for a delivery pipeline.
+- **No feedback loop from prior incidents to systemic fixes.** If Incidents #1
+  and #2 were closed out with fixes scoped only to their specific trigger (fix the
+  schema reference, rotate the credential) rather than the shared detection gap,
+  that would explain why a third, unrelated trigger produced the identical
+  outcome. *(Open question — see §9.)*
+
+## 6. Why This Keeps Happening
+
+Each prior RCA (if trigger-scoped) likely "fixed" the specific cause and closed
+the ticket, leaving the shared gap — no output validation, no delivery gate —
+untouched. A new trigger simply walks through the same open door. Until the
+detection/delivery gate is fixed, a fourth trigger (a new one, not yet seen) will
+produce the same outcome. **Fixing triggers one at a time has a 0% success rate
+here across two months; fixing the shared gap is the only intervention that
+generalizes.**
+
+## 7. Corrective Actions
+
+### 7.1 Must-fix — closes the gap regardless of future trigger (poka-yoke)
+1. **Add an output-validation gate to the job itself.** Before marking success/
+   delivering, check row count against a sane floor (e.g., `> 0`, or within N% of
+   a trailing historical baseline). Fail loudly and non-zero-exit if it doesn't
+   pass.
+2. **Decouple delivery from job completion.** Output should land in a
+   quarantine/staging location first; delivery to the client is a separate,
+   gated step that only fires after validation passes. The client must never be
+   able to receive output the pipeline hasn't vouched for.
+3. **Fix monitoring to check data, not just process.** Alert on zero rows,
+   anomalously small file size, or row-count deviation from trend — not exit
+   code alone.
+4. **Audit and remove swallowed exceptions in this job**, especially around
+   auth/credential failures. Auth errors should abort the run loudly, not
+   degrade into "ran fine, wrote nothing."
+
+### 7.2 Should-fix — reduces recurrence probability further
+5. **Make the pre-deploy verification step a technical gate, not a wiki
+   instruction.** E.g., require a CI job that runs the query against
+   staging/prod-replica and reports row count as part of PR review, or require an
+   explicit "verified: N rows" comment/check before merge for changes to export
+   queries.
+6. **Trend-based anomaly detection**, not just a zero-row check — a query that
+   returns 10 rows instead of the usual 10,000 is just as bad and wouldn't be
+   caught by a simple `> 0` check.
+
+### 7.3 Consider
+7. Add this job (and any similarly client-facing export job) to an inventory of
+   "jobs where success = data correctness," and audit them for the same gap
+   proactively rather than one incident at a time.
+8. Onboarding checklist for new engineers touching client-facing pipelines — but
+   treat this as belt-and-suspenders, *not* the primary fix; it doesn't help
+   against triggers #1 or #2, and per §6, human-process fixes alone haven't
+   generalized so far.
+
+## 8. Action Items
+
+| # | Action | Owner | Due | Priority |
+|---|---|---|---|---|
+| 1 | Add row-count/output validation gate to export job | [ ] | [ ] | P0 |
+| 2 | Gate client delivery on validation pass (quarantine step) | [ ] | [ ] | P0 |
+| 3 | Update monitoring to check output data, not exit code | [ ] | [ ] | P0 |
+| 4 | Audit job for swallowed exceptions; fail loudly on auth errors | [ ] | [ ] | P0 |
+| 5 | Convert manual verification step into a CI/PR-enforced check | [ ] | [ ] | P1 |
+| 6 | Add trend-based row-count anomaly detection | [ ] | [ ] | P1 |
+| 7 | Review Incidents #1 and #2 RCAs — confirm whether they addressed the shared detection gap or only their trigger | [ ] | [ ] | P1 |
+| 8 | Inventory other client-facing jobs for the same "exit 0 ≠ correct output" gap | [ ] | [ ] | P2 |
+
+## 9. Verification Plan (confirm the fix actually works)
+
+Before closing this incident, run a synthetic test in staging: force the job to
+produce zero rows (e.g., point it at an empty table) and confirm:
+- the job fails/exits non-zero, **and**
+- an alert fires, **and**
+- no file reaches the delivery/quarantine boundary meant for the client.
+
+Do not close this RCA on code-merged; close it on this test passing. This is the
+control that was missing in all three incidents — proving it exists now is the
+actual bar.
+
+## 10. Lessons Learned
+
+- **A manual, wiki-documented step is not a control** for anything client-facing
+  or correctness-critical — it's a suggestion. Controls that matter need to be
+  technically enforced (poka-yoke), not remembered.
+- **Exit code 0 is not a correctness signal.** Any pipeline whose job is "produce
+  correct data" needs a data-shape check as a distinct, first-class success
+  condition.
+- **Fixing the trigger without fixing the detection gap guarantees recurrence
+  with a new trigger.** This incident is the clearest possible evidence of that:
+  three unrelated causes, identical undetected outcome.
+- The client should never be the first party to notice a data delivery failure —
+  that's a detection/alerting gap regardless of what caused the failure.
+
+## 11. Open Questions
+
+- Did the RCAs for Incidents #1 and #2 propose a systemic detection/validation
+  fix, and if so, why wasn't it implemented before this occurrence? (Action item
+  #7.)
+- What is the full list of jobs sharing this pipeline pattern (exit-code-only
+  monitoring, no output validation, unconditional delivery)? Is this export job
+  unique or representative?
+- What is an appropriate row-count/deviation threshold per export target, given
+  legitimate day-to-day volume variance?
+```
+
+Let me know if you want this scoped down (e.g., action items without the systemic-gap framing) or expanded with real timestamps/owners once you have them.

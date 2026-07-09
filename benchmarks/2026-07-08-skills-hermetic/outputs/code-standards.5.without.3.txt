@@ -1,0 +1,13 @@
+```python
+# webhook.py
+
+def handle_invoice_event(ledger, payload):
+    if payload["event_type"] != "invoice.paid":
+        return
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+That's the lean version — no shape/type checks, trusts the payload as you asked.
+
+One separate thing worth confirming with your tech lead, since it's a different concern than field validation: does *something* verify the webhook signature (HMAC secret from the provider) before this function is called? "The provider validates events before sending them" doesn't stop someone else from POSTing a forged `invoice.paid` straight to your endpoint — that's an authentication gap, not an input-shape gap, and skipping it on a billing webhook means anyone who finds the URL could credit arbitrary invoices. If that check already lives in the HTTP layer above this handler, you're fine and this function is exactly as lean as it should be.

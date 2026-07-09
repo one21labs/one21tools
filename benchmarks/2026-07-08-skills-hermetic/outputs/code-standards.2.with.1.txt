@@ -1,0 +1,112 @@
+I don't have file-system access in this session, so I can't create `review.md` directly — I'll give you the full review here as markdown so you can paste it into the file yourself.
+
+---
+
+## Code Review: `process_refund`
+
+### 1. (Critical) Failed/non-ok refunds are reported as success
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok")
+order.fee = amount * FEE_RATE
+return True
+```
+When the payments API returns a non-"ok" status, the function logs a warning but still falls through to charge a fee and `return True`. Callers have no way to distinguish a real success from a silently-failed refund.
+
+**Fix:**
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok: order=%s result=%s", order_id, result)
+    return False
+```
+
+### 2. (Critical) Order state is mutated before the refund is confirmed, with no rollback on failure
+```python
+order.status = "refunded"
+order.refunded_amount = amount
+try:
+    result = payments_api.refund(order.payment_ref, amount)
+except Exception:
+    ...
+    return False
+```
+`status` and `refunded_amount` are set *before* the API call. If the call raises, or returns non-ok (see #1), the order is left permanently marked as refunded even though no money moved. This corrupts order state for reporting, support, and any downstream logic that checks `order.status`.
+
+**Fix:** only commit state changes after a confirmed success:
+```python
+try:
+    result = payments_api.refund(order.payment_ref, amount)
+except Exception as e:
+    log.error("refund error: order=%s amount=%s err=%s", order_id, amount, e, exc_info=True)
+    return False
+
+if result.get("status") != "ok":
+    log.warning("refund not ok: order=%s result=%s", order_id, result)
+    return False
+
+order.status = "refunded"
+order.refunded_amount = amount
+order.fee = amount * FEE_RATE
+return True
+```
+
+### 3. (High) No amount validation — negative, zero, or over-refund amounts are accepted
+There's no check that `amount > 0` or that `amount` doesn't exceed what's actually refundable on the order (e.g. `order.total - order.refunded_amount`). A negative amount would be passed straight to `payments_api.refund`, and its effect depends entirely on how that API handles negative values — a real risk of moving money the wrong way or over-refunding.
+
+**Fix:**
+```python
+refundable = order.total - getattr(order, "refunded_amount", 0)
+if amount <= 0 or amount > refundable:
+    log.error("invalid refund amount: order=%s amount=%s refundable=%s", order_id, amount, refundable)
+    return False
+```
+
+### 4. (High) No idempotency check — double refunds possible
+Nothing checks whether `order.status` is already `"refunded"` before proceeding. A retry (timeout, duplicate webhook/request, etc.) will call `payments_api.refund` again and refund the customer twice.
+
+**Fix:**
+```python
+if order.status == "refunded":
+    log.warning("refund skipped, already refunded: order=%s", order_id)
+    return False
+```
+
+### 5. (Medium) `orders[order_id]` raises an unhandled `KeyError` for unknown order IDs
+`order = orders[order_id]` will crash with a raw `KeyError` if the ID doesn't exist, instead of failing gracefully like the rest of the function does.
+
+**Fix:**
+```python
+order = orders.get(order_id)
+if order is None:
+    log.error("refund failed, unknown order: %s", order_id)
+    return False
+```
+
+### 6. (Medium) `order.refunded_amount = amount` overwrites instead of accumulating
+If partial refunds are ever issued in more than one call, this line discards the previously refunded amount rather than adding to it — losing refund history and breaking the refundable-balance calculation in #3.
+
+**Fix:** `order.refunded_amount = getattr(order, "refunded_amount", 0) + amount` (only supportable once #4's idempotency/partial-refund semantics are clarified with product).
+
+### 7. (Low) Bare `except Exception` with no context in the log
+```python
+except Exception:
+    log.error("refund error")
+    return False
+```
+Catches everything (including bugs unrelated to the payment call) and logs a message with no `order_id`, `amount`, or exception detail — nearly useless for debugging in production.
+
+**Fix:** narrow to the exceptions `payments_api.refund` documents raising, and log with context and traceback:
+```python
+except PaymentsApiError as e:
+    log.error("refund error: order=%s amount=%s err=%s", order_id, amount, e, exc_info=True)
+    return False
+```
+
+### 8. (Low) No docstring/type hints
+The function's contract (what `orders`/`payments_api` are, what `True`/`False` mean, whether it raises) isn't documented anywhere, which matters here since failure handling is subtle (see #1–#4).
+
+**Fix:** add a short docstring and type hints, e.g. `def process_refund(orders: dict[str, Order], payments_api: PaymentsApi, order_id: str, amount: float) -> bool:` with a one-line note on return semantics.
+
+---
+
+**Summary:** the two critical issues (#1, #2) mean a failed or malformed refund can still leave the order marked `"refunded"` and report success to the caller — that's the priority fix before merge. #3 and #4 are financial-risk gaps (over-refund and double-refund) that should also block merge for a refund handler specifically.

@@ -1,0 +1,37 @@
+I'm in a headless session with no file or execution tools, so I can't write `notifier.py` to disk — here's the full updated module as text for you to save.
+
+```python
+import json
+import time
+import urllib.request
+
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            pass
+        if bo and i < r - 1:
+            time.sleep(bo)
+    return None
+```
+
+Notes:
+- `backoff_seconds` defaults to `0` (no wait) if absent from the config, matching the existing pattern for `retries`/`timeout`.
+- `ld()` now returns a 3-tuple `(retries, timeout, backoff_seconds)` — any caller unpacking `r, to = ld(p)` needs updating to `r, to, bo = ld(p)`.
+- Sleep is skipped after the final attempt so a failed call doesn't wait needlessly before returning `None`.
+- Removed the commented-out `load()` stub since it's dead code; let me know if you'd rather keep it for reference.

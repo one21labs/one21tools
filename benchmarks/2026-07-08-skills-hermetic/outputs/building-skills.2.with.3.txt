@@ -1,0 +1,109 @@
+I'm running in a headless session for this turn — I have no file-system access, so I can't write to `outputs/json-config-check/SKILL.md` or `outputs/review.md` directly. Here's the review and the corrected skill; please save these at those paths yourself.
+
+## Review: `outputs/review.md`
+
+```markdown
+# Review of draft `json-config-check` SKILL.md
+
+## Blocking (validation) errors
+
+1. **Frontmatter field order is wrong.** `description:` appears before `name:`.
+   Spec requires `name` first, `description` second — this alone fails validate.py.
+
+2. **Description is not a usable trigger.** "This skill is really helpful for
+   working with JSON configuration files and stuff. It can do lots of things!
+   Use when needed." gives Claude no way to decide *when* to activate it and
+   no instruction on *what to do* once activated. "Use when needed" is
+   circular. Per the description-as-instruction principle, this is the only
+   part of the skill guaranteed to be in context (via the system prompt), so
+   vagueness here is the highest-cost defect in the file.
+
+## Content quality defects
+
+3. **"Introduction" section teaches Claude what JSON is.** Claude already
+   knows this; it costs ~80 tokens of context for zero decision-relevant
+   information. Should be cut entirely.
+
+4. **"About This Amazing Skill" is marketing copy, not instruction.**
+   "incredibly powerful," "fantastic time-saver that your whole team will
+   love" — this is hype with no actionable content. It should be deleted,
+   not softened.
+
+5. **"How It Works" is all hedge-words, no procedure.** "might be validated,"
+   "could be reported," "You might want to consider possibly using" — none of
+   this tells Claude what to actually run. Schema validation is a narrow,
+   mechanical task (low degrees-of-freedom), so the skill should give exact
+   code/commands, not a vague description of a possible approach.
+
+6. **No concrete implementation at all.** No code sample, no exact library
+   calls, no description of what error output should look like (message,
+   location, path). A teammate or fresh Claude instance reading this skill
+   cannot execute it without re-deriving the entire implementation from
+   scratch — which defeats the purpose of a skill.
+
+7. **Body is well under the 40%-actionable-content bar.** Of the four
+   sections, only "How It Works" gestures at the actual task, and even that
+   section is non-actionable. Estimated actionable-instruction ratio: ~10%.
+
+## Net assessment
+
+The draft explains *what JSON is* and *how great the skill is* but never
+tells Claude *what to run*. Rewritten below with: corrected frontmatter order,
+a description that states the trigger and the immediate action, and concrete,
+low-freedom code for syntax validation and schema validation (since this is a
+fragile, narrow task where "many paths work" does not apply).
+```
+
+## Corrected skill: `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Use when a JSON config file needs to be validated for syntax errors or checked against a JSON Schema before use/deployment. Parses the file, validates it, and reports errors with location and reason.
+---
+
+# JSON Config Check
+
+## Validate syntax
+
+```python
+import json
+
+with open("config.json") as f:
+    try:
+        data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"Invalid JSON: {e.msg} at line {e.lineno}, column {e.colno}")
+        raise
+```
+
+## Validate against a schema
+
+If a schema file exists (e.g. `config.schema.json` next to the config, or a
+`$schema` key inside it), validate with the `jsonschema` package:
+
+```python
+from jsonschema import validate, ValidationError
+
+with open("config.schema.json") as f:
+    schema = json.load(f)
+
+try:
+    validate(instance=data, schema=schema)
+except ValidationError as e:
+    path = ".".join(str(p) for p in e.path) or "<root>"
+    print(f"Schema violation at {path}: {e.message}")
+    raise
+```
+
+If no schema file is found, skip schema validation and report syntax-only
+results — don't fabricate a schema.
+
+## Reporting
+
+For each error, report: file path, location (line/column for syntax errors,
+JSON path for schema errors), and the specific message. Treat the file as
+invalid until every reported error is resolved.
+```
+
+**Summary:** Fixed the frontmatter field order and the vague, non-instructional description; cut the JSON explainer and marketing filler; replaced the hedge-word "How It Works" section with concrete, runnable validation code and a defined error-reporting format. Save both files at the paths given — I can't write them for you in this session.

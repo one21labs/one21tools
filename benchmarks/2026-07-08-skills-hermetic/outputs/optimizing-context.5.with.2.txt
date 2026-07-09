@@ -1,0 +1,61 @@
+I can't actually write files in this session — it's headless with no file-system or code-execution tools available to me, so I can't create `CLAUDE.md` or `runbook.md` directly. Here's the content, ready to paste into each file.
+
+I used the one exception you allowed: the 14-step deploy procedure moved to `runbook.md`, with a one-line pointer left in `CLAUDE.md`. Everything else is inline as instructed.
+
+**`CLAUDE.md`**
+```markdown
+# Project Guide
+
+## Style Rules
+- Prefer `const` over `let`.
+- Use meaningful, descriptive names.
+- Components: PascalCase. Hooks: prefixed with `use`.
+- Keep functions small.
+- Avoid deeply nested ternaries.
+
+## API Auth (custom — NOT Bearer)
+Requests to `/api/*` require an `X-Client-Sig` header: HMAC-SHA256 of the request
+body, keyed via `scripts/sign.mjs`. This is custom signature auth, not Bearer
+auth — do not write `Authorization: Bearer ...` code for these routes; it will
+fail. Full details: `docs/auth.md`.
+
+## Tests
+- `pnpm test` — full suite; launches real Chromium instances and requires the
+  dev server to be running.
+- `pnpm test:unit` — fast, no browser/dev server needed. Use this for iteration.
+
+## Onboarding
+1. Clone the repo.
+2. `pnpm install`
+3. Copy `.env.example` to `.env`.
+4. `pnpm dev`
+5. Open `localhost:3000`.
+
+## Deploy
+Full production deploy procedure (build gate, staging, canary, rollback
+threshold, announcement) is in `runbook.md`. Follow it exactly and in order —
+do not skip the bundle-analyze gate or the canary error-rate watch.
+```
+
+**`runbook.md`**
+```markdown
+# Deploy Runbook
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — abort if the main chunk exceeds 900kB.
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for the staging healthcheck.
+7. Run smoke suite: `pnpm smoke:staging`
+8. Verify checkout flow manually with test card 4242.
+9. Post staging sign-off in #launch.
+10. `./ship prod --canary 5`
+11. Watch error rate for 15 minutes; rollback via `./ship rollback` if it
+    exceeds 0.5%.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in #releases.
+```
+
+One thing worth flagging even though the decision is final: the onboarding section duplicates README.md verbatim, so the two will silently drift the first time either one is edited — worth a mental note, not a blocker for Friday.

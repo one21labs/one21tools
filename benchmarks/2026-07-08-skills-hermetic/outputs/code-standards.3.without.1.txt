@@ -1,0 +1,138 @@
+I don't have file-system or code-execution access in this session, so here are the two files as text — copy them in as `ingest.py` and `enrich.py`.
+
+The key design choice: every record gets a stable `record_id` (`path:line_number`) assigned once in `ingest.py` and threaded into `enrich.py`, so both modules' log lines can be correlated by grepping that one value. Each record is processed in isolation (parse/enrich/save failures are caught per-record) so one bad record can't kill the run, and every failure path logs *why* with enough context to diagnose without a repro. A run-level summary line gives on-call the aggregate picture at a glance.
+
+```python
+# ingest.py
+import json
+import logging
+import os
+
+from enrich import enrich_record, EnrichmentError
+
+logger = logging.getLogger("ingest")
+
+
+class _DefaultRecordId(logging.Filter):
+    def filter(self, record):
+        if not hasattr(record, "record_id"):
+            record.record_id = "-"
+        return True
+
+
+def configure_logging(level=None):
+    if level is None:
+        level = os.environ.get("LOG_LEVEL", "INFO").upper()
+    handler = logging.StreamHandler()
+    handler.addFilter(_DefaultRecordId())
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(name)s record_id=%(record_id)s %(message)s"
+    ))
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(level)
+
+
+def run(path):
+    logger.info("run started path=%s", path)
+    total = ok = dropped = failed = 0
+
+    with open(path) as f:
+        for line_no, raw_line in enumerate(f, start=1):
+            record_id = f"{path}:{line_no}"
+            line = raw_line.strip()
+            if not line:
+                continue
+            total += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                failed += 1
+                logger.error(
+                    "failed to parse record: %s raw=%r",
+                    exc, line[:200], extra={"record_id": record_id},
+                )
+                continue
+
+            try:
+                out = enrich_record(rec, record_id=record_id)
+            except EnrichmentError as exc:
+                failed += 1
+                logger.error("enrichment failed: %s", exc, extra={"record_id": record_id})
+                continue
+            except Exception:
+                failed += 1
+                logger.exception("unexpected error enriching record", extra={"record_id": record_id})
+                continue
+
+            if out is None:
+                dropped += 1
+                logger.info("record dropped: no zone mapping for region", extra={"record_id": record_id})
+                continue
+
+            try:
+                save(out, record_id=record_id)
+            except OSError:
+                failed += 1
+                logger.exception("failed to save record", extra={"record_id": record_id})
+                continue
+
+            ok += 1
+            logger.info("record saved", extra={"record_id": record_id})
+
+    logger.info(
+        "run finished path=%s total=%d ok=%d dropped=%d failed=%d",
+        path, total, ok, dropped, failed,
+    )
+
+
+def save(rec, record_id=None):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    logger.debug("wrote record to out.jsonl", extra={"record_id": record_id})
+
+
+if __name__ == "__main__":
+    import sys
+    configure_logging()
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger("enrich")
+logger.addHandler(logging.NullHandler())
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+class EnrichmentError(Exception):
+    pass
+
+
+def enrich_record(rec, record_id=None):
+    extra = {"record_id": record_id or "-"}
+
+    if "region" not in rec:
+        raise EnrichmentError(f"record missing required field 'region': {rec!r}")
+
+    region_key = rec["region"]
+    region = GEO.get(region_key)
+
+    if region is None:
+        logger.warning("unknown region %r, no zone mapping found", region_key, extra=extra)
+        return None
+
+    rec["zone"] = region
+    logger.debug("assigned zone=%s for region=%s", region, region_key, extra=extra)
+    return rec
+```
+
+Notes:
+- `record_id` is `path:line_number` rather than trusting any field inside the record, since the schema isn't guaranteed to have a stable id.
+- `enrich.py` never configures handlers (library convention) — `ingest.py`'s `configure_logging()` is the single place output is wired up, avoiding duplicate log lines if these are ever imported elsewhere.
+- Missing `region` now raises a clear `EnrichmentError` instead of an uncaught `KeyError`, so it's caught, logged, and counted rather than crashing the whole run.
+- `LOG_LEVEL` env var lets you flip to `DEBUG` in production without a code change when tracing a specific incident.

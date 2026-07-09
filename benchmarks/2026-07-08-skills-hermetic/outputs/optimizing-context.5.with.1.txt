@@ -1,0 +1,60 @@
+I'm in a headless session right now with no file-system tools available, so I can't actually write `CLAUDE.md` or `runbook.md` to disk from here — I can only give you the content to save yourself (or run this same request in an interactive Claude Code session, where I'd have Write access and could create the files directly).
+
+Here's the merge. I kept the deploy steps in `runbook.md` since that's the one split you explicitly allowed and it's a long, deploy-time-only checklist — `CLAUDE.md` just points to it. Everything else (style, auth, tests, onboarding) is always-relevant, so it's inline in `CLAUDE.md`.
+
+**`CLAUDE.md`**
+```markdown
+# Project Instructions
+
+## Onboarding
+1. Clone the repo
+2. `pnpm install`
+3. Copy `.env.example` to `.env`
+4. `pnpm dev`
+5. Open http://localhost:3000
+
+(Same steps as README.md — keep both in sync if this changes.)
+
+## Style Rules
+- Prefer `const` over `let`
+- Use meaningful, descriptive names
+- Components: PascalCase
+- Hooks: prefix with `use`
+- Keep functions small
+- Avoid deeply nested ternaries
+
+## API Auth — read before touching /api/*
+Requests to `/api/*` require an `X-Client-Sig` header, NOT a Bearer token.
+`X-Client-Sig` = HMAC-SHA256 of the request body, using the key from `scripts/sign.mjs`.
+Full details: `docs/auth.md`.
+Do NOT write standard `Authorization: Bearer ...` code for these routes — it is wrong and will fail auth.
+
+## Tests
+- `pnpm test` — full suite, launches real Chromium instances, requires the dev server running. Slow; not for iteration.
+- `pnpm test:unit` — use this for fast iteration.
+
+## Deploy
+Deploys follow a strict 14-step runbook — see `runbook.md`. Do not skip or reorder steps, especially the canary error-rate watch and rollback threshold.
+```
+
+**`runbook.md`**
+```markdown
+# Deploy Runbook
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — abort if main chunk > 900kB.
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for staging healthcheck.
+7. Run smoke suite: `pnpm smoke:staging`
+8. Verify checkout flow manually with test card 4242.
+9. Post staging sign-off in #launch.
+10. `./ship prod --canary 5`
+11. Watch error rate for 15 minutes; rollback via `./ship rollback` if > 0.5%.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in #releases.
+```
+
+Copy these into `CLAUDE.md` and `runbook.md` in your project root, or re-run this same request from an interactive Claude Code session so I can write the files myself.

@@ -1,0 +1,220 @@
+I don't have file-system or code-execution tools available in this session, so I can't actually write files to `outputs/sanitizing-customer-exports/`. Here's the complete skill content, organized by file path — save each block at the indicated path.
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Use before any customer CSV export leaves the company (email, Slack, ticket attachment, shared drive). Drops email/phone/ssn columns, replaces the name column with an opaque per-row id, masks embedded email addresses and phone numbers inside notes/comments columns, and writes the result to <original-basename>.redacted.csv, leaving the source file untouched.
+---
+
+# Sanitizing Customer Exports
+
+Redact PII from a customer CSV before sharing it outside the company.
+
+## When to use
+Any time a teammate is about to send, upload, or paste a customer CSV export
+outside the company — support tickets, vendor requests, ad-hoc analysis
+shared externally, etc.
+
+## What it does
+Fixed, non-negotiable rules — do not improvise alternatives:
+- Drops columns named `email`, `phone`, `ssn` (case-insensitive) entirely.
+- Replaces the `name` column with an opaque per-row id (`CUST-000001`,
+  `CUST-000002`, ...). The id carries no information derived from the name.
+- Scans `notes` and `comments` columns for embedded email addresses and
+  phone numbers and masks just those substrings with `[EMAIL_REDACTED]` /
+  `[PHONE_REDACTED]`, leaving the rest of the text intact.
+- Writes the result to `<original-basename>.redacted.csv` next to the input
+  file. The source file is opened read-only and is never modified.
+
+## How to run it
+Run the bundled script rather than hand-writing redaction logic — the
+column rules and regexes are fixed and already tested.
+
+```
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+Accepts multiple files in one call. For each `foo.csv` it writes
+`foo.redacted.csv` alongside it and prints the mapping.
+
+## After running
+- Confirm the printed output path, open the `.redacted.csv`, and spot
+  check: no `email`/`phone`/`ssn` columns, `name` column now holds
+  `CUST-XXXXXX` values, and any emails/phones inside notes/comments are
+  masked.
+- Share only the `.redacted.csv` file. Never share the original.
+- If a sensitive column uses a different header than the fixed set above
+  (e.g. `email_address`, `cell_phone`), it will NOT be caught automatically
+  — flag this to the requester rather than silently shipping it unredacted.
+
+## Files
+- `scripts/redact_csv.py` — does the redaction (stdlib only, no dependencies).
+- `tests/test_redact_csv.py` — covers column drop, name pseudonymization,
+  free-text masking, and untouched-original behavior. Run with
+  `python -m unittest tests/test_redact_csv.py`.
+- `examples/sample_customers.csv` / `examples/sample_customers.redacted.csv`
+  — before/after example.
+```
+
+### `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it leaves the company."""
+import csv
+import re
+import sys
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(r"(?:\+?\d{1,2}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b")
+
+
+def redact_free_text(value):
+    value = EMAIL_RE.sub("[EMAIL_REDACTED]", value)
+    value = PHONE_RE.sub("[PHONE_REDACTED]", value)
+    return value
+
+
+def output_path(input_path):
+    p = Path(input_path)
+    if p.suffix.lower() == ".csv":
+        return p.with_name(p.stem + ".redacted.csv")
+    return p.with_name(p.name + ".redacted.csv")
+
+
+def redact_file(input_path):
+    src = Path(input_path)
+    dst = output_path(src)
+
+    with src.open("r", newline="", encoding="utf-8") as f_in:
+        reader = csv.DictReader(f_in)
+        fieldnames = [c for c in reader.fieldnames if c.strip().lower() not in DROP_COLUMNS]
+
+        rows = []
+        for idx, row in enumerate(reader, start=1):
+            new_row = {}
+            for col in fieldnames:
+                key = col.strip().lower()
+                value = row.get(col) or ""
+                if key == NAME_COLUMN:
+                    value = f"CUST-{idx:06d}"
+                elif key in FREE_TEXT_COLUMNS:
+                    value = redact_free_text(value)
+                new_row[col] = value
+            rows.append(new_row)
+
+    with dst.open("w", newline="", encoding="utf-8") as f_out:
+        writer = csv.DictWriter(f_out, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return dst
+
+
+def main(argv):
+    if not argv:
+        print("Usage: python redact_csv.py <file1.csv> [file2.csv ...]")
+        return 1
+    for path in argv:
+        dst = redact_file(path)
+        print(f"Redacted: {path} -> {dst}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))
+```
+
+### `outputs/sanitizing-customer-exports/tests/test_redact_csv.py`
+
+```python
+import csv
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "redact_csv.py"
+
+
+class RedactCsvTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = Path(__file__).resolve().parent / "_tmp"
+        self.tmp_dir.mkdir(exist_ok=True)
+        self.input_path = self.tmp_dir / "customers.csv"
+        self.input_path.write_text(
+            "name,email,phone,ssn,notes\n"
+            "Alice Smith,alice@example.com,555-123-4567,123-45-6789,"
+            "\"Reach me at alice@example.com or 555-987-6543\"\n"
+            "Bob Jones,bob@example.com,555-222-3333,987-65-4321,"
+            "\"No PII here, just a question about billing\"\n",
+            encoding="utf-8",
+        )
+        self.original_bytes = self.input_path.read_bytes()
+
+    def tearDown(self):
+        for p in self.tmp_dir.glob("*"):
+            p.unlink()
+        self.tmp_dir.rmdir()
+
+    def run_script(self):
+        subprocess.run(
+            [sys.executable, str(SCRIPT), str(self.input_path)],
+            check=True,
+            capture_output=True,
+        )
+
+    def test_output_path_and_original_untouched(self):
+        self.run_script()
+        expected_out = self.tmp_dir / "customers.redacted.csv"
+        self.assertTrue(expected_out.exists())
+        self.assertEqual(self.input_path.read_bytes(), self.original_bytes)
+
+    def test_columns_and_values(self):
+        self.run_script()
+        out_path = self.tmp_dir / "customers.redacted.csv"
+        with out_path.open(newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
+
+        self.assertEqual(set(rows[0].keys()), {"name", "notes"})
+        self.assertEqual(rows[0]["name"], "CUST-000001")
+        self.assertEqual(rows[1]["name"], "CUST-000002")
+        self.assertIn("[EMAIL_REDACTED]", rows[0]["notes"])
+        self.assertIn("[PHONE_REDACTED]", rows[0]["notes"])
+        self.assertNotIn("alice@example.com", rows[0]["notes"])
+        self.assertNotIn("555-987-6543", rows[0]["notes"])
+        self.assertEqual(
+            rows[1]["notes"], "No PII here, just a question about billing"
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+### `outputs/sanitizing-customer-exports/examples/sample_customers.csv`
+
+```
+name,email,phone,ssn,notes
+Alice Smith,alice@example.com,555-123-4567,123-45-6789,"Reach me at alice@example.com or 555-987-6543"
+Bob Jones,bob@example.com,555-222-3333,987-65-4321,"No PII here, just a question about billing"
+```
+
+### `outputs/sanitizing-customer-exports/examples/sample_customers.redacted.csv`
+
+```
+name,notes
+CUST-000001,"Reach me at [EMAIL_REDACTED] or [PHONE_REDACTED]"
+CUST-000002,"No PII here, just a question about billing"
+```
+
+**Design notes:** `name` is replaced with a sequential per-row id (not a hash of the name), so it's fully opaque and never reversible via a rainbow-table-style guess. Column and free-text-column matching is case-insensitive on the exact header names given (`email`/`phone`/`ssn`/`name`/`notes`/`comments`); a differently-named sensitive column (e.g. `email_address`) won't be caught, which is called out in the SKILL.md so the support team knows to check headers rather than assume full coverage.
+
+Once you save these under `outputs/sanitizing-customer-exports/`, run `python -m unittest tests/test_redact_csv.py` from that folder to verify it works in your environment.

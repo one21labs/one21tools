@@ -1,0 +1,86 @@
+I can't write files in this session — no filesystem tools are available here (headless mode). Here's the review and rewrite as plain text for you to save yourself.
+
+## Review: defects in the draft `json-config-check/SKILL.md`
+
+**Frontmatter order is wrong.** The draft has `description:` before `name:`. The spec requires `name:` first, `description:` second — this fails validation outright.
+
+**Description doesn't function as an instruction.** "This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed." gives Claude no trigger condition and no immediate action. "Use when needed" is circular — it tells Claude nothing about *when* that is. The description is the only part guaranteed to be in context (loaded into the system prompt for every conversation), so wasting it on marketing filler ("really helpful," "stuff," "lots of things") instead of concrete trigger phrases means the skill likely never activates when it should.
+
+**Body is mostly preamble Claude doesn't need.** The "Introduction" section explains what JSON is — Claude already knows this; it costs tokens and states nothing actionable. The "About This Amazing Skill" section ("incredibly powerful," "fantastic time-saver that your whole team will love!") is pure marketing fluff with zero instructional content. Together these sections push the actionable-content ratio well below the 40% baseline for public skills.
+
+**The one substantive section is hedged into uselessness.** "How It Works" uses "might be validated," "could be reported," "You might want to consider possibly using" — this is a fragile, narrow task (parse JSON, catch a decode error, optionally validate against a schema, report specifics) that should get exact instructions, not vague musings. Validation logic is a "narrow bridge," not an "open field," so degrees of freedom should be low: give Claude a specific library and exact code, not a suggestion to "consider" one.
+
+**No actual procedure.** There's no code, no concrete steps for what "reading," "parsing," and "reporting errors" mean in practice, and no guidance on what to check (e.g., how to locate a schema file, what to report when validation fails). A teammate or fresh Claude instance reading this file has nothing to execute.
+
+---
+
+## Rewritten `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Validate JSON configuration files for syntax errors and schema compliance. Use when a JSON config file needs checking before deployment, when debugging a JSON parse error, or when a matching schema file is present and should be enforced.
+---
+
+# JSON Config Check
+
+## Validate syntax
+
+Parse the file with Python's `json` module. A `json.JSONDecodeError` gives the exact line, column, and reason — report that directly rather than a generic "invalid JSON" message.
+
+```python
+import json
+
+with open(config_path) as f:
+    try:
+        data = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"{config_path}:{e.lineno}:{e.colno}: {e.msg}")
+        raise
+```
+
+## Validate against schema (if present)
+
+Look for a schema file named `<config_name>.schema.json` in the same directory, or a `$schema` key inside the config itself. If found, validate with `jsonschema`:
+
+```python
+import jsonschema
+
+jsonschema.validate(instance=data, schema=schema)
+```
+
+Report each validation error's `.message` and `.absolute_path` so the user can locate the offending field. If no schema is found, skip this step — syntax validation alone is still useful.
+
+## Report results
+
+- Valid, no schema: "Valid JSON."
+- Valid, schema passed: "Valid JSON, matches schema."
+- Syntax error: file, line, column, and reason.
+- Schema violation: field path and the specific rule violated.
+```
+
+---
+
+## `outputs/review.md`
+
+```markdown
+# Review: json-config-check SKILL.md (draft)
+
+## Defects found
+
+1. **Frontmatter order violated** — `description:` appears before `name:`. Spec requires `name:` first, `description:` second; this fails validation.
+
+2. **Description is not an instruction** — "really helpful... Use when needed" gives no trigger condition. The description is the only content guaranteed to load into every conversation's system prompt, so it must state concrete activation phrases (e.g. "Use when a JSON config file needs checking..."), not vague marketing language.
+
+3. **Body is majority non-actionable filler** — the "Introduction" (what JSON is) and "About This Amazing Skill" (marketing copy: "incredibly powerful," "fantastic time-saver") sections contain no instructions and explain things Claude already knows. This pushes actionable-content share well under the ~40% baseline expected of a working skill.
+
+4. **Core procedure is hedged, not specified** — "might be validated," "could be reported," "might want to consider possibly using" leaves the actual validation logic undefined. This is a narrow, fragile task (parse → catch decode error → optionally check schema → report specifics) that warrants exact code, not suggestions.
+
+5. **No executable guidance** — no code sample, no schema-discovery rule, no defined error-report format. A reader has nothing to actually run.
+
+## Fix applied
+
+Reordered frontmatter, rewrote the description as a trigger-based instruction, deleted the preamble/marketing sections, and replaced the vague "How It Works" section with concrete Python snippets for syntax and schema validation plus a defined reporting format.
+```
+
+Copy the two fenced blocks above into `outputs/json-config-check/SKILL.md` and `outputs/review.md` respectively.

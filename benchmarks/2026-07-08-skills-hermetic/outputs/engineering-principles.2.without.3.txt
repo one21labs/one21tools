@@ -1,0 +1,100 @@
+I'm in a headless session for this task and don't have file-system or code-execution tools available, so I can't write `docs-plan.md` to your repo directly. Here's the full content — save this as `docs-plan.md` yourself:
+
+---
+
+```markdown
+# Docs Restructuring Plan
+
+## 1. Local setup steps
+**Conflict:** README.md ("clone, npm install, copy .env.example, npm run dev") vs
+CONTRIBUTING.md ("clone, npm ci, create .env by hand, npm start") — drifted and contradictory.
+
+**Canonical location:** README.md, under a "Setup" section.
+
+**Resolution:**
+- Adopt README's version (`npm install`, copy `.env.example`, `npm run dev`) as correct.
+  The CLAUDE.md "Lessons learned" note confirms the team deliberately moved off `npm start`
+  after a port clash — so CONTRIBUTING's `npm start` is stale, not an intentional variant.
+- Open question I can't resolve without repo access: whether `npm ci` (CONTRIBUTING) vs
+  `npm install` (README) is the actually-intended install command, and whether "create .env
+  by hand" implies required manual edits beyond copying `.env.example`. Confirm against
+  `package.json` scripts and `.env.example` before finalizing — don't just keep README's
+  wording by default.
+- **CONTRIBUTING.md:** delete its copy of the setup steps entirely; replace with a one-line
+  pointer: "See README.md § Setup for local install steps." Contributor-specific additions
+  (e.g., running the test suite, lint hooks) stay in CONTRIBUTING but must not re-describe
+  the base install flow.
+
+## 2. API request timeout value
+**Conflict:** README says 30s, CONTRIBUTING says 45s. The real value is a constant in
+`src/http/client.js`, so both docs copies are duplicates of code, not sources of truth.
+
+**Canonical location:** `src/http/client.js` (the constant itself).
+
+**Resolution:**
+- Remove the hardcoded number from both README.md and CONTRIBUTING.md — a number in prose
+  will drift again the next time the constant changes, exactly as it already has.
+- If the timeout is worth mentioning in docs at all (e.g., because it affects API consumers),
+  reference it by name/behavior instead of by value: "requests time out after the duration
+  configured in `src/http/client.js`," not a hardcoded "X seconds."
+- If this needs to be documented for external API consumers rather than internal
+  contributors, that's a separate case for API reference docs — but it should still pull
+  from the constant, never restate a bare number.
+
+## 3. Support email
+**Status:** appears once, in README.md — not duplicated or contradictory.
+
+**Canonical location:** README.md (unchanged).
+
+**Resolution:** No action. It's a reasonable, non-duplicated fact in a place users will
+actually look; leave as-is.
+
+## 4. `recalcTotals()` rule for billing.js
+**Issue:** Misplaced, not duplicated — a single-file invariant ("in src/billing.js, always
+call recalcTotals() after any mutation to line items") sitting in a repo-wide CLAUDE.md,
+where it's easy to miss when someone is actually editing billing.js.
+
+**Canonical location:** A code comment in `src/billing.js`, directly above the line-item
+mutation function(s) it applies to (e.g., `// Must call recalcTotals() after mutating line
+items — totals will silently go stale otherwise.`).
+
+**Resolution:**
+- Remove the rule from the CLAUDE.md draft. Repo-wide agent instructions should hold
+  cross-cutting guidance; a constraint scoped to one file is more reliably enforced right at
+  the point of use, where it's seen by anyone (human or agent) editing that function, whether
+  or not they've read CLAUDE.md.
+- If your CLAUDE.md setup supports nested/directory-scoped CLAUDE.md files and you want it
+  discoverable by an agent without opening billing.js, a `src/CLAUDE.md` scoped to billing
+  code is a reasonable alternative — but plain inline comment is simpler and just as
+  effective for a single-file rule.
+
+## 5. "Lessons learned" narrative
+**Issue:** Historical narrative ("2025-11: we originally used npm start, switched to npm run
+dev after the port clash; 2026-01: renamed the export module...") sitting in CLAUDE.md, which
+should hold current, actionable rules — not a changelog of past decisions.
+
+**Canonical location:** Git history / commit messages (already capture this) — or a
+CHANGELOG.md if the project keeps one for human-facing history. Not CLAUDE.md.
+
+**Resolution:**
+- Delete the "Lessons learned" section from CLAUDE.md entirely.
+- Nothing in it needs to survive as a rule: the `npm run dev` outcome is already the
+  canonical setup step in README.md (§1 above), so there's no live constraint left to encode
+  — restating "don't use npm start" in CLAUDE.md would just be a second, redundant copy of
+  what README already says correctly.
+- If the team wants this history preserved somewhere searchable, point to the relevant PRs/
+  commits rather than re-narrating them in a doc that's supposed to be current-state-only.
+
+## Summary of file changes
+| File | Change |
+|---|---|
+| README.md | Keep as canonical: setup steps (pending npm ci/install + .env confirmation), support email. Remove hardcoded timeout number. |
+| CONTRIBUTING.md | Delete duplicated setup steps → replace with link to README. Remove hardcoded timeout number. |
+| src/http/client.js | Canonical source for timeout value; no doc restates the number. |
+| src/billing.js | Add inline comment carrying the recalcTotals() rule. |
+| CLAUDE.md | Remove the billing.js rule (moved to code) and the entire "Lessons learned" section (superseded / belongs in git history). |
+```
+
+---
+
+One item needs your input before this is final: I flagged in §1 that I can't tell from the doc text alone whether `npm ci` or `npm install`, and "copy .env.example" vs "create .env by hand," is the actually-correct current step — that requires checking `package.json` and `.env.example` in the repo, which I don't have access to here.

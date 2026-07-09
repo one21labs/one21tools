@@ -1,0 +1,171 @@
+Since this is a headless session I can't write files directly — here are the updated modules as text. Design: every run gets a `run_id` (UUID), every record gets a `record_id` (its own `id` field if present, else `line:<n>`), and both are passed explicitly from `ingest.py` into `enrich_record()` so log lines from either module can be correlated by grepping for the same `record_id`. Logs are emitted as JSON lines (one object per event) with a stable event taxonomy (`ingest.*`, `enrich.*`) so failures are queryable, not just readable. Per-record errors are caught and logged with full tracebacks (`log.exception`) so one bad line can't kill the whole run, and a run-level summary line closes out each invocation.
+
+```python
+# ingest.py
+import json
+import logging
+import sys
+import uuid
+
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        payload = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "logger": record.name,
+            "event": getattr(record, "event", None),
+            "run_id": getattr(record, "run_id", None),
+            "record_id": getattr(record, "record_id", None),
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+def configure_logging(level=logging.INFO):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonFormatter())
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(level)
+
+
+class ContextAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        extra = kwargs.get("extra", {})
+        kwargs["extra"] = {**self.extra, **extra}
+        return msg, kwargs
+
+
+def run(path):
+    run_id = str(uuid.uuid4())
+    log = ContextAdapter(logger, {"run_id": run_id, "record_id": None})
+    log.info("run started for %s", path, extra={"event": "ingest.run_start"})
+
+    seen = saved = skipped = failed = 0
+
+    with open(path) as f:
+        for line_num, line in enumerate(f, start=1):
+            line = line.strip()
+            if not line:
+                continue
+            seen += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                failed += 1
+                log.error(
+                    "failed to parse line %d as JSON: %s", line_num, exc,
+                    extra={"event": "ingest.parse_error", "record_id": f"line:{line_num}"},
+                )
+                continue
+
+            record_id = (
+                str(rec["id"]) if isinstance(rec, dict) and rec.get("id") is not None
+                else f"line:{line_num}"
+            )
+            rlog = ContextAdapter(logger, {"run_id": run_id, "record_id": record_id})
+            rlog.debug("record read", extra={"event": "ingest.read"})
+
+            try:
+                out = enrich_record(rec, run_id=run_id, record_id=record_id)
+            except Exception:
+                failed += 1
+                rlog.exception(
+                    "enrich_record raised an unhandled exception",
+                    extra={"event": "ingest.enrich_error"},
+                )
+                continue
+
+            if not out:
+                skipped += 1
+                rlog.info("record skipped by enrichment", extra={"event": "ingest.skipped"})
+                continue
+
+            try:
+                save(out)
+            except Exception:
+                failed += 1
+                rlog.exception("failed to save record", extra={"event": "ingest.save_error"})
+                continue
+
+            saved += 1
+            rlog.info("record saved", extra={"event": "ingest.saved"})
+
+    log.info(
+        "run finished: seen=%d saved=%d skipped=%d failed=%d",
+        seen, saved, skipped, failed,
+        extra={"event": "ingest.run_end"},
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    configure_logging()
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+class ContextAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        extra = kwargs.get("extra", {})
+        kwargs["extra"] = {**self.extra, **extra}
+        return msg, kwargs
+
+
+def enrich_record(rec, run_id=None, record_id=None):
+    log = ContextAdapter(logger, {"run_id": run_id, "record_id": record_id})
+
+    if not isinstance(rec, dict):
+        log.error(
+            "record is not a JSON object (got %s)", type(rec).__name__,
+            extra={"event": "enrich.invalid_type"},
+        )
+        return None
+
+    if "region" not in rec:
+        log.error(
+            "record missing required field 'region'",
+            extra={"event": "enrich.missing_field"},
+        )
+        return None
+
+    region = GEO.get(rec["region"])
+    if region is None:
+        log.warning(
+            "unknown region %r; no zone mapping configured", rec["region"],
+            extra={"event": "enrich.unknown_region"},
+        )
+        return None
+
+    rec["zone"] = region
+    log.debug("zone assigned: %s", region, extra={"event": "enrich.success"})
+    return rec
+```
+
+Key points:
+- **Traceability**: `record_id` (record's own `id`, falling back to `line:<n>`) plus `run_id` appear on every log line from both modules, so `grep record_id=<x>` across the combined stdout stream reconstructs one record's full path: read → enrich decision → save.
+- **Failure diagnosis**: parse errors, missing/unknown `region`, enrich exceptions, and save I/O errors each get a distinct `event` name and, for exceptions, a full traceback via `log.exception`.
+- **Resilience**: a single malformed line or enrichment/save exception is logged and skipped rather than crashing the whole run (a change from the original, which had zero error handling and would abort on the first bad line or missing key).
+- **Machine-readability**: logs are JSON lines with a stable event taxonomy (`ingest.*`, `enrich.*`), suitable for shipping to a log aggregator; a `run_end` summary line gives per-run health at a glance.
+
+One behavior change worth flagging: previously a missing `"region"` key would raise an uncaught `KeyError` and kill the process; now it's logged as `enrich.missing_field` and the record is skipped (same as an unmapped region). Let me know if missing-vs-unknown region should be treated differently downstream (e.g., different exit code or alerting).

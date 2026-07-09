@@ -1,0 +1,117 @@
+I can't write files or run commands in this session — no filesystem access here. I've drafted the full post-incident analysis below in markdown; copy this into `rca.md` in your project.
+
+---
+
+```markdown
+# Post-Incident Analysis: Empty Customer Export File Silently Delivered
+
+**Status:** Final
+**Date:** 2026-07-08
+**Severity:** SEV-2 (customer-facing data delivery failure, third recurrence)
+**Author:** [fill in]
+**Reviewers:** [fill in]
+
+## Summary
+
+For the third time in two months, the nightly customer-export job completed with exit code 0 while writing zero rows to its output file. The empty file was delivered to a client without any internal alert firing. The client noticed the problem before we did, in all three occurrences.
+
+This incident's proximate trigger was a query change made by Priya (joined 6 weeks ago) that was not manually verified before being deployed, per an undocumented-in-practice (wiki-only) step. The two prior incidents had different proximate triggers — a schema rename and a swallowed expired credential — but an identical failure mode and identical detection gap.
+
+**The recurrence with three different triggers and one constant outcome is the central finding of this RCA.** It indicates the root cause is not "an engineer made a mistake" but "the system has no independent check on output validity and no automated enforcement of the one process step meant to catch that." Any fix scoped to Priya's specific mistake will not prevent the fourth occurrence.
+
+## Impact
+
+- 1 client received an empty export file for the [relevant reporting period] with no accompanying warning.
+- Client-detected, not internally detected, for the third consecutive time.
+- [Add: downstream business impact — client trust, SLA breach, support escalation time, engineering hours spent, etc.]
+
+## Timeline
+
+*(Fill in actual timestamps — structure below)*
+
+| Time | Event |
+|---|---|
+| T-x | Priya modifies export SQL query as part of [ticket/feature] |
+| T-x | Change merged/deployed without manual verification run |
+| T-0 | Nightly job runs, query returns 0 rows, job writes empty file, exits 0 |
+| T-0 | Monitoring checks exit code only — reports healthy |
+| T+x | File delivered to client via [delivery mechanism] |
+| T+x | Client contacts us reporting an empty/missing export |
+| T+x | On-call/engineering investigates, identifies query change as cause |
+| T+x | Fix applied / file redelivered |
+
+## Root Cause Analysis
+
+### Proximate cause (this incident)
+Priya changed the export SQL query and did not perform the documented manual verification step (run once by hand, eyeball row count) before the change reached production.
+
+### Proximate causes (prior two incidents, for pattern comparison)
+1. A schema rename broke the query silently (e.g., a `JOIN` or column reference no longer matched, returning zero rows instead of erroring).
+2. An expired credential was swallowed by the job's error handling, resulting in an empty result set being treated as valid output rather than a failure.
+
+### Systemic root causes (common to all three)
+
+1. **No data-quality gate independent of process exit code.** The job's contract with monitoring is "exit code 0 = success." Nothing checks *what* was produced. A job that writes zero rows and a job that writes the expected volume are indistinguishable to monitoring.
+2. **The only safeguard against bad output is a manual, memory-dependent human step.** "Run it by hand and eyeball the row count" is not enforced by tooling — it lives in a wiki page. It has no CI gate, no PR checklist item, no automated pre-deploy check. It depends entirely on every engineer remembering it, every time, including engineers six weeks into the job. This is not a Priya problem; it's a "any human, eventually" problem.
+3. **No sanity-check or anomaly detection on output volume.** Even without a human in the loop, an automated check comparing today's row count to a rolling baseline (e.g., "row count is 0, or >90% below 7-day average") would have caught all three incidents regardless of their differing root causes.
+4. **No circuit breaker between job output and client delivery.** Even if internal detection is imperfect, delivery to the client is the point of no return. There is currently no gate that asks "does this output look sane?" before it leaves our systems.
+5. **Errors are being swallowed rather than surfacing.** The credential-expiry incident shows the job's error handling actively converts a failure into an apparently-successful empty result. This is a more acute version of problem #1: even a job written to alert-on-error can be undermined by code that masks failure.
+
+### Five whys (this occurrence)
+
+1. Why was an empty file delivered to the client? → The export query returned 0 rows and the job still exited 0.
+2. Why did the job exit 0 with 0 rows? → Monitoring/the job only checks exit code, not row count or output size.
+3. Why did the query return 0 rows? → It was changed and the change had a defect that produced no matching rows.
+4. Why wasn't the defect caught before it reached production? → The documented manual verification step was skipped.
+5. Why was the manual step skippable? → It is a wiki instruction, not an enforced gate in tooling, CI, or the deploy path — enforcement depends entirely on individual memory and diligence.
+
+The chain bottoms out at #5, and #5 is identical for all three incidents once you substitute the proximate defect. That is the actual root cause.
+
+## Contributing Factors
+
+- New team member (6 weeks tenure) had no automated guardrail to compensate for unfamiliarity with informal/tribal process knowledge.
+- No onboarding checklist or tooling nudge tied query changes to the verification step.
+- Wiki-based documentation has no enforcement mechanism and is easy to be unaware of or forget under normal work pressure.
+- Repeated pattern (2 prior incidents) had not previously triggered a systemic fix — each prior RCA (if performed) appears to have addressed only the proximate trigger (the specific schema issue, the specific credential issue) rather than the shared detection gap.
+
+## What Went Well
+
+- Root cause for this occurrence was identified quickly once reported.
+- [Add anything else genuinely positive — e.g., fast client communication, quick redelivery.]
+
+## What We Are Changing
+
+Framing note for the team: this is a blameless postmortem. Priya followed the same path two prior root causes also traveled — a gap in our system, not a gap in any one engineer's diligence. The fix set below is oriented at making the failure structurally impossible, not at reminding people to be more careful.
+
+### Immediate (this week)
+
+1. **Add a zero-row / empty-output check as a hard failure condition in the export job itself.** If row count is 0 (or below a sane floor), the job must exit non-zero and must NOT proceed to delivery. Owner: [ ]. Target: [date].
+2. **Gate delivery on a post-generation sanity check**, independent of the job's own exit code — a separate validation step checks file size/row count before the delivery/handoff step runs. Owner: [ ]. Target: [date].
+3. **Manually audit the current export job's error handling** for other places where failures (e.g., auth errors, timeouts) might be caught and converted into "success with empty output," per the credential-expiry incident. Owner: [ ]. Target: [date].
+
+### Short term (this month)
+
+4. **Automate the "eyeball the row count" step.** Replace the manual wiki instruction with a CI/pre-deploy check that runs the modified query against a recent snapshot and compares row count to a rolling baseline (e.g., flag if outside ±50% of trailing 7-day average). Block merge/deploy on failure without an explicit override. Owner: [ ]. Target: [date].
+5. **Upgrade monitoring beyond exit-code checks** to assert on output characteristics for all customer-facing export jobs (row count > 0, file size within expected band, schema/column count matches expectation). Owner: [ ]. Target: [date].
+6. **Add anomaly alerting** on export row-count trends so a sudden drop pages someone before delivery, not after a client complaint. Owner: [ ]. Target: [date].
+
+### Medium term (this quarter)
+
+7. **Audit all other nightly export/delivery jobs** for the same class of gap (exit-code-only monitoring, no output validation, no delivery gate). This failure mode is very unlikely to be unique to this one job. Owner: [ ]. Target: [date].
+8. **Formalize a "safe change" checklist for query/logic changes to customer-facing data jobs**, enforced via PR template + required check, not wiki-only documentation. Owner: [ ]. Target: [date].
+9. **Review onboarding for new data-platform engineers** to ensure critical tribal-knowledge steps are either automated or explicitly walked through, rather than assumed to be discovered via wiki. Owner: [ ]. Target: [date].
+
+## Follow-Up / Verification
+
+- [ ] Confirm the zero-row hard-failure check is deployed and has a test case (e.g., inject a query change that returns 0 rows in staging and confirm the job fails loudly and does not deliver).
+- [ ] Confirm at least one of the two prior incident types (schema rename, credential expiry) would now be caught by the new checks — retroactively test if feasible.
+- [ ] Re-review this RCA in 4–6 weeks to confirm action items landed and no fourth occurrence happened in the interim.
+
+## Key Takeaway
+
+Three incidents, three different proximate causes, one identical outcome and one identical detection gap: an empty result was indistinguishable from a good one to every system that was supposed to catch it, and the only safeguard was a step a human had to remember to run. Fixes should target that gap directly (automated output validation + a delivery gate), not the specific defect that happened to trigger this occurrence — otherwise there will be a fourth.
+```
+
+---
+
+A few fields (owners, dates, timeline timestamps, exact impact numbers) are placeholders — fill those in before circulating. Let me know if you want this adjusted in tone, length, or trimmed to just the action items.

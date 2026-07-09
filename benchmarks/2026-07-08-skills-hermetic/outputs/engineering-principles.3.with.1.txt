@@ -1,0 +1,64 @@
+I'm running in a headless session right now, so I don't have file-system access and can't actually create `process-review.md` for you. Below is the complete review — copy it into `process-review.md` and it's ready to go.
+
+---
+
+```markdown
+# Release Process Review
+
+## Current State
+
+1. Dev opens PR → **~2 day wait** for review
+2. Merged PR sits on `main` for up to **2 weeks** waiting for the release train
+3. Release train ships a **batch of ~40 changes** at once
+4. Release manager **hand-copies changelog entries** from PR descriptions
+5. **3 sequential sign-offs** (QA lead → EM → PM) — required for *every* release, including hotfixes
+6. Hotfixes travel the **identical path**, so a one-line urgent fix waits up to 2 weeks
+
+## Root Cause: Why "Busy" ≠ "Fast"
+
+By Little's Law, cycle time scales with WIP. A batch size of 40 plus a long, serial approval chain is a large-WIP, high-latency system — the team can be fully utilized and busy while cycle time is still long, because utilization and queue time move in opposite directions once a system is loaded. The two biggest levers here are **batch size** and **serial approvals**, not developer effort.
+
+Waste present in the current process (Muda):
+- **Waiting**: PR review (2 days), train wait (up to 14 days), serial sign-off queue
+- **Overproduction/large batch**: 40 changes bundled increases blast radius and makes any single release scarier and harder to debug
+- **Overprocessing**: full 3-person sign-off applied uniformly regardless of change risk (a typo fix gets the same gate as a schema migration)
+- **Motion/transcription**: manual changelog copy-paste is manual, repetitive, and error-prone — a violation of single-source-of-truth (the PR description already *is* the changelog entry)
+- **Defects**: large batches make root-causing a bad release harder — when something breaks, it's 1-of-40 suspects instead of 1-of-1
+
+This is also why releases are stressful: a 40-change batch is inherently harder to reason about and roll back than a 1-change batch, independent of how careful anyone is.
+
+## Recommendations (ordered by impact/effort)
+
+### 1. Give hotfixes an expedite lane (high impact, low effort)
+Hotfixes should never ride the standard train. Define a lightweight fast path: one sign-off (whoever owns the affected area) and immediate deploy. This alone removes the worst-case "one-line fix waits two weeks" failure mode.
+
+### 2. Shrink the batch size
+The batch of 40 is the single biggest driver of release risk and stress. Move toward smaller, more frequent releases — ideally one merged PR triggers a deployable candidate (continuous deployment), or at minimum move from biweekly to daily trains. Smaller batches mean: easier rollback, easier root-causing, less pre-release anxiety, and no need to "wait for the train" at all. This is the single highest-leverage change available.
+
+### 3. Automate the changelog
+The PR description is already the source of truth — hand-copying it violates SSoT and burns release-manager time on every release. Generate the changelog automatically from PR titles/labels (e.g., conventional commits or a required PR template field) at merge time or release-build time. Zero manual transcription, zero drift.
+
+### 4. Make sign-off proportional to risk, and parallelize it
+Requiring QA lead → EM → PM in strict sequence for *every* change — including trivial ones — is overprocessing and is likely a major contributor to both the 2-day PR wait and release latency.
+- **Tier by risk**: low-risk changes (docs, config, small fixes) get automated checks only; medium/high-risk changes get human sign-off.
+- **Parallelize, don't serialize**: where human sign-off is still needed, have QA/EM/PM review concurrently, not in sequence — this alone can cut approval latency by ~3x.
+- **Shift left**: push more verification into automated tests/CI (Jidoka — build quality in at the point of creation) so human sign-off is a final check, not the primary quality gate.
+
+### 5. Attack the 2-day PR review wait directly
+This is worth root-causing on its own — common causes are reviewer load imbalance, unclear ownership, or PRs too large to review quickly. Consider a reviewer rotation/SLA and encourage smaller PRs (smaller batches apply at the PR level too, not just the release level).
+
+### 6. Instrument the process
+Track DORA metrics (deployment frequency, lead time for changes, change failure rate, MTTR) before and after changes so improvements are measured, not assumed. Suggest piloting the smaller-batch/expedite-lane changes on one team first (a PDSA-style experiment) before rolling out org-wide.
+
+## Suggested Sequencing
+
+1. Ship the hotfix expedite lane immediately — it's low-risk and fixes the worst pain point.
+2. Automate the changelog — independent, no process risk, frees the release manager.
+3. Pilot a shorter train cadence (e.g., weekly) with one team; measure change-failure rate before going further.
+4. Introduce risk-tiered, parallel sign-off once the shorter cadence is stable.
+5. Revisit batch size again — target trunk-based/continuous deployment once the above is proven out.
+```
+
+---
+
+Want me to also draft the PR-template field or the risk-tiering rubric mentioned in points 3 and 4?

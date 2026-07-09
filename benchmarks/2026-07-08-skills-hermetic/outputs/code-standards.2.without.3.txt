@@ -1,0 +1,55 @@
+I don't have file-system access in this session (no Write/Bash tools available), so I can't create `review.md` directly — I'll give you the full review here as text; you can paste it into the file yourself.
+
+## Code Review: `process_refund`
+
+**1. Critical — Order is mutated to "refunded" before the refund call is confirmed to succeed**
+`order.status = "refunded"` and `order.refunded_amount = amount` happen *before* `payments_api.refund(...)` is even attempted. If the API call throws, the function returns `False`, but the order object has already been permanently mutated to look refunded. Any caller/DB flush that persists `order` after this point records a refund that never happened.
+*Fix:* Only mutate `order.status`/`order.refunded_amount` after you've confirmed `result.get("status") == "ok"`. Compute/call first, mutate state second.
+
+**2. Critical — A non-"ok" result is treated as success**
+When `result.get("status") != "ok"`, the code only logs a warning — it still falls through to set `order.fee` and `return True`. So a refund the payment processor itself reports as failed is recorded as a successful, fee-charged refund.
+*Fix:* Treat non-"ok" the same as the exception path: `return False` (and don't set `order.fee`), e.g.:
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok for order %s: %s", order_id, result)
+    return False
+```
+
+**3. High — No idempotency / double-refund guard**
+Nothing checks whether `order.status` is already `"refunded"` before proceeding, so calling this twice (retry, duplicate webhook, race) will refund the same order twice through the payment API.
+*Fix:* At the top: `if order.status == "refunded": return False` (or raise a specific `AlreadyRefundedError`).
+
+**4. High — `amount` is never validated**
+No check that `amount` is positive, non-zero, or does not exceed the order's original/remaining refundable total. A negative or over-limit `amount` gets passed straight to `payments_api.refund`.
+*Fix:* Validate before calling the API, e.g. `if amount <= 0 or amount > order.remaining_refundable: raise ValueError(...)`.
+
+**5. Medium — Unhandled `KeyError` on missing order**
+`orders[order_id]` raises an uncaught `KeyError` if the id doesn't exist, crashing the caller instead of failing gracefully like the rest of the function does.
+*Fix:* `order = orders.get(order_id)` then `if order is None: log.error(...); return False` (or raise a specific `OrderNotFound`).
+
+**6. Medium — Overly broad `except Exception` with no diagnostic context**
+Catching bare `Exception` swallows programming errors (e.g. `AttributeError` if `order.payment_ref` is missing) as if they were refund failures, and `log.error("refund error")` logs no `order_id`, no exception message, and no traceback — this will be nearly impossible to debug from logs alone.
+*Fix:* Catch the payment API's specific exception type if one exists, and log with context:
+```python
+except PaymentAPIError as e:
+    log.error("refund failed for order %s: %s", order_id, e, exc_info=True)
+    return False
+```
+
+**7. Medium — Fee is charged even when logic above lets a failed refund through, and its purpose is undocumented**
+Once #2 is fixed, `order.fee` should only ever be set on a confirmed-ok result — but as written it's reachable on the warning path. It's also unclear whether this fee is deducted from the customer's refund or charged separately, which matters for correctness of downstream accounting.
+*Fix:* Move `order.fee = amount * FEE_RATE` inside the success branch only, and add a one-line comment clarifying what the fee represents (charged to whom, deducted or additive).
+
+**8. Low — No success-path logging**
+Failures are logged but a successful refund isn't, making audits/reconciliation harder.
+*Fix:* Add `log.info("refund processed for order %s: amount=%s", order_id, amount)` before the final `return True`.
+
+**9. Low — Magic strings for status values**
+`"refunded"`, `"ok"` are untyped string literals repeated with no shared constant, so a typo anywhere silently breaks matching logic.
+*Fix:* Define constants or an enum (e.g. `OrderStatus.REFUNDED`, `RESULT_OK = "ok"`) and reuse them.
+
+**10. Low — No transactional boundary**
+State mutation (`order.status`, `order.refunded_amount`, `order.fee`) and the external API call aren't wrapped in a transaction, so a crash between steps (or partial persistence) can leave `order` inconsistent even after fixing #1.
+*Fix:* Wrap the whole operation in a DB transaction/unit-of-work that only commits after the API call confirms success.
+
+**Summary of ordering:** #1–2 are correctness/data-integrity bugs that will actively cause wrong financial state; #3–4 are missing safety checks that allow duplicate/invalid refunds; #5–7 are robustness/clarity gaps; #8–10 are hygiene improvements.

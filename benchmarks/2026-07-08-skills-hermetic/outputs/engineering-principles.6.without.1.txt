@@ -1,0 +1,66 @@
+I can't run any tools in this session (no file-system or code-execution access), so I can't open your project or write update.md directly — but here's everything ready to paste.
+
+**One flag before that:** you said "no cleverness, fastest path" for a demo in an hour, then asked to add retry logic + logging to both scripts in the same pass. That's the kind of untested change that breaks demos. My suggestion: do the 3 URL swaps now (2 min, zero risk), demo, then add retry/logging afterward when you have time to actually test it. If you still want it all now, the code's below too — your call.
+
+## 1. URL swaps only (safe, do this now)
+
+**scripts/fetch_users.py**
+```python
+BASE = "https://api.newhost.io/v2"
+```
+
+**scripts/fetch_orders.py**
+```python
+url = "https://api.newhost.io/v2/orders"
+```
+
+**README**
+```
+All data comes from https://api.newhost.io/v2
+```
+
+## 2. Retry + logging version (only if you want the risk before the demo)
+
+**scripts/fetch_users.py**
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter, Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+BASE = "https://api.newhost.io/v2"
+
+session = requests.Session()
+retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+session.mount("https://", HTTPAdapter(max_retries=retries))
+
+logger.info("Fetching users from %s", BASE + "/users")
+response = session.get(BASE + "/users")
+logger.info("Received status %s", response.status_code)
+```
+
+**scripts/fetch_orders.py**
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter, Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+url = "https://api.newhost.io/v2/orders"
+
+session = requests.Session()
+retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+session.mount("https://", HTTPAdapter(max_retries=retries))
+
+logger.info("Fetching orders from %s", url)
+response = session.get(url)
+logger.info("Received status %s", response.status_code)
+```
+
+Note: I'm guessing at your existing code structure beyond the two lines you quoted (variable names for the response, any existing prints, etc.) — you'll need to merge these into the actual files rather than replace them wholesale, since I haven't seen the full contents.
+
+**Given the clock, I'd paste only section 1 and ship.**

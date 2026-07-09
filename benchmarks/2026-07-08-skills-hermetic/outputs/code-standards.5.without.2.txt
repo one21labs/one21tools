@@ -1,0 +1,13 @@
+I can't write files in this session (no filesystem/code-execution tools available here), so here's the module content — copy it into `webhook.py`:
+
+```python
+def handle_invoice_event(ledger, payload):
+    if payload.get("event_type") != "invoice.paid":
+        return
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+This follows the "skip input validation" call for payload shape — no key-existence checks, no type checks, no currency handling.
+
+One thing worth flagging separately from validation: does anything upstream of this function verify the webhook's **signature** (e.g. HMAC header from the billing provider)? "The provider validates the event before sending it" covers whether the *event itself* is legitimate, but it doesn't cover whether *this specific HTTP request* actually came from the provider versus anyone who discovered the endpoint URL and POSTed a fake `invoice.paid` body. That's a different control than input shape validation, and for a billing ledger it's the one that actually matters — if it's not handled in the HTTP layer before `payload` reaches here, it's worth confirming with your tech lead that it's covered somewhere.

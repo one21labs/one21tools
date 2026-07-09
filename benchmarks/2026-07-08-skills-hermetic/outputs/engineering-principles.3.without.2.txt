@@ -1,0 +1,52 @@
+I don't have file-system access in this session, so I can't create `process-review.md` directly — you'll need to copy the content below into that file yourself (or ask me again in an interactive session where I have file tools). Here's the full review:
+
+---
+
+# Release Process Review
+
+## Current State
+
+1. Developer opens PR → averages **2 days** waiting for review.
+2. Merged PRs sit on `main` until a **biweekly release train** ships ~40 changes at once.
+3. Release manager **manually copies changelog entries** out of every PR description into a release doc.
+4. Every release requires **3 sequential sign-offs**: QA lead → engineering manager → product manager.
+5. Hotfixes use the **same path** — no expedited lane — so an urgent one-line fix waits for the next train.
+
+Net effect: the team is busy, but cycle time from "code written" to "code live" is long, releases are large and high-risk, and the process feels stressful rather than routine.
+
+## Root Causes
+
+**1. Batch size is the biggest risk multiplier.** Bundling ~40 changes into one release means when something breaks, you're debugging across 40 candidates instead of 1–3. This is very likely *why* releases feel stressful — large blast radius, hard-to-isolate failures, high stakes per release.
+
+**2. The changelog step is manual toil that doesn't need to be.** Hand-copying from PR descriptions is slow, error-prone (easy to miss a PR), and adds manual work right before every release — the worst time to add friction.
+
+**3. Sign-offs are serial and uniform regardless of risk.** Three approvals in sequence (not parallel) means the *sum* of three people's response times gates every release, and a trivial docs change waits behind the same gate as a risky schema migration.
+
+**4. Hotfixes inherit the slow path by policy, not necessity.** There's no reason a one-line urgent fix should wait 2+ weeks; this is probably the single most painful symptom described.
+
+**5. PR review latency (2 days) and release cadence (14 days) compound.** A change can realistically take ~16 days from "written" to "live" even before accounting for sign-off queue time.
+
+## Recommendations
+
+### Quick wins (low effort, high impact)
+- **Build a separate hotfix lane.** Urgent fixes deploy independently of the train, gated by a single accountable approver (e.g., the engineering manager or on-call lead) rather than all three sign-offs. This alone fixes the most acute pain point.
+- **Automate the changelog.** Require a changelog fragment in the PR template (or parse the PR description/title) and generate the release doc via tooling (e.g., Changesets, release-please, semantic-release) as part of CI. Removes manual copying and the risk of missed entries entirely.
+- **Parallelize sign-offs.** Send all three approval requests at once instead of in sequence. If QA/EM/PM sign-off is truly independent, there's no reason to force a relay.
+
+### Medium-term (structural)
+- **Shrink batch size by increasing release frequency.** Move from biweekly to weekly, then toward daily/continuous if feasible. Smaller batches mean smaller blast radius, easier root-causing, and less stress per release — this is the highest-leverage change for "shipping feels slow."
+- **Make sign-off risk-proportional.** Full 3-way sign-off for high-risk changes (schema/infra/payments); lightweight or automated sign-off (CI green + one reviewer) for low-risk changes (copy, config, small bug fixes). Not every change carries the same risk — the gate shouldn't either.
+- **Decouple merge from release with feature flags.** Let PRs merge to `main` continuously and control exposure via flags/canary rollout, rather than using the release train itself as the risk gate. This directly attacks "changes sit on main" and lets you ship trunk-based.
+
+### Longer-term (if the team wants to invest further)
+- **Attack PR review latency.** 2 days is often a symptom of unclear review ownership or PRs being too large. Consider review SLAs, smaller PRs, or a rotating "reviewer of the day."
+- **Progressive/canary rollout** instead of all-at-once release, so the ~40 changes (once batches shrink) surface problems on a small slice of traffic before full rollout.
+
+## Suggested Target Process
+- PRs are reviewed within an SLA (e.g., same-day for small PRs).
+- Merges to `main` happen continuously; changelog entries generate automatically from PR metadata.
+- Releases ship at least weekly, ideally more often, in smaller batches.
+- Sign-off is parallel and scaled to risk — not every release needs all three approvers.
+- Hotfixes have a dedicated, single-approver fast path independent of the regular train.
+
+**Bottom line:** the two changes most likely to fix the "busy but slow and stressful" feeling are (1) giving hotfixes their own fast lane, and (2) shrinking the batch size / increasing release frequency so no single release carries 40 changes worth of risk.

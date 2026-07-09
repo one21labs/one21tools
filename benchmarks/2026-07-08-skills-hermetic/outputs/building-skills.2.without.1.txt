@@ -1,0 +1,68 @@
+I need to flag a constraint before diving in: this session has no file-system or code-execution tools available to me (only ToolSearch, Workflow, ScheduleWakeup, and ReportFindings), so I can't actually create `outputs/review.md` or `outputs/json-config-check/SKILL.md` on disk. I did the review and rewrite as requested — you'll need to save the two blocks below into those paths yourself.
+
+## Review findings (→ `outputs/review.md`)
+
+**1. The `description` field can't do its job.** Skill descriptions are what a model uses to decide *whether to invoke the skill at all* and are matched against the task at hand. "This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed." has no concrete verbs (validate? format? generate?) and no trigger condition — "stuff," "lots of things," and "when needed" are placeholders. As written this skill will either never fire or fire on unrelated JSON tasks.
+
+**2. Marketing copy instead of instructions.** "This incredibly powerful skill," "a fantastic time-saver that your whole team will love," and the heading "About This Amazing Skill" are ad copy. They cost tokens and convey zero actionable information — a skill body should read like a runbook, not a pitch.
+
+**3. Explains background the model already knows.** The whole "Introduction" section defines what JSON is. That's wasted context budget that should go to task-specific instructions instead.
+
+**4. No actual procedure — every sentence is hedged.** "the file gets parsed," "the config *might* be validated," "Errors *could* be reported... *if any* are found," "You *might want to consider possibly* using." This gives Claude nothing deterministic to execute. A skill needs imperative, ordered steps, not a description of possibilities.
+
+**5. Missing the actual implementation decisions.** It gestures at "Python's json module and the jsonschema package" but never specifies: how to *locate* the schema (naming convention? `$schema` key? sibling file?), what to do when no schema is found (skip silently vs. tell the user), how to distinguish a JSON parse error from a schema violation, or what format to report errors in.
+
+**6. No examples.** No sample input, no sample error output, no example of a clean pass.
+
+**7. No edge-case handling.** Doesn't address malformed JSON vs. schema mismatch as distinct failure modes, multiple config files, or a missing schema.
+
+---
+
+## Corrected skill (→ `outputs/json-config-check/SKILL.md`)
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file for syntax correctness and, if a matching JSON Schema is found, for schema conformance. Use when the user asks to check, validate, lint, or debug why a JSON config file is failing to load or parse.
+---
+
+# JSON Config Check
+
+## When to use this skill
+Use when a user reports a JSON config file that fails to load, asks you to validate or lint a `.json` file, or asks whether a config file matches its schema.
+
+## Instructions
+
+1. **Read and parse the target file.**
+   - Attempt to parse it as JSON.
+   - If parsing fails, report the syntax error to the user, including the line/column from the parser's exception, and stop — do not attempt schema validation on invalid JSON.
+
+2. **Locate a schema, if one exists.** Check, in order:
+   - a `$schema` key inside the config file itself (local path or URL)
+   - a sibling file named `<filename>.schema.json`
+   - a `schema.json` in the same directory
+   - If none exist, tell the user no schema was found and that only syntax was checked. Do not fabricate a schema.
+
+3. **Validate against the schema if found.**
+   - Use Python's `jsonschema` package (`jsonschema.validate`) unless the project already uses a different toolchain (e.g. `ajv` for a Node project) — match the existing stack.
+   - Collect *all* validation errors in one pass (e.g. `Draft7Validator(schema).iter_errors(instance)`), not just the first.
+
+4. **Report results.** For each error, include:
+   - The JSON pointer path to the offending field (e.g. `/database/port`)
+   - The validation message (expected vs. actual)
+   - If there are zero errors, state explicitly that the file is valid, and whether that was syntax-only or full schema validation.
+
+## Example output
+
+```
+✗ config.json has 2 schema violations:
+  - /database/port: expected integer, got string ("5432")
+  - /logging/level: value must be one of [debug, info, warn, error], got "verbose"
+```
+
+```
+✓ config.json is valid JSON and conforms to schema.json
+```
+```
+
+Copy the review section into `outputs/review.md` and the code block into `outputs/json-config-check/SKILL.md`. Let me know if you'd like me to adjust the schema-lookup conventions or validation library choice for your team's actual stack.

@@ -1,0 +1,127 @@
+I'm in a headless mode for this session and don't have file-system access, so I can't write to `rca.md` directly. Here's the full post-incident analysis in Markdown — copy it into `rca.md` in your repo/wiki.
+
+---
+
+```markdown
+# Post-Incident Analysis: Silent Empty-File Delivery in Nightly Customer Export
+
+**Status:** Final
+**Severity:** SEV-2 (customer-facing data delivery failure, third recurrence)
+**Date of incident:** 2026-07-07 (nightly run)
+**Author:** Data Platform Team
+**Date of report:** 2026-07-08
+
+## Summary
+
+The nightly customer-export job ran to completion, exited with status 0, and delivered an empty output file to a client. This is the **third occurrence in two months** of the same failure mode: the job produces zero rows, reports success, no internal alert fires, and the client is the first to notice. The proximate trigger this time was a query change made by a new engineer (Priya) who did not perform the documented manual verification step. The two prior occurrences had different proximate triggers (a schema rename; an expired credential that the job swallowed as a non-fatal error) but converged on the identical outcome.
+
+The recurrence with three distinct triggers is itself the key finding: **this is not a training problem or a one-off bug, it is a missing systemic control.** Any change to the data path, upstream schema, credentials, or query logic can independently produce a zero-row output, and the system has no mechanism to catch that class of failure regardless of cause. Fixing the specific trigger each time (retrain the engineer, fix the schema issue, rotate the credential) has not prevented recurrence, and will not prevent the fourth occurrence.
+
+## Impact
+
+- A customer received an empty export file where they expected populated data.
+- Client noticed and reported the issue before internal monitoring did — third time this has happened.
+- Erodes client trust in data delivery reliability; unknown downstream impact on client's own processes that consumed the empty file.
+- Engineering time spent on incident response and repeated RCAs for the same underlying gap (this is the third RCA-equivalent investigation for the same outcome).
+
+## Timeline
+
+| Time | Event |
+|---|---|
+| (prior to run) | Priya changes the export SQL query as part of a feature/fix. Does not run the documented manual verification step ("run it once by hand and eyeball the row count") before merging/deploying. |
+| Nightly run | Export job executes with the new query, returns 0 rows, writes an empty output file, exits 0. |
+| Nightly run | Delivery step ships the empty file to the client as normal — delivery has no row-count or file-size gate. |
+| Post-run | Monitoring checks exit code only; exit code is 0; no alert fires. |
+| T+ (client business hours) | Client notices the file is empty and reports it. |
+| T+ | Data platform team investigates, identifies the query change and missing manual check as proximate cause. |
+
+*(Fill in exact timestamps from job logs/PagerDuty/ticket history before finalizing.)*
+
+## Root Cause Analysis
+
+### Proximate cause (this incident)
+Priya's query change altered the result set such that it returned 0 rows under production conditions, and this was not caught before deploy because the documented manual verification step was not performed.
+
+### Why wasn't it caught before deploy?
+The verification step is a **manual, undocumented-in-tooling, memory-dependent process** — a wiki instruction with no enforcement, no checklist gate in the PR/deploy workflow, and no onboarding checkpoint. A six-week-old engineer had no structural reason to know it existed or to be prompted to do it. This is a process design gap, not an individual failure.
+
+### Why wasn't it caught after deploy, before delivery?
+The job's own success signal (exit code 0) is decoupled from output correctness. The job has no internal check that a query producing 0 rows is unusual/invalid for this dataset, and no gate between "job finished" and "file gets delivered to client."
+
+### Why didn't monitoring catch it?
+Monitoring only checks exit code. Exit code answers "did the process crash," not "did the process do its job." For this job, "silently completed but did nothing useful" is a known failure mode (proven three times now) and is indistinguishable from success under current monitoring.
+
+### Why has this happened three times with three different triggers?
+Because the actual root cause is **structural, not situational**: there is no output-validation or data-quality gate anywhere in the pipeline that is independent of the specific thing that broke. A schema rename, an expired credential, and a bad query change are three different failure *triggers* that all route through the same undefended path: job runs → returns empty/wrong result → exits 0 → delivered. Any future trigger (a permissions change, an empty upstream table, a timezone/date-filter bug, a JOIN that silently drops all rows) will reproduce the same outcome. Treating each trigger as the root cause and fixing it point-wise has not worked and will not work, because the list of possible triggers is unbounded — the control needs to sit at the output/delivery boundary, not at each possible cause.
+
+### Contributing factors
+- **No output validation on the job itself:** no minimum-row-count check, no row-count-vs-historical-baseline check, no schema/shape assertion before the output is considered valid.
+- **No delivery gate:** the file is delivered to the client regardless of whether it passed any sanity check; delivery is not conditioned on job *correctness*, only job *completion*.
+- **Exit-code-only monitoring:** the only automated signal is a signal known (after two prior incidents) to be insufficient for this job, and this was not corrected after either prior incident.
+- **Credential expiry swallowed as non-fatal (incident #2):** the job's error handling treats certain failures as non-fatal and continues rather than aborting, compounding the exit-0-with-no-data problem.
+- **Manual, memory-dependent verification step:** documented only in a wiki, not enforced by CI/CD, code review checklist, or the deploy pipeline. No mechanism ensures new engineers encounter it before their first query change ships.
+- **No closed-loop learning from the first two incidents:** if the exit-code monitoring gap had been addressed after incident #1 or #2, incident #3 (a different trigger) would likely have been caught automatically instead of requiring the same manual step to be remembered a third time.
+
+## What went well
+- The team has a documented verification procedure at all (it just isn't enforced).
+- The client relationship/support loop surfaced the issue and it was triaged.
+- Root cause was identified accurately and quickly once investigated.
+
+## What went wrong
+- Same failure signature recurred three times without a systemic fix being applied after the first occurrence.
+- Detection relies entirely on the client, which is the worst-case detection channel (external, reputational, and delayed).
+- A brand-new engineer was able to independently trigger a client-facing incident via a documented-but-unenforced manual step, with no automated backstop.
+
+## Corrective Actions
+
+Ordered by priority. This incident should not close until at least the P0 items are implemented — point fixes to the specific trigger (e.g., "remind Priya about the wiki step") are explicitly **not sufficient** given the three-time recurrence with three different causes.
+
+### P0 — Close the detection gap (prevents recurrence regardless of trigger)
+1. **Add output validation to the export job itself**, independent of exit code:
+   - Fail (non-zero exit, or explicit alert) if row count is 0.
+   - Fail/alert if row count deviates beyond a threshold (e.g., >X% below a trailing N-day median) from historical baseline — catches "wrong but nonzero" too, e.g., a bad filter that drops 90% of rows.
+   - Owner: Data Platform. Target: before next scheduled run if feasible, else within 1 week.
+2. **Gate delivery on validation, not just job completion.** The file should not be sent to the client unless it passes the row-count/baseline check. On failure, block delivery and page/alert the on-call, don't deliver-then-hope.
+3. **Fix monitoring to check job semantics, not just exit code.** Add an explicit alert on "job succeeded but wrote 0 rows / empty file" as a distinct, high-priority signal. Exit-code-only monitoring should be considered insufficient for any data-delivery job going forward (see P2).
+
+### P1 — Fix the swallowed-error behavior from incident #2
+4. **Audit and fix error handling in the export job** so that credential failures, connection failures, and other upstream errors are fatal (non-zero exit / alert), not silently caught and treated as "0 rows, continue."
+
+### P1 — Make the manual verification step a real control, not a memory exercise
+5. **Move the "verify row count after query changes" step out of the wiki and into the workflow**: e.g., a required PR checklist item for any PR touching export query logic, or better, a CI check that runs the modified query against a staging/prod-replica dataset and reports the row count on the PR before merge is allowed.
+6. **Add this to new-engineer onboarding** for anyone touching data pipelines, with an explicit walkthrough, not just a link to a wiki page.
+
+### P2 — Broader systemic review
+7. **Audit other scheduled jobs that deliver data externally** for the same class of gap (exit-code-only monitoring, no output validation, no delivery gate). This failure mode is very likely not unique to this one export job.
+8. **Define a standard "data delivery job" pattern/template** (validation + baseline check + delivery gate + semantic alerting) that this and future jobs are built on, so the fix isn't job-specific.
+9. **Add a client-facing detection SLA review**: track "time from empty/bad delivery to internal detection" as a metric; target is internal detection before client detection, always.
+
+## Lessons Learned
+
+- **Exit code 0 means "the process didn't crash," not "the process did the right thing."** Any job whose job is to *produce data* needs a correctness check independent of its own exit status.
+- **A documented manual step with no enforcement is not a control — it's a hope.** It will eventually be skipped, forgotten, or unknown to someone new, and it should not be the last line of defense for a client-facing delivery.
+- **When the same outcome recurs with different proximate triggers, stop fixing triggers and fix the shared downstream path.** The pattern (three failures, three causes, one outcome) is itself the diagnostic signal that the fix belongs at the output/delivery boundary, not upstream at each possible cause.
+- **The client should never be the primary detection mechanism.** Each recurrence without internal detection is itself a smaller incident worth flagging even before the client reports it.
+
+## Action Items
+
+| # | Action | Owner | Priority | Target Date |
+|---|---|---|---|---|
+| 1 | Add zero-row / baseline-deviation validation to export job | Data Platform | P0 | TBD |
+| 2 | Gate client delivery on validation pass | Data Platform | P0 | TBD |
+| 3 | Add semantic alert for "succeeded but empty" | Data Platform | P0 | TBD |
+| 4 | Fix swallowed credential-error handling | Data Platform | P1 | TBD |
+| 5 | Convert manual verification step into PR checklist / CI check | Data Platform | P1 | TBD |
+| 6 | Add data-pipeline onboarding walkthrough | Data Platform / Eng Manager | P1 | TBD |
+| 7 | Audit other export/delivery jobs for same gap | Data Platform | P2 | TBD |
+| 8 | Define standard data-delivery job template | Data Platform | P2 | TBD |
+| 9 | Track internal-vs-client detection time as ongoing metric | Data Platform | P2 | Ongoing |
+
+## Note on blamelessness
+
+This report deliberately does not treat Priya's missed manual step as the root cause. She followed the only control that existed and it was a control that depended on an individual remembering an unenforced wiki instruction — the same class of gap that, under different triggers, caused the two prior incidents. The corrective actions above target the systemic gap so that the next new engineer, the next schema change, or the next credential rotation cannot reproduce this outcome a fourth time.
+```
+
+---
+
+Want me to also draft the PR checklist item or the row-count/baseline validation logic as a follow-up, or is the RCA itself the deliverable for now?

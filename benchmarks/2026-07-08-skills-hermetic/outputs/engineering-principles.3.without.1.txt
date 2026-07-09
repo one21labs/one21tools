@@ -1,0 +1,49 @@
+I'm running in a headless session without file-system access right now, so I can't create `process-review.md` directly — you'll need to save the content below into that file yourself. Here's the review:
+
+---
+
+# Release Process Review
+
+## Current Process
+1. Developer opens PR → ~2 days average wait for review
+2. Merged PRs accumulate on `main` for up to 2 weeks
+3. Release manager hand-copies a changelog entry per PR from PR descriptions
+4. Release ships ~40 changes at once, gated by three **sequential** sign-offs: QA lead → EM → PM
+5. Hotfixes follow the identical path — no expedited lane
+
+**Symptom:** team is busy, shipping feels slow, releases are stressful.
+
+## Root Causes
+
+| Symptom | Cause |
+|---|---|
+| Urgent fixes wait up to 2 weeks | No fast path — hotfixes share the same batch/sign-off pipeline as routine work |
+| Releases feel stressful | Batch size (~40 changes) means large blast radius; if something breaks, it's hard to isolate which of 40 changes is responsible |
+| Release prep is slow | Changelog compilation is manual, toil-heavy, and error-prone — and it's on the critical path before sign-offs can even start |
+| Sign-off adds days | Three approvals run in **sequence**, not parallel, so latency stacks even if each person responds quickly |
+| "Busy but slow" | Work is being produced continuously (PRs merging) but *delivered* in an artificially throttled batch — the bottleneck is process, not developer output |
+
+## Recommendations
+
+### Quick wins (low effort, immediate relief)
+- **Add a hotfix lane.** Urgent one-line fixes should deploy independently of the train, with a lightweight abbreviated approval (e.g., one sign-off + automated tests) instead of waiting for the next biweekly release. This alone fixes the most acute pain point.
+- **Automate the changelog.** Require a changelog line in the PR template (or parse PR titles/descriptions via a script) and have CI aggregate it automatically. Removes manual toil and human error, and un-blocks release prep from being gated on one person's copy-pasting.
+- **Parallelize the three sign-offs.** Send to QA lead, EM, and PM simultaneously with a response SLA (e.g., 24 hours) instead of chaining them. This alone can cut sign-off latency to roughly a third of today's.
+
+### Structural changes (medium effort)
+- **Shrink the batch / increase frequency.** Move from biweekly to weekly (or more frequent) releases. Smaller batches reduce blast radius, make root-causing failures far easier, and reduce the "big bang" stress.
+- **Risk-based sign-off, not blanket sign-off.** Not every change needs all three approvals — e.g., PM sign-off only for user-facing/behavioral changes, EM sign-off only for infra/breaking changes, routine changes need only automated QA. This cuts the sign-off burden proportional to actual risk instead of applying it uniformly.
+- **Shift QA left.** Run automated regression/smoke tests continuously as PRs merge to `main`, so the release-time QA sign-off becomes a confirmation of already-tested state rather than the first real test at scale.
+- **Address the PR review bottleneck too.** 2 days average review time is a front-end bottleneck independent of the release process — consider a review SLA, smaller PRs, or clearer reviewer ownership so fixing the back end doesn't leave this as the new limiting factor.
+
+### Longer-term (cultural/architectural)
+- **Decouple merge from release exposure using feature flags.** Merge continuously to `main`, gate incomplete/risky features behind flags. This lets releases happen frequently without waiting on every in-flight feature to be "ready."
+- **Move toward continuous delivery.** Each merged PR that passes CI can deploy automatically (to staging, then production) rather than queuing for a fixed train — the natural end state that eliminates batching, changelog toil, and blast-radius risk simultaneously.
+- **Track DORA metrics going forward:** deployment frequency, lead time for changes, change failure rate, mean time to restore. These give an objective read on whether these changes are actually working, rather than relying on how "stressful" a release feels.
+
+## Suggested Sequencing
+Start with the hotfix lane, changelog automation, and parallel sign-offs — all low-risk and independently valuable. Then tackle release cadence and risk-based sign-off once the quick wins prove out. Feature flags and full continuous delivery are the eventual target but depend on the earlier steps being stable first.
+
+---
+
+Let me know if you'd like this tightened, expanded on any section, or reframed for a specific audience (e.g., leadership vs. the eng team).

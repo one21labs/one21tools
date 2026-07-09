@@ -1,0 +1,34 @@
+Since this session has no file-system access, here's the full updated module — save it as `notifier.py`:
+
+```python
+import json
+import time
+import urllib.request
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    backoff = d.get("backoff_seconds", 0)
+    return r, to, backoff
+
+def snd(u, pl, r, to, backoff=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1 and backoff:
+                time.sleep(backoff)
+    return None
+```
+
+Changes:
+- `ld` now also reads `backoff_seconds` from the config (defaults to `0`, i.e. no wait) and returns it alongside `retries`/`timeout`.
+- `snd` takes a `backoff` param and sleeps that many seconds between attempts — only between retries, not after the final failed attempt.
+- Dropped the commented-out `load` function (dead code).
+
+Note both callers of `ld()`/`snd()` elsewhere in your codebase will need updating for the new 3-tuple return and extra `snd` argument, since I only have this one file in view.
