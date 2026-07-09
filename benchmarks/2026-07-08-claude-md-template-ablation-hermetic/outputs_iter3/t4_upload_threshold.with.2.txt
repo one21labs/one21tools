@@ -1,0 +1,7 @@
+I don't have file-system or code-execution access in this session, so I can't open your project or edit files directly here. Could you paste the upload handler code (or the relevant function/route)? Once I see it, I'll give you a concrete patch — typically:
+
+- A `MAX_FILE_SIZE` constant (e.g., bytes) checked against `Content-Length` before accepting the body, and/or a stream byte-counter that aborts once the limit is exceeded (don't rely on `Content-Length` alone, since it can be spoofed).
+- Framework-level config if applicable (e.g., `express-fileupload`/`multer` `limits.fileSize`, Django `DATA_UPLOAD_MAX_MEMORY_SIZE`/`FILE_UPLOAD_MAX_MEMORY_SIZE`, nginx `client_max_body_size`, etc.)
+- A clear 413 response when the limit is exceeded, and cleanup of any partial temp file written before the abort — otherwise you can still leak disk space on rejected uploads.
+
+Also worth confirming: do you want this enforced only at the app layer, or should I also flag the proxy/webserver config (nginx/ALB/etc.) if one sits in front of it? Disk-eating uploads are often actually partial/orphaned temp files from failed uploads rather than just "no size limit," so if you can share how the handler currently writes to disk (streaming vs. buffering, temp dir cleanup on error) that'll help make sure the patch actually stops the disk growth.

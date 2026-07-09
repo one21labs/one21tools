@@ -1,0 +1,59 @@
+Since it's actively under load, here's what to do in order:
+
+**1. Immediate stopgap (deploy in minutes, no app code changes)**
+
+If you're behind nginx, add this now and reload:
+```nginx
+# in http{} block
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=10r/s;
+
+# in the /search location block
+location /search {
+    limit_req zone=search_limit burst=20 nodelay;
+    limit_req_status 429;
+    ...
+}
+```
+`sudo nginx -t && sudo nginx -s reload` — takes effect immediately, buys you time.
+
+If you're behind Cloudflare, AWS ALB/API Gateway, or another CDN/gateway instead, tell me which — most have a rate-limiting rule you can flip on in their console with zero deploy, which is faster than shipping app code right now.
+
+**2. Proper fix in the app**
+
+To give you real code I need to know:
+- Language/framework for the `/search` service (Node/Express, Python/FastAPI or Django, Go, Java/Spring, etc.)
+- Single instance or multiple instances behind a load balancer? (multi-instance needs shared state like Redis, not in-memory counters)
+- Limit by IP, API key/user, or both?
+
+If it's **Node/Express with multiple instances**, here's the default I'd reach for (sliding-window, Redis-backed so it works across instances):
+
+```js
+// npm i rate-limiter-flexible ioredis
+const { RateLimiterRedis } = require('rate-limiter-flexible');
+const Redis = require('ioredis');
+
+const redis = new Redis(process.env.REDIS_URL);
+
+const searchLimiter = new RateLimiterRedis({
+  storeClient: redis,
+  keyPrefix: 'rl:search',
+  points: 10,        // requests
+  duration: 1,        // per second
+  blockDuration: 10,  // block for 10s once exceeded
+});
+
+async function searchRateLimit(req, res, next) {
+  const key = req.user?.id || req.ip; // prefer authed user id if available
+  try {
+    await searchLimiter.consume(key);
+    next();
+  } catch (rejRes) {
+    res.set('Retry-After', String(Math.ceil(rejRes.msBeforeNext / 1000)));
+    res.status(429).json({ error: 'Too many requests' });
+  }
+}
+
+app.get('/search', searchRateLimit, searchHandler);
+```
+
+Tell me your actual stack and I'll swap this for the exact equivalent (e.g. Django + `django-ratelimit`/Redis, FastAPI + `slowapi`, Go + `golang.org/x/time/rate` with a Redis-backed distributed limiter, etc.), tuned to real limits based on your traffic.

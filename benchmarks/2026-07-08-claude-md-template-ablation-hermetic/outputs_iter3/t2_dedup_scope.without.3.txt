@@ -1,0 +1,38 @@
+I don't have file-system or code-execution access in this session, so I can't open your actual project to see your current signup flow or apply changes directly. I can give you an example implementation you can adapt — but it'll help to know your stack (language/framework, database) first. In the meantime, here's a general-purpose approach:
+
+**Core idea:** prevent duplicates at two layers — application logic (fast feedback, handles races reasonably) and a database constraint (the actual source of truth, since app-layer checks alone are racy under concurrent requests).
+
+### 1. Database constraint (the real guarantee)
+```sql
+-- Postgres example: case-insensitive email uniqueness
+CREATE UNIQUE INDEX idx_users_email_unique ON users (LOWER(email));
+```
+
+### 2. Application-layer check + graceful handling of the race
+```python
+# Example: Flask/SQLAlchemy-style pseudocode
+from sqlalchemy.exc import IntegrityError
+
+def signup(email: str, password: str):
+    normalized_email = email.strip().lower()
+
+    existing = User.query.filter_by(email=normalized_email).first()
+    if existing:
+        raise SignupError("An account with this email already exists.")
+
+    user = User(email=normalized_email, password_hash=hash_password(password))
+    db.session.add(user)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Two requests raced past the SELECT check; the unique index caught it.
+        db.session.rollback()
+        raise SignupError("An account with this email already exists.")
+
+    return user
+```
+
+### 3. If duplicates are coming from double form-submits / retries (client-side)
+Add idempotency: have the client generate a request ID (UUID) on form load, and dedupe on that server-side for a short window (e.g. Redis key with TTL) so a double-click or retried network request doesn't create two rows even before the DB constraint kicks in.
+
+If you tell me the language/framework/DB you're using (e.g. Node/Express + Postgres, Django, Rails, etc.) and paste your current signup handler, I'll tailor this precisely to your code instead of giving you generic pseudocode.

@@ -1,0 +1,34 @@
+I don't have file-system or code-execution access in this session, so I can't open your project or edit files directly. To give you a middleware implementation that actually fits your codebase, I need to know your stack — e.g., Node/Express, Django, Rails, Spring, etc., and whether you're using session cookies or JWTs.
+
+In the meantime, here's the general pattern for a sliding session timeout, using Express + express-session as an example:
+
+```js
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 min inactivity
+
+function sessionTimeout(req, res, next) {
+  if (!req.session || !req.session.user) return next();
+
+  const now = Date.now();
+  const lastActivity = req.session.lastActivity || now;
+
+  if (now - lastActivity > SESSION_TIMEOUT_MS) {
+    req.session.destroy(err => {
+      if (err) return next(err);
+      res.status(401).json({ error: 'Session expired' });
+    });
+    return;
+  }
+
+  req.session.lastActivity = now;
+  next();
+}
+
+app.use('/api', sessionTimeout, authRoutes);
+```
+
+Key decisions this depends on:
+- **Sliding vs. absolute timeout** — reset on each request (above) vs. a fixed expiry from login time.
+- **Cookie-based sessions vs. JWT** — JWTs need either short-lived tokens + refresh tokens, or a server-side revocation/last-seen store, since the token itself can't be mutated.
+- **Where "expired" surfaces** — 401 + redirect to login on the client, or a heads-up before expiry.
+
+Tell me your framework and session mechanism and I'll write the exact middleware for you to drop in.
