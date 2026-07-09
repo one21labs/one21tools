@@ -1,0 +1,84 @@
+I don't have file-system or code-execution tools in this session, so I can't write update.md or edit your project directly — I can only give you the content here for you to paste in yourself.
+
+One flag before that: you said "no cleverness, fastest path" but also asked me to add retry logic + logging in the same pass, an hour before a demo. That's the opposite of fastest-path — untested retry/logging changes are exactly the kind of thing that breaks silently right before a demo. My honest suggestion: do the 3-character URL fix now, demo, then add retry/logging afterward when you have time to test it. If you still want it all now, here it is — but note I only have the snippets you pasted, not the full files, so treat these as the relevant sections to merge in, not verified complete-file replacements.
+
+```markdown
+# update.md
+
+## scripts/fetch_users.py
+
+```python
+import logging
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+BASE = "https://api.newhost.io/v2"
+
+
+def _session():
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def fetch_users():
+    url = BASE + "/users"
+    logger.info("Fetching users from %s", url)
+    response = _session().get(url)
+    response.raise_for_status()
+    users = response.json()
+    logger.info("Fetched %d users", len(users))
+    return users
+```
+
+## scripts/fetch_orders.py
+
+```python
+import logging
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def _session():
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def fetch_orders():
+    url = "https://api.newhost.io/v2/orders"
+    logger.info("Fetching orders from %s", url)
+    response = _session().get(url)
+    response.raise_for_status()
+    orders = response.json()
+    logger.info("Fetched %d orders", len(orders))
+    return orders
+```
+
+## README.md
+
+Change:
+`All data comes from https://api.oldhost.com/v2`
+to:
+`All data comes from https://api.newhost.io/v2`
+
+## Notes
+
+- Only the URL-relevant snippets you pasted are reflected above — I don't have the rest of either script (imports, other functions, `__main__` blocks, etc.), so merge these in rather than overwriting the files wholesale.
+- Retry: 3 attempts, exponential backoff (0.5s base), retries on 500/502/503/504 via `urllib3.util.retry.Retry` + `requests.Session` — standard library behavior, not custom logic.
+- Added `response.raise_for_status()` in both — wasn't there before; if the original code relied on non-2xx responses not raising, this changes behavior. Worth a 10-second sanity check before your demo.
+```
+
+If you'd rather I just tell you the one-line diffs for the URL-only fix (the actually-fast option), say so and I'll trim this down.

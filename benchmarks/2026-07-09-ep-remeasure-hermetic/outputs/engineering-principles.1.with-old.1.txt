@@ -1,0 +1,76 @@
+I have no file-system access in this session, so I can't create `rca.md` directly — you'll need to copy the content below into that file yourself. Here's the full post-incident analysis.
+
+---
+
+# Post-Incident Analysis: Silent Empty-File Delivery in Nightly Customer-Export Job
+
+**Date:** 2026-07-09
+**Status:** Third recurrence in two months
+**Severity:** Client-visible data delivery failure (client discovered the issue before internal detection, in all three cases)
+
+## Problem Statement
+
+The nightly customer-export job has produced an empty output file that was delivered to a client three times in two months. In every occurrence, the job exited with status 0 (success), no internal alert fired, and the client was the first to notice the problem. The three triggering events were different (schema rename, expired/swallowed credential, unverified query change), but the failure pattern — empty file, green exit code, silent delivery — was identical each time.
+
+## Timeline of Occurrences
+
+| # | Trigger | Detection | Detected by |
+|---|---------|-----------|-------------|
+| 1 | Schema rename broke a column reference; query returned 0 rows instead of erroring | Client noticed empty file | Client |
+| 2 | Expired credential was swallowed by error handling; job produced 0 rows, exited 0 | Client noticed empty file | Client |
+| 3 (this incident) | Priya changed the export SQL; did not run the documented manual verification step; new query returned 0 rows | Client noticed empty file | Client |
+
+The recurrence with three distinct triggers and one constant outcome is itself the primary signal: this is a systemic gap, not three unrelated mistakes.
+
+## Impact
+
+- Client received an empty data file on at least three separate nightly runs, undetected internally each time.
+- Client trust/credibility risk: the client has now caught this failure mode three times, which is worse for trust than the underlying bug — it suggests the team has no safety net.
+- Engineering time spent on reactive, client-triggered firefighting instead of proactive detection.
+
+## Root Cause Analysis (5 Whys, branched)
+
+### Branch A — Why this specific occurrence happened
+
+1. **Why** was an empty file delivered to the client? → The export query returned 0 rows on the night after Priya's change, and the job delivered the output anyway.
+2. **Why** did the query return 0 rows without anyone catching it first? → Priya changed the SQL and did not run the documented manual verification step (run once by hand, eyeball row count).
+3. **Why** didn't she run it? → The verification step is a manually-triggered, easy-to-forget action documented only in a wiki page, with no system enforcement and no reminder at the point of change (e.g., in PR template, CI, or deploy checklist). Priya is six weeks into the role and has no reason to already know this tribal step exists unless she happened to read that specific wiki page at the right time.
+4. **Why** does correctness for a production data pipeline depend on one engineer remembering to eyeball a number by hand? → There is no automated data-quality gate between "query executes successfully" and "file is delivered to client." Manual verification is the *only* check, and it is optional in practice because nothing enforces it.
+5. **Root cause (Branch A):** The team relies on a documented-but-unenforced manual step as its sole safeguard against query regressions, with no technical control to catch the case where a human skips it.
+
+### Branch B — Why the failure wasn't caught automatically, regardless of trigger
+
+1. **Why** did the job report success when it delivered zero rows? → Monitoring only checks the process exit code, and the job's code path exits 0 whenever it completes without throwing, including when it writes 0 rows.
+2. **Why** does the job treat "0 rows written" as a successful completion? → The job's success definition was implemented as "ran without an unhandled exception," not "produced a plausible, non-empty result." No explicit row-count or output-size check exists in the job itself.
+3. **Why** wasn't this gap noticed after occurrence #1 or #2? → Each prior incident's remediation apparently targeted the *specific trigger* (the schema rename, the credential handling) rather than the shared downstream failure mode (silent empty output treated as success). Each fix was symptom-level and trigger-specific, so a third, different trigger reproduced the same outcome.
+4. **Why** did remediation stay at the trigger level instead of the outcome level? → No prior RCA appears to have been done at the "why does this keep recurring with the same shape" level — each incident was likely handled as an independent one-off bug fix rather than pattern-matched against the other two.
+5. **Root cause (Branch B):** The system has no output-validation gate (row count, size, or anomaly threshold) independent of exit code, and no data-delivery step that can halt on suspicious output — so *any* future trigger that causes zero/garbage rows (there will be a fourth) will reproduce this same failure again.
+
+## Root Causes (Summary)
+
+1. **Process control gap:** Correctness of query changes depends on a manual, easy-to-skip step with no system enforcement (Branch A).
+2. **Detection gap:** Job success is defined by exit code only; there is no automated check that the output data is non-empty/plausible before delivery, and no such check has been added despite two prior incidents with the identical outcome (Branch B).
+3. **Meta-issue — Jidoka not applied:** Twice before, the team fixed the trigger and moved on instead of stopping to fix the shared downstream defect. That is the reason this is incident #3, not incident #1 repeated with better luck.
+
+Per Deming's framing, "engineer forgot a manual step" is not an acceptable stopping point — the system permitted (and, six weeks into onboarding, all but guaranteed) that a new hire would eventually skip a step nobody enforces.
+
+## Countermeasures / Action Items
+
+**Must fix now (addresses Branch B — prevents recurrence regardless of future trigger):**
+1. Add an automated row-count / non-empty-output check to the export job itself. If output rows fall below a sane threshold (e.g., <50% of trailing 7-day average, or literally 0), the job must **fail** (non-zero exit) rather than deliver.
+2. Decouple "delivered to client" from "job process exited." Insert an explicit gate: file is only released to the client-facing delivery step after the row-count/plausibility check passes.
+3. Add alerting on the row-count check itself (not just exit code), so a caught anomaly pages someone rather than silently blocking delivery with no visibility.
+
+**Should fix soon (addresses Branch A — reduces trigger likelihood):**
+4. Convert the manual "run once by hand and eyeball row count" wiki step into an enforced check: either (a) a CI/PR check that runs the query against a sample/staging dataset and reports row count on any PR touching the export SQL, or (b) a required checklist item in the deploy process that cannot be skipped silently.
+5. Retire the wiki step as the *sole* control — keep it as documentation of intent, but it should no longer be the only line of defense (SSoT for "is this export correct" should be an automated check, not a human memory).
+
+**Process fix (addresses the meta-issue):**
+6. When the row-count/alerting gate (item 1–3) ships, explicitly test it against all three historical trigger types (schema rename, swallowed credential, bad query) to confirm each would now be caught automatically — this is the verification step prior fixes skipped.
+7. Add "does this failure mode reproduce under a different trigger?" as a standing question in future RCAs for this job before closing them, to avoid a fourth trigger-specific-only fix.
+
+## Verification
+
+- Before closing this incident: demonstrate (in staging) that a query change producing 0 rows is blocked from delivery and generates an alert, without relying on any manual step.
+- Monitor the next 3 nightly runs post-fix for the row-count check firing correctly on healthy data (no false positives).
+- Track: no further "client noticed first" empty-file incidents for this job over the following 2 months.

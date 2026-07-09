@@ -1,0 +1,188 @@
+I'm in a headless session for this turn — I don't have file-system or code-execution access, so I can't create `rca.md` directly. Here's the full analysis in Markdown; paste it into `rca.md` (or tell me to write it once file access is available).
+
+Also, one framing note before the doc: this is the third occurrence with three different immediate triggers (query change, schema rename, expired credential) but an identical outcome (empty file, exit 0, client-discovered). That pattern is itself the strongest evidence — it means the previous two incidents were likely "fixed" at the trigger level and not at the shared downstream gap, which is why it recurred. The analysis below treats the triggers as contributing factors and focuses the root cause on the common failure point.
+
+---
+
+```markdown
+# Post-Incident Analysis: Empty Customer Export File Silently Delivered
+
+**Status:** Draft
+**Date of report:** 2026-07-09
+**Incident date/time:** [fill in — nightly run date/time]
+**Severity:** [fill in — e.g. Sev2, client-facing data delivery failure]
+**Author:** [fill in]
+**Participants:** [fill in — include Priya; frame as system review, not individual review]
+
+## Problem Statement
+
+For the third time in two months, the nightly customer-export job completed
+with exit code 0 while writing zero rows to the output file. The empty file
+was delivered to a client without any internal alert; the client identified
+the problem before the team did, in all three occurrences.
+
+| # | Approx. date | Trigger | Outcome |
+|---|---|---|---|
+| 1 | [fill in] | Schema rename upstream broke the export query silently | Empty file, exit 0, client noticed |
+| 2 | [fill in] | Expired credential; job swallowed the resulting exception | Empty file, exit 0, client noticed |
+| 3 | 2026-07-09 (this incident) | Priya changed the export SQL; manual "run once, eyeball row count" verification step was not performed | Empty file, exit 0, client noticed |
+
+## Impact
+
+- Client received an empty export file [X] time(s); business impact and any
+  SLA/trust consequences: [fill in]
+- Internal detection lag: 0 (no internal detection occurred — client reported
+  first in all three cases)
+
+## Timeline (this occurrence)
+
+- [fill in exact timestamps: query change committed/deployed, job ran,
+  file delivered, client reported, team responded]
+
+## Contributing Factors (per-incident triggers)
+
+These are the proximate causes of *this* incident specifically — useful for
+context, but each is a different immediate trigger with the same downstream
+failure, which is the signal that the real gap is downstream of all of them.
+
+- Priya (6 weeks tenure) changed the export SQL and did not perform the
+  documented manual verification step.
+- The verification step exists only as wiki text: "after changing the query,
+  run it once by hand and eyeball the row count." It is not enforced by
+  tooling, code review, or CI — it depends entirely on an individual
+  remembering an undiscoverable, unenforced convention.
+- Prior incidents had unrelated triggers (schema rename; swallowed exception
+  on expired credential), confirming the trigger surface is broad and not
+  something that can be closed off one cause at a time.
+
+## Root Cause Analysis (5 Whys, branched)
+
+### Branch A — Why did this specific change produce zero rows?
+
+1. Why did the client receive an empty file?
+   → The export job ran to completion and produced a file with zero data rows.
+2. Why did the job produce zero rows?
+   → Priya's SQL query change [presumably filtered out all rows / matched an
+   incorrect schema — fill in specifics once confirmed].
+3. Why wasn't the defect caught before the job ran against production data?
+   → The documented manual verification step (run once by hand, check row
+   count) was not performed.
+4. Why wasn't the step performed?
+   → It exists only as a wiki instruction with no enforcement mechanism —
+   nothing in the PR process, deploy pipeline, or job itself requires or
+   checks that it happened.
+5. Why does the team rely on an unenforced manual step for a check that
+   determines whether a client receives valid data?
+   → **Root cause A: There is no system-enforced gate between "query
+   changed" and "query runs against production and ships to a client."**
+   Correctness verification is treated as a personal habit, not a pipeline
+   control — so it fails whenever the person who happens to make a change
+   doesn't already know the tribal convention (predictably, a 6-week
+   employee).
+
+   Per Deming's framing, this is not "Priya made a mistake" — the system
+   allowed a brand-new engineer to ship an unverified query straight to a
+   client with no guardrail. Any engineer, tenured or not, could have hit
+   this same gap.
+
+### Branch B — Why did nobody get alerted, in any of the three incidents?
+
+1. Why did an empty file reach the client without internal alerting?
+   → Monitoring only checks the job's process exit code.
+2. Why does exit code 0 not indicate a problem?
+   → The job's success/failure logic is defined purely by "did the process
+   run to completion without throwing," not by "did it produce valid
+   business output."
+3. Why is there no check on the output itself (row count, file size,
+   schema)?
+   → No data-quality/output-validation step exists in or after the job —
+   monitoring was built around infrastructure health (did the process
+   crash?) rather than data correctness (is the output right?).
+4. Why did this gap survive two prior incidents with the same symptom?
+   → Each prior incident's remediation apparently targeted the specific
+   trigger (the schema rename, the credential handling) rather than the
+   shared downstream failure mode of "job can exit 0 with zero-row/invalid
+   output and nothing checks for that."
+5. Why does fixing the trigger, twice, not fix the recurrence?
+   → **Root cause B: The team has no independent, output-based
+   correctness check for this job. As long as "success" is defined solely
+   by process exit code, any future trigger — a new one we haven't
+   seen yet — will reproduce the identical failure.** This is the shared
+   root cause across all three incidents; Branch A's gap is what let this
+   particular trigger occur, but Root cause B is why it reached the client
+   undetected all three times.
+
+### Related but distinct issue (Incident 2, worth tracking separately)
+
+The expired-credential incident additionally revealed that the job swallows
+exceptions rather than failing loudly. That's a real defect in its own
+right (broad/silent exception handling) but is not the shared root cause —
+even a job that never swallows an exception would still have shipped an
+empty file in incidents 1 and 3, which weren't exception-related. Track it
+as a contributing hardening item, not the headline fix.
+
+## Root Cause Summary
+
+1. **(Primary, shared across all 3 incidents)** No output-based validation
+   exists for this job — success is defined by exit code only, so any
+   defect that produces valid-looking-but-empty/wrong output ships to the
+   client undetected, regardless of what triggers it.
+2. **(Contributing, this incident)** The one human safeguard that could
+   have caught this specific trigger (manual query verification) is
+   unenforced tribal knowledge, undiscoverable to new team members and
+   unverifiable by anyone else.
+
+## Countermeasures / Action Items
+
+Ordered so the systemic fix (closes all future trigger variants) lands
+before the process fix (closes this specific trigger variant).
+
+| # | Action | Addresses | Owner | Target date |
+|---|---|---|---|---|
+| 1 | Add a hard output-validation gate to the export job: fail (non-zero exit) if row count is 0 or below a sane floor; do not deliver the file on failure | Root cause B | [fill in] | [fill in] |
+| 2 | Alert on the business-level signal ("rows delivered" / "job produced valid output"), not just process exit code | Root cause B | [fill in] | [fill in] |
+| 3 | Add a pre-delivery quarantine step: file lands in a staging location and is only released to the client after passing the row-count/schema check | Root cause B | [fill in] | [fill in] |
+| 4 | Convert the manual "run once, eyeball row count" wiki step into an enforced check — e.g. required CI step on any PR touching the export query that runs it against a staging dataset and reports row count, blocking merge if not run | Root cause A | [fill in] | [fill in] |
+| 5 | Fix the swallowed-exception handling so credential/auth failures fail the job loudly instead of producing an empty successful run | Related issue | [fill in] | [fill in] |
+| 6 | Audit other jobs on this team for the same "exit 0 regardless of output" pattern — this is very likely not unique to the export job | Prevent same class elsewhere | [fill in] | [fill in] |
+
+Note: item 1 alone would have prevented all three incidents from reaching
+the client, regardless of trigger. Item 4 is worth doing too (defense in
+depth, and it helps new engineers), but should not be treated as sufficient
+on its own — it only covers the query-change trigger, not the schema-rename
+or credential-swallowing triggers that caused incidents 1 and 2.
+
+## Verification
+
+State how each countermeasure will be *proven*, not just monitored:
+
+- **Item 1/2/3:** In staging, deliberately deploy a query that returns zero
+  rows (or point the job at an empty test dataset) and confirm: (a) the job
+  exits non-zero, (b) no file is released to the delivery location, (c) an
+  alert fires. Repeat with a query that returns rows but with a mismatched
+  schema, if schema validation is included in scope.
+- **Item 4:** Open a test PR that changes the export query without running
+  the verification step and confirm CI blocks the merge.
+- **Item 5:** In staging, deliberately expire/revoke the credential the job
+  uses and confirm the job fails loudly (non-zero exit, alert fires) rather
+  than completing with empty output.
+- **Item 6:** Produce a list of other jobs owned by the team and their
+  current success-definition (exit-code-only vs. output-validated); track
+  remediation for any found to share the pattern.
+
+"We'll monitor going forward" is not acceptable verification for any item
+above — each must be exercised by deliberately reproducing the failure
+condition in staging and confirming the safeguard catches it before this
+incident is marked resolved.
+
+## What we are explicitly not doing
+
+- Not treating this as a Priya performance issue. A new hire not knowing an
+  unenforced wiki convention is an expected outcome of that convention's
+  design, not an individual failure.
+- Not closing this out by fixing only the SQL-verification step (item 4) —
+  that would leave Root cause B open and very likely produce a 4th
+  incident under a different trigger.
+```
+
+Let me know if you'd like this trimmed, adjusted in tone for wider distribution, or if you want me to fill in the timeline/dates once you have the exact log timestamps.

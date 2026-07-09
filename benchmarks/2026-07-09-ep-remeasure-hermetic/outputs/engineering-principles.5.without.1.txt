@@ -1,0 +1,22 @@
+I don't have file-system access in this session — no tools available to me here can create or write `tasks.md`. I can give you the task breakdown as text right now so you can paste it in yourself.
+
+A few implementation decisions aren't specified in the plan and need answers before some of these tasks are actionable — flagging as scope gaps, not relitigating direction:
+- **Auth scope**: self-service only (user exports their own data via authenticated session), or does this also need an admin/support path to export on a user's behalf?
+- **Format**: "whatever's easiest" — assuming JSON unless you tell me otherwise.
+- **"Fast"**: sync response, or async job + download link (matters a lot if data volume is unbounded)?
+- **Data scope**: which tables/services count as "all of a user's data"? (this is usually the long pole, not the endpoint itself)
+
+Task breakdown (JSON, sync-with-async-fallback assumed — adjust once the above is answered):
+
+1. **Data inventory** — enumerate every table/service holding user data; confirm ownership/FK paths to user ID.
+2. **Auth & authorization** — endpoint requires authenticated session; verify caller can only pull their own data (or add role check if admin export is in scope).
+3. **Aggregation layer** — service that queries each data source and assembles a single JSON payload keyed by domain (profile, activity, content, etc.).
+4. **Endpoint** — `GET /api/users/me/export` (or similar); wire to aggregation layer; sync response for small payloads.
+5. **Async fallback** — if payload/query time risks timeout: job queue + status endpoint + signed download URL, so "fast" holds under load.
+6. **Rate limiting** — throttle per-user to prevent this becoming a scraping/DoS vector against your own DB.
+7. **PII/security review** — confirm response isn't logged, isn't cached, transits over TLS only, and download links (if async) expire.
+8. **Tests** — unit tests per data source, integration test for full export, auth-bypass test (user A can't fetch user B's export).
+9. **Docs** — API doc + note in privacy/support docs since this is user-facing.
+10. **Rollout** — feature flag or staged rollout given the one-week timeline; monitor query load on first real usage.
+
+Want me to expand any of these, or answer the auth/format/async questions so I can tighten the list?
