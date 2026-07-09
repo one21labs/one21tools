@@ -1,0 +1,49 @@
+I don't have file-system or code-execution access in this session, so I can't open your repo or run anything directly — I can only give you code in plain text to copy in yourself.
+
+To make this useful rather than generic, tell me:
+1. **Language/framework** for the endpoint (Node/Express, Python/FastAPI, Java/Spring, etc.)
+2. **Cache backend** you want — in-memory (fastest, single-instance only) vs. Redis/Memcached (shared across instances, survives restarts)
+3. **Invalidation trigger** — do products get updated/deleted such that stale cache would be a real problem, or is slight staleness (e.g. TTL-based) acceptable?
+
+If you just want a solid default to start from, here's a Node/Express + Redis example with TTL and cache-aside pattern (most common approach for a read-heavy detail endpoint):
+
+```js
+const redis = require('redis');
+const client = redis.createClient({ url: process.env.REDIS_URL });
+client.connect();
+
+const CACHE_TTL_SECONDS = 300; // 5 min — tune to how often products change
+
+app.get('/products/:id', async (req, res) => {
+  const { id } = req.params;
+  const cacheKey = `product:${id}`;
+
+  const cached = await client.get(cacheKey);
+  if (cached) {
+    return res.json(JSON.parse(cached));
+  }
+
+  const product = await db.products.findById(id);
+  if (!product) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  await client.set(cacheKey, JSON.stringify(product), { EX: CACHE_TTL_SECONDS });
+  res.json(product);
+});
+
+// Invalidate on writes so cache doesn't serve stale data after an update
+app.put('/products/:id', async (req, res) => {
+  const { id } = req.params;
+  const updated = await db.products.update(id, req.body);
+  await client.del(`product:${id}`);
+  res.json(updated);
+});
+```
+
+Key things to get right for this to actually help:
+- **Invalidate on every write path** that touches a product (update, delete, price change, etc.) — a cache that goes stale silently is worse than no cache.
+- **TTL as a backstop** even with invalidation, in case a write path is missed.
+- **Cache key must include anything that varies the response** (e.g. locale, currency) or you'll serve wrong data cross-request.
+
+Tell me your actual stack and I'll tailor the code (or point out the equivalent primitives — e.g. `@Cacheable` in Spring, `fastapi-cache2` in FastAPI, `cache-manager` in NestJS).

@@ -1,0 +1,62 @@
+Since I can't see your codebase in this session, I'll give you options that cover the fastest paths to stop the bleeding — pick whichever matches your stack.
+
+## Fastest stopgap (no app deploy needed) — if you're behind nginx
+
+```nginx
+# http block
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=10r/s;
+
+# server/location block
+location /search {
+    limit_req zone=search_limit burst=20 nodelay;
+    limit_req_status 429;
+    proxy_pass http://backend;
+}
+```
+Reload nginx (`nginx -s reload`) — takes effect in seconds, no code deploy.
+
+**If you're on Cloudflare / an API gateway (AWS API Gateway, Kong, etc.):** those have rate-limiting rules you can turn on from the dashboard right now, faster than any code change. Tell me which one and I can give you the exact config.
+
+## Application-level (proper fix, per-user/per-key limiting)
+
+**Node/Express** (using `express-rate-limit` + Redis so it works across multiple instances):
+```js
+const rateLimit = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
+const redisClient = require('./redisClient'); // your existing ioredis/redis client
+
+const searchLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30, // 30 requests/min per key
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => req.headers['x-api-key'] || req.ip,
+  store: new RedisStore({
+    sendCommand: (...args) => redisClient.call(...args),
+  }),
+  message: { error: 'Too many requests, slow down.' },
+});
+
+app.use('/search', searchLimiter);
+```
+
+**Python/FastAPI** (using `slowapi`):
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=lambda r: r.headers.get("x-api-key", get_remote_address(r)))
+app.state.limiter = limiter
+
+@app.get("/search")
+@limiter.limit("30/minute")
+async def search(request: Request, q: str):
+    ...
+```
+
+**Which do you actually need right now?**
+1. What's fronting the API — nginx, Cloudflare, an API gateway, or is the app directly exposed?
+2. What's the app framework/language?
+3. Do you have Redis available (needed if you run multiple instances — otherwise in-memory limiting won't be consistent across them)?
+
+Answer those and I'll tailor the exact snippet to drop in.

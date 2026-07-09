@@ -1,0 +1,86 @@
+Since this is live and under load, the fastest lever is usually infra-level rate limiting (no app deploy needed), then app-level for a durable fix. I don't have access to your codebase in this session, so I can't confirm your stack — here's both the immediate stopgap and ready-to-drop-in app code for the two most common stacks. Tell me if you're on something else (Go, Java, etc.) and I'll adjust.
+
+## 1. Immediate stopgap — Nginx (minutes to deploy, no app restart)
+
+If `/search` sits behind Nginx, this is your fastest mitigation — just `nginx -s reload`:
+
+```nginx
+# in http{} block
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=5r/s;
+limit_req_status 429;
+
+server {
+    location /search {
+        limit_req zone=search_limit burst=10 nodelay;
+        limit_req_status 429;
+        proxy_pass http://your_upstream;
+    }
+}
+```
+
+Adjust `rate=5r/s` to whatever your backend can actually absorb. If you're on Cloudflare/ALB/API Gateway instead, tell me which and I'll give you the equivalent (Cloudflare rate limiting rules or WAF are also reload-only, no deploy).
+
+## 2. App-level — Node/Express + Redis (safe for multiple instances behind a load balancer)
+
+```js
+const { RateLimiterRedis } = require('rate-limiter-flexible');
+const Redis = require('ioredis');
+
+const redisClient = new Redis(process.env.REDIS_URL);
+
+const searchLimiter = new RateLimiterRedis({
+  storeClient: redisClient,
+  keyPrefix: 'rl:search',
+  points: 20,       // requests
+  duration: 60,     // per 60s window
+  blockDuration: 30, // block for 30s once exceeded
+});
+
+async function searchRateLimit(req, res, next) {
+  const key = req.headers['x-api-key'] || req.ip; // prefer API key if you have one
+  try {
+    await searchLimiter.consume(key);
+    next();
+  } catch (rejRes) {
+    res.set('Retry-After', String(Math.round(rejRes.msBeforeNext / 1000)));
+    res.status(429).json({ error: 'rate_limit_exceeded', retryAfterSeconds: Math.round(rejRes.msBeforeNext / 1000) });
+  }
+}
+
+app.get('/search', searchRateLimit, searchHandler);
+```
+
+`npm i rate-limiter-flexible ioredis`. Uses Redis so the limit is shared across all instances — critical if you're horizontally scaled, otherwise each instance enforces its own limit and the real ceiling is `limit × instanceCount`.
+
+## 3. App-level — Python/FastAPI + Redis
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+import redis.asyncio as redis
+import time
+
+r = redis.from_url("redis://localhost:6379")
+
+async def rate_limit(request: Request, limit: int = 20, window: int = 60):
+    key = request.headers.get("x-api-key") or request.client.host
+    redis_key = f"rl:search:{key}"
+    count = await r.incr(redis_key)
+    if count == 1:
+        await r.expire(redis_key, window)
+    if count > limit:
+        ttl = await r.ttl(redis_key)
+        raise HTTPException(status_code=429, detail="rate_limit_exceeded",
+                             headers={"Retry-After": str(ttl)})
+
+@app.get("/search")
+async def search(request: Request):
+    await rate_limit(request)
+    ...
+```
+
+## Key decisions worth confirming now, not later
+- **Key by API key if you have auth, else IP.** IP-only lets one NAT'd office or proxy pool exhaust the limit for everyone behind it.
+- **429 + `Retry-After` header**, not silent drops — well-behaved clients back off correctly.
+- **Sliding/token-bucket over fixed window** if bursty traffic is the actual complaint (fixed window lets 2x limit through at the window boundary) — the Redis examples above are close to fixed-window; say the word if you need true sliding-window and I'll swap the algorithm.
+
+What's currently fronting `/search` — Nginx, a cloud LB, or nothing? And is this Node, Python, or something else? I'll tighten the numbers and code to match instead of guessing further.

@@ -1,0 +1,45 @@
+I don't have file-system or code-execution access in this session, so I can't open your repo or edit the pipeline config directly. I can give you the exact config changes to make — I just need to know which CI system you're on (GitHub Actions, GitLab CI, CircleCI, Jenkins, Azure Pipelines, etc.), since retry syntax differs.
+
+In the meantime, here's the pattern for the most common ones:
+
+**GitHub Actions** — wrap the test step with a retry action:
+```yaml
+- name: Run tests
+  uses: nick-fields/retry@v3
+  with:
+    max_attempts: 3
+    timeout_minutes: 15
+    command: npm test
+```
+
+**GitLab CI** — built-in `retry` keyword on the job:
+```yaml
+test:
+  script: npm test
+  retry:
+    max: 2
+    when: runner_system_failure  # or "always" to retry on any failure
+```
+
+**CircleCI** — no native step-level retry; typically wrap the command in a shell loop or use a community orb like `circleci/retry-orb`.
+
+**Jenkins** (declarative pipeline):
+```groovy
+stage('Test') {
+  steps {
+    retry(3) {
+      sh 'npm test'
+    }
+  }
+}
+```
+
+**Azure Pipelines** — `retryCountOnTaskFailure` on the task:
+```yaml
+- script: npm test
+  retryCountOnTaskFailure: 2
+```
+
+A caveat worth flagging: blanket retries mask flakiness rather than fixing it. Consider scoping retries only to the test step (not the whole job/build), and logging retry counts somewhere visible so the flaky tests eventually get fixed instead of permanently retried away.
+
+Tell me which CI system and I'll tailor the exact snippet — or paste the current job definition and I'll edit it inline.

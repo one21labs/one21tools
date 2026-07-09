@@ -1,0 +1,40 @@
+I don't have file-system or code-execution access in this session, so I can't open your actual project or see your current signup flow — I can only give you illustrative code you'd adapt yourself.
+
+A few quick questions that would let me tailor this precisely:
+- What stack/language is the signup endpoint in (Node/Express, Django, Rails, etc.)?
+- What's the datastore (Postgres, MySQL, Mongo, etc.)?
+- Is "duplicate" defined by email, phone, or some other identifier?
+
+In the meantime, here's the general pattern — the key insight is that an application-level "check if exists, then insert" is **not safe** under concurrent requests (two signups can race between the check and the insert). The fix needs a DB-level uniqueness guarantee plus graceful handling of the conflict:
+
+**1. Enforce uniqueness at the database layer** (this is the part that actually prevents duplicates):
+```sql
+ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (lower(email));
+```
+
+**2. Handle the conflict in the application instead of pre-checking:**
+```javascript
+// Node/Express + Postgres example
+app.post('/signup', async (req, res) => {
+  const email = req.body.email.trim().toLowerCase();
+  try {
+    const user = await db.query(
+      `INSERT INTO users (email, password_hash, created_at)
+       VALUES ($1, $2, now())
+       ON CONFLICT (lower(email)) DO NOTHING
+       RETURNING id, email`,
+      [email, await hashPassword(req.body.password)]
+    );
+    if (user.rows.length === 0) {
+      return res.status(409).json({ error: 'Account already exists' });
+    }
+    return res.status(201).json(user.rows[0]);
+  } catch (err) {
+    return res.status(500).json({ error: 'Signup failed' });
+  }
+});
+```
+
+**3. If duplicates are also coming from double-submits (e.g., user double-clicking "Sign up"), add an idempotency key on the client request** so retries of the same submission don't create two rows even before hitting the DB.
+
+Tell me your actual stack and I'll write this against your real schema/framework conventions instead of a generic example.

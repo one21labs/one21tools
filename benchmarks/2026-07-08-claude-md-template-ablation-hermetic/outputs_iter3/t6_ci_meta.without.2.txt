@@ -1,0 +1,29 @@
+I'm in a headless session with no file-system or code-execution access, so I can't open your repo or edit the pipeline config directly. I can still give you the concrete fix — you'd apply it yourself, or ask me again in an interactive session where I can read/edit files.
+
+**What "retry failed test jobs" looks like depends on your CI system.** Tell me which one you're on and I'll give you exact syntax, but here's the gist for the common ones:
+
+**GitHub Actions** — add `nick-fields/retry` action around the test step, or use the (currently beta) job-level `retry` on the runner:
+```yaml
+- name: Run tests
+  uses: nick-fields/retry@v3
+  with:
+    max_attempts: 3
+    timeout_minutes: 15
+    command: npm test
+```
+
+**GitLab CI** — built-in, per-job:
+```yaml
+test:
+  script: npm test
+  retry:
+    max: 2
+    when: runner_system_failure
+```
+(use `when: always` or omit `when` to retry on any failure, including test failures — but see caveat below)
+
+**CircleCI** — no native job retry; typically wrap the test command in a shell retry loop, or use a rerun-failed-workflow approach.
+
+**Jenkins** — `retry(3) { sh 'npm test' }` in a scripted/declarative pipeline stage.
+
+One caution before you do this broadly: retrying on **any** test failure can mask real regressions, not just flakiness. Better practice is to only retry known-flaky tests (via test-level retry annotations in your test runner — Jest's `jest.retryTimes()`, pytest-rerunfailures, etc.) or infra-level failures (`runner_system_failure`), and track which tests get retried so the actual flake rate doesn't silently grow. Want me to tailor this to your specific CI provider and test runner once you share which ones you use?

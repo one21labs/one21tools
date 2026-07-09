@@ -1,0 +1,90 @@
+Since this session is headless (no file/code access from me right now), I can't inspect your actual codebase or stack — so here's a fast, drop-in fix you can apply immediately, plus the proper app-level implementation. Tell me your language/framework/infra and I'll tailor it exactly.
+
+## Immediate mitigation (deploy in minutes, stack-agnostic)
+
+If you're behind **Nginx**, this is the fastest way to stop the bleeding without touching app code:
+
+```nginx
+# In http {} block
+limit_req_zone $binary_remote_addr zone=search_limit:10m rate=10r/s;
+
+# In the /search location block
+location /search {
+    limit_req zone=search_limit burst=20 nodelay;
+    limit_req_status 429;
+    proxy_pass http://your_backend;
+}
+```
+
+Reload with `nginx -s reload`. This caps each IP at 10 req/s with a burst of 20, returns `429` past that. Adjust `rate`/`burst` to your real traffic.
+
+If you're on **Cloudflare**, an equally fast option: add a Rate Limiting Rule on `/search` (dashboard or API) — no deploy needed at all.
+
+## Proper application-level implementation
+
+For durability across restarts/multiple instances, use a shared store (Redis) with a sliding-window or token-bucket algorithm, keyed by API key (preferred) or IP.
+
+**Node.js / Express example (Redis + `rate-limiter-flexible`):**
+
+```js
+const { RateLimiterRedis } = require('rate-limiter-flexible');
+const Redis = require('ioredis');
+
+const redisClient = new Redis(process.env.REDIS_URL);
+
+const searchLimiter = new RateLimiterRedis({
+  storeClient: redisClient,
+  keyPrefix: 'rl:search',
+  points: 20,      // requests
+  duration: 1,     // per second
+  blockDuration: 5, // block for 5s once exceeded
+});
+
+async function searchRateLimit(req, res, next) {
+  const key = req.apiKey || req.ip; // prefer authenticated key over IP
+  try {
+    await searchLimiter.consume(key);
+    next();
+  } catch (rejRes) {
+    res.set('Retry-After', String(Math.ceil(rejRes.msBeforeNext / 1000)));
+    res.status(429).json({ error: 'rate_limit_exceeded', retryAfter: rejRes.msBeforeNext });
+  }
+}
+
+app.get('/search', searchRateLimit, searchHandler);
+```
+
+**Python / FastAPI example (Redis + `slowapi`):**
+
+```python
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+def key_func(request: Request):
+    return request.headers.get("x-api-key") or get_remote_address(request)
+
+limiter = Limiter(key_func=key_func, storage_uri="redis://localhost:6379")
+app = FastAPI()
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+def rate_limit_handler(request, exc):
+    return JSONResponse(status_code=429, content={"error": "rate_limit_exceeded"})
+
+@app.get("/search")
+@limiter.limit("20/second")
+async def search(request: Request):
+    ...
+```
+
+## Design decisions worth confirming with you
+
+1. **Key by API key vs IP** — if `/search` requires auth, always key by API key/user ID, not IP (shared NATs/proxies otherwise punish innocent users). Fall back to IP only for unauthenticated traffic.
+2. **Limit + burst values** — I used placeholders (10–20 r/s). What's normal traffic vs the abusive spike you're seeing right now? That determines real thresholds.
+3. **Response contract** — returning `429` with a `Retry-After` header is the standard; confirm your API doesn't already have a different error envelope convention to match.
+4. **Single instance or multiple?** — if you're horizontally scaled, in-memory limiters (no Redis) won't work correctly since each instance would track its own count.
+
+What's the actual stack (language/framework) and do you already have Redis or a gateway (Nginx/Cloudflare/Kong) in front of the API? I'll give you exact code for your setup instead of the generic examples above.

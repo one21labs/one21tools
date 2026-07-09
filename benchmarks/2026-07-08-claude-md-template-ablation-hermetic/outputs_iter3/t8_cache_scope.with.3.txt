@@ -1,0 +1,45 @@
+I'm running in a headless session here with no file-system or code-execution access — I can't open your repo, see the actual product-detail endpoint, or edit files directly. So I can't safely write code tailored to your real implementation without a few basics first, and since this is a genuine design choice (not just a mechanical fix), it's worth deciding up front rather than guessing:
+
+1. **Stack**: what language/framework is the endpoint in (e.g. Node/Express, Python/FastAPI/Django, Java/Spring, Go)?
+2. **Cache backend**: in-process (e.g. an LRU map), or a shared store like Redis/Memcached? (Shared is usually right if you run multiple instances.)
+3. **Invalidation**: TTL-only (simple, can serve stale data briefly), or event-based invalidation on product update (fresher, more moving parts)?
+4. **Key shape**: is "product detail" keyed just by product ID, or does it vary by locale/currency/user-specific pricing?
+
+If you tell me those, I'll write the actual cache-aside code against your stack. As a placeholder, here's the shape of what that typically looks like (Node/Express + Redis, cache-aside, TTL-based):
+
+```js
+const redis = require('./redisClient');
+
+const PRODUCT_CACHE_TTL_SECONDS = 300;
+
+async function getProductDetail(req, res) {
+  const { id } = req.params;
+  const cacheKey = `product:${id}`;
+
+  const cached = await redis.get(cacheKey);
+  if (cached) {
+    return res.json(JSON.parse(cached));
+  }
+
+  const product = await productService.findById(id);
+  if (!product) {
+    return res.status(404).json({ error: 'Product not found' });
+  }
+
+  await redis.set(cacheKey, JSON.stringify(product), 'EX', PRODUCT_CACHE_TTL_SECONDS);
+  res.json(product);
+}
+```
+
+And invalidation on update, if you go event-based instead of pure TTL:
+
+```js
+async function updateProduct(req, res) {
+  const { id } = req.params;
+  const updated = await productService.update(id, req.body);
+  await redis.del(`product:${id}`);
+  res.json(updated);
+}
+```
+
+Once you confirm the stack/backend/invalidation approach, I'll adapt this to your actual endpoint — paste the current handler if you want it modified in place.

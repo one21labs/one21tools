@@ -1,0 +1,53 @@
+I'm in a headless session with no file-system or code-execution access, so I can't open your project or edit the pipeline config directly. I can still give you the concrete fix to apply yourself.
+
+**What to change depends on your CI system:**
+
+**GitHub Actions**
+```yaml
+- name: Run tests
+  uses: nick-fields/retry@v3
+  with:
+    timeout_minutes: 10
+    max_attempts: 3
+    command: npm test
+```
+
+**GitLab CI**
+```yaml
+test:
+  script: npm test
+  retry:
+    max: 2
+    when: runner_system_failure  # or `always` to retry on any failure
+```
+
+**CircleCI** — no built-in job-level retry; wrap the test command in a shell retry loop:
+```yaml
+- run:
+    command: |
+      for i in 1 2 3; do npm test && break || sleep 5; done
+```
+
+**Buildkite**
+```yaml
+- command: npm test
+  retry:
+    automatic:
+      - limit: 2
+```
+
+**Jenkins (declarative)**
+```groovy
+stages {
+  stage('Test') {
+    steps { retry(3) { sh 'npm test' } }
+  }
+}
+```
+
+A couple of things worth deciding before you apply this:
+
+1. **Scope the retry to test-runner-level flakiness only** (network blips, timeouts) — don't blanket-retry the whole pipeline, or genuinely broken tests will intermittently go green and mask real bugs.
+2. **Cap retries low (2–3)** and consider alerting/logging when a retry was needed, so flaky tests get tracked and fixed rather than permanently papered over.
+
+Which CI system are you using, and do you want me to talk through where in your actual config this would go once you paste it in or open the repo?

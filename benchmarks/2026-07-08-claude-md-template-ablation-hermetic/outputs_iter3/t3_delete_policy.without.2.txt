@@ -1,0 +1,27 @@
+I don't have file-system or code-execution access in this session, so I can't open your repo or actually add the endpoint to it. I can write the code for you to paste in, but a few details will change the implementation significantly:
+
+1. **Stack** — framework (Express/Fastify/Django/Rails/FastAPI/Spring/etc.) and DB/ORM (raw SQL, Prisma, Sequelize, ActiveRecord, SQLAlchemy...)?
+2. **Related data** — does `users` have foreign-key references from other tables (orders, posts, sessions, logs)? GDPR erasure needs those handled too — either cascade delete or anonymize, depending on whether you're legally required to retain some of it (e.g., financial records for tax purposes).
+3. **Hard delete vs anonymize** — true row deletion, or overwrite PII fields (email, name, etc.) and keep a tombstone row for referential integrity/audit purposes?
+4. **Auth requirement** — should this require the user to be authenticated as themselves (self-service deletion) and/or re-confirm password, versus an admin-only endpoint for processing erasure requests?
+5. **Audit trail** — do you need to log that an erasure request was received/fulfilled (many GDPR compliance programs require this)?
+
+If you give me the stack, I'll write the actual endpoint code. As a placeholder, a typical shape (Express + SQL) looks like:
+
+```js
+router.delete('/api/account', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+
+  await db.transaction(async (trx) => {
+    // anonymize or cascade-delete dependent rows first
+    await trx('sessions').where({ user_id: userId }).del();
+    await trx('orders').where({ user_id: userId }).update({ user_id: null }); // if retained for legal reasons
+    await trx('users').where({ id: userId }).del();
+  });
+
+  req.session?.destroy();
+  res.status(204).end();
+});
+```
+
+Let me know your stack and the related-table situation and I'll tailor this properly.

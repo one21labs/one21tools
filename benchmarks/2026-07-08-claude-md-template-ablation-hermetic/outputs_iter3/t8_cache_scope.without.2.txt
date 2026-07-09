@@ -1,0 +1,63 @@
+I can't access your actual repository in this session (no file-system or execution tools available here), so I can't inspect your current endpoint or wire this in directly. Here's a solid, framework-agnostic caching layer using the cache-aside pattern with Redis — a common choice for this — that you can adapt. Let me know your actual stack (language/framework, existing cache infra) and I'll tailor it precisely.
+
+**Node.js / Express + Redis example:**
+
+```javascript
+// cache.js
+const redis = require('redis');
+
+const client = redis.createClient({ url: process.env.REDIS_URL });
+client.connect();
+
+const DEFAULT_TTL_SECONDS = 300;
+
+async function getOrSetCache(key, ttlSeconds, fetchFn) {
+  const cached = await client.get(key);
+  if (cached) return JSON.parse(cached);
+
+  const fresh = await fetchFn();
+  await client.set(key, JSON.stringify(fresh), { EX: ttlSeconds });
+  return fresh;
+}
+
+module.exports = { client, getOrSetCache, DEFAULT_TTL_SECONDS };
+```
+
+```javascript
+// routes/product.js
+const { getOrSetCache, DEFAULT_TTL_SECONDS } = require('../cache');
+const { getProductById } = require('../services/productService');
+
+router.get('/products/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const cacheKey = `product:${id}`;
+
+    const product = await getOrSetCache(cacheKey, DEFAULT_TTL_SECONDS, () =>
+      getProductById(id)
+    );
+
+    if (!product) return res.status(404).json({ error: 'Not found' });
+    res.json(product);
+  } catch (err) {
+    next(err);
+  }
+});
+```
+
+**Invalidate on writes** (important — don't let stale data linger):
+
+```javascript
+async function updateProduct(id, updates) {
+  const updated = await productRepo.update(id, updates);
+  await client.del(`product:${id}`);
+  return updated;
+}
+```
+
+Key decisions to confirm for your case:
+- **TTL** — 300s above is a guess; depends on how often product data changes.
+- **Cache store** — Redis assumed; could be in-memory (e.g., `lru-cache`) if this is a single-instance service, or a CDN/HTTP cache layer if it's more about edge caching.
+- **Invalidation** — cache-aside with explicit `del` on writes shown above; alternatives are TTL-only or event-driven invalidation.
+
+What language/framework and cache backend are you actually using?

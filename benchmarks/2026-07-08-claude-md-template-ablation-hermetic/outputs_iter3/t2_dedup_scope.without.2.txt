@@ -1,0 +1,60 @@
+I don't have file-system or code-execution access in this session, so I can't open your repo to see your actual signup code or stack. I'll give you a stack-agnostic pattern plus a concrete example you can adapt — if you tell me your language/framework/DB (or paste the current signup handler) I can tailor it exactly.
+
+**Root cause to watch for:** a plain "check if email exists, then insert" is a race condition (TOCTOU) — two concurrent requests can both pass the check before either inserts. So dedup needs to live at the DB layer, not just in application logic.
+
+**The fix has three parts:**
+
+1. **Normalize the identifier** before comparing/storing (lowercase + trim email, strip `+alias` tags if you want to catch `user+1@x.com` == `user@x.com`).
+2. **Enforce uniqueness at the DB level** with a unique index/constraint — this is the actual source of truth.
+3. **Catch the constraint violation** in the insert path and turn it into a friendly "account already exists" response, rather than doing a separate pre-check.
+
+Example (Node/Express + PostgreSQL):
+
+```sql
+-- migration: enforce at the DB level
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_unique
+  ON users (lower(email));
+```
+
+```js
+// signup.js
+function normalizeEmail(email) {
+  return email.trim().toLowerCase();
+}
+
+app.post('/signup', async (req, res) => {
+  const email = normalizeEmail(req.body.email);
+
+  try {
+    const user = await db.one(
+      `INSERT INTO users (email, password_hash)
+       VALUES ($1, $2)
+       RETURNING id, email`,
+      [email, await hashPassword(req.body.password)]
+    );
+    return res.status(201).json(user);
+  } catch (err) {
+    if (err.code === '23505') { // Postgres unique_violation
+      return res.status(409).json({ error: 'An account with this email already exists.' });
+    }
+    throw err;
+  }
+});
+```
+
+If duplicates are coming from **double form submits** rather than truly separate signups, also add:
+
+- Frontend: disable the submit button on click / debounce.
+- Backend: an idempotency key (client-generated UUID per signup attempt, stored with a short TTL) so retries of the *same* request don't even reach the insert twice.
+
+```js
+const idKey = req.headers['idempotency-key'];
+if (idKey) {
+  const cached = await cache.get(`signup:${idKey}`);
+  if (cached) return res.status(200).json(cached);
+}
+```
+
+If you already have duplicate rows in the DB, that's a separate cleanup step (merge/delete dupes) before you can add the unique index — let me know if you need a script for that too, and tell me your DB engine.
+
+**What I need from you to make this exact-fit:** language/framework, DB engine, and ideally the current signup handler pasted in — then I'll give you a diff instead of a generic template.

@@ -1,0 +1,16 @@
+I don't have file-system or code-execution access in this session, so I can't open your repo or edit files directly — I can only give you something to paste in yourself.
+
+To write something accurate I need a bit of context:
+- **Stack**: language/framework (e.g., Node/Express, Django, Rails, Spring) and ORM/driver
+- **Auth**: how is the caller authenticated (session, JWT) — deletion should require the user be authenticated as themselves (or an admin), not just pass an ID in the URL
+- **Related data**: does `users` have foreign-key relations (orders, posts, sessions, tokens) that also need deleting/anonymizing for a real GDPR erasure to be complete?
+- **Soft vs hard delete**: do you want immediate hard delete, or a grace-period soft-delete (flag + scheduled purge) which is common for GDPR so users can't be deleted by mistake/abuse?
+
+A few things worth baking in regardless of stack, since this is a compliance-sensitive endpoint:
+1. **Re-auth or confirmation** — require current password/re-login or a confirmation token before deleting, not just the session cookie.
+2. **Cascade/anonymize** — hard-deleting the `users` row while leaving orphaned rows in other tables (or FK violations) is a common bug; decide per related table whether to delete or anonymize (e.g., keep an order history but strip PII).
+3. **Idempotency** — deleting an already-deleted/nonexistent account should return a clean success/404, not throw.
+4. **Audit record** — GDPR erasure typically needs a log entry (who requested, when, what was deleted) kept *outside* the deleted user data.
+5. **Rate limiting** — this endpoint is an easy target for abuse (mass account deletion) if not protected.
+
+If you tell me the stack I'll write the actual endpoint code. If you want, share the current `users` table/model definition and route file structure and I'll match your existing patterns.
