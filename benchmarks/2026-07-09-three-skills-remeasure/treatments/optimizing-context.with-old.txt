@@ -4,12 +4,22 @@ Context engineering is curating tokens during LLM inference to maximize desired 
 
 ## Why This Matters
 
-Model performance degrades non-uniformly as context grows — distractors and position effects both
-amplify at length — so token efficiency is fundamental: every token competes in a finite window
-with diminishing returns.
+Model performance degrades non-uniformly as context grows:
+- Simple tasks degrade with longer context
+- Distractors amplify negative impact at length
+- Position affects retrieval (primacy/recency effects)
 
-Mechanism names vary by product (Claude.ai vs. Claude Code vs. API terms for the same layer); full
-per-product mapping in [mechanism-selection.md](references/mechanism-selection.md).
+**Implication**: Token efficiency is fundamental. Every token competes in a finite window with diminishing returns.
+
+## Context Hierarchy by Product
+
+| Layer | Claude.ai | Claude Code | API |
+|-------|-----------|-------------|-----|
+| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
+| Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
+| Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
+| On-demand | Skills | Skills | Skills |
+| External | Integrations | MCP servers, Hooks | MCP servers |
 
 ## Decision Matrix: Which Mechanism?
 
@@ -55,9 +65,8 @@ Two orthogonal rules decide where a fact lives:
   every higher mention is a reference, not a copy. A fact copied above its home is drift.
 
 Executable facts invert the axis: code sits lowest in altitude but highest in authority. Schema
-versions, function signatures, and filenames are owned by code; any doc that restates them rots —
-naming the source file does not license also keeping the value ("schema v12, see models.py" rots
-exactly like "schema v12" alone). Full altitude table and common drift patterns:
+versions, function signatures, and filenames are owned by code; any doc that restates them rots.
+Full altitude table and common drift patterns:
 [mechanism-selection.md](references/mechanism-selection.md).
 
 ## Measuring Success
@@ -91,17 +100,6 @@ Read the appropriate reference when creating/optimizing:
 
 CLAUDE.md is Claude Code's project-level context mechanism. It's loaded automatically at session start.
 
-## Table of Contents
-
-1. [When to Use Which File](#when-to-use-which-file)
-2. [Core Philosophy: Constitution, Not Manual](#core-philosophy-constitution-not-manual)
-3. [What to Include](#what-to-include)
-4. [Pitching References](#pitching-references)
-5. [Structure Guidance](#structure-guidance)
-6. [Token Allocation](#token-allocation)
-7. [Examples](#examples)
-8. [Iteration](#iteration)
-
 ## When to Use Which File
 
 | File | Scope | Use Case |
@@ -121,13 +119,6 @@ CLAUDE.md is a set of guardrails, not comprehensive documentation.
 **Anti-pattern**: Documenting your entire codebase architecture
 **Pattern**: Noting the non-obvious decisions Claude keeps missing
 
-**Reorganizing is not preserving.** "Keep everything, don't lose our work" asks you to respect the
-effort behind existing material, not to keep every line verbatim — it does not suspend the
-constitution-not-manual test. Apply that test per item, to one-line rules exactly as you would to a
-paragraph: if Claude already does something by default (4-space indent, docstrings, logging not
-print, composition over inheritance), cut it, don't relocate it under a tidier heading. Cutting
-loses no history — git already has it.
-
 ## What to Include
 
 ### High-Value Content
@@ -143,12 +134,10 @@ loses no history — git already has it.
 | Anti-Pattern | Problem | Instead |
 |--------------|---------|---------|
 | `@`-file entire docs | Bloats context, Claude may not read | Pitch *why* to read specific files |
-| "Never do X" without alternative | Claude needs a path forward | "Instead of X, do Y because Z" — supply Y even if the source material only states the prohibition; infer it from what the project already uses |
+| "Never do X" without alternative | Claude needs a path forward | "Instead of X, do Y because Z" |
 | Comprehensive architecture docs | Too long, low signal | Note only non-obvious parts |
 | Duplicating README content | Redundant, SSoT violation | Reference README location |
 | Style guide regurgitation | Claude knows common styles | Note only deviations |
-| Rule cites a removed/decommissioned component | References dead code, misleads | Delete outright — the removal is a known fact, not a pending team decision to flag |
-| A procedure described as identical across many repos/teams, even in passing | Inlining duplicates upkeep N times over | Point to one on-demand home (skill, script, doc); recognize this from context, not only when explicitly asked where something belongs |
 
 ## Pitching References
 
@@ -194,12 +183,19 @@ Pointers to key files with *why* they matter.
 
 ## Token Allocation
 
-For large projects, budget deliberately: key decisions and common mistakes are Critical (200-400
-tokens each); commands and path hints are High/Medium (100-200 each); background is Low (50-100).
+For large projects, budget tokens deliberately:
 
-**Line count heuristic**: target under 1,000 tokens for most projects (enterprise monorepos may need
-up to 3,000), which maps to roughly 60–100 lines depending on density. Target under 60; treat 100 as
-a hard ceiling to prune before adding. Anthropic: "Bloated CLAUDE.md files cause Claude to ignore your actual instructions." Community empirical data: adherence degrades noticeably around 80 lines, significantly past 200. No official line count exists — prune by the token target and the per-line test ("would removing this cause Claude to make mistakes?").
+| Section | Approximate Tokens | Priority |
+|---------|-------------------|----------|
+| Key decisions | 200-400 | Critical |
+| Common mistakes | 200-400 | Critical |
+| Commands | 100-200 | High |
+| Path hints | 100-200 | Medium |
+| Background | 50-100 | Low |
+
+Target: Under 1,000 tokens for most projects. Enterprise monorepos may need up to 3,000.
+
+**Line count heuristic**: 1,000 tokens maps to roughly 60–100 lines depending on density. Target under 60; treat 100 as a hard ceiling to prune before adding. Anthropic: "Bloated CLAUDE.md files cause Claude to ignore your actual instructions." Community empirical data: adherence degrades noticeably around 80 lines, significantly past 200. No official line count exists — prune by the token target and the per-line test ("would removing this cause Claude to make mistakes?").
 
 ## CLAUDE.md as Forcing Function
 
@@ -263,22 +259,9 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 
 ## Table of Contents
 
-1. [Context Hierarchy by Product](#context-hierarchy-by-product)
-2. [Concrete Examples](#concrete-examples)
-3. [Documentation Altitude and SSoT](#documentation-altitude-and-ssot)
-4. [Measuring Success](#measuring-success)
-
----
-
-## Context Hierarchy by Product
-
-| Layer | Claude.ai | Claude Code | API |
-|-------|-----------|-------------|-----|
-| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
-| Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
-| Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
-| On-demand | Skills | Skills | Skills |
-| External | Integrations | MCP servers, Hooks | MCP servers |
+1. [Concrete Examples](#concrete-examples)
+2. [Documentation Altitude and SSoT](#documentation-altitude-and-ssot)
+3. [Measuring Success](#measuring-success)
 
 ---
 
@@ -394,14 +377,9 @@ authority. Schema versions, function signatures, filenames — code owns them. A
 restates them will rot.
 
 Common drift patterns (cure: reference or omit):
-- Schema version stated in CLAUDE.md, rotted when code changed. Naming the source file doesn't
-  license also keeping the value: `Schema is at version 12 (models.py)` still rots, because the
-  number is still copied. Fix: `Schema: see models.py` — file only, no number.
+- Schema version stated in CLAUDE.md, rotted when code changed
 - Filenames in SEE ALSO blocks, rotted on rename
-- Deleted or decommissioned features described in CLAUDE.md, documented behavior that no longer
-  exists. Delete the rule outright — its removal is a known fact, not an open question — rather
-  than softening it into a "needs review" or "flagged" note; a flagged-but-kept rule is still a
-  live reference to dead code.
+- Deleted features described in CLAUDE.md, documented behavior that no longer exists
 
 ---
 

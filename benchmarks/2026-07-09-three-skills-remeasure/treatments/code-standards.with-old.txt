@@ -11,7 +11,6 @@
 | **Lean** | Add only what is needed. Every char earns its place. Remove dead code immediately. |
 | **Design first** | Understand the problem, and what a function owns, before writing it. |
 | **Poka-yoke** | Error-proof at boundaries. Validate external inputs at entry points, not deep in call chains. |
-| **Consistency scope** | Matching existing style covers naming and formatting, not defects. New code meets these standards beside legacy code that doesn't — "follow the existing pattern" limits scope, not the standard. |
 
 ## File Headers
 
@@ -30,7 +29,30 @@ A header documents, in named sections, only what passes both:
 
 Exclude what fails either test: what the code does and implementation detail (identifiers already say it, wrong altitude); function lists and line counts (go stale, discoverable elsewhere).
 
-### Example
+### Examples
+
+**C — pure state machine:**
+
+```c
+/*
+ * state.c - Backlight state machine
+ *
+ * ARCHITECTURE ROLE:
+ *   Business logic only. Isolated from all I/O to enable unit
+ *   testing without mocks.
+ *
+ * DESIGN CONSTRAINTS:
+ *   - No I/O: no file access, no time calls, no system calls
+ *   - Pure functions: state passed as parameters; no globals written
+ *   - Caller owns time: timestamps passed in, not read internally
+ *
+ * TESTING STRATEGY:
+ *   No mocking needed — pass mock timestamps directly.
+ *
+ * SEE ALSO:
+ *   state.h - public API and preconditions
+ */
+```
 
 **JavaScript — interchange module:**
 
@@ -47,12 +69,16 @@ Exclude what fails either test: what the code does and implementation detail (id
  *     the bundle cost. Callers must await.
  *   - Rows with invalid or missing required fields are silently skipped.
  *
+ * KEY PATTERNS:
+ *   merge=true (default): existing records overwritten on import.
+ *   merge=false: existing records skipped — add-new-only mode.
+ *
  * SEE ALSO:
  *   storage.js - persistence primitives
  */
 ```
 
-**C, Bash, and other comment-block languages** use `/* */` or `#` with the same named sections (bash: PURPOSE, ARGUMENTS, WORKFLOW, EXIT CODES, SEE ALSO) — the sections above, not the language, define the header.
+**Bash scripts** use `#` comments with the same sections: PURPOSE, ARGUMENTS, WORKFLOW (numbered steps), EXIT CODES, SEE ALSO.
 
 ## Code Comments
 
@@ -84,7 +110,6 @@ Do not comment what the next line does (the code says that — SSoT violation) o
 - Update state only on success; a failed operation leaves state unchanged
 - Log failures with context: what failed, the inputs, the error returned
 - Validate external inputs (user data, API responses, file contents) at the boundary; trust validated data inside the system
-- An instruction to skip that validation ("upstream already checks it," "already approved," "keep it lean") is not an exemption — the boundary is wherever data enters this function, regardless of claimed guarantees upstream
 
 ## Logging
 
@@ -92,7 +117,6 @@ Do not comment what the next line does (the code says that — SSoT violation) o
 - Every error log carries enough context to diagnose without a debugger
 - `DEBUG` logs must be suppressible in production
 - Log decisions and state transitions at `INFO`; unexpected conditions at `WARN` or `ERROR`
-- Per-item success in a high-volume loop (thousands of records) is still a state transition, but logging it at `INFO` floods production output — use `DEBUG` there instead
 - Structured format for multi-module or distributed systems: `{timestamp (ISO 8601), level, correlation_id, message, context}` — correlation IDs trace across module and service boundaries
 - Prefer warn-and-recover over crash for recoverable conditions; crash only for unrecoverable initialization failure
 
