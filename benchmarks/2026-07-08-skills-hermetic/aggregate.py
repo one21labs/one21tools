@@ -9,25 +9,17 @@ clustered observation: per-eval delta = mean frac WITH minus WITHOUT; per-skill 
 delta + 95% CI across the skill's evals (ADR 0019). KEEP if the CI excludes 0 and is positive (ADR 0024).
 Binary pass-rate delta is retained as a SECONDARY diagnostic only. Writes results.jsonl; prints both.
 """
-import json, math, os, statistics
+import json, math, os, statistics, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE, "..", "lib"))
+from verdict import verdict_of  # ADR 0026 shared lib; dedup of the verbatim-duplicate def (#43, #57)
+
 G = os.path.join(BASE, "graded")
 with open(os.path.join(G, "verdicts.json"), encoding="utf-8") as fh:
     verdicts = json.load(fh)
 with open(os.path.join(G, "arm_map.json"), encoding="utf-8") as fh:
     arm_map = json.load(fh)
-
-
-def verdict_of(mean, lo, hi, n):
-    if n and lo > 0:
-        return "KEEP"
-    if n and hi < 0:
-        return "HARMFUL"
-    # guards above return unless the CI straddles 0, so lo <= 0 <= hi holds here
-    if n and abs(mean) < 0.05:
-        return "CUT-CANDIDATE"
-    return "INCONCLUSIVE"
 
 
 # per (skill, eval, arm) -> value lists, for both metrics

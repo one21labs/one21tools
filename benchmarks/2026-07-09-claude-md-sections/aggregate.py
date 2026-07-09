@@ -8,9 +8,12 @@ over the section's tasks (each task = one observation). KEEP if the CI excludes 
 graded/verdicts.jsonl (minified, one {bid,pass,met,total,evidence} per line = grade.workflow.js's
 returned array). Writes results.jsonl (minified).
 """
-import json, math, os, statistics
+import json, math, os, statistics, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(BASE, "..", "lib"))
+from verdict import verdict_of  # ADR 0026 shared lib; dedup of the verbatim-duplicate def (#43, #57)
+
 G = os.path.join(BASE, "graded")
 
 # arm_map.tsv: header row then bid  key  section  task_id  arm  rep
@@ -33,17 +36,6 @@ with open(os.path.join(G, "verdicts.jsonl"), encoding="utf-8") as fh:
             continue
         v = json.loads(line)
         verdicts[v["bid"]] = v
-
-
-def verdict_of(mean, lo, hi, n):
-    if n and lo > 0:
-        return "KEEP"
-    if n and hi < 0:
-        return "HARMFUL"
-    # guards above return unless the CI straddles 0, so lo <= 0 <= hi holds here
-    if n and abs(mean) < 0.05:
-        return "CUT-CANDIDATE"
-    return "INCONCLUSIVE"
 
 
 # per (section, task, arm) -> list of 1/0 (pass) over reps
