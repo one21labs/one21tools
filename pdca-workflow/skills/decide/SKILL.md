@@ -49,7 +49,8 @@ context isolation is automatic — pass each only the files it needs.
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift — an
    ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an accepted ADR
    long stalled with no `## Act`; flag any roadmap/changelog/tracker out of sync. Cite the line;
-   omit if none. A CLAUDE.md-configured metrics command runs before any gating/conversion call;
+   omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,
+   not real. A CLAUDE.md-configured metrics command runs before any gating/conversion call;
    fold fired triggers into the panel — see `references/metrics-engine.md` (window-decoupling +
    min-sample discipline; thresholds are project config). No metrics command = skip.
 2. **Frame.** Clarify scope FIRST — resolve an ambiguous or multi-item ask into a stated scope
