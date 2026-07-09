@@ -5,7 +5,7 @@ tasks.json {section: [{id, prompt, pass_criterion}]} is the task SSoT; treatment
 section text, incl. its `##` header) is the "with" treatment. This writes prompts/<section>.<id>.txt
 (the task prompt verbatim), meta.json (key -> {section, task_id, prompt, expectations:[pass_criterion]}),
 and cells.tsv (key<TAB>section) — the SSoT the harness and the blind grader both read. ALL writes use
-newline='' (a prior CRLF cells.tsv corrupted a run). key = "<section>.<id>"; neither may contain a dot
+newline='' (avoids CRLF corruption on Windows). key = "<section>.<id>"; neither may contain a dot
 (blind.py splits the output filename on '.').
 """
 import json, os

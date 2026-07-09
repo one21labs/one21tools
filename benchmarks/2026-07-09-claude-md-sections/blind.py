@@ -5,7 +5,7 @@ Reads outputs/<section>.<task_id>.<arm>.<rep>.txt, joins each with its prompt + 
 (meta.json), and writes graded/items/<bid>.json = {bid, section, task_id, prompt, expectations,
 response} (NO arm; minified), graded/arm_map.tsv (bid<TAB>key<TAB>section<TAB>task_id<TAB>arm<TAB>rep
 — uniform records, TSV is the cheapest form), and graded/bids.json. bid = sha256(filename)[:12]
-(deterministic; arm not inferable). ALL writes use newline='' (a prior CRLF bug corrupted a run).
+(deterministic; arm not inferable). ALL writes use newline='' (avoids CRLF corruption on Windows).
 """
 import json, hashlib, os, glob
 
