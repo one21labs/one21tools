@@ -44,11 +44,11 @@ function wilson(k, n) { if (!n) return [0, 1]; const z = 1.96, p = k / n, d = 1 
 const graded = await pipeline(items,
   (it) => agent(
     `You are an engineer working in a project whose CLAUDE.md is shown below. Follow its guidance. Then respond to the user's request exactly as you would in that project.\n\n=== CLAUDE.md ===\n${ARMS[it.arm]}=== end CLAUDE.md ===\n\nUser request: ${it.t.prompt}\n\nWrite your response to the user.`,
-    { label: `exec:t${it.t.id}:${it.arm}:r${it.r}`, phase: 'Execute' }
+    { label: `exec:t${it.t.id}:${it.arm}:r${it.r}`, phase: 'Execute', model: 'sonnet' }
   ).then(output => ({ it, output })),
   ({ it, output }) => agent(
     `Grade whether a response satisfies a criterion. Judge only the response text. Return the structured verdict.\n\nCRITERION: ${it.t.assertion}\n\nRESPONSE:\n${output}`,
-    { label: `grade:t${it.t.id}:r${it.r}`, phase: 'Grade', schema: VERDICT }
+    { label: `grade:t${it.t.id}:r${it.r}`, phase: 'Grade', schema: VERDICT, model: 'sonnet' }
   ).then(v => ({ task: it.t.id, arm: it.arm, rep: it.r, pass: !!(v && v.pass), why: (v && v.why) || '' }))
 );
 
