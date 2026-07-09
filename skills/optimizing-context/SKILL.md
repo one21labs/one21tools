@@ -9,22 +9,12 @@ Context engineering is curating tokens during LLM inference to maximize desired 
 
 ## Why This Matters
 
-Model performance degrades non-uniformly as context grows:
-- Simple tasks degrade with longer context
-- Distractors amplify negative impact at length
-- Position affects retrieval (primacy/recency effects)
+Model performance degrades non-uniformly as context grows — distractors and position effects both
+amplify at length — so token efficiency is fundamental: every token competes in a finite window
+with diminishing returns.
 
-**Implication**: Token efficiency is fundamental. Every token competes in a finite window with diminishing returns.
-
-## Context Hierarchy by Product
-
-| Layer | Claude.ai | Claude Code | API |
-|-------|-----------|-------------|-----|
-| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
-| Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
-| Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
-| On-demand | Skills | Skills | Skills |
-| External | Integrations | MCP servers, Hooks | MCP servers |
+Mechanism names vary by product (Claude.ai vs. Claude Code vs. API terms for the same layer); full
+per-product mapping in [mechanism-selection.md](references/mechanism-selection.md).
 
 ## Decision Matrix: Which Mechanism?
 
@@ -70,8 +60,9 @@ Two orthogonal rules decide where a fact lives:
   every higher mention is a reference, not a copy. A fact copied above its home is drift.
 
 Executable facts invert the axis: code sits lowest in altitude but highest in authority. Schema
-versions, function signatures, and filenames are owned by code; any doc that restates them rots.
-Full altitude table and common drift patterns:
+versions, function signatures, and filenames are owned by code; any doc that restates them rots —
+naming the source file does not license also keeping the value ("schema v12, see models.py" rots
+exactly like "schema v12" alone). Full altitude table and common drift patterns:
 [mechanism-selection.md](references/mechanism-selection.md).
 
 ## Measuring Success

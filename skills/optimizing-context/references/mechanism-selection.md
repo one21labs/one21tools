@@ -6,9 +6,22 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 
 ## Table of Contents
 
-1. [Concrete Examples](#concrete-examples)
-2. [Documentation Altitude and SSoT](#documentation-altitude-and-ssot)
-3. [Measuring Success](#measuring-success)
+1. [Context Hierarchy by Product](#context-hierarchy-by-product)
+2. [Concrete Examples](#concrete-examples)
+3. [Documentation Altitude and SSoT](#documentation-altitude-and-ssot)
+4. [Measuring Success](#measuring-success)
+
+---
+
+## Context Hierarchy by Product
+
+| Layer | Claude.ai | Claude Code | API |
+|-------|-----------|-------------|-----|
+| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
+| Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
+| Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
+| On-demand | Skills | Skills | Skills |
+| External | Integrations | MCP servers, Hooks | MCP servers |
 
 ---
 
@@ -124,9 +137,14 @@ authority. Schema versions, function signatures, filenames — code owns them. A
 restates them will rot.
 
 Common drift patterns (cure: reference or omit):
-- Schema version stated in CLAUDE.md, rotted when code changed
+- Schema version stated in CLAUDE.md, rotted when code changed. Naming the source file doesn't
+  license also keeping the value: `Schema is at version 12 (models.py)` still rots, because the
+  number is still copied. Fix: `Schema: see models.py` — file only, no number.
 - Filenames in SEE ALSO blocks, rotted on rename
-- Deleted features described in CLAUDE.md, documented behavior that no longer exists
+- Deleted or decommissioned features described in CLAUDE.md, documented behavior that no longer
+  exists. Delete the rule outright — its removal is a known fact, not an open question — rather
+  than softening it into a "needs review" or "flagged" note; a flagged-but-kept rule is still a
+  live reference to dead code.
 
 ---
 
