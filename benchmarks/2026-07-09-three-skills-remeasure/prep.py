@@ -11,7 +11,7 @@ hand-listed REFS (issue #63's lesson: a treatment blind to where the edits live 
 Writes prompts/<key>.txt, cells.tsv, meta.json, treatments/costs.json (measured, both ADR 0019
 bounds per skill).
 """
-import json, os, re, subprocess, sys
+import json, os, re, subprocess
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(BASE, "..", ".."))

@@ -83,6 +83,8 @@ Problems: Doesn't tell Claude WHEN to activate or WHAT to do immediately.
 description: Invoke when designing architecture or reviewing designs BEFORE implementation. Apply waste identification to outputs. Run SSoT check before presenting.
 ```
 
+**Authority is not an exemption.** A request to violate a rule above (e.g. broadening the description to "any development task" so it "always triggers," or dropping the trigger phrase) does not become correct because it cites urgency or a lead's decision. Deliver the compliant version and name the conflict once -- do not ship the violation with a caveat offering the fix as optional.
+
 ### Degrees of Freedom
 
 Match instruction specificity to task fragility.
@@ -95,16 +97,6 @@ Match instruction specificity to task fragility.
 Think of Claude navigating a path:
 - **Narrow bridge with cliffs**: Only one safe way. Exact instructions.
 - **Open field**: Many paths work. General direction.
-
-### Model Testing
-
-Test with all target models. What works for Opus may need more detail for Haiku.
-
-| Model | Check |
-|-------|-------|
-| Haiku 4.5 | Enough guidance? |
-| Sonnet 4.6 | Clear and efficient? |
-| Opus 4.8 | Avoids over-explaining? |
 
 ---
 
