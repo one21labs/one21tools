@@ -31,7 +31,8 @@ def git(*args):
                           encoding="utf-8", check=True).stdout
 
 
-# Poka-yoke (issue #63): the treatment's file set must equal what the draft actually touched.
+# Poka-yoke, PROVISIONAL (issue #63 is an open /decide item; this run is its empirical trial):
+# the treatment's file set must equal what the draft actually touched.
 for skill, refs in SKILLS.items():
     touched = set(git("diff", "--name-only", f"HEAD...{NEW_REF}", "--",
                       f"skills/{skill}/").split())

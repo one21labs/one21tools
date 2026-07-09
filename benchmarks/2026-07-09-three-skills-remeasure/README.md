@@ -3,7 +3,8 @@
 Issue #55: hermetic re-measure of the `skills-improve-55` draft (76a67bf) vs main for
 code-standards, building-skills, optimizing-context — ADR 0024 improvement-loop iteration 1 for
 each. Arm design, merge bar, and cost accounting follow **ADR 0027** (generalized per skill; the
-touched-reference set is derived and asserted from the draft's diff per issue #63). Run parameters:
+touched-reference set is derived and asserted from the draft's diff — issue #63's proposed
+mechanism, trialed here provisionally ahead of its /decide). Run parameters:
 `metadata.json`; per-eval numbers: `results.jsonl`.
 
 ## Result (fraction-met, met_final = min(grader, prosecutor), ADR 0025)
