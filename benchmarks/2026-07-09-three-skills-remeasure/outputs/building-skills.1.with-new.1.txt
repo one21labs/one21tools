@@ -1,0 +1,217 @@
+I don't have file-system or code-execution tools available in this session (it's running headless), so I can't actually write files to `outputs/sanitizing-customer-exports/`. Here's the complete skill content below — copy each block into the corresponding file, or paste this whole message into an interactive Claude Code session and ask it to write the files for you.
+
+## `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Use before any customer CSV export is shared outside the company (email, Slack, support ticket, shared drive). Redacts PII per fixed rules -- drops email/phone/ssn columns, replaces name with an opaque customer_id, masks email addresses and phone numbers found inside notes/comments text, and writes the result to <original>.redacted.csv without touching the original file. Trigger on requests to "sanitize", "scrub", "redact", or "make safe for sharing" a customer CSV.
+---
+
+# Sanitizing Customer Exports
+
+Redact PII from a customer CSV before it leaves the company. Rules are fixed -- do not skip steps or ask the user which columns to redact.
+
+## Rules
+
+1. Drop these columns entirely (case-insensitive match on header name): `email`, `phone`, `ssn`.
+2. Replace the `name` column with an opaque `customer_id` column (sequential `CUST-000001`, `CUST-000002`, ...), same position in the row.
+3. In free-text columns `notes` and `comments` (case-insensitive), scan the text for email addresses and phone numbers and mask each match in place -- everything else in the field is preserved.
+4. Write the result to `<original>.redacted.csv` (original filename with `.redacted.csv` appended, e.g. `customers.csv` -> `customers.csv.redacted.csv`).
+5. Never modify the original file. Only read from it.
+
+## Usage
+
+```
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+Prints the path of the redacted file it wrote. Re-running overwrites that redacted file, not the original.
+
+## Verify before sharing
+
+After running, open the `.redacted.csv` and confirm:
+- `email`, `phone`, `ssn` columns are gone from the header
+- a `customer_id` column exists in place of `name`, with no real names visible
+- any embedded emails/phone numbers inside `notes`/`comments` show as `[REDACTED_EMAIL]` / `[REDACTED_PHONE]`
+- row count matches the original (redaction never drops rows)
+
+## Notes on scope
+
+- Column matching is exact (case-insensitive) on the header name, not substring -- a column named `email_verified` is not dropped, only a column literally named `email` is.
+- The phone regex covers common US formats (`555-123-4567`, `(555) 123-4567`, `555.123.4567`, `+1 555 123 4567`). It will not catch every international format -- if a CSV contains non-US phone numbers, spot-check the redacted notes column manually before sharing.
+- `customer_id` values are sequential per run, not a stable hash of the name -- the same customer gets a different id if the script is re-run, or if the same name appears in two different export files. If you need a consistent id for the same customer across files, that's a different requirement -- ask before assuming it's wanted.
+
+## Files
+
+- `scripts/redact_csv.py` -- the redaction script (Python 3, standard library only)
+- `tests/test_redact_csv.py` -- unit tests covering column drop, id replacement, free-text masking, and original-file-untouched
+- `examples/sample_customers.csv` -- small example input to try the script against
+```
+
+## `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it is shared outside the company.
+
+Usage:
+    python redact_csv.py <path/to/customers.csv>
+
+Writes <path/to/customers.csv>.redacted.csv. The original file is never modified.
+"""
+
+import argparse
+import csv
+import re
+import sys
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)"
+)
+
+
+def mask_free_text(value):
+    if not value:
+        return value
+    value = EMAIL_RE.sub("[REDACTED_EMAIL]", value)
+    value = PHONE_RE.sub("[REDACTED_PHONE]", value)
+    return value
+
+
+def redact(input_path):
+    input_path = Path(input_path)
+    output_path = input_path.with_name(input_path.name + ".redacted.csv")
+
+    with input_path.open("r", newline="", encoding="utf-8-sig") as src:
+        reader = csv.DictReader(src)
+        fieldnames = reader.fieldnames or []
+
+        header_lower = {h: h.strip().lower() for h in fieldnames}
+        drop = [h for h, lower in header_lower.items() if lower in DROP_COLUMNS]
+        name_col = next(
+            (h for h, lower in header_lower.items() if lower == NAME_COLUMN), None
+        )
+        text_cols = {h for h, lower in header_lower.items() if lower in FREE_TEXT_COLUMNS}
+
+        out_fields = [h for h in fieldnames if h not in drop]
+        if name_col:
+            out_fields[out_fields.index(name_col)] = "customer_id"
+
+        with output_path.open("w", newline="", encoding="utf-8") as dst:
+            writer = csv.DictWriter(dst, fieldnames=out_fields)
+            writer.writeheader()
+
+            counter = 0
+            for row in reader:
+                counter += 1
+                out_row = {}
+                for h in fieldnames:
+                    if h in drop:
+                        continue
+                    if h == name_col:
+                        out_row["customer_id"] = f"CUST-{counter:06d}"
+                    elif h in text_cols:
+                        out_row[h] = mask_free_text(row.get(h, ""))
+                    else:
+                        out_row[h] = row.get(h, "")
+                writer.writerow(out_row)
+
+    return output_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("csv_path", help="Path to the customer CSV export to redact")
+    args = parser.parse_args()
+
+    input_path = Path(args.csv_path)
+    if not input_path.is_file():
+        print(f"error: {input_path} not found", file=sys.stderr)
+        sys.exit(1)
+
+    output_path = redact(input_path)
+    print(f"wrote {output_path}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## `outputs/sanitizing-customer-exports/tests/test_redact_csv.py`
+
+```python
+import csv
+import sys
+import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from redact_csv import redact  # noqa: E402
+
+
+class TestRedactCsv(unittest.TestCase):
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.input_path = Path(self.tmp.name) / "customers.csv"
+        self.input_path.write_text(
+            "name,email,phone,ssn,notes\n"
+            "Jane Doe,jane@example.com,555-123-4567,123-45-6789,"
+            '"Call me at 555-987-6543 or email jane@example.com"\n',
+            encoding="utf-8",
+        )
+
+    def test_drops_pii_columns_and_masks_notes(self):
+        output_path = redact(self.input_path)
+        self.assertEqual(output_path.name, "customers.csv.redacted.csv")
+
+        with output_path.open(newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames
+            rows = list(reader)
+
+        for dropped in ("email", "phone", "ssn"):
+            self.assertNotIn(dropped, fieldnames)
+
+        self.assertIn("customer_id", fieldnames)
+        self.assertNotIn("name", fieldnames)
+        self.assertEqual(rows[0]["customer_id"], "CUST-000001")
+
+        notes = rows[0]["notes"]
+        self.assertNotIn("555-987-6543", notes)
+        self.assertNotIn("jane@example.com", notes)
+        self.assertIn("[REDACTED_PHONE]", notes)
+        self.assertIn("[REDACTED_EMAIL]", notes)
+
+    def test_original_file_untouched(self):
+        original_contents = self.input_path.read_text(encoding="utf-8")
+        redact(self.input_path)
+        self.assertEqual(self.input_path.read_text(encoding="utf-8"), original_contents)
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+## `outputs/sanitizing-customer-exports/examples/sample_customers.csv`
+
+```csv
+name,email,phone,ssn,signup_date,notes
+Alice Smith,alice.smith@example.com,555-234-5678,987-65-4321,2024-01-15,"Prefers email contact at alice.smith@example.com; alt phone (555) 234-5678"
+Bob Jones,bob@example.org,555-876-5432,876-54-3210,2023-11-02,"No special notes"
+Carla Diaz,carla.d@example.net,555-345-6789,765-43-2109,2024-03-30,"Called twice, reachable at 555.345.6789"
+```
+
+---
+
+**Note on the output naming rule**: I implemented `<original>.redacted.csv` literally as you specified — it *appends* `.redacted.csv` rather than replacing the `.csv` extension, so `customers.csv` becomes `customers.csv.redacted.csv`. Flag if you actually wanted `customers.redacted.csv` instead; one-line fix in `redact_csv.py` if so.
+
+To get these onto disk: run this in an interactive Claude Code session in your project directory and ask Claude to create the files from this content, or save them by hand.
