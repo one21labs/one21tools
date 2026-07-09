@@ -51,6 +51,39 @@ General delegation:
 
 For current model assignments, see Claude Code documentation.
 
+## Model Tiering + Parallelism (match tier and concurrency to task)
+
+Two first-class efficiency levers: this repo is the main workflow people run loops through, so
+waste here compounds across every user x every iteration (rationale:
+[token-format-efficiency.md](token-format-efficiency.md)).
+
+### Model Tiering
+
+- **Top tier (Opus) orchestrates and judges.** Planning, routing, and final adjudication — work
+  where capability gates outcome quality.
+- **Delegate BULK to cheaper/faster tiers (Sonnet/Haiku).** Implementation, extraction, and grading
+  fan out across many agents — run the bulk on the cheapest tier that clears the quality bar.
+- **ALWAYS set the worker/grader model explicitly** — subagents INHERIT the session model when
+  `model` is unset, so a 100+-agent grid launched from an Opus session silently runs every worker
+  on the expensive tier. Real miss: two 144-agent grading passes ran on Opus because the tier was
+  left implicit. Set `model: sonnet`/`haiku` explicitly; use `inherit` only when you mean it.
+
+### Parallelism
+
+- **Fan out INDEPENDENT work concurrently** — Workflow `parallel()`/`pipeline()` for many agents or
+  items at once, not chained one-by-one.
+- **Serialize ONLY what shares a singleton resource** — a single git worktree/branch, or the
+  hermetic-executor's user-CLAUDE.md relocation symlink, can't take concurrent writers without
+  corrupting state.
+- **Avoid FALSE serialization** — don't chain independent steps just because they touch the "same"
+  repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
+  that applies them.
+- **`isolation:'worktree'` agents obey a DIFFERENT root's permissions** — the spawned worktree's own
+  `.claude/settings.local.json`, not the session's; a narrow allow-list there floods prompts. Prefer
+  in-process Workflow/Task; a bare `"Bash"` in user-global settings covers all roots.
+- **A Workflow's `.output` is a wrapper** `{summary, log, …, result}` — unwrap before parsing; the
+  file is not the raw returned array.
+
 ## Custom Subagent Configuration
 
 ```yaml
@@ -97,12 +130,6 @@ tools: Read, Grep, Glob
 tools: Read, Bash, Write
 ```
 
-### Model Selection
-- **Fast tier**: Quick exploration, simple tasks
-- **Balanced tier**: Most tasks, good capability-to-speed ratio
-- **Capable tier**: Complex reasoning (use when needed)
-- **inherit**: Match main conversation's model
-
 ## Resumable Subagents
 
 Subagents can be resumed to continue previous work:
@@ -131,11 +158,6 @@ Useful for:
 
 ## Sources
 
-- Prefer Task() over custom subagents: https://shrivu.substack.com/p/tips-for-claude-code-power-users
-- Subagents documentation: https://docs.claude.com/en/docs/claude-code/sub-agents
-
-
-## Sources
-
 - [Claude Code Subagents](https://code.claude.com/docs/en/sub-agents) - Official documentation
+- Prefer Task() over custom subagents: https://shrivu.substack.com/p/tips-for-claude-code-power-users
 - [How I Use Claude Code](https://shrivastava.io/p/how-i-use-claude-code) - Task() delegation patterns

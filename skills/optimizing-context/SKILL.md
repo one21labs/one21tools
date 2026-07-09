@@ -96,4 +96,5 @@ Read the appropriate reference when creating/optimizing:
 | MCP | [mcp.md](references/mcp.md) | Server design |
 | Subagents | [subagents.md](references/subagents.md) | Task delegation |
 | Hooks | [hooks.md](references/hooks.md) | Automation |
+| Format efficiency | [token-format-efficiency.md](references/token-format-efficiency.md) | Formatting stored data/tool outputs (not SKILL.md/CLAUDE.md bodies) |
 | Examples / altitude depth | [mechanism-selection.md](references/mechanism-selection.md) | Worked examples, full SSoT rules, metrics |
