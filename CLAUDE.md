@@ -42,6 +42,8 @@ deterministic logic; a doc that restates them rots).
 ## Shipping — PR
 - **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
   plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
+- **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
+  findings; address each or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). After a squash-merge the branch still
   shows commits "ahead" of `main`, so judge merged-ness by PR state + file diff, not
   `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
