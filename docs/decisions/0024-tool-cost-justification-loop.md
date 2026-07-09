@@ -19,7 +19,7 @@ summary: "An artifact's PRIMARY obligation is to IMPROVE — raise benefit-per-t
    b. **Diagnose at transcript level** — read the with-arm transcript for WHY it did not help: unclear, unactionable, not surfaced, buried past where the agent looked, or actively misleading.
    c. **Targeted edit** that closes the diagnosed gap AND/OR cuts the low-signal tokens the diagnosis exposed as dead weight — either move raises benefit-per-token (ADR 0019's honest denominator makes it a ratio, so a cut at unchanged benefit scores like an equal-cost benefit gain).
    d. **Re-measure hermetically** (ADR 0023); keep the edit only if benefit-per-token improved over the pre-edit baseline, else revert it.
-3. **Never difficulty-raise evals to force a result.** A weak cell is closed by editing the ARTIFACT or fixing the DIAGNOSIS/measurement, never by rewriting an eval harder to manufacture a delta — a blind harder-pass regressed 6 cells to spurious negatives with only 1 clean fix (`benchmarks/2026-07-07-toolkit-grid/retune-results.md`); eval rewrites follow the DISCRIMINATE rule in `skills/building-skills/references/empirical-evals.md`, not this loop.
+3. **Never difficulty-raise evals to force a result.** A weak cell is closed by editing the ARTIFACT or fixing the DIAGNOSIS/measurement, never by rewriting an eval harder to manufacture a delta (that mistakes measurement noise for artifact weakness). Eval rewrites follow the DISCRIMINATE rule and its retune caution in `skills/building-skills/references/empirical-evals.md`, not this loop.
 4. **Cut is the fallback.** Only after 3 VALID improvement iterations plateau (each re-measurement shows no benefit-per-token gain beyond noise) does the artifact fail: record the null (append-only, ADR 0019) and produce a plan for further empirical testing. An iteration may instead fix the MEASUREMENT (de-confound — e.g. hold the executor's base framing NEUTRAL: ablating always-loaded PROSE is framing-sensitive, one section measured +0.17 / 0.00 / +0.375 under tool-denied / implement-biased / neutral framings) rather than the artifact; a null under a confounded measurement does NOT count toward the 3. Never silently keep an unproven artifact, nor silently delete a cleanly-measured null.
 
 ## Justification
@@ -35,7 +35,7 @@ Forces every context-cost artifact toward its best benefit-per-token, not merely
 - Delete any artifact that fails once — survivorship bias; a single confounded null is not evidence (iter1/iter2 here were confounded, iter3 was KEEP).
 - Keep artifacts on assertion, no measurement — the unjustified-cost status quo this closes.
 - Unbounded iteration — never converges; 3 + record/plan forces a decision.
-- Raise eval difficulty to force a delta on a stuck cell — conflates measurement noise with artifact weakness; empirically regressed 6 cells (Decision 3).
+- Raise eval difficulty to force a delta on a stuck cell — mistakes measurement noise for artifact weakness (Decision 3).
 
 ## Revisit triggers
 - An artifact needs >3 valid iterations for a benefit that later replicates -> raise the cap, or separate measurement-fix from artifact-fix iteration budgets.
