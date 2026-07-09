@@ -40,7 +40,8 @@ def verdict_of(mean, lo, hi, n):
         return "KEEP"
     if n and hi < 0:
         return "HARMFUL"
-    if n and abs(mean) < 0.05 and lo <= 0 <= hi:
+    # guards above return unless the CI straddles 0, so lo <= 0 <= hi holds here
+    if n and abs(mean) < 0.05:
         return "CUT-CANDIDATE"
     return "INCONCLUSIVE"
 
