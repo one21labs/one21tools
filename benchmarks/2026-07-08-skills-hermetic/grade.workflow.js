@@ -5,7 +5,7 @@ export const meta = {
     { title: 'Grade', detail: 'one blind grader per output; all-expectations-met = pass' },
     { title: 'Verify', detail: 'prosecutor refutes each PASS' },
   ],
-}
+};
 
 // args = { itemsDir, bids }. Each grader READS <itemsDir>/<bid>.json (prompt, expectations, response)
 // — ARM withheld. May arrive as a JSON string; parse defensively.

@@ -17,18 +17,23 @@ os.makedirs(os.path.join(BASE, "prompts"), exist_ok=True)
 meta = {}
 cells = []
 for s in SKILLS:
-    sk = open(os.path.join(SKILLS_DIR, s, "SKILL.md"), encoding="utf-8").read()
+    with open(os.path.join(SKILLS_DIR, s, "SKILL.md"), encoding="utf-8") as fh:
+        sk = fh.read()
     body = re.sub(r"^---\n.*?\n---\n", "", sk, count=1, flags=re.S).strip()  # strip YAML frontmatter
-    open(os.path.join(BASE, "treatments", s + ".txt"), "w", encoding="utf-8", newline="").write(body)
-    ev = json.load(open(os.path.join(SKILLS_DIR, s, "evals", "evals.json"), encoding="utf-8"))
+    with open(os.path.join(BASE, "treatments", s + ".txt"), "w", encoding="utf-8", newline="") as fh:
+        fh.write(body)
+    with open(os.path.join(SKILLS_DIR, s, "evals", "evals.json"), encoding="utf-8") as fh:
+        ev = json.load(fh)
     for e in ev["evals"]:
         key = f"{s}.{e['id']}"
-        open(os.path.join(BASE, "prompts", key + ".txt"), "w", encoding="utf-8", newline="").write(e["prompt"])
+        with open(os.path.join(BASE, "prompts", key + ".txt"), "w", encoding="utf-8", newline="") as fh:
+            fh.write(e["prompt"])
         meta[key] = {"skill": s, "eval_id": str(e["id"]), "prompt": e["prompt"],
                      "expectations": e["expectations"]}
         cells.append((key, s))
 
-json.dump(meta, open(os.path.join(BASE, "meta.json"), "w", encoding="utf-8"), indent=1)
+with open(os.path.join(BASE, "meta.json"), "w", encoding="utf-8") as fh:
+    json.dump(meta, fh, indent=1)
 with open(os.path.join(BASE, "cells.tsv"), "w", encoding="utf-8", newline="") as fh:
     for key, s in cells:
         fh.write(f"{key}\t{s}\n")
@@ -36,5 +41,6 @@ with open(os.path.join(BASE, "cells.tsv"), "w", encoding="utf-8", newline="") as
 print(f"prepped {len(meta)} evals across {len(SKILLS)} skills")
 for s in SKILLS:
     n = sum(1 for k in meta if meta[k]["skill"] == s)
-    tc = len(open(os.path.join(BASE, "treatments", s + ".txt"), encoding="utf-8").read())
+    with open(os.path.join(BASE, "treatments", s + ".txt"), encoding="utf-8") as fh:
+        tc = len(fh.read())
     print(f"  {s}: {n} evals, treatment {tc} chars")

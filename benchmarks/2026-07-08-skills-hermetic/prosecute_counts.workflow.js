@@ -4,7 +4,7 @@ export const meta = {
   phases: [
     { title: 'Prosecute', detail: 'one adversarial grader per cell; refute-by-default met count' },
   ],
-}
+};
 
 // args = { itemsDir, bids }. One adversarial pass over ALL cells (not just passes) so partial
 // credit gets the same rigor as the binary PASS did. met_final = min(grader_met, this) downstream.

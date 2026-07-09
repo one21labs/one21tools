@@ -12,7 +12,8 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(BASE, "outputs")
 G = os.path.join(BASE, "graded"); IT = os.path.join(G, "items")
 os.makedirs(IT, exist_ok=True)
-meta = json.load(open(os.path.join(BASE, "meta.json"), encoding="utf-8"))
+with open(os.path.join(BASE, "meta.json"), encoding="utf-8") as fh:
+    meta = json.load(fh)
 
 items, arm_map = [], {}
 for f in sorted(glob.glob(os.path.join(OUT, "*.txt"))):
@@ -27,17 +28,24 @@ for f in sorted(glob.glob(os.path.join(OUT, "*.txt"))):
     m = meta.get(key)
     if not m:
         continue
-    text = open(f, encoding="utf-8", errors="replace").read().strip()
+    with open(f, encoding="utf-8", errors="replace") as fh:
+        text = fh.read().strip()
     bid = hashlib.sha256(name.encode()).hexdigest()[:12]
-    json.dump({"bid": bid, "skill": skill, "eval_id": eval_id, "prompt": m["prompt"],
-               "expectations": m["expectations"], "response": text},
-              open(os.path.join(IT, bid + ".json"), "w", encoding="utf-8"), indent=1)
+    with open(os.path.join(IT, bid + ".json"), "w", encoding="utf-8") as fh:
+        json.dump({"bid": bid, "skill": skill, "eval_id": eval_id, "prompt": m["prompt"],
+                   "expectations": m["expectations"], "response": text}, fh, indent=1)
     arm_map[bid] = {"key": key, "skill": skill, "eval_id": eval_id, "arm": arm, "rep": rep}
     items.append(bid)
 
-json.dump(arm_map, open(os.path.join(G, "arm_map.json"), "w", encoding="utf-8"), indent=1)
-json.dump(sorted(items), open(os.path.join(G, "bids.json"), "w", encoding="utf-8"))
+with open(os.path.join(G, "arm_map.json"), "w", encoding="utf-8") as fh:
+    json.dump(arm_map, fh, indent=1)
+with open(os.path.join(G, "bids.json"), "w", encoding="utf-8") as fh:
+    json.dump(sorted(items), fh)
 print(f"blinded {len(items)} outputs -> graded/items/ ; arm map + bids written")
-empties = [b for b in items if not json.load(open(os.path.join(IT, b + ".json")))["response"]]
+empties = []
+for b in items:
+    with open(os.path.join(IT, b + ".json"), encoding="utf-8") as fh:
+        if not json.load(fh)["response"]:
+            empties.append(b)
 if empties:
     print(f"WARNING: {len(empties)} empty responses: {empties[:10]}")
