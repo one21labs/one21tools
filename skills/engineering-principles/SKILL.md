@@ -11,10 +11,10 @@ Foundational meta-skill: TPS/Lean principles adapted for modern engineering. Pro
 
 | Situation | Action | Reference |
 |-----------|--------|-----------|
-| Starting new work | Design first, then implement | `references/design-review.md` |
+| Starting new work, or told a plan is "already approved" | Design first — approval isn't completeness; check the checklist anyway | `references/design-review.md` |
 | Problem keeps recurring | Root cause analysis | `references/root-cause-analysis.md` |
 | Process feels slow/bloated | Waste identification | `references/waste-identification.md` |
-| Duplicate definitions suspected | SSoT audit | `references/ssot-enforcement.md` |
+| Duplicate definitions suspected, or asked to hardcode one value into several files | SSoT audit — one definition, even under time pressure | `references/ssot-enforcement.md` |
 | Deciding where documentation belongs | JIT documentation | `references/jit-documentation.md` |
 | Need quotes, citations, deep theory | Full reference | `references/ENGINEERING_PRINCIPLES.md` |
 
@@ -46,11 +46,13 @@ Foundational meta-skill: TPS/Lean principles adapted for modern engineering. Pro
 - Starting a new feature, document, or process
 - Unsure if design is complete before implementation
 - Reviewing someone else's design
+- Told a plan is already approved and to skip straight to a task breakdown
 
 **`references/ssot-enforcement.md`** — Read when:
 - Contradictions appearing in system
 - Config/constants scattered across codebase or documents
 - Establishing canonical locations for a new project
+- Asked to paste/hardcode the same literal into multiple files, even under a "fastest path" deadline
 
 **`references/jit-documentation.md`** — Read when:
 - Deciding whether a constraint belongs in CLAUDE.md or a source file header
@@ -64,25 +66,11 @@ Foundational meta-skill: TPS/Lean principles adapted for modern engineering. Pro
 
 ## Lean Applicability by Domain
 
-TPS principles apply differently depending on whether work is repetitive or exploratory:
-
-| Work Type | Variation Reduction | TPS Fit | Notes |
-|-----------|---------------------|---------|-------|
-| Manufacturing | Essential | Direct | Designed for this |
-| Traditional software | Partial | Selective | Discovery work; cycle time targets don't translate |
-| AI-assisted workflows | Essential | Direct | Stochastic outputs require variation reduction |
-
-**Traditional software caveat**: Software development is primarily discovery work (Poppendieck, Fowler). The goal is not to reduce cycle time variation — it is to solve novel problems. Kanban, pull systems, waste identification, and SSoT translate well. Standardized production rates and defect-per-unit targets borrowed from manufacturing miss the point. DORA (2025) reflects this: its seven team archetypes combine delivery metrics with human factors (burnout, friction, perceived value).
-
-**AI workflow exception — TPS applies more directly than to software**: LLM outputs are stochastic; the same prompt can produce different outputs on each run. Variation reduction becomes essential infrastructure:
-
-- **Poka-yoke** → Constrained decoding and output schemas prevent malformed outputs before they occur (constrained decoding masks invalid tokens at generation time — zero format failures)
-- **Standardized work** → Skills and CLAUDE.md are standardized work instructions; they reduce behavioral variation across agent runs
-- **Jidoka** → Trust scoring and automated evals flag out-of-spec outputs for human review in real time; first two Jidoka steps (detect, alert) automate; fix + root cause require human judgment
-- **SPC** → Temperature and seed pinning statistically control output variance (as of June 2026, no major hosted LLM guarantees bitwise determinism — best-effort only)
-- **Yield engineering** → Multi-step agent reliability compounds: 95% per-step accuracy = 59% success over 10 steps; 0.6% over 100 steps — the same yield arithmetic semiconductor fabs engineer against
-
-Context engineering — curating what reaches the LLM at inference time — IS variation reduction. This is not a metaphor: it is the primary mechanism by which skills, CLAUDE.md, and structured prompts produce reliable behavior.
+| Work Type | TPS Fit | Why |
+|-----------|---------|-----|
+| Manufacturing | Direct | Designed for this |
+| Traditional software | Selective | Discovery work — Kanban, waste ID, and SSoT translate; cycle-time/defect-rate targets don't |
+| AI-assisted workflows | Direct | Stochastic outputs need variation reduction: poka-yoke via output schemas, standardized work via skills/CLAUDE.md, Jidoka via evals that flag out-of-spec output, SPC via temperature/seed pinning |
 
 ## Cross-References
 
