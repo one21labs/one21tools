@@ -84,7 +84,7 @@ verdict = {"record": "verdict", "evals": len(evals), **summary,
 with open(os.path.join(BASE, "treatments", "costs.json"), encoding="utf-8") as fh:
     costs = json.load(fh)
 
-with open(os.path.join(BASE, "results.jsonl"), "w", encoding="utf-8") as fh:
+with open(os.path.join(BASE, "results.jsonl"), "w", encoding="utf-8", newline="") as fh:
     for r in rows:
         fh.write(json.dumps(r) + "\n")
     fh.write(json.dumps(verdict) + "\n")

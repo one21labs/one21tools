@@ -60,7 +60,7 @@ for e in ev["evals"]:
                  "expectations": e["expectations"]}
     cells.append(key)
 
-with open(os.path.join(BASE, "meta.json"), "w", encoding="utf-8") as fh:
+with open(os.path.join(BASE, "meta.json"), "w", encoding="utf-8", newline="") as fh:
     json.dump(meta, fh, indent=1)
 with open(os.path.join(BASE, "cells.tsv"), "w", encoding="utf-8", newline="") as fh:
     for key in cells:
@@ -69,7 +69,7 @@ with open(os.path.join(BASE, "cells.tsv"), "w", encoding="utf-8", newline="") as
 costs = {"new_ref": NEW_REF, "refs": REFS,
          "body_chars": {"with-old": len(old_body), "with-new": len(new_body)},
          "full_chars": {"with-old": len(old_full), "with-new": len(new_full)}}
-with open(os.path.join(BASE, "treatments", "costs.json"), "w", encoding="utf-8") as fh:
+with open(os.path.join(BASE, "treatments", "costs.json"), "w", encoding="utf-8", newline="") as fh:
     json.dump(costs, fh, indent=1)
 
 print(f"prepped {len(meta)} evals; treatments (chars): "
