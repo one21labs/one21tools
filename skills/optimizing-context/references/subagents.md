@@ -78,6 +78,13 @@ waste here compounds across every user x every iteration (rationale:
 - **Avoid FALSE serialization** — don't chain independent steps just because they touch the "same"
   repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
   that applies them.
+- **`isolation:'worktree'` agents run under a DIFFERENT project root** — an Agent-tool worktree
+  spawns under `<repo>/.claude/worktrees/…`, whose OWN `.claude/settings.local.json` governs its
+  permissions, not the session's. A narrow allow-list there floods approval prompts per command.
+  Prefer in-process Workflow/Task for repo-internal work; if you must isolate, a bare `"Bash"` in
+  user-global `~/.claude/settings.json` covers all roots.
+- **A Workflow's `.output` is a wrapper** `{summary, log, …, result}`, not the raw returned array —
+  read the result field before parsing; assuming the file IS the array silently mis-parses.
 
 ## Custom Subagent Configuration
 
@@ -159,11 +166,6 @@ Useful for:
 
 ## Sources
 
-- Prefer Task() over custom subagents: https://shrivu.substack.com/p/tips-for-claude-code-power-users
-- Subagents documentation: https://docs.claude.com/en/docs/claude-code/sub-agents
-
-
-## Sources
-
 - [Claude Code Subagents](https://code.claude.com/docs/en/sub-agents) - Official documentation
+- Prefer Task() over custom subagents: https://shrivu.substack.com/p/tips-for-claude-code-power-users
 - [How I Use Claude Code](https://shrivastava.io/p/how-i-use-claude-code) - Task() delegation patterns
