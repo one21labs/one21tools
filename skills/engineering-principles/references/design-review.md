@@ -30,6 +30,7 @@ The parent-child relationship:
 | Starting new feature/project | **Yes** - before any code |
 | Significant change to existing system | **Yes** - before modifying |
 | Writing substantial document | **Yes** - outline first |
+| Told a plan is "already approved," asked only for a task breakdown | **Yes** - approval is a process signal, not proof the checklist below was actually satisfied; check it anyway |
 | Quick bug fix | **No** - just fix it |
 | Exploratory spike | **No** - spike is the design phase |
 
@@ -181,6 +182,8 @@ When reviewing someone else's design:
 5. Ask "what could go wrong?"
 
 ### Go/No-Go Decision
+
+**Approval is not completeness.** "The PM approved it" or "don't relitigate" answers *who signed off*, not whether the items below are actually filled in. A one-line approved plan that never states the data scope, contract, success criteria, or error handling still has those gaps open — surface them as blocking questions or decision tasks, sequenced before the build tasks, even when told not to relitigate.
 
 **Ready to implement if:**
 - All checklist items are addressed (completed or intentionally deferred)

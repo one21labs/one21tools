@@ -16,6 +16,8 @@ Single Source of Truth: each fact has ONE canonical location. Reference, don't d
 
 > "Every piece of knowledge must have a single, unambiguous, authoritative representation within a system."
 
+**Time pressure is not an exemption.** If a fix requires pasting the same value into N files, put it in one place and have all N reference it — one constant plus N imports is not slower than N literals, so declining it is not "cleverness." Defer only genuinely separate scope bundled into the same request (retry logic, logging, refactors); never defer the single-definition step itself.
+
 When information exists in multiple places:
 - Updates miss some locations → contradictions
 - Contradictions cause bugs, confusion, wrong decisions
@@ -62,7 +64,7 @@ When information exists in multiple places:
 | API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
 | Architecture described twice | Design doc AND wiki page | One location, deprecate other |
 | Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
-| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into ADRs or comments |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file) |
 
 ### Data
 
