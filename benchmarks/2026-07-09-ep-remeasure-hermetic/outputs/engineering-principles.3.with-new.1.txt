@@ -1,0 +1,58 @@
+I can't write files or run tools in this session (headless, no file-system access) — but here's the full review; you can paste it into `process-review.md` yourself.
+
+---
+
+# Release Process Review
+
+## Root cause analysis
+
+**Symptom:** shipping feels slow, releases are stressful, team feels busy but throughput feels low.
+
+- Why stressful? → ~40 changes ship at once, so any failure is hard to isolate and blast radius is large.
+- Why 40 at once? → Releases are batched on a fixed biweekly train regardless of what's ready.
+- Why batch on a fixed cadence? → The per-release process is expensive (manual changelog compilation + three sequential sign-offs), so batching amortizes that fixed cost.
+- Why is the process expensive? → Changelog entries are hand-copied from PR descriptions (manual transcription, error-prone, no single source of truth), and every change — regardless of risk — goes through the same three-person sequential approval chain.
+- **Root cause:** the release mechanism has a high fixed cost per release (manual compilation + uniform sequential approval), which forces batching, which forces large blast-radius releases, which produces the stress.
+
+This also explains the hotfix problem directly: because there is only one release mechanism and it's expensive, there's no cheap path for genuinely urgent, low-risk changes — they inherit the full cost structure of a 40-change release.
+
+## Waste identified (Lean lens)
+
+| Waste | Where | Impact |
+|---|---|---|
+| Waiting | 2-day average PR review; then waiting up to 2 weeks for the train | Lead time dominated by queueing, not actual work |
+| Overprocessing | Same 3 sequential sign-offs for a one-line hotfix as for a 40-change batch | Urgent fixes pay for risk they don't carry |
+| Transportation/manual transcription | Release manager hand-copies changelog entries out of PR descriptions | Manual, error-prone, and a duplicate of information that already exists (SSoT violation — PR description is being copied instead of referenced) |
+| Inventory | ~40 merged-but-unreleased changes sitting on main between trains | Large "WIP" of unshipped value; increases risk that one bad change blocks/delays 39 good ones |
+| Handoffs | Sequential (not parallel) sign-off chain: QA → EM → PM | Each handoff adds queueing delay even when the reviews are independent of each other |
+
+## Recommendations
+
+**1. Eliminate the manual changelog step (SSoT fix).**
+Generate the changelog automatically from PR metadata (title + a required "Changelog:" section in the PR template, or conventional-commit-style titles). This is a mechanical, one-time tooling investment that removes recurring manual work and a class of transcription errors, and it removes one of the two costs currently forcing batching.
+
+**2. Make sign-off risk-based instead of uniform.**
+Not every change carries the same risk, so it shouldn't carry the same approval cost:
+- Low-risk changes (docs, config, well-tested small diffs): single approver, or CI-gated auto-approval.
+- Standard changes: current review, but QA/EM/PM sign-offs run **in parallel**, not sequence — nothing here logically requires QA to finish before EM starts.
+- High-risk changes (schema/migration, security, payments, etc.): keep the full sequential three-way sign-off — this is where its cost is actually justified.
+
+**3. Create a separate, lightweight hotfix lane.**
+Urgent, small, well-understood fixes should never queue behind a 40-change train. Define criteria for "hotfix" (size, risk, revertability), give it its own fast path (e.g., single approver + automated test gate + immediate deploy), and reserve the full train process for everything else. This directly fixes "a one-line urgent fix waits for the next train."
+
+**4. Shrink batch size / increase release frequency.**
+Once #1–#3 reduce the fixed cost per release, move off the fixed biweekly train toward more frequent, smaller releases (or continuous deployment behind feature flags for riskier work). Smaller batches mean smaller blast radius per release, faster feedback, and less "one giant stressful event" — this is the direct countermeasure to the root cause identified above.
+
+**5. Address the 2-day PR review wait.**
+Separately from the release train, investigate why review takes 2 days on average — reviewer load, PR size, lack of an SLA/rotation. Smaller PRs (encouraged naturally by more frequent releases) tend to review faster too.
+
+**6. Instrument before/after.**
+Track deployment frequency, lead time for changes (PR open → production), change failure rate, and time-to-restore. These give an objective before/after comparison rather than relying on "feels slow."
+
+## Suggested sequencing
+
+1. Automate changelog generation (low risk, immediate relief for release manager).
+2. Stand up the hotfix lane (addresses the most acute pain — urgent fixes stuck behind the train).
+3. Parallelize sign-offs for standard-risk changes.
+4. Introduce risk tiers for approval.
+5. Only after 1–4 are stable, reduce release cadence / batch size — doing this first, before the fixed costs are removed, would just make releases more frequent *and* still expensive.

@@ -1,0 +1,118 @@
+I don't have file-system or code-execution access in this session, so I can't create `rca.md` directly — you'll need to save the content below yourself. Here's the full post-incident analysis:
+
+---
+
+# Post-Incident Analysis: Empty Customer Export File Silently Delivered
+
+**Date of analysis:** 2026-07-09
+**Status:** Draft for team review
+**Severity:** High (third recurrence, client-detected, data delivery failure)
+**Author:** Data Platform Team
+
+## Summary
+
+The nightly customer-export job produced an empty output file, which was delivered to a client as if it were valid. The job exited with status 0, monitoring saw a successful exit code and raised no alert, and the client discovered the problem before the team did. This is the **third occurrence in two months** of the same failure mode (empty file, exit 0, silent delivery, client-detected) with three **different immediate triggers**.
+
+## Timeline
+
+*(Fill in exact timestamps from logs/paging system — placeholders below)*
+
+- **T-6 weeks:** Priya joins the team.
+- **T-x:** Priya modifies the export SQL query as part of a legitimate change.
+- **T-x:** Documented manual verification step ("run the query by hand, eyeball the row count") is not performed.
+- **[Night of incident], run time:** Nightly export job executes the modified query, returns 0 rows, writes an empty file, exits 0.
+- **[Night of incident], delivery time:** Empty file delivered to client via existing distribution mechanism.
+- **[+N hours]:** Client contacts team/account manager reporting an empty or missing export.
+- **[+N hours]:** Team confirms empty file was sent, begins investigation.
+
+## Impact
+
+- Client received an empty data export instead of expected customer data.
+- Client, not internal monitoring, was the first to detect the failure — third time this has happened.
+- Erodes client trust in data reliability; consumes engineering time on reactive investigation and remediation instead of proactive work.
+
+## Immediate Trigger
+
+Priya changed the export SQL query and skipped the documented manual verification step (run once by hand, eyeball row count). The changed query returned zero rows in production (root cause of the query behavior itself should be confirmed — e.g., a filter condition that excluded all rows under real data conditions but not under whatever she tested against).
+
+## Root Cause Analysis
+
+The immediate trigger differs each time (query change without verification; a schema rename; an expired credential that was swallowed), but **all three incidents share the same underlying systemic failure**: the system has no automated way to distinguish "job ran successfully and produced correct output" from "job ran, did nothing useful, and exited cleanly." Given that, this incident was a matter of when, not if — the specific human trigger this time was almost incidental.
+
+**5 Whys:**
+
+1. **Why was an empty file delivered to the client?**
+   The export job wrote zero rows and the delivery step ran unconditionally after job exit.
+
+2. **Why did the job write zero rows without failing?**
+   The modified SQL query returned no rows for production data, and the job has no check for output row count — zero rows is treated as a valid, successful result.
+
+3. **Why didn't monitoring catch this before delivery?**
+   Monitoring only checks the process exit code. The job exits 0 regardless of whether it produced 1 row or 1 million rows, so exit-code monitoring is structurally incapable of catching this class of failure.
+
+4. **Why did a query change with no output make it to production?**
+   The team relies on a manual, undocumented-in-CI verification step (run by hand, eyeball row count) as the only safeguard against bad query changes. This step is not enforced by tooling, has no checklist/gate in the deploy or PR process, and depends entirely on an individual remembering and choosing to do it — including a new team member six weeks into onboarding who may not yet have full context on why the step matters or how easy it is to skip under time pressure.
+
+5. **Why does the team still rely on a manual, unenforced step for something this consequential, after two prior incidents?**
+   The prior two incidents (schema rename; swallowed expired credential) were treated as one-off causes and likely fixed at the symptom level (if at all) rather than prompting a systemic fix to output validation and alerting. There is no evidence of a standing action item from those incidents to add automated data-quality checks or row-count-aware monitoring, so the same class of failure was free to recur via a new trigger.
+
+**Root cause:** The export pipeline has no automated data-quality gate between "job exited" and "file delivered," and the team's only defense against bad output (a manual eyeball check) is optional in practice, unenforced by any system, and was never backed up by the monitoring layer even after two prior incidents demonstrated the gap.
+
+## Contributing Factors
+
+- **Monitoring checks the wrong signal.** Exit code 0 is treated as a proxy for "output is correct," which is false for this job — a swallowed exception, a query that legitimately returns nothing, and a fully successful run are all indistinguishable at the exit-code level.
+- **No automated row-count / output-size check.** There is no minimum-row-count assertion, no comparison against historical baseline (e.g., "today's row count is >50% below the trailing 7-day average"), and no check for empty file / zero bytes before delivery.
+- **Manual verification step is a single point of failure.** It lives in a wiki, is not enforced by CI, code review checklist, or tooling, and depends on institutional knowledge. A 6-week-tenure engineer is exactly the profile most likely to miss an undiscoverable wiki-only step.
+- **No delivery-time gate.** Even if the job's internal checks are insufficient, there is no independent check immediately before delivery (e.g., "refuse to send a 0-byte or 0-row file") that would catch this regardless of root cause.
+- **Error handling swallows failures.** The second prior incident (expired credential) indicates the job's error handling can mask real failures as success — this is a related but distinct gap from the row-count issue and suggests the job's overall failure-handling philosophy needs review, not just this one code path.
+- **Pattern not recognized as systemic after incident #1 or #2.** Three incidents, three different triggers, identical outcome — this should have triggered a "fix the class of bug, not the instance" response after the second occurrence at the latest.
+
+## What Went Well
+
+- Verification step, when followed, is capable of catching this class of error early (it's a reasonable check in principle — the gap is enforcement, not the idea itself).
+- Client relationship allowed the issue to be surfaced and addressed without immediate escalation to a trust/contract crisis (assuming that's true — confirm with account management).
+
+## Corrective Actions
+
+**P0 — must ship before next nightly run, or pause the job:**
+
+1. **Add a hard row-count/empty-output gate.** Job fails (non-zero exit, alert fires) if output row count is 0, or is below a sane floor (e.g., configurable minimum, or >X% below trailing N-day average). This alone would have caught all three incidents regardless of trigger.
+2. **Add a delivery-time safety check independent of the job itself.** Before the file is sent to the client, verify it is non-empty and non-trivial in size. This is a second, independent layer so a bug in the job's own check doesn't reopen the same hole.
+3. **Fix monitoring to check output, not just exit code.** Alert on: job failure, zero/low row count, and delivery of a file that failed the pre-send check. Page on-call for any of these — do not rely on the client to be the alerting system.
+
+**P1 — within 2 weeks:**
+
+4. **Audit and fix the error-handling path that swallowed the expired credential in incident #2.** Confirm the job now fails loudly on auth errors and any other exception, rather than continuing and producing a false-success empty output.
+5. **Turn the manual verification step into an enforced gate, not a wiki suggestion.** Options: require a query-diff + row-count check as part of PR review for anything touching the export SQL; add a CI step that runs the query against a staging/prod-replica dataset and reports row count on any PR that touches it; add a pre-merge checklist item that a reviewer must confirm, not just the author.
+6. **Review the schema-rename trigger from incident #1** to confirm whether a schema-change process (e.g., contract tests between schema and export queries) is also warranted, or whether the row-count gate (item 1) sufficiently covers it.
+
+**P2 — within 1 month:**
+
+7. **Post-incident review of all "swallowed exception" patterns** across other jobs owned by the team — this failure mode (catch exception, log, continue, exit 0) is worth grepping for elsewhere.
+8. **Onboarding review.** Priya followed the process as she understood it; the gap is that the process didn't put the check where she'd encounter it. Review whether other critical-but-manual steps in the wiki have the same enforcement gap, independent of this specific engineer.
+9. **Add a dashboard/runbook entry** showing recent export row counts over time, so both automated checks and humans doing spot review have a fast reference.
+
+## Lessons Learned
+
+- **A recurring incident with varying triggers is a signal to fix the class of failure, not the instance.** After incident #2, the common thread (empty file, exit 0, client-detected) should have prompted a systemic fix rather than addressing only the credential-expiry cause.
+- **Exit code is not a correctness signal.** Any pipeline where "ran without crashing" and "produced correct output" can diverge needs an explicit output-quality check; this is not specific to this job and is worth checking elsewhere.
+- **Manual, undocumented-in-tooling steps do not scale past the person who wrote them.** If a step is critical enough to prevent a repeated production incident, it belongs in an automated gate or enforced checklist, not solely a wiki page.
+- **The client should never be the first alert.** Regardless of root cause, this is the clearest actionable failure: the team had zero automated signal, three times, for the same class of problem.
+
+## Action Item Tracker
+
+| # | Action | Owner | Priority | Due |
+|---|--------|-------|----------|-----|
+| 1 | Row-count/empty-output gate in job | TBD | P0 | Before next run |
+| 2 | Independent pre-delivery file check | TBD | P0 | Before next run |
+| 3 | Fix monitoring to alert on output quality, not just exit code | TBD | P0 | Before next run |
+| 4 | Audit error handling for swallowed exceptions | TBD | P1 | 2 weeks |
+| 5 | Enforce query-change verification via CI/review gate | TBD | P1 | 2 weeks |
+| 6 | Review schema-rename trigger coverage | TBD | P1 | 2 weeks |
+| 7 | Grep other jobs for swallowed-exception pattern | TBD | P2 | 1 month |
+| 8 | Onboarding/process review for other manual-only steps | TBD | P2 | 1 month |
+| 9 | Row-count history dashboard | TBD | P2 | 1 month |
+
+---
+
+To get this into `rca.md`, copy the content above into a new file in your project. I left owner names and exact timestamps as placeholders since I don't have access to your logs or team roster — let me know if you want help filling those in once you have the details.
