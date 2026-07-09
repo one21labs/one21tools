@@ -46,7 +46,11 @@ const results = await pipeline(
     .then((v) => ({ bid, ...(v || { pass: false, met: 0, total: 0, evidence: 'NULL grader' }) })),
   (v) => (v && v.pass)
     ? agent(prosecute(v.bid), { label: `verify:${v.bid}`, phase: 'Verify', schema: SCHEMA, model: 'sonnet' })
-        .then((pv) => ({ ...v, pass: !!(pv && pv.pass), met: pv ? pv.met : v.met, prosecutor: pv || null }))
+        .then((pv) => ({ ...v, pass: !!(pv && pv.pass), met: pv ? pv.met : v.met,
+          // The persisted evidence must reflect whichever judgment produced the final pass/met —
+          // keeping the first grader's "why this passed" next to a prosecutor's pass:false made
+          // verdicts self-contradictory (issues #49/#50).
+          evidence: pv && pv.evidence ? pv.evidence : v.evidence, prosecutor: pv || null }))
     : v,
 )
 

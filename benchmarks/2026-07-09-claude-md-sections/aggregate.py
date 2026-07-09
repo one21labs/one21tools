@@ -8,7 +8,7 @@ over the section's tasks (each task = one observation). KEEP if the CI excludes 
 graded/verdicts.jsonl (minified, one {bid,pass,met,total,evidence} per line = grade.workflow.js's
 returned array). Writes results.jsonl (minified).
 """
-import json, math, os, statistics, sys
+import glob, json, math, os, statistics, sys
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(BASE, "..", "lib"))
@@ -36,6 +36,17 @@ with open(os.path.join(G, "verdicts.jsonl"), encoding="utf-8") as fh:
             continue
         v = json.loads(line)
         verdicts[v["bid"]] = v
+
+# Regrade overlays (issues #49/#50): dated verdicts-*-regrade.jsonl files supersede the original
+# verdicts per bid (recalibrated never criteria + the prosecutor-evidence fix); every file stays
+# committed, append-only per ADR 0019.
+for rg in sorted(glob.glob(os.path.join(G, "verdicts-*-regrade.jsonl"))):
+    with open(rg, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                v = json.loads(line)
+                verdicts[v["bid"]] = v
 
 
 # per (section, task, arm) -> list of 1/0 (pass) over reps
