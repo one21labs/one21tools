@@ -1,0 +1,51 @@
+Here's a POSIX-friendly script that checks line counts under `src/` and fails if any file exceeds the limit:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+EXIT_CODE=0
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "error: directory '$SRC_DIR' not found" >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (max $MAX_LINES)"
+    EXIT_CODE=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$EXIT_CODE" -eq 0 ]; then
+  echo "OK: all files under $SRC_DIR are within $MAX_LINES lines"
+fi
+
+exit "$EXIT_CODE"
+```
+
+Save it as e.g. `scripts/check-line-limits.sh`, `chmod +x` it, and call it from CI.
+
+**GitHub Actions example** (`.github/workflows/line-limit.yml`):
+
+```yaml
+name: Line limit check
+on: [push, pull_request]
+
+jobs:
+  line-limit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check file line limits
+        run: bash scripts/check-line-limits.sh
+```
+
+Notes:
+- `find ... -type f` checks all files, including non-code assets. If you want to restrict to specific extensions, add e.g. `-name '*.js' -o -name '*.ts'` with appropriate grouping, or swap in a filter like `-not -name '*.min.js'` to exclude generated/minified files that legitimately run long.
+- `wc -l` counts newline characters, so a file with content but no trailing newline on the last line will be undercounted by one — usually not worth compensating for, but flag it if your team cares about exact counts.
+- Since I'm in a non-interactive session here, I haven't run this — worth a quick local test (`bash scripts/check-line-limits.sh`) before wiring it into CI.
