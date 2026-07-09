@@ -34,3 +34,7 @@ was never meant to carry the enrichment.
 Persist convention: read `result` from the task's `.output` JSON and write it straight to the
 benchmark's `graded/*.jsonl` with `bench_io.dump_records(result, "graded/verdicts.jsonl",
 fmt="jsonl")` — never reconstruct it from `journal.jsonl`.
+
+When a prosecutor stage overrides `pass`/`met`, also overwrite every first-grader field it
+re-judged (`evidence` at minimum) — otherwise the persisted record cites reasoning for the
+overturned verdict (the self-contradictory-verdicts defect issues #49/#50 repaired).
