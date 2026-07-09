@@ -2,7 +2,7 @@
 id: 0019
 title: "Eval verdict layer: clustered CI, honest denominator, sequential replicates, blind grading"
 status: accepted
-summary: "Six corrections to the owned verdict layer (eval_verdict.py + protocol), from a 432-run grid and its bias audit: (1) headline Wilson CI clusters replicates per eval (correlated within an eval), two-level report, warn under 4 non-tied evals; (2) sequential replicates — escalate only where the eval-level CI straddles the boundary; (3) defer Plackett-Burman ablation (unexercised path); (4) charge the delta against the FULL loaded surface (body + references, or a measured count) not body alone — reference-heavy skills were flattered ~8x; (5) blind the arm labels from the grader; (6) append-only dated result snapshots. Named residual: Claude-grades-Claude family bias."
+summary: "Six corrections to the owned verdict layer (eval_verdict.py + protocol), from a 432-run grid and its bias audit: (1) headline Wilson CI clusters replicates per eval (correlated within an eval), two-level report, warn under 4 non-tied evals; (2) sequential replicates — escalate only where the eval-level CI straddles the boundary; (3) defer Plackett-Burman ablation (unexercised path); (4) charge the delta against the FULL loaded surface (body + references, or a measured count) not body alone — reference-heavy skills were flattered ~8x; (5) blind the arm labels from the grader; (6) append-only dated JSONL result snapshots (machine-readable SSoT). Named residual: Claude-grades-Claude family bias."
 ---
 
 # 0019 — eval verdict layer: statistical validity, honest denominator, unbiased grading
@@ -17,8 +17,8 @@ summary: "Six corrections to the owned verdict layer (eval_verdict.py + protocol
 2. **Sequential replicates.** Keep the 3-replicate minimum; after aggregating, add replicates/evals ONLY where the eval-level CI straddles the verdict boundary (0.5 win rate / zero delta); never spend on an unambiguous cell. Protocol sentence; no owned stopping controller.
 3. **Defer Plackett-Burman** for Tier 2 ablation — the path is unexercised; OFAT guidance stands. REOPEN-IF below.
 4. **Honest denominator.** Charge the delta against the loaded surface: default SKILL.md body (always-on cost); `--include-references` adds references/*.md (upper bound); `--loaded-chars N` takes a measured count and wins. The report labels the basis; report BOTH bounds for reference-heavy skills. Implemented, unit-tested.
-5. **Blind grading + family-bias mitigation stack.** Stage runs under neutral A/B labels, mapping withheld from the grader. The Claude-only grader is a fixed CONSTRAINT; pairing cancels raw self-preference; the stack (protocol owns details) attacks the rest: mechanize-first assertions (executable checks carry no family bias), planted-defect calibration, a prosecutor pass on PASSes, sampled inter-grader agreement, a delegated pairwise cross-check, a periodic human calibration sample. Residual: judgment-only assertions stay directional — bounded, not eliminated.
-6. **Durable snapshots.** Append a dated snapshot under `benchmarks/` per run — verdict lines + metadata (executor model, eval-set hash, protocol version, blinded y/n, denominator basis). Append-only; a record as-of-date, not a live mirror.
+5. **Blind grading + family-bias mitigation stack.** Stage runs under neutral A/B labels, mapping withheld from the grader. The Claude-only grader is a fixed CONSTRAINT; pairing cancels raw self-preference; the stack (protocol owns details) attacks the rest: mechanize-first assertions (executable checks carry no family bias), planted-defect calibration, a prosecutor pass on PASSes, and a periodic human calibration sample (the one external anchor). Residual: judgment-only assertions stay directional — bounded, not eliminated.
+6. **Durable snapshots — JSON/JSONL, not markdown.** Append a dated `.jsonl` of verdict records + `metadata.json` under `benchmarks/` per run (executor model, eval-set hash, protocol version, blinded y/n, denominator basis); markdown is rendered from the JSON, never hand-kept. Append-only; a record as-of-date, not a live mirror.
 
 ## Justification
 Each item removes a known-direction bias (denominator + unblinded grader: skill-favorable; independent-pairs CI: overconfident) or unblocks verification, all inside the layer ADR 0013 says this repo OWNS — fix the instrument, don't caveat it. Cost low: pure unit-tested logic; the rest is protocol text.
@@ -35,7 +35,6 @@ Each item removes a known-direction bias (denominator + unblinded grader: skill-
 - Eval-level CI only (drop pair-level detail) — cuts the per-eval deltas the iteration flags need.
 - References as always-on (fold into body) — overcounts rarely-loaded refs; two-bound + measured is more honest.
 - Plackett-Burman / a code stopping-rule / a non-Claude grader now — machinery ahead of demand; each behind a trigger.
-- Commit full raw run trees — bloat; the snapshot is verdict lines + metadata.
 
 ## Revisit triggers
 - A blinded re-grade flips any grid cell -> re-benchmark that skill blinded, supersede the verdict.

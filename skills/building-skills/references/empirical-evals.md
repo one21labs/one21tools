@@ -59,6 +59,13 @@ Disciplines:
   in the skill text.
 - **Author-separation** (ADR 0013): a fresh Claude B writes the expectations, not the
   skill's author — an author grades their own intent; a fresh instance grades the artifact.
+- **Keep cleanly-measured nulls.** A whole eval that ties across models — the skill genuinely
+  does not help that task — is a valid measurement, not dead weight. Deleting nulls biases the
+  set toward skill-favorable evals (survivorship) and the delta-per-1k verdict then overstates.
+  Fix a non-discriminating eval by REWRITING it to a harder case after transcript-level
+  diagnosis — never a blind "make it harder" pass (that regressed 6 cells; see
+  benchmarks/2026-07-07-toolkit-grid/retune-results.md), never by deletion. (Distinct from a
+  non-discriminating ASSERTION within an eval, which IS cut — see the DISCRIMINATE rule above.)
 
 ## Running the benchmark
 
@@ -98,18 +105,12 @@ bias, family blind spots, and judge noise. Mitigation stack, in priority order:
 3. **Prosecutor pass.** Every PASS verdict is re-examined by a second, fresh grader
    instructed to refute it from the artifact; the pass stands only if the evidence survives.
    Attacks leniency and style halo.
-4. **Sampled agreement.** Re-grade ~10% of cells with independent grader instances; report
-   per-assertion agreement. Low-agreement assertions are judgment, not measurement — rewrite
-   or mechanize them.
-5. **Pairwise cross-check** (delegated: skill-creator's blind comparator). Where a verdict is
-   decision-relevant, confirm the blind A/B winner agrees with the assertion-delta direction;
-   flag disagreement.
-6. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
+4. **Human calibration sample.** Periodically, the owner blind-grades ~10 sampled
    (assertion, output) pairs; agreement bounds the residual empirically — the only external
    anchor available.
 
 Residual after all of the above: family bias on genuinely judgment-only assertions. Named,
-bounded by (2)/(6), not eliminated. Treat those verdict components as directional.
+bounded by (2)/(4), not eliminated. Treat those verdict components as directional.
 
 ## The verdict
 
@@ -141,11 +142,28 @@ runs only `eval_verdict_test.py` (the deterministic decision logic), never the b
 ## Result snapshots
 
 Benchmark verdicts are model- and eval-relative and the raw runs are ephemeral, so append a
-dated snapshot under `benchmarks/` after each run (ADR 0019) — the per-cell verdict lines plus
-metadata: executor model, eval-set content hash, protocol/ADR version, blinded (y/n), and the
-denominator basis. Append-only, never edited: a snapshot is a measurement record as of its
-date, not current truth (so it is not a stale mirror). This is what makes `--fail-under` and
+dated machine-readable snapshot under `benchmarks/` after each run (ADR 0019) — a `.jsonl` of
+per-cell verdict records plus a `metadata.json`: executor model, eval-set content hash,
+protocol/ADR version, blinded (y/n), **hermetic (y/n)**, the denominator basis, and (when raw is
+retained) the `sample_rule`. JSON/JSONL is the SSoT; any markdown view is rendered from it, never
+hand-maintained. Append-only, never edited: a snapshot is a measurement record as of its date, not
+current truth (so it is not a stale mirror). This is what makes `--fail-under` and
 regression-vs-history possible — without a stored baseline there is nothing to regress against.
+
+**Hermetic executor gates a verdict (ADR 0023).** A run counts toward a keep/cut verdict only if
+the control arm had zero installed plugins and zero repo/skill file read access — a cloud container,
+or a locked-down `claude -p` (`enabledPlugins: {}`; deny the `Skill`/`Agent`/`Read`/`Grep`/`Glob`
+tools; `CLAUDE_CONFIG_DIR` at an empty dir). Otherwise the control arm inherits the treatment
+and the baseline is not treatment-free — record it `hermetic: false` as a confounded null, never a
+verdict.
+
+**Auditable raw sample (ADR 0023).** Retain the raw graded text for a bounded, deterministically
+defined sample — the planted-defect calibration set + every cell whose CI straddles the verdict
+boundary — ON main under `benchmarks/<date>/audit/` (git self-verifies it: no per-cell hash, no
+off-main bundle). It is what the prosecutor / sampled-agreement / human-calibration passes and ADR
+0019's re-grade reopen-conditions read; `eval_verdict.py` re-derives `sample_rule` and fails if any
+selected cell's transcript is missing (the silent-drop tripwire). Keep raw only if a consumer reads
+it — retention turns on WITH that check, not before.
 
 ## Tier 2 — section ablation
 
@@ -156,6 +174,17 @@ set, same replicates, and compare verdicts. A section whose removal moves the de
 than the CI width is a cut candidate — the empirical form of "every char earns its place."
 Full factorial designs over many sections multiply run cost fast; ablate the few sections
 you actually doubt, and only for skills whose cost makes the answer worth buying.
+
+The same method applies to **any always-loaded prose**, not just a SKILL.md — a repo `CLAUDE.md`
+or the pdca-init `claude-md-template.md` it seeds. These pay their cost on EVERY request, so
+ablation matters more; vary the prose per variant over a small task set the section targets.
+**Hold the executor's base framing NEUTRAL** — prose ablation is framing-sensitive: a biased
+framing swamps the treatment (one section measured +0.17/0.00/+0.375 across
+tool-denied/implement-biased/neutral framings; ADR 0024). This is the VERIFY step of retrospect ->
+PDCA: `/retrospect` proposes an always-loaded line, `/decide`'s verify runs the ablation, the same
+bar decides — removal moving the delta less than the CI width means the line does not earn its cost
+(cut or relocate to a gate/script); a line whose absence measurably drops the delta stays.
+Add-what-recurs, cut-what-does-not: keep the always-loaded surface minimal.
 
 ## Scope and limits
 
