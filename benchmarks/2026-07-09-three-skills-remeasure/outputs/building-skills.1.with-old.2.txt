@@ -1,0 +1,156 @@
+I don't have file-system or code-execution tools in this session, so I can't write these files to `outputs/sanitizing-customer-exports/` directly — this session is headless (plain-text only). Below is the complete skill, ready for you (or an interactive Claude Code session) to save at those paths.
+
+**`outputs/sanitizing-customer-exports/SKILL.md`**
+```markdown
+---
+name: sanitizing-customer-exports
+description: Redact PII from a customer CSV before it is shared outside the company — to a partner, uploaded to a third-party tool, or attached to an email/ticket. Invoke whenever a customer export needs to leave the company. Drops email/phone/ssn columns, replaces name with an opaque customer id, masks emails and phone numbers embedded in notes/comments, and writes <original>.redacted.csv without ever touching the original file.
+---
+
+# Sanitizing Customer Exports
+
+Fixed rules — do not improvise on these, they are compliance requirements:
+
+1. **Drop columns** (case-insensitive match on header): `email`, `phone`, `ssn`.
+2. **Name column**: replace with an opaque, stable-per-file id. Output column is
+   renamed `customer_id`. Same name value → same id, in order of first appearance
+   (`CUST-000001`, `CUST-000002`, ...).
+3. **Free-text columns** `notes`, `comments` (case-insensitive): scan for email
+   addresses and phone numbers embedded in the text and mask just those
+   substrings (`[EMAIL_REDACTED]`, `[PHONE_REDACTED]`), leaving the rest of the
+   text untouched.
+4. **Output**: write to `<original-stem>.redacted.csv` next to the input file.
+   **Never modify or overwrite the original file.**
+
+Columns not covered by these rules (order preserved) pass through unchanged.
+If a rule's column isn't present in a given file, skip that rule for that file —
+don't error out.
+
+## Usage
+
+Run the script on one or more CSV exports:
+
+```bash
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+Multiple files in one call:
+
+```bash
+python scripts/redact_csv.py exports/*.csv
+```
+
+Each run prints the path it wrote, e.g. `wrote path/to/customers.redacted.csv`.
+Always run this before attaching, uploading, or emailing a customer CSV to
+anyone outside the company. Verify the printed output path exists and share
+*that* file — never the original.
+
+## Verifying a redacted file
+
+Before sharing, spot-check the output:
+- No `email`, `phone`, or `ssn` column present in the header.
+- A `customer_id` column exists in place of `name`, containing only `CUST-######` values.
+- `notes`/`comments` values contain no raw email addresses or phone numbers.
+
+See `examples/sample_customers.csv` and `examples/sample_customers.redacted.csv`
+for a worked example of input → output.
+```
+
+**`outputs/sanitizing-customer-exports/scripts/redact_csv.py`**
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it leaves the company."""
+
+import argparse
+import csv
+import re
+import sys
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}")
+PHONE_RE = re.compile(r"(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b")
+
+
+def mask_free_text(value):
+    value = EMAIL_RE.sub("[EMAIL_REDACTED]", value)
+    value = PHONE_RE.sub("[PHONE_REDACTED]", value)
+    return value
+
+
+def redact(input_path: Path) -> Path:
+    output_path = input_path.with_name(input_path.stem + ".redacted.csv")
+
+    with input_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        lower = {name: name.strip().lower() for name in fieldnames}
+
+        keep_fields = [n for n in fieldnames if lower[n] not in DROP_COLUMNS]
+        name_field = next((n for n in fieldnames if lower[n] == NAME_COLUMN), None)
+        free_text_fields = {n for n in fieldnames if lower[n] in FREE_TEXT_COLUMNS}
+
+        out_fields = ["customer_id" if n == name_field else n for n in keep_fields]
+
+        name_to_id = {}
+        rows = []
+        for row in reader:
+            out_row = {}
+            for n in keep_fields:
+                out_key = "customer_id" if n == name_field else n
+                value = row.get(n)
+                if value is None:
+                    value = ""
+                if n == name_field:
+                    if value not in name_to_id:
+                        name_to_id[value] = f"CUST-{len(name_to_id) + 1:06d}"
+                    value = name_to_id[value]
+                elif n in free_text_fields:
+                    value = mask_free_text(value)
+                out_row[out_key] = value
+            rows.append(out_row)
+
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fields)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return output_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("csv_files", nargs="+", type=Path)
+    args = parser.parse_args()
+
+    for path in args.csv_files:
+        if not path.exists():
+            print(f"skip: {path} not found", file=sys.stderr)
+            continue
+        print(f"wrote {redact(path)}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+**`outputs/sanitizing-customer-exports/examples/sample_customers.csv`**
+```
+id,name,email,phone,ssn,notes
+1,Jane Doe,jane@example.com,555-123-4567,123-45-6789,"Called on 2026-01-02, prefers email jane@example.com or call 555-123-4567"
+2,John Smith,john.smith@example.com,(555) 234-5678,987-65-4321,No issues reported
+3,Jane Doe,jane@example.com,555-123-4567,123-45-6789,Follow up needed
+```
+
+**`outputs/sanitizing-customer-exports/examples/sample_customers.redacted.csv`** (expected output, for reference)
+```
+id,customer_id,notes
+1,CUST-000001,"Called on 2026-01-02, prefers email [EMAIL_REDACTED] or call [PHONE_REDACTED]"
+2,CUST-000002,No issues reported
+3,CUST-000001,Follow up needed
+```
+
+To use this: create the folder `outputs/sanitizing-customer-exports/` (and its `scripts/` and `examples/` subfolders) in your project, and save each block above into the matching path. Once saved, run it with `python scripts/redact_csv.py <file>.csv` from inside that skill folder (or point the path at your real export).

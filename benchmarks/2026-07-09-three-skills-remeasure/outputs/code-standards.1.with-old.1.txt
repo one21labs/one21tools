@@ -1,0 +1,39 @@
+Since this is a headless session I can't write files directly — here's the full updated module content for you to save as `notifier.py`:
+
+```python
+import json
+import time
+import urllib.request
+
+# old loader, kept for reference
+# def load(f):
+#     return json.loads(open(f).read())
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            pass
+        if i < r - 1 and bo:
+            time.sleep(bo)
+    return None
+```
+
+Changes:
+- `ld()` now also reads `backoff_seconds` from the config (defaults to `0`, i.e. no wait — same behavior as before if the key is absent).
+- `snd()` takes a new `bo` param and sleeps between attempts, skipping the sleep after the final attempt so it doesn't delay the return unnecessarily.
+
+Note: callers of `ld()` and `snd()` need updating for the new tuple/param — since I don't have access to the rest of the codebase in this session, you'll want to check any call sites (e.g. `r, to = ld(...)` → `r, to, bo = ld(...)`, and pass `bo` into `snd(...)`).

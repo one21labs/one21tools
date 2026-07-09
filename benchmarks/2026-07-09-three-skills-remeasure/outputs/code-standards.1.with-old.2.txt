@@ -1,0 +1,49 @@
+```python
+"""
+notifier.py - HTTP notification sender with retry/backoff
+
+ARCHITECTURE ROLE:
+    Loads retry/timeout/backoff config and sends a single HTTP POST,
+    retrying on failure with a fixed delay between attempts.
+
+DESIGN CONSTRAINTS:
+    - Config is best-effort: malformed or missing config file falls
+      back to defaults rather than raising.
+    - No sleep after the final attempt (avoids delaying the caller
+      once retries are exhausted).
+"""
+
+import json
+import time
+import urllib.error
+import urllib.request
+
+DEFAULT_RETRIES = 5
+DEFAULT_TIMEOUT = 30
+DEFAULT_BACKOFF_SECONDS = 0
+
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except (OSError, ValueError):
+        d = {}
+    r = d.get("retries", DEFAULT_RETRIES)
+    to = d.get("timeout", DEFAULT_TIMEOUT)
+    backoff = d.get("backoff_seconds", DEFAULT_BACKOFF_SECONDS)
+    return r, to, backoff
+
+
+def snd(u, pl, r, to, backoff=DEFAULT_BACKOFF_SECONDS):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except (urllib.error.URLError, OSError):
+            pass
+        if i < r - 1 and backoff:
+            time.sleep(backoff)
+    return None
+```
+
+Changes: `ld` now also reads `backoff_seconds` (default `0`) and returns it alongside `retries`/`timeout`; `snd` takes a `backoff` param and sleeps between attempts (skipped after the last attempt and when `backoff` is falsy). Callers need to update from `r, to = ld(p)` to `r, to, backoff = ld(p)` and pass `backoff` into `snd`. I also dropped the commented-out dead `load` function and replaced the bare `except:` clauses with the specific exceptions these calls can actually raise — let me know if you'd rather keep the bare excepts.
