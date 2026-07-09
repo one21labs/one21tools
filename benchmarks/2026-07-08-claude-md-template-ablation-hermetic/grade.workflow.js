@@ -5,7 +5,7 @@ export const meta = {
     { title: 'Grade', detail: 'one blind grader per output' },
     { title: 'Verify', detail: 'prosecutor tries to refute each PASS' },
   ],
-}
+};
 
 // Each grader READS <itemsDir>/<bid>.json (fields: prompt, response) — ARM withheld (blind).
 // args = { itemsDir, bids }. It can arrive as a JSON string in this harness, so parse defensively.

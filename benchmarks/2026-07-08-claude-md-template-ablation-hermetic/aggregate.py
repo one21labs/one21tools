@@ -18,8 +18,10 @@ import json, math, os, statistics
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 G = os.path.join(BASE, "graded")
-verdicts = json.load(open(os.path.join(G, "verdicts.json"), encoding="utf-8"))
-arm_map = json.load(open(os.path.join(G, "arm_map.json"), encoding="utf-8"))
+with open(os.path.join(G, "verdicts.json"), encoding="utf-8") as fh:
+    verdicts = json.load(fh)
+with open(os.path.join(G, "arm_map.json"), encoding="utf-8") as fh:
+    arm_map = json.load(fh)
 
 
 def wilson(k, n, z=1.96):

@@ -2,7 +2,7 @@ export const meta = {
   name: 'cmd-template-ablation-poc',
   description: 'Ablation POC: does the CLAUDE.md template Feedback=PDCA section change behavior on judgment-call tasks?',
   phases: [{ title: 'Execute', detail: 'run judgment-call tasks through with/without-section arms' }, { title: 'Grade', detail: 'blind-grade each output against its criterion' }],
-}
+};
 
 const BASE = `# orders-api - CLAUDE.md
 ## Stack & navigation

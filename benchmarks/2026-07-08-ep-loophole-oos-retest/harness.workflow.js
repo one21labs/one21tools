@@ -2,7 +2,7 @@ export const meta = {
   name: 'ep-loophole-oos-retest',
   description: 'Out-of-sample retest: does the engineering-principles loophole fix (PR #27) generalize to fresh SSoT/waste scenarios?',
   phases: [{ title: 'Execute', detail: 'fresh SSoT/waste tasks, with-skill vs without-skill' }, { title: 'Grade', detail: 'blind-grade each output' }],
-}
+};
 
 const SKILL_DIR = 'C:/Users/ajmcc/projects/worktrees/one21tools-main/skills/engineering-principles';
 const WITH_PREFIX = `You are an engineer. BEFORE responding, read and apply the principles in these files:
