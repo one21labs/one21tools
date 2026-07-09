@@ -48,7 +48,9 @@ deterministic logic; a doc that restates them rots).
   shows commits "ahead" of `main`, so judge merged-ness by PR state + file diff, not
   `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
   branch onto `origin/main` before ranging or `/retrospect` — a stale local `main` re-adds the
-  squashed commits as a phantom range.
+  squashed commits as a phantom range. Preview what a branch/PR changes with three-dot
+  (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
+  `main` as reverting main's content.
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
 - **Deferred = issues** (ADR 0021): a deferred item someone must act on gets a GitHub issue; the
   PR's Deferred section links it. No handoff/TODO files — work-state tracks in issues,
