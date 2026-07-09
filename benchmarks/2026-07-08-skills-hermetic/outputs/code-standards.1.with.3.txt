@@ -1,0 +1,34 @@
+Here's the full updated module with a configurable `backoff_seconds` read from config and applied via `time.sleep` between retry attempts:
+
+```python
+import json
+import time
+import urllib.request
+
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    backoff = d.get("backoff_seconds", 0)
+    return r, to, backoff
+
+
+def snd(u, pl, r, to, backoff=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1:
+                time.sleep(backoff)
+    return None
+```
+
+Notes on the changes:
+- `ld()` now also returns `backoff` (defaults to `0` if not set in the config, so behavior is unchanged for existing configs) — this makes it return a 3-tuple instead of 2, so any caller unpacking `r, to = ld(p)` needs updating to `r, to, backoff = ld(p)`.
+- `snd()` takes a new `backoff` parameter and sleeps between attempts only (not after the final failed attempt), so no wait is added when all retries are exhausted.
+- Removed the old commented-out `load()` function since it was unused dead code.

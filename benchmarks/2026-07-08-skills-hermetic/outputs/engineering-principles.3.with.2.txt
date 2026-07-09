@@ -1,0 +1,69 @@
+I don't have filesystem or code-execution access in this session, so I can't create `process-review.md` directly. Here's the full review — copy it into that file yourself.
+
+---
+
+**Note on the analysis approach:** I ran this through a Lean/TPS waste lens (waiting, overprocessing, inventory/batching, motion) plus a root-cause pass, since that's what best explains "busy but slow."
+
+---
+
+```markdown
+# Release Process Review
+
+## Current State
+
+1. PR opened → ~2 day average review wait
+2. Merge → changes sit on `main` until the next biweekly release train
+3. Release train batches ~40 changes
+4. Release manager hand-copies a changelog entry per PR from PR descriptions into a release doc
+5. Three sequential sign-offs required for *every* release: QA lead → EM → PM
+6. Hotfixes follow the identical path — no expedite lane
+7. Result: team is busy, but shipping feels slow and each release is stressful
+
+## Waste Analysis
+
+| Waste type | Where it shows up | Cost |
+|---|---|---|
+| **Waiting** | 2-day PR review; up to 2 weeks sitting on main; hotfixes queued behind the train | Delay compounds — a 1-line fix can wait up to 14 days |
+| **Inventory (batching)** | ~40 changes released at once | Large batch = large blast radius, harder to isolate a regression, higher-stakes releases |
+| **Overprocessing** | 3 sequential sign-offs applied uniformly, regardless of change size or risk | A 1-line hotfix and a 40-change batch go through identical ceremony |
+| **Motion / transcription** | Manual changelog copy-paste from PR descriptions | Non-value-add work that scales with batch size; error-prone; creates a second, driftable copy of information that already exists in the PR |
+| **Defect risk** | Large batch size | When something breaks, bisecting across 40 co-released changes is expensive |
+
+## Root Cause
+
+*Why does shipping feel slow despite the team being busy?*
+
+1. Because releases are infrequent and large → batches of ~40 accumulate
+2. Why are they large? Because release is decoupled from merge by a fixed 2-week cadence, not by change readiness
+3. Why does a 2-week cadence exist? To justify/amortize a heavyweight, uniform 3-person sequential sign-off process
+4. Why is the sign-off process uniform? Because it was designed once, for "a release," without a risk tier — it never distinguishes a 1-line hotfix from a 40-change batch
+5. **Root cause:** the process has one workflow serving two fundamentally different needs (routine batched delivery vs. urgent single-change delivery) — it's not sized to the risk or size of what's shipping.
+
+This is the real driver of the stress: not the work volume, but that every release — big or small, safe or risky — pays the same fixed cost.
+
+## Recommendations (ranked by impact)
+
+### 1. Give hotfixes a separate, lightweight path
+Don't route urgent fixes through the train at all. A single-approver (e.g., EM or on-call lead) fast lane for small, contained changes removes the worst pain point immediately — this is the highest-leverage, lowest-effort fix.
+
+### 2. Shrink the batch by increasing release frequency
+Move toward smaller, more frequent releases (e.g., daily or twice-weekly) instead of biweekly. Smaller batches mean smaller blast radius, easier rollback/bisection, and less stressful releases — this directly attacks the root cause in step 1 above.
+
+### 3. Make sign-off proportional to risk, not uniform
+Reserve the full QA → EM → PM sequential chain for releases that are actually large or high-risk. Small/low-risk changes should need far less ceremony (e.g., automated checks + one approver). Where all three sign-offs genuinely are needed, consider whether they must be *sequential* — QA and PM sign-off frequently don't depend on each other and could run in parallel, cutting wall-clock time even when the full process is warranted.
+
+### 4. Automate the changelog instead of hand-copying it
+The PR description is already the source of truth; generate the release changelog from it automatically (CI script pulling merged PR titles/descriptions) rather than a manual transcription step. This removes toil that currently scales with batch size and eliminates a class of copy errors.
+
+### 5. Decouple merge from release
+Longer-term, adopt feature flags / trunk-based practices so merged code can sit safely on `main` without needing to "wait for a slot" in a release — this is what makes recommendation #2 sustainable without regressing safety.
+
+## Suggested Future State
+
+- PR review target reduced via clearer review SLAs (separate problem — flag if you want this analyzed too)
+- Hotfixes: single-approver fast lane, ship same-day
+- Routine changes: smaller/more frequent train (e.g., daily), auto-generated changelog, risk-tiered approval (full triad only for large/high-risk releases, parallelized where possible)
+- Net effect: less batching stress, faster feedback loops, sign-off effort spent where risk actually warrants it instead of uniformly on everything
+```
+
+**What's next:** happy to go deeper on any one recommendation (e.g., defining the risk-tiering criteria for sign-offs, or designing the hotfix fast lane) once you've had a chance to react to this.

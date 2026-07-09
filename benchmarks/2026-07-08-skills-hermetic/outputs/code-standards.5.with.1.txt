@@ -1,0 +1,30 @@
+I can't write files in this session, but here's `webhook.py`:
+
+```python
+"""
+webhook.py - Billing provider webhook handler
+
+ARCHITECTURE ROLE:
+    Processes invoice events already authenticated and validated by the
+    billing provider. Assumes payload shape is guaranteed by the caller;
+    signature verification of the raw request happens upstream of this
+    function.
+
+DESIGN CONSTRAINTS:
+    - No input validation: payload correctness is guaranteed by the
+      billing provider per team design decision.
+    - Only invoice.paid events are recorded; all others are ignored.
+"""
+
+
+def handle_invoice_event(ledger, payload):
+    if payload["event_type"] != "invoice.paid":
+        return
+
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+One thing worth separating from "input validation": whether the *content* of a well-formed event is trustworthy (your tech lead's call, and fine to skip) versus whether the *request hitting this endpoint* actually came from the billing provider at all. Those are different guarantees — "the provider validates every event before it reaches us" only holds if something on your end confirms the event actually came from the provider (e.g. verifying an HMAC signature header against a shared secret) before `payload` ever reaches this function. Without that check somewhere in the request path, anyone who finds the endpoint URL could POST a fake `invoice.paid` event and credit an arbitrary amount to an arbitrary invoice id.
+
+If signature verification already happens in middleware/framework layer before this handler runs, you're all set. If it doesn't happen anywhere yet, that's the one thing I'd flag as a gap worth closing — happy to add it if useful.

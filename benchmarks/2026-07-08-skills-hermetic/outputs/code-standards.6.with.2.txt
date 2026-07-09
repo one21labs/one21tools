@@ -1,0 +1,35 @@
+Here's the updated module with `find_users_by_domain` added, matching the existing pattern (try/except, LIKE with a bound parameter, capped at 50 rows):
+
+```python
+import sqlite3
+
+def add_user(db, name, email):
+    try:
+        db.execute("insert into users (name, email) values (?, ?)", (name, email))
+        db.commit()
+        print("ok")
+        return 1
+    except:
+        return 0
+
+def recent_users(db):
+    try:
+        return db.execute("select * from users order by created desc limit 50").fetchall()
+    except:
+        return []
+
+def search_users(db, q):
+    try:
+        # search the users
+        return db.execute("select * from users where name like ? limit 50", ("%" + q + "%",)).fetchall()
+    except:
+        return []
+
+def find_users_by_domain(db, domain):
+    try:
+        return db.execute("select * from users where email like ? limit 50", ("%@" + domain,)).fetchall()
+    except:
+        return []
+```
+
+Note: the `%` in `"%@" + domain` is a bound parameter value, not string-concatenated SQL, so it's not injectable — same safety property as `search_users`. One thing to flag since it's not obvious from the diff: if `domain` itself contains `%` or `_`, those act as LIKE wildcards (e.g. `find_users_by_domain(db, "ex_mple.com")` would also match `example.com`). `search_users` has the same latent behavior for `q`, so I left it consistent with the existing pattern rather than introducing escaping just for the new function — let me know if you want that hardened across both.

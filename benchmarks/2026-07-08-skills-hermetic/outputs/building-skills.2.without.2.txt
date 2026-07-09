@@ -1,0 +1,133 @@
+I don't have file-system or code-execution tools available in this session, so I can't write to `outputs/json-config-check/SKILL.md` or `outputs/review.md` directly. Here's the review and the rewritten skill as text — please save these yourself.
+
+## outputs/review.md
+
+```markdown
+# Review: json-config-check SKILL.md (draft)
+
+## Defects found
+
+1. **Description is unusable for triggering.** "This skill is really helpful for
+   working with JSON configuration files and stuff. It can do lots of things!
+   Use when needed." gives the invoking model no concrete signal of what the
+   skill does or when to fire it. "Use when needed" is circular — it doesn't
+   specify a triggering condition at all. The description is also written as
+   marketing copy ("really helpful", "lots of things") instead of a factual,
+   third-person capability statement.
+
+2. **"Introduction" section is filler, not instruction.** It's a generic
+   explainer of what JSON is — content the model already knows and that
+   provides zero operational guidance. It burns context budget without moving
+   the skill toward being usable.
+
+3. **"About This Amazing Skill" is pure marketing fluff.** "incredibly
+   powerful", "fantastic time-saver that your whole team will love" — this
+   section contains no actionable content at all and should be deleted
+   outright.
+
+4. **Core instructions are hedged into uselessness.** "the file gets parsed",
+   "the config might be validated", "Errors could be reported... if any are
+   found", "You might want to consider possibly using..." — every sentence in
+   "How It Works" is non-committal. A skill needs to tell the agent exactly
+   what to do; hedged, maybe-language gives no reliable procedure to execute.
+
+5. **No concrete steps, commands, or code.** There is no actual parsing
+   command, no validation code, nothing executable. An agent reading this
+   skill has to invent the entire implementation from scratch, which defeats
+   the purpose of packaging it as a skill.
+
+6. **Schema discovery is underspecified.** "If a schema file happens to be
+   available in the same directory" — available under what name? Convention
+   (`schema.json`, `$schema` key, `<name>.schema.json`) is never stated, so
+   the agent has no deterministic way to find it.
+
+7. **No error-reporting contract.** The draft never says what information a
+   reported error should contain (file/line/column for syntax errors, JSON
+   path/expected-vs-actual for schema errors), so output would be
+   inconsistent run to run.
+
+8. **No dependency handling.** It suggests `jsonschema` "can be a good
+   choice" but never accounts for it not being installed, so the procedure
+   can silently fail with an ImportError instead of guiding the agent to
+   install it or report the gap.
+
+9. **No stopping condition when no schema exists.** The draft implies
+   validation is skipped silently but doesn't say the agent should still
+   confirm and report that the JSON syntax itself is valid.
+
+## Summary
+The draft reads like placeholder/marketing text rather than an operational
+skill: vague trigger description, no imperative steps, no commands, no
+defined output format, and no handling of the "no schema found" or
+"dependency missing" edge cases. Rewritten below.
+```
+
+## outputs/json-config-check/SKILL.md
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file's syntax and, if a matching JSON Schema is present, checks the file conforms to it. Use when the user asks to validate, check, or lint a JSON config file, or when diagnosing a JSON parse/schema error.
+---
+
+# JSON Config Check
+
+## Purpose
+
+Check a JSON configuration file in two stages: (1) confirm it is syntactically
+valid JSON, (2) if a JSON Schema for it can be found, validate the config
+against that schema.
+
+## Instructions
+
+1. **Identify the target file** — the config path given by the user, or
+   inferred from context (e.g. `config.json`, `settings.json`).
+
+2. **Check syntax first.** Run one of:
+   - Python: `python -c "import json; json.load(open('PATH'))"`
+   - Node: `node -e "JSON.parse(require('fs').readFileSync('PATH', 'utf8'))"`
+
+   If this fails, report the parser's exact error message (it includes
+   line/column) to the user and **stop** — do not attempt schema validation
+   on invalid JSON.
+
+3. **Look for a schema**, in this order, and use the first match:
+   - A `"$schema"` key inside the config file pointing to a local path or URL.
+   - A sibling file named `schema.json` or `<config-basename>.schema.json`.
+
+   If none of these exist, report that the file is syntactically valid JSON
+   and stop. Do not invent or assume a schema.
+
+4. **Validate against the schema**, if one was found. Confirm `jsonschema` is
+   installed first (`python -c "import jsonschema"`); if it isn't, tell the
+   user to run `pip install jsonschema` before continuing. Then run:
+
+   ```python
+   import json
+   from jsonschema import validate, ValidationError
+
+   config = json.load(open("config.json"))
+   schema = json.load(open("schema.json"))
+   try:
+       validate(instance=config, schema=schema)
+   except ValidationError as e:
+       print(f"Schema validation failed at {list(e.path)}: {e.message}")
+   ```
+
+5. **Report results**, always including concrete detail rather than a bare
+   pass/fail:
+   - Syntax error: file path, line/column, and the parser's message verbatim.
+   - Schema error: the failing JSON path, the violated constraint, and the
+     actual value.
+   - Success: state explicitly whether the check covered syntax only (no
+     schema found) or syntax + schema.
+
+## Notes
+
+- Never suppress parser/validator output — surface it verbatim so the user
+  can act on it directly.
+- Don't guess at a schema's existence or contents; only validate against a
+  schema you actually located per step 3.
+```
+
+Let me know if you'd like me to adjust tone/scope, or if you can grant file-write access so I can create these directly.

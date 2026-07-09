@@ -1,0 +1,43 @@
+{
+  "benchmark": "skills-hermetic-benefit",
+  "date": "2026-07-08",
+  "question": "Does each toolkit SKILL.md measurably beat its no-skill baseline, measured hermetically?",
+  "executor": {
+    "cli": "claude -p",
+    "model": "sonnet",
+    "effort": "medium",
+    "hermetic": true,
+    "isolations": [
+      "external empty cwd (no project CLAUDE.md)",
+      "tools denied: Skill Task Read Grep Glob Bash Edit Write WebFetch WebSearch NotebookEdit",
+      "user ~/.claude/CLAUDE.md relocated for the run (trap-restore)"
+    ],
+    "base_framing": "neutral (ADR 0024: prose ablation is framing-sensitive)",
+    "treatment": "with-arm --append-system-prompt = SKILL.md body (frontmatter stripped)"
+  },
+  "skills": ["code-standards", "engineering-principles", "building-skills", "optimizing-context"],
+  "grid": {"skills": 4, "evals_per_skill": 6, "arms": ["with", "without"], "reps": 3, "cells": 144},
+  "grading": {
+    "blinded": true,
+    "grader": "claude (sonnet) blind per-expectation MET/NOT-MET",
+    "prosecutor": "uniform adversarial re-count on ALL cells (ADR 0025); met_final = min(grader, prosecutor)"
+  },
+  "metric": {
+    "headline": "fraction_met (met/total), eval-clustered mean delta + 95% CI (ADR 0019, ADR 0025)",
+    "secondary": "binary_pass (all-expectations-met), retained as diagnostic",
+    "keep_bar": "per-eval delta CI excludes 0 and positive (ADR 0024)"
+  },
+  "protocol_adrs": ["0019", "0023", "0024", "0025"],
+  "verdicts": {
+    "overall": {"metric": "fraction_met", "mean_delta": 0.088, "ci95": [0.019, 0.156], "verdict": "KEEP"},
+    "overall_binary": {"metric": "binary_pass", "mean_delta": 0.042, "ci95": [-0.065, 0.148], "verdict": "CUT-CANDIDATE"},
+    "per_skill_fraction_met": {
+      "building-skills": {"mean_delta": 0.156, "ci95": [-0.007, 0.318], "verdict": "INCONCLUSIVE"},
+      "optimizing-context": {"mean_delta": 0.107, "ci95": [-0.038, 0.253], "verdict": "INCONCLUSIVE"},
+      "code-standards": {"mean_delta": 0.067, "ci95": [-0.084, 0.217], "verdict": "INCONCLUSIVE"},
+      "engineering-principles": {"mean_delta": 0.020, "ci95": [-0.066, 0.107], "verdict": "CUT-CANDIDATE"}
+    }
+  },
+  "power_note": "Per-skill CIs (~±0.15 at n=6 evals) straddle 0; per-skill nulls are underpowered, not clean. Lever = more discriminating evals (between-eval variance dominates; more reps won't help).",
+  "floor_evidence": {"binary_pass_cells": "21/144", "without_mean_frac": 0.544, "with_mean_frac": 0.619}
+}

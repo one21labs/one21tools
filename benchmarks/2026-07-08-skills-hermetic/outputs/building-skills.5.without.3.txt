@@ -1,0 +1,103 @@
+I don't have file-system or code-execution tools available in this session, so I can't actually create `outputs/generating-release-notes/SKILL.md` on disk. Here's the complete skill content, ready for you (or a future session with file tools) to save at that path — it preserves everything from your documentation, organized into a working skill.
+
+```markdown
+---
+name: generating-release-notes
+description: Generates RELEASE_NOTES.md from git commit history since the last release tag, grouping conventional-commit-style commits into Breaking Changes, Security, Features, Performance, Bug Fixes, and Reverts sections. Use when asked to generate, draft, or update release notes for a repo, sprint, or version bump.
+---
+
+# Generating Release Notes
+
+## Background
+
+Release notes are documents distributed with a software release that describe
+the changes, improvements, and fixes included in that release. They help
+users and stakeholders understand what changed.
+
+Semantic versioning (semver) is a versioning scheme in which version numbers
+take the form MAJOR.MINOR.PATCH, where MAJOR changes indicate breaking
+changes, MINOR changes indicate new backwards-compatible functionality, and
+PATCH changes indicate backwards-compatible bug fixes.
+
+Git is a distributed version control system that records changes to files
+over time; a git tag marks a specific point in history, typically a release.
+
+## Process History
+
+For context on why this process looks the way it does:
+
+- Release notes used to be written by hand in Confluence, which took hours
+  every sprint.
+- In Q3 2025, the team moved to a shell script that dumped raw `git log`
+  output, but the result wasn't readable.
+- In January 2026, Priya rewrote the process around conventional commits.
+- In March 2026, the old script was retired after the mobile team migrated.
+- This skill replaces all of the above — it is the current, canonical
+  process.
+
+## How to Generate
+
+1. Find the last release tag:
+   `git describe --tags --abbrev=0`
+2. Collect the commits since that tag:
+   `git log <tag>..HEAD --oneline`
+3. For each commit, parse its conventional-commit type prefix (and scope /
+   breaking-change marker), e.g. `feat`, `fix(security)`, `feat!`.
+4. Group commits into sections per the Commit Type Mapping table below.
+5. Extract each commit's PR number (see Implementation Notes) so it can be
+   linked in the output.
+6. Format each entry per the Output Rules below.
+7. Assemble the sections in the required order, omitting any that are empty.
+8. Write the result in markdown to `RELEASE_NOTES.md` at the repo root.
+
+## Commit Type Mapping
+
+| Commit type / pattern                     | Section            | Notes                                              |
+|--------------------------------------------|---------------------|-----------------------------------------------------|
+| any type with `!` (e.g. `feat!`)           | Breaking Changes    | Always the FIRST section                            |
+| `fix(security)` or any security scope      | Security            | Always listed before Bug Fixes                       |
+| `feat`                                      | Features            |                                                       |
+| `fix`                                       | Bug Fixes           |                                                       |
+| `perf`                                      | Performance         |                                                       |
+| `revert`                                    | Reverts             | Also remove the reverted entry if it's in this release |
+| `docs`                                      | *(omit)*            |                                                       |
+| `chore`                                     | *(omit)*            |                                                       |
+| `ci`                                        | *(omit)*            |                                                       |
+| `build`                                     | *(omit)*            |                                                       |
+| `refactor`                                  | *(omit)*            | Unless user-facing                                    |
+
+## Output Rules
+
+- Write the notes in markdown to `RELEASE_NOTES.md` at the repo root.
+- Every entry links its PR number as `[#123]`.
+- Entries are one line, imperative mood, no trailing period.
+- Section order: Breaking Changes, then Security, then Features, then
+  Performance, then Bug Fixes, then Reverts.
+- Omit empty sections.
+
+## Implementation Notes
+
+These fill in the mechanical details needed to execute the process above;
+they don't change any of the rules defined by the team.
+
+- **Type/scope/breaking-marker parsing**: match the conventional-commit
+  header pattern `^(?<type>\w+)(\((?<scope>[^)]+)\))?(?<breaking>!)?:
+  (?<subject>.+)$` against the commit's subject line. `breaking` present ⇒
+  Breaking Changes, regardless of `type`. `scope` matching `security`
+  (case-insensitive) ⇒ Security, regardless of `type`.
+- **PR number extraction**: GitHub squash-merges typically append the PR
+  number to the commit subject as `(#123)`. Extract that; if a commit has no
+  PR number (e.g. a direct commit), omit the `[#N]` link for that entry
+  rather than guessing.
+- **Revert matching**: a `revert:` commit's body typically contains `This
+  reverts commit <sha>` or its subject echoes the original commit's subject.
+  If the reverted commit is also in this release's commit range, drop the
+  original entry entirely instead of listing both it and the revert.
+
+## Team Notes
+
+> This tool is ABSOLUTELY AMAZING and will save your team HOURS of tedious
+> work every single sprint!!!
+```
+
+To use it: create the folder `outputs/generating-release-notes/`, save the above as `SKILL.md` inside it. No other files are needed — everything fit into the one file.

@@ -1,0 +1,110 @@
+I don't have file-system access in this session, so I can't create `review.md` — you'll need to save the content below yourself. Here's the full review, ordered by severity:
+
+```markdown
+# Review: process_refund
+
+## Critical
+
+### 1. Order state mutated before the refund is confirmed
+`order.status` and `order.refunded_amount` are set *before* `payments_api.refund` is called.
+If the call raises (network error, timeout, declined, etc.), the function returns `False`,
+but the order is already left marked `"refunded"` with a `refunded_amount` set — a refund that
+never happened. Any code reading `order.status` afterward will believe the refund succeeded.
+
+**Fix:** only mutate order state after the API call confirms success:
+```python
+result = payments_api.refund(order.payment_ref, amount)
+if result.get("status") != "ok":
+    log.warning("refund not ok: order=%s result=%s", order_id, result)
+    return False
+order.status = "refunded"
+order.refunded_amount = amount
+order.fee = amount * FEE_RATE
+return True
+```
+
+### 2. A "not ok" result is logged but treated as success
+When `result.get("status") != "ok"`, the code logs a warning and then falls through to set
+`order.fee` and `return True` anyway. A failed/declined refund is reported to the caller as a
+success. Combined with defect #1, this is the most dangerous bug in the function.
+
+**Fix:** treat non-"ok" status as a failure path — `return False` and skip the fee/state update
+(see fix above).
+
+### 3. No idempotency guard against double-refunding
+There's no check for whether the order is already refunded before proceeding. If
+`process_refund` is called twice for the same `order_id` (retry, duplicate request, race),
+it will call `payments_api.refund` a second time and refund the customer twice.
+
+**Fix:** short-circuit at the top:
+```python
+if order.status == "refunded":
+    log.warning("refund skipped, already refunded: order=%s", order_id)
+    return False
+```
+
+## High
+
+### 4. `amount` is never validated
+There's no check that `amount > 0`, or that it doesn't exceed what's actually refundable
+(e.g., original charge minus any prior refund). A caller bug or bad input could refund a
+negative amount, zero, or more than was ever charged.
+
+**Fix:** validate at the boundary before calling the payment API:
+```python
+if amount <= 0 or amount > order.amount:
+    log.error("invalid refund amount: order=%s amount=%s", order_id, amount)
+    return False
+```
+
+### 5. Unhandled `KeyError` for unknown `order_id`
+`orders[order_id]` will raise `KeyError` if the id doesn't exist, and nothing catches it —
+it propagates as an unhandled exception rather than a clean failure result.
+
+**Fix:**
+```python
+order = orders.get(order_id)
+if order is None:
+    log.error("refund failed, unknown order: order=%s", order_id)
+    return False
+```
+
+## Medium
+
+### 6. Broad `except Exception` with no context in the log
+`log.error("refund error")` doesn't record `order_id`, `payment_ref`, `amount`, or the
+exception itself — nearly impossible to debug from logs alone. Catching bare `Exception`
+also hides whether the failure is retryable (timeout) vs. terminal (invalid payment ref).
+
+**Fix:** `log.error("refund error: order=%s payment_ref=%s amount=%s err=%s", order_id, order.payment_ref, amount, e)`, and consider catching a narrower exception type from the payments client if one is available.
+
+### 7. No idempotency key passed to `payments_api.refund`
+If the network call times out after the processor already executed the refund, a caller
+retry (or an internal retry) can trigger a second real refund at the payment processor —
+this function has no way to prevent that at the API layer.
+
+**Fix:** pass a stable idempotency key, e.g. derived from `order_id` (and refund attempt if
+partial refunds are allowed): `payments_api.refund(order.payment_ref, amount, idempotency_key=f"refund-{order_id}")`.
+
+### 8. Fee is computed but disconnected from the actual refunded amount
+`order.fee` is stored but never subtracted from `amount` or reconciled with what was actually
+sent to `payments_api.refund`. If the fee is supposed to be withheld from the customer's
+refund, that logic is missing; if it's purely informational, that should be made explicit
+(e.g., a comment or clearer naming) so a future reader doesn't assume it affects the transfer.
+
+**Fix:** clarify intent — either deduct the fee from the amount sent to the API, or rename/
+document `order.fee` as informational-only.
+
+## Low
+
+### 9. Redundant comment
+`# look up the order` directly above `order = orders[order_id]` restates what the code
+already says. Remove it.
+
+### 10. No type hints / docstring
+Given this handles money movement, a docstring noting preconditions (e.g., "amount must be
+positive and not exceed order.amount", "order must not already be refunded") would make the
+contract explicit for future callers.
+```
+
+Most urgent fixes are #1–#3: as written, a failed or declined refund call can still leave the order marked "refunded," and the function has no protection against processing the same refund twice.
