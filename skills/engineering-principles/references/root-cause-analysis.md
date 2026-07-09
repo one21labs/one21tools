@@ -68,6 +68,7 @@ Countermeasure: Create session validation middleware,
 | Accepting "human error" | Not actionable | What system change prevents this error? |
 | Going too deep | Reaches causes outside control | Stop at actionable level |
 | Single-threaded | Misses multiple contributing causes | Branch when multiple causes exist |
+| Verification = "we'll monitor going forward" | Doesn't prove the fix works | State how you'll actively trigger the failure condition and confirm the safeguard catches it |
 
 ## Branching Analysis
 
@@ -122,7 +123,7 @@ When leading a team through 5 Whys:
 [Specific action to prevent recurrence]
 
 ### Verification
-[How we'll know the fix worked]
+[A concrete test that proves the fix works — inject the failure condition and confirm the safeguard fires (e.g., run the job against a query that returns zero rows and confirm the alert triggers). Not "we'll monitor going forward" and not a restatement of the countermeasure's intended properties.]
 ```
 
 ## Deming's Insight
