@@ -54,6 +54,9 @@ deterministic logic; a doc that restates them rots).
   (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
   `main` as reverting main's content.
 - PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
+- **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
+  e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
+  the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
 - **Deferred = issues** (ADR 0021): a deferred item someone must act on gets a GitHub issue; the
   PR's Deferred section links it. No handoff/TODO files — work-state tracks in issues,
   decision-state stays in ADRs.
