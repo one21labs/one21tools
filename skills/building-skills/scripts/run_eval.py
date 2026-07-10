@@ -6,7 +6,7 @@ for a set of queries. Outputs results as JSON.
 
 VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated 2026-07-09
 (ADR 0033), plus:
-  1. Four correctness fixes, each marked `# VENDORED (fix N of 4)` at its site. Fixes 1-3 are
+  1. Five correctness fixes, each marked `# VENDORED (fix N of 5)` at its site. Fixes 1-3 are
      the stream patches (benchmarks/2026-07-07-toolkit-grid/trigger-kit/runner-patches.diff;
      filing them upstream is DEFERRED pending owner approval to post externally) -- unpatched,
      the stream loop hard-fails detection on the first non-Skill/Read tool call and closes the
@@ -17,7 +17,9 @@ VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated
      watching instead of returning. Fix (4) is TIMEOUT-AS-NULL: a query run that times out
      records None -- excluded from trigger_rate's denominator and from pass/fail, surfaced as a
      `timeouts` count per query and in the summary -- never a False (upstream scored a timeout
-     as not-triggered, silently deflating rates under load).
+     as not-triggered, silently deflating rates under load). Fix (5) applies fixes 1+3 to the
+     full-assistant-message FALLBACK branch too (issue #104): an unrelated tool_use no longer
+     returns a terminal verdict -- only a positive match ends detection early.
   2. Pure, subprocess-free extractions so the fixed behavior is unit-testable
      (run_eval_test.py) without spawning `claude -p`: the per-line stream detection into
      `detect_trigger_line()`, the per-query/summary aggregation into `summarize_query()` /
@@ -142,7 +144,7 @@ def detect_trigger_line(
                 if tool_name in ("Skill", "Read"):
                     pending_tool_name = tool_name
                     accumulated_json = ""
-                # VENDORED (fix 1 of 4): an unrelated tool call no longer ends the run; keep
+                # VENDORED (fix 1 of 5): an unrelated tool call no longer ends the run; keep
                 # watching for a later Skill/Read (upstream hard-failed here with `return False`).
 
         elif se_type == "content_block_delta" and pending_tool_name:
@@ -156,7 +158,7 @@ def detect_trigger_line(
             if pending_tool_name:
                 if clean_name in accumulated_json:
                     return DetectState(pending_tool_name, accumulated_json, state.triggered), True
-                # VENDORED (fix 3 of 4): a non-matching completed tool block resets and keeps
+                # VENDORED (fix 3 of 5): a non-matching completed tool block resets and keeps
                 # watching, instead of upstream's unconditional `return clean_name in
                 # accumulated_json` (content_block_stop) / `return False` (message_stop).
                 pending_tool_name = None
@@ -172,12 +174,13 @@ def detect_trigger_line(
                 continue
             tool_name = content_item.get("name", "")
             tool_input = content_item.get("input", {})
-            triggered = state.triggered
             if tool_name == "Skill" and clean_name in tool_input.get("skill", ""):
-                triggered = True
-            elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
-                triggered = True
-            return DetectState(pending_tool_name, accumulated_json, triggered), triggered
+                return DetectState(pending_tool_name, accumulated_json, True), True
+            if tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
+                return DetectState(pending_tool_name, accumulated_json, True), True
+            # VENDORED (fix 5 of 5): an unrelated tool_use keeps watching -- scan the rest of
+            # this message and later lines (pre-fix, the branch returned a terminal verdict at
+            # the FIRST tool_use, scoring exploration-first sessions False; issue #104).
         return state, None
 
     if event.get("type") == "result":
@@ -202,7 +205,7 @@ def run_single_query(
     stream events (content_block_start) rather than waiting for the
     full assistant message, which only arrives after tool execution.
 
-    VENDORED (fix 4 of 4): returns None -- not False -- when the query TIMES OUT, so a
+    VENDORED (fix 4 of 5): returns None -- not False -- when the query TIMES OUT, so a
     timeout is a null measurement, never a not-triggered verdict.
     """
     unique_id = uuid.uuid4().hex[:8]
@@ -241,7 +244,7 @@ def run_single_query(
 
         process = subprocess.Popen(
             cmd,
-            stdin=subprocess.DEVNULL,  # VENDORED (fix 2 of 4): don't inherit/wait on parent stdin
+            stdin=subprocess.DEVNULL,  # VENDORED (fix 2 of 5): don't inherit/wait on parent stdin
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
             cwd=project_root,
@@ -251,7 +254,7 @@ def run_single_query(
         state = DetectState(pending_tool_name=None, accumulated_json="", triggered=False)
         start_time = time.time()
         buffer = ""
-        # VENDORED (fix 4 of 4): True only when the clock expires; every completed exit
+        # VENDORED (fix 4 of 5): True only when the clock expires; every completed exit
         # (process ended, stream EOF, verdict returned) clears it.
         timed_out = True
 
@@ -261,7 +264,7 @@ def run_single_query(
                     remaining = process.stdout.read()
                     if remaining:
                         buffer += remaining.decode("utf-8", errors="replace")
-                    timed_out = False  # VENDORED (fix 4 of 4): process completed
+                    timed_out = False  # VENDORED (fix 4 of 5): process completed
                     break
 
                 ready, _, _ = select.select([process.stdout], [], [], 1.0)
@@ -270,7 +273,7 @@ def run_single_query(
 
                 chunk = os.read(process.stdout.fileno(), 8192)
                 if not chunk:
-                    timed_out = False  # VENDORED (fix 4 of 4): stream EOF, a completed run
+                    timed_out = False  # VENDORED (fix 4 of 5): stream EOF, a completed run
                     break
                 buffer += chunk.decode("utf-8", errors="replace")
 
@@ -288,7 +291,7 @@ def run_single_query(
                 process.wait()
 
         if timed_out:
-            return None  # VENDORED (fix 4 of 4): timeout -> null, excluded from the rate
+            return None  # VENDORED (fix 4 of 5): timeout -> null, excluded from the rate
         return state.triggered
     finally:
         if command_file.exists():
@@ -298,7 +301,7 @@ def run_single_query(
 def summarize_query(
     query: str, triggers: list, should_trigger: bool, trigger_threshold: float
 ) -> dict:
-    """VENDORED (fix 4 of 4): the per-query record, extracted pure from run_eval's aggregation
+    """VENDORED (fix 4 of 5): the per-query record, extracted pure from run_eval's aggregation
     loop so timeout-as-null is unit-testable. A None entry in `triggers` is a TIMED-OUT run:
     excluded from trigger_rate's denominator and from pass/fail, counted in `timeouts` (upstream
     scored it False, deflating the rate). If every run timed out there is NO measurement:
@@ -327,7 +330,7 @@ def summarize_query(
 
 
 def summarize_results(results: list[dict]) -> dict:
-    """VENDORED (fix 4 of 4): the summary block, extracted pure. An all-timeout query
+    """VENDORED (fix 4 of 5): the summary block, extracted pure. An all-timeout query
     (pass None) counts as neither passed nor failed; `timeouts` totals every timed-out run so
     a load-compromised run is loudly visible."""
     return {
@@ -367,7 +370,7 @@ def run_eval(
                 )
                 future_to_info[future] = (item, run_idx)
 
-        query_triggers: dict[str, list[bool | None]] = {}  # VENDORED (fix 4 of 4): None = timeout
+        query_triggers: dict[str, list[bool | None]] = {}  # VENDORED (fix 4 of 5): None = timeout
         query_items: dict[str, dict] = {}
         for future in as_completed(future_to_info):
             item, _ = future_to_info[future]
@@ -382,7 +385,7 @@ def run_eval(
                 query_triggers[query].append(False)
 
     for query, triggers in query_triggers.items():
-        # VENDORED (fix 4 of 4): aggregation extracted to summarize_query() (pure, unit-tested
+        # VENDORED (fix 4 of 5): aggregation extracted to summarize_query() (pure, unit-tested
         # in run_eval_test.py) -- a None trigger (timeout) is excluded from the rate there.
         results.append(summarize_query(
             query, triggers, query_items[query]["should_trigger"], trigger_threshold))
@@ -391,7 +394,7 @@ def run_eval(
         "skill_name": skill_name,
         "description": description,
         "results": results,
-        "summary": summarize_results(results),  # VENDORED (fix 4 of 4): surfaces timeouts
+        "summary": summarize_results(results),  # VENDORED (fix 4 of 5): surfaces timeouts
     }
 
 
@@ -436,7 +439,7 @@ def main():
 
     if args.verbose:
         summary = output["summary"]
-        # VENDORED (fix 4 of 4): timeouts reported loudly; a null pass (all runs timed out)
+        # VENDORED (fix 4 of 5): timeouts reported loudly; a null pass (all runs timed out)
         # prints NULL, and the rate denominator is completed runs, not submitted runs.
         print(f"Results: {summary['passed']}/{summary['total']} passed"
               f" ({summary['timeouts']} timeouts)", file=sys.stderr)
