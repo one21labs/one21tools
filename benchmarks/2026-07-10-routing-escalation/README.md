@@ -61,6 +61,26 @@ wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-
 python compose.py                                     # results.jsonl + ADOPT/DO-NOT-ADOPT verdict
 ```
 
+## Result (2026-07-10) — DO NOT ADOPT
+
+All three variants fail the pre-registered bar; per-cell and per-variant numbers live in
+`results.jsonl` (verdict rows), raw checker records in `checkers/`.
+
+| Variant | delta vs sonnet-solo | E (escalation) | false-accept | median cost ratio | outcome |
+|---|---|---|---|---|---|
+| sonnet-judge | −0.044 | 0.62 | 5/24 (21%) | 1.68 | fails cost + fidelity |
+| haiku-judge | −0.058 | 0.54 | 6/24 (25%) | 1.42 | fails all three |
+| mechanized | −0.010 | 0.79 | 2/24 (8%) | 1.24 | fails cost |
+
+Two findings worth the spend: (1) #41's validator false-accept **replicates** for model judges
+under routing semantics (21–25% vs #41's 25%); (2) the fidelity threat is **solvable** — the
+deterministic checklist checker hits 8% false-accept and holds quality at −0.010 (CI lower bound
+−0.047 clears the −0.05 margin even at n=8). But routing fails on **cost, structurally**: only
+6/24 haiku cells are legitimately shippable here, so a faithful checker escalates ~3/4 of cells
+and routing pays for haiku + checker + sonnet on most of them — total cost 1.04–1.33× sonnet-solo
+against a ≤0.6× gate. On a battery where the cheap model rarely suffices, no checker can make
+routing cheap. Verdict ADR: 0036.
+
 ## Limitations (pre-registered)
 
 - n=8 clustered evals — the same graded gradient subset and directional-bar rationale as ADR 0035.
