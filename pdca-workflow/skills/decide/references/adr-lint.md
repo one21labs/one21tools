@@ -49,8 +49,9 @@ node scripts/adr-lint.mjs docs/decisions --budget=8000
 node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)
 ```
 
-`/pdca-init` copies `adr-lint.mjs` + `adr-lint.test.mjs` into the consuming repo's `scripts/` and
-points the project at running it pre-merge / in CI.
+`/pdca-init`'s SKILL.md is the copy-set SSoT: it vendors this linter, its test, and their
+`char-budget.mjs` dependency (+ test) into the consuming repo's `scripts/`, and points the project
+at running it pre-merge / in CI.
 
 **Project-specific guards (add locally).** A project with a roadmap/changelog + a versioned manifest
 (e.g. `package.json`, `Cargo.toml`, a release tag) can also assert its tracker agrees with the shipped version, and that every
