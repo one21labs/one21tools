@@ -157,6 +157,69 @@ class ReferenceCaps(unittest.TestCase):
             self.assertIn("emoji", r.error)
 
 
+class SelfReferentialPathLint(unittest.TestCase):
+    """R6.2 (ADR 0044): a runnable fenced command anchored at the skill's OWN folder breaks in
+    an installed plugin; cross-skill refs, non-runnable fences, and the two escape hatches
+    must not be flagged."""
+
+    def test_own_folder_path_in_bash_fence_fails(self):
+        # The fix-building-skills-paths defect (#115), reproduced.
+        with tempfile.TemporaryDirectory() as t:
+            body = "run:\n```bash\npython skills/self-path/scripts/validate.py x\n```\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("installed plugin", r.error)
+
+    def test_own_folder_path_without_skills_prefix_also_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "```sh\npython self-path/scripts/run.py\n```\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertFalse(validate_skill(d).valid)
+
+    def test_own_folder_path_in_reference_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            ref = "```bash\npython skills/self-path/scripts/run.py\n```\n"
+            d = make_skill(Path(t), "self-path", refs={"r.md": ref})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("r.md", r.error)
+
+    def test_cross_skill_reference_passes(self):
+        # A DIFFERENT skill's folder is a legitimate cross-skill reference.
+        with tempfile.TemporaryDirectory() as t:
+            body = "```bash\npython skills/other-skill/scripts/tool.py\n```\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_bare_relative_scripts_path_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "```bash\npython scripts/validate.py x\n```\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_non_runnable_fence_passes(self):
+        # Escape hatch 1: a ```text (or tree-diagram) fence is not a runnable command.
+        with tempfile.TemporaryDirectory() as t:
+            body = "```text\nWRONG: python skills/self-path/scripts/run.py\n```\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_inline_allow_marker_passes(self):
+        # Escape hatch 2: the inline marker suppresses a deliberate worked example.
+        with tempfile.TemporaryDirectory() as t:
+            body = ("```bash\npython skills/self-path/scripts/run.py  "
+                    "# validate:allow-self-path\n```\n")
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_prose_mention_outside_fence_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "The old skills/self-path/scripts/run.py anchor was the defect.\n"
+            d = make_skill(Path(t), "self-path", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+
 class EvalsJsonGate(unittest.TestCase):
     """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema."""
 

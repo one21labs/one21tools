@@ -59,6 +59,35 @@ def contains_emoji(text: str) -> bool:
     return bool(EMOJI_PATTERN.search(text))
 
 
+# R6.2 (ADR 0044): info-strings treated as runnable commands; a ```text/tree-diagram/bare fence
+# is not linted, and this inline marker suppresses a deliberate worked example on its line.
+RUNNABLE_INFO_STRINGS = {"bash", "sh", "shell", "console"}
+SELF_PATH_ALLOW_MARKER = "validate:allow-self-path"
+
+
+def find_self_referential_script_paths(text: str, folder_name: str) -> List[int]:
+    """R6.2 (ADR 0044): line numbers of runnable fenced commands anchored at the skill's OWN
+    folder (skills/<folder>/scripts/... or <folder>/scripts/...) -- that prefix exists only in
+    the source repo, so the command breaks in an installed plugin. Own-name anchoring means a
+    cross-skill reference (a different folder) never matches."""
+    pattern = re.compile(r"(?:^|[\s'\"=(`])(?:skills/)?" + re.escape(folder_name) + r"/scripts/")
+    offenders = []
+    in_block = runnable = False
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            if in_block:
+                in_block = runnable = False
+            else:
+                in_block = True
+                runnable = stripped[3:].strip().lower() in RUNNABLE_INFO_STRINGS
+            continue
+        if (in_block and runnable and pattern.search(line)
+                and SELF_PATH_ALLOW_MARKER not in line):
+            offenders.append(lineno)
+    return offenders
+
+
 def validate_name(name: str) -> tuple[bool, str]:
     """R2.2-R2.8: the name rules, shared with init.py (ADR 0010). Excludes the folder-match
     check (R2.9), which needs an existing folder and stays in validate_skill."""
@@ -236,6 +265,14 @@ def validate_skill(skill_path: Path) -> ValidationResult:
     if line_count > TOC_THRESHOLD and not TOC_RE.search(body):
         return ValidationResult(False, f"Body has {line_count} lines (>{TOC_THRESHOLD}). Add '## Table of Contents'")
 
+    # R6.2 (ADR 0044): no self-referential repo-anchored script paths in runnable fences
+    offenders = find_self_referential_script_paths(content, folder_name)
+    if offenders:
+        return ValidationResult(False, (
+            f"SKILL.md:{offenders[0]}: runnable command anchored at the skill's own folder "
+            f"('[skills/]{folder_name}/scripts/...') breaks in an installed plugin -- use a bare "
+            f"scripts/... path, or mark a deliberate example with '{SELF_PATH_ALLOW_MARKER}'"))
+
     # R5.2: No emojis in script files
     scripts_dir = skill_path / "scripts"
     if scripts_dir.exists():
@@ -261,6 +298,13 @@ def validate_skill(skill_path: Path) -> ValidationResult:
                 return ValidationResult(False, f"Reference {rel} exceeds {REFERENCE_MAX_CHARS} chars ({ref_chars} chars)")
             if ref_chars > REFERENCE_TOC_THRESHOLD and not TOC_RE.search(ref_text):
                 return ValidationResult(False, f"Reference {rel} has {ref_chars} chars (>{REFERENCE_TOC_THRESHOLD}). Add '## Table of Contents'")
+            ref_offenders = find_self_referential_script_paths(ref_text, folder_name)
+            if ref_offenders:
+                return ValidationResult(False, (
+                    f"Reference {rel}:{ref_offenders[0]}: runnable command anchored at the "
+                    f"skill's own folder ('[skills/]{folder_name}/scripts/...') breaks in an "
+                    f"installed plugin -- use a bare scripts/... path, or mark a deliberate "
+                    f"example with '{SELF_PATH_ALLOW_MARKER}'"))
 
     # R7: evals/evals.json shape, when present (skill-creator schema; ADR 0013)
     evals_error = validate_evals_json(skill_path, folder_name)
