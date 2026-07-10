@@ -25,7 +25,7 @@ summary: "Measured token ratios (arm_map, 144 records; pretty-json 1.00x baselin
 No single format fits both record shapes: flat records span 2x+ (1.00x pretty-json to 0.45x CSV), but on prose records the cheaper CSV needs per-row quoting and breaks on embedded newlines for a mere ~5%. Raw retention is the dominant byte cost (~63%), format-agnostic free text — so there the fix is compression plus a bounded readable sample (ADR 0023), not a record-format change.
 
 ## Assumptions
-- [checkable] the measured ratios (pretty-json 1.00x, min-json 0.82x, yaml-block 0.80x, tabular/TOON 0.54x, tsv/csv 0.45x; text-heavy records 0.92x-0.98x) reproduce on the committed arm_map fixture (144 records) — owner: the benchmark tooling that computed them; result: pending re-run.
+- [checkable] the load-bearing ratios reproduce on the committed arm_map fixture (144 records) — owner: gate; result: verified 2026-07-09 (csv/tsv 0.46x vs claimed 0.45x, min-json 0.86x vs 0.82x — the CSV-default basis holds; rejected-format ratios not re-derived, non-load-bearing).
 - [verified] raw model outputs are the majority (~63%) share of a benchmark's committed bytes, grounding gzip-the-rest over a record-format fix.
 - [unverifiable] a cell ever needed for audit isn't stuck behind the gzip archive because `sample_rule` missed it — REOPEN-IF a needed cell must be pulled from `raw.tar.gz` rather than the plain-text sample; then widen `sample_rule` (ADR 0023) instead of decompressing ad hoc.
 
