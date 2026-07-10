@@ -53,7 +53,11 @@ deterministic logic; a doc that restates them rots).
   squashed commits as a phantom range. Preview what a branch/PR changes with three-dot
   (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
   `main` as reverting main's content.
-- PR body: Purpose / Changes / Testing / Deferred. Run `/retrospect` on the branch before opening it.
+- PR body: Purpose / Changes / Testing / Deferred / Retrospective. Run `/retrospect` on the branch
+  before opening it, then record the outcome as a body line: `Retrospective: run | unavailable |
+  skipped-<reason>` (ADR 0030) — `skipped-batch:<link>` is a sanctioned reason when debt is paid by
+  a batch retrospect covering prior small PRs; `unavailable` when the plugin didn't load in-session
+  (ADR 0022). No size floor: "tiny PR" is not a valid reason on its own.
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
