@@ -101,7 +101,13 @@ summary: "<one line for the skim catalog>"
 - [pivot] <any REOPEN-IF that fired>
 ```
 
-Tag routing: **verified** fine; **checkable** (code) the gate verifies, unchecked = defect;
+Tag routing: **verified** fine; **checkable** (code) the gate verifies, unchecked = defect. A
+`[checkable]` whose TEST is a deterministic check the gate can run in-session (a command, a file
+read, a formula reproduction) must be resolved before the ADR ships `accepted` — its `— result:`
+reads verified/refuted, never `pending`; a runnable check left `pending` is the defect. `pending`
+is reserved for a TEST awaiting a future or external signal the gate cannot obtain now (a later
+A/B's outcome, a future retro miss), which it must NAME. A permanently out-of-sandbox fact is
+`[unverifiable]` (routes to REOPEN-IF), never a `[checkable]` pending.
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
