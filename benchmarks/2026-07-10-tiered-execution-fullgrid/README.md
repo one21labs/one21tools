@@ -123,9 +123,9 @@ python prep.py                                    # meta.json, cells.tsv, evals_
 # <outdir>/cells/<arm>.<skill>.<eval_id>.r<rep>.json (72 files) and <outdir>/<arm>.summary.json.
 # --outdir defaults to ~/tiered-run (WSL-native, fast I/O); override to a /mnt/c/... path if you'd
 # rather have the driver write directly into this benchmark directory.
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution/harness.py --arm sonnet-solo
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution/harness.py --arm haiku-solo
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution/harness.py --arm tiered
+wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution-fullgrid/harness.py --arm sonnet-solo
+wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution-fullgrid/harness.py --arm haiku-solo
+wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution-fullgrid/harness.py --arm tiered
 
 # Copy each arm's cells/ and its <arm>.summary.json from the WSL outdir into this benchmark
 # directory (WSL is reachable from Windows at \\wsl.localhost\Debian\home\<user>\tiered-run\...).
@@ -151,7 +151,7 @@ python -m py_compile harness.py prep.py blind.py aggregate.py archive_raw.py
 python prep.py                                                            # offline; generates meta.json/cells.tsv/evals_args.json
 python harness.py --help
 python harness.py --arm tiered --dry-run                                  # lists the 72 cells for an arm, no claude calls
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution/harness.py --arm sonnet-solo --dry-run
+wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution-fullgrid/harness.py --arm sonnet-solo --dry-run
 ```
 
 ## Design decisions carried over from precedent

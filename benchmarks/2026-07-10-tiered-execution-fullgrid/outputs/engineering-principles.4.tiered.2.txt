@@ -1,0 +1,148 @@
+# Config Subsystem Completion Plan
+
+## Scope Check: Requirement vs. Built Scope Mismatch
+
+**Actual requirement (from consuming team):** Read `config.json` at startup and validate three fields: `api_url`, `team_id`, `log_level`. That's the complete ask.
+
+**What's been built (~2 weeks, ~50% done):**
+- Pluggable format-adapter architecture with scaffolded YAML, TOML, XML adapters (JSON only finished)
+- Hot-reload file watcher (half-wired, incomplete integration)
+- Schema-migration framework (interfaces defined, zero implementation)
+
+**The mismatch:** None of these three features (multi-format support, hot-reload, schema migrations) were requested. They exist because the architecture was designed for extensibility, not because any consumer asked for them. Finishing them is a sunk-cost justification ("we already spent two weeks"), not a requirements-driven decision.
+
+**This section flags an explicit decision point. Do not proceed with the task list below until choosing one path:**
+
+---
+
+## Option 1: Descope Now — Deliver What Was Asked For
+
+**Approach:** Complete the JSON adapter, add validation for the 3 required fields, delete or shelve YAML/TOML/XML scaffolds and migration framework code. Ship a minimal solution that solves the actual problem.
+
+**Remaining work:**
+
+| Task | Size | Details |
+|------|------|---------|
+| Finalize JSON adapter | S | Verify error handling for malformed JSON, missing file, permission errors |
+| Implement validation logic | S | Check presence, type (string), non-empty for `api_url`, `team_id`, `log_level`; optional: syntactic checks (URL format, log level enum) |
+| Remove or shelve scaffolds | S | Delete YAML/TOML/XML adapter code; move migration framework interfaces to backlog ticket or `future/` folder (paper trail) |
+| Drop incomplete watcher | S | Remove or disable half-wired file-change integration |
+| Test suite (JSON + validation) | S | Happy path + all validation error cases |
+| Documentation | S | Config format, field requirements, startup behavior |
+
+**Total: ~2–3 days.** Easily finishable this sprint.
+
+**Validation approach (minimal):**
+- `api_url`: Present, non-empty string. (Optional: URL syntax check.)
+- `team_id`: Present, non-empty string. (Optional: format check if team IDs have known structure.)
+- `log_level`: Present and one of `["debug", "info", "warn", "error"]` (or equivalent from logging config).
+- **Failure mode:** Log error and exit with non-zero status; do not start the app with invalid config.
+
+**Dependencies:** None; this is self-contained.
+
+**Outcome:** Focused, maintainable code. No half-baked features. Unblocks the team immediately.
+
+---
+
+## Option 2: Finish as Originally Scoped — Complete All Features
+
+**Approach:** Finish the multi-format adapters, wire the hot-reload watcher with rollback behavior, and implement the migration framework end-to-end. This is speculative feature development with no current consumer—only proceed with explicit business justification.
+
+### Adapters
+
+| Task | Size | Details |
+|------|------|---------|
+| YAML adapter | M | Parsing, schema mapping, error handling |
+| TOML adapter | M | Parsing, schema mapping, error handling |
+| XML adapter | M | Parsing, schema mapping (attribute vs. element decisions), error handling |
+| Adapter tests | M | Each format with validation + error cases |
+| Format auto-detection | S | Infer from file extension; fallback to JSON |
+
+### Hot-Reload Watcher
+
+| Task | Size | Details |
+|------|------|---------|
+| File watcher completion | M | Wire change events to reload logic, debounce rapid changes |
+| Reload + validate + rollback | L | Load new config, validate it; on failure, keep old config in memory, log error, do not crash |
+| Thread safety | M | Ensure config reads don't race with reloads (lock or atomic swap) |
+| Watcher tests | M | Reload success, reload failure + rollback, rapid changes, validation errors |
+| Startup integration | S | Wire watcher into app lifecycle |
+
+### Schema Migration Framework
+
+| Task | Size | Details |
+|------|------|---------|
+| Version detection | S | Infer version from `_version` field or default to v0 |
+| Migration executor | M | Load and apply migration chain (v0→v1→v2) with error handling |
+| Bidirectionality decision | S | Forward-only or up/down migrations? (Typically forward.) |
+| Migration tests | L | Fixture configs per version, end-to-end chain tests, error cases |
+| Backwards-compatibility policy | S | Document supported versions (e.g., current + 2 previous) |
+
+### Validation (Extended)
+
+| Task | Size | Details |
+|------|------|---------|
+| Cross-format validation | S | Ensure all adapters produce consistent schema (types match across formats) |
+| Post-migration validation | M | Verify migrations produce output that passes current validation |
+
+**Total: 3–4 weeks.** Breakdown:
+- Adapters + tests: 1–1.5 weeks
+- Watcher completion + rollback: 1 week  
+- Migrations + tests: 1–1.5 weeks
+- Integration + cross-component testing: 3–5 days
+
+**Risk:** No current consumer for these features. Behavior of reload-failure, migration paths, and version policy are speculative and will need clarification as they're built.
+
+**Dependencies:**
+- Complete all adapters before integrating watcher (watcher must support any format).
+- Stabilize watcher before migration testing (migrations load at startup/reload).
+
+**Outcome:** Extensible, flexible subsystem. Higher maintenance cost until features are actually used.
+
+---
+
+## Validation Approach (Both Options)
+
+**Field requirements:**
+- `api_url`: Present, non-empty string. Type: string.
+- `team_id`: Present, non-empty string. Type: string.
+- `log_level`: Present, non-empty string. Type: string. Value must be one of allowed log levels (infer from logging config: e.g., `["debug", "info", "warn", "error"]`).
+
+**On validation failure:** Log the specific missing/invalid field and exit startup with non-zero status. Do not proceed with app startup. (This is safer than defaulting or warning only.)
+
+---
+
+## Open Questions
+
+1. **Descoping decision (if Option 1):** Should the YAML/TOML/XML scaffolds be deleted completely or moved to a backlog ticket/`future/` folder? Deleting is cleaner; a backlog ticket preserves the decision trail if multi-format is reconsidered later.
+
+2. **Watcher failure mode (if Option 2):** On reload validation failure, should the watcher:
+   - Keep the old config and log an error? (Safe, recommended)
+   - Crash and require restart? (Strict)
+   - Stop watching after N consecutive failures? (Defensive, needs circuit-breaker logic)
+
+3. **Migration directionality (if Option 2):** Are migrations forward-only (v0→v1→v2) or reversible (v2→v1)? (Forward is simpler.)
+
+4. **Sprint overflow (if Option 2):** Does work that doesn't fit this sprint spill to the next one, or does scope compress to fit Option 1 by sprint end?
+
+---
+
+## Recommendation
+
+**Option 1 is the better fit for the stated sprint goal.** Ship JSON validation for 3 fields in 2–3 days, unblock the team, and close the sprint. Multi-format support, hot-reload, and migrations are plausible future features but have zero current demand and represent premature optimization for an internal tool.
+
+**Proceed with Option 2 only if:** There is explicit stakeholder demand for one or more of these features (multi-format configs, hot-reload behavior, version migrations) beyond the two-week sunk-cost justification. If this is a strategic extensibility investment, that's a valid business call—but it should be named as such and owned by someone other than "we already built the scaffolding."
+
+---
+
+## Chosen Path
+
+*To be decided by sprint owner.*
+
+**Selected:** [ ] Option 1 (Descope — JSON only)  
+**Selected:** [ ] Option 2 (Finish — All features)  
+**Selected:** [ ] Hybrid (Adapters only, defer watcher + migrations) — *or other variant*
+
+**Rationale:** ___________________________________________
+
+**Owner & Date:** ___________________________________________

@@ -1,0 +1,91 @@
+```markdown
+# Release Process Review
+
+## Summary
+
+Your release process has three interconnected bottlenecks that create batch pressure: (1) changes accumulate on `main` without a fast-path release option, forcing a biweekly cadence with ~40 changes per train, (2) sequential sign-offs create a static approval bottleneck even after code is merged, and (3) manual changelog generation is error-prone and time-consuming. Together, these make small fixes feel urgent (because they wait weeks) and large releases risky (because the batch size amplifies the blast radius). The perception of busyness without shipping velocity stems from context-switching between ongoing development and the high-ceremony release process every two weeks.
+
+---
+
+## Bottleneck-by-Bottleneck Analysis
+
+### PR Review Latency (~2 days average)
+A 2-day average wait for review is not atypical but delays feedback and creates a cycle of developers starting new work while waiting, which fragments focus. This is less critical than the post-merge delays, but it does contribute to perceived slowness and re-context-switching when feedback arrives.
+
+### Large Batch Accumulation & Biweekly Cadence
+The biggest source of shipping slowness and release stress. Requiring changes to wait until the biweekly train means a one-character hotfix waits up to 14 days for even its first user exposure. The ~40 changes per release create a large blast radius: any regression affects many users simultaneously, QA must re-test the entire batch, and rollback becomes costly. This batch size also creates the cognitive load that makes releases stressful.
+
+### Manual Changelog Generation
+The release manager must hand-copy from each PR description into a release document. This is time-consuming, error-prone (entries get forgotten or duplicated), and couples release readiness to a single person's availability. It also creates a gate between "code is ready to ship" and "release is documented."
+
+### Sequential Sign-Off Workflow
+Three sequential approvals (QA → EM → PM) serialize the approval stage. Even if QA finishes in an hour, the release sits idle until the engineering manager is available. This is especially painful when releases are "ready to ship" but blocked on a single person's calendar. It also creates a perception that each release is a large, formal event.
+
+### No Hotfix Fast Lane
+Hotfixes are forced through the same biweekly train as feature work. A critical security fix or production outage fix waits for the next scheduled release window, creating unnecessary customer impact and business risk. This absence of urgency-based routing means the process treats "typo fix" and "data corruption fix" identically.
+
+---
+
+## Recommendations
+
+### High-Impact, Medium Effort
+
+1. **Create a hotfix/patch release lane** (distinct from the biweekly train)
+   - Allow critical/urgent fixes to ship on demand, outside the regular cadence.
+   - Define criteria clearly (e.g., production outages, security issues, data corruption) to prevent every fix from claiming urgency.
+   - Require streamlined approval for hotfixes: QA + EM sign-off only (same reviewer pair but not necessarily sequential; parallel approval if possible).
+   - *Tradeoff:* Adds a second release cadence to manage, but eliminates the business risk of holding urgent fixes.
+
+2. **Automate changelog generation from PR metadata**
+   - Use PR titles and/or a required label/field (e.g., "changelog summary" in PR template) as the source of truth.
+   - Generate the changelog in bulk from merged PRs during release prep rather than requiring manual copying.
+   - *Impact:* Saves time, reduces errors, decouples release documentation from a single person.
+
+### Medium-Impact, Quick Wins
+
+3. **Parallelize approval sign-offs (where possible)**
+   - Change QA → EM → PM sequence to QA in parallel with EM/PM, or QA then EM+PM in parallel.
+   - Rationale: Engineering and product perspectives don't strictly depend on QA sign-off; they can run concurrently.
+   - *Tradeoff:* Adds slight coordination overhead but recovers cycle time without reducing rigor.
+
+4. **Reduce the biweekly train to weekly releases**
+   - More frequent, smaller batches (e.g., 15–20 changes per release instead of 40) lower blast radius, reduce stress, and make rollbacks faster.
+   - Weekly rhythm is easier to plan around than biweekly.
+   - *Tradeoff:* Seven releases per quarter instead of 13 per year means more ceremony — mitigate by tightening the approval SLA (e.g., 4-hour window to collect sign-offs, not all-day).
+
+### Medium-Impact, Structural
+
+5. **Establish per-PR risk assessment to gate batch size**
+   - Have reviewers flag high-risk changes (breaking changes, database migrations, infrastructure changes) at PR merge time.
+   - If a biweekly train exceeds a risk threshold (e.g., >10% high-risk changes), consider holding the highest-risk items for the next train.
+   - *Rationale:* Balances the pressure to ship frequently against the need to avoid catastrophic batch releases.
+
+---
+
+## Suggested Next Steps
+
+1. **Define and launch a hotfix lane** (Week 1–2)
+   - Write criteria and approval workflow; communicate to the team.
+   - *Why first:* Immediately removes the business risk of urgent fixes blocked on biweekly cadence; quick to implement.
+   - *Tradeoff:* Doesn't reduce overall release ceremony, but addresses the most painful stated symptom (urgency).
+
+2. **Automate changelog generation** (Week 2–3)
+   - Add a "changelog" field to the PR template; script changelog generation from merged PRs.
+   - *Why:* Frees release-manager time and eliminates a manual gate; low risk and high satisfaction.
+
+3. **Pilot weekly releases** (Week 4 onward)
+   - Run one weekly release cycle in parallel with or instead of the next biweekly train; measure stress, defect rate, and approval SLA.
+   - *Why:* Empirically tests whether smaller batches reduce stress without breaking stability.
+   - *Tradeoff:* If weekly proves too frequent or risky, retreat to every-10-days or keep biweekly but raise the per-release threshold; don't assume success.
+
+4. **Parallelize approval sign-offs** (concurrent with step 3 or after)
+   - Reorder to QA in parallel with EM/PM if possible; measure approval cycle time.
+   - *Why:* Low effort, medium reward; unblocks releases faster without changing ceremony.
+
+---
+
+## Caveats
+
+- The tension between batch size and release frequency is real: weekly releases with 15–20 changes per train still carry more risk than a handcrafted quarterly release, but distribute risk over time rather than concentrating it. Monitor defect rates and rollback frequency when changing cadence.
+- A weekly train does not eliminate the need for high-quality PR review or testing; it shifts the focus to *faster* feedback and rollback capability rather than *perfect* prediction.
+```

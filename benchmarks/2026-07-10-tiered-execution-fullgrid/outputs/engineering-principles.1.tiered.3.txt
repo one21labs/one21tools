@@ -1,0 +1,99 @@
+```markdown
+# Post-Incident Analysis: Empty Customer-Export Delivery (3rd Occurrence)
+
+## Summary
+
+For the third time in two months, the nightly customer-export job produced and delivered an empty output file to a client, with no internal alert raised. This latest occurrence was triggered when Priya (an engineer onboarded six weeks ago) modified the export SQL query without executing the manual verification step documented in the team wiki. The job exited with status code 0 despite producing zero rows, and the empty file was delivered undetected; the client discovered the failure during their downstream processing.
+
+## Timeline
+
+| Phase | Trigger/Event | Marker |
+|-------|---------------|--------|
+| Query change | Priya modifies export SQL query | TBD |
+| Job execution | Nightly job runs with new query | TBD |
+| Exit signal | Job completes with exit code 0 | TBD |
+| File delivery | Empty output file delivered to client | TBD |
+| External detection | Client reports empty/invalid export file | TBD |
+| Internal discovery | Incident escalated to engineering team | TBD |
+
+*Note: Exact timestamps not provided in incident report; times above are illustrative placeholders and should be populated from job logs and client report.*
+
+## Incident History
+
+| Occurrence | Approximate Date | Proximate Trigger | Outcome | Detection |
+|------------|------------------|-------------------|---------|-----------|
+| #1 | ~6 weeks ago | Schema rename (upstream table) | Empty file, exit 0, no alert | Client noticed |
+| #2 | ~2–3 weeks ago | Expired credential swallowed by job | Empty file, exit 0, no alert | Client noticed |
+| #3 | This week | Unverified query change by new engineer | Empty file, exit 0, no alert | Client noticed |
+
+**Pattern:** Three distinct proximate causes, identical failure mode (zero-row output treated as success), zero internal detection rate.
+
+## Root Cause Analysis
+
+### Proximate Cause
+Priya changed the export SQL query without executing the documented manual verification step (wiki: "after changing the query, run it once by hand and eyeball the row count"). This resulted in a query that produced zero rows, which was deployed and executed by the scheduled job.
+
+### Systemic Root Cause
+The job's success signal is decoupled from output correctness. The monitoring and alerting infrastructure checks only the exit code (0 = success), with no validation of output characteristics (row count, file size, schema match, or data anomalies). Zero-row output is treated as a valid success state and triggers delivery to the client. This gap has been exposed three times in two months by different failure modes — evidence that the root cause is systemic, not contingent on any single engineer's behavior.
+
+The recurrence of identical failure modes across different proximate triggers is itself proof that individual behavioral fixes (reminders, training, checklists) are insufficient; the system itself enables and normalizes the silent delivery of empty exports.
+
+## Contributing Factors
+
+1. **Manual verification step exists in wiki only, not enforced or tooled.** The post-query-change verification is a social/cultural expectation, not an automated gate or CI step.
+
+2. **New engineer onboarding gap.** Priya (six weeks tenure) did not have a structured checkpoint or runbook review covering this specific job's operational requirements.
+
+3. **No output-correctness validation in the export pipeline.** The job produces a file and signals success based only on its exit code; no row-count thresholds, schema validation, or anomaly detection.
+
+4. **No pre-delivery monitoring on file characteristics.** The delivery mechanism does not check file size, row count, or basic sanity before sending to client. No alert on suspiciously empty or anomalous exports.
+
+5. **No alerting tied to query changes.** Schema or SQL modifications to the export query do not trigger additional validation or review gates.
+
+## What We Should Change
+
+### Immediate/Short-Term Actions
+
+- **Add row-count validation to the export job.** The job should check that the output file contains a non-zero number of rows before marking as complete. If zero rows are produced, the job should exit with a non-zero code and trigger an alert.
+  - Owner: TBD
+  - Target: TBD
+
+- **Implement pre-delivery validation gate.** Before the export file is delivered to the client, validate row count, file size, and basic schema/format correctness. Block delivery and alert if any check fails.
+  - Owner: TBD
+  - Target: TBD
+
+### Systemic/Structural Actions
+
+- **Replace exit-code-only monitoring with output validation.** Implement row-count thresholds and anomaly detection (e.g., if today's export is >50% fewer rows than the rolling average, alert). Success should mean "exit 0 AND row count is within expected range."
+  - Owner: TBD
+  - Target: TBD
+
+- **Automate query-change verification.** Convert the wiki manual-verification step into an automated or enforced control:
+  - Add a pre-commit/pre-merge hook or CI step that requires a dry-run of modified export queries with row-count output.
+  - Alternatively, require approval from an experienced oncall engineer for any query changes to this job, with automated flagging.
+  - Owner: TBD
+  - Target: TBD
+
+- **Add structured onboarding for this job.** Create a runbook or checklist for new engineers covering: the job's SLO, the manual verification step (until automated), expected row counts or range, what to do if the export fails, and alerting mechanisms.
+  - Owner: TBD
+  - Target: TBD
+
+- **Implement delivery-stage alerting on empty/anomalous exports.** If an export file is detected with zero rows or row count outside acceptable range, send an alert to the oncall team *before* delivery to the client.
+  - Owner: TBD
+  - Target: TBD
+
+### Why Not Individual-Behavior Fixes Alone
+
+The three occurrences show that asking engineers to remember a wiki step or to be more careful is not sufficient. Priya followed a pattern that the system itself enabled and normalized. The first two incidents (schema rename, expired credential) occurred before Priya joined; they prove that this failure mode is not contingent on new-engineer onboarding or one person's discipline. All corrective actions above should prioritize system-level barriers and monitoring over reliance on human memory or vigilance.
+
+## Owners and Timeframes
+
+- **Immediate actions (row-count validation, pre-delivery gate):** Owner: TBD | Target: TBD
+- **Systemic actions (monitoring redesign, query-change automation, onboarding, delivery-stage alerting):** Owner: TBD | Target: TBD
+
+## Follow-Up
+
+- Verify that the three past incidents are indeed cleared from the export queue and that no clients have pending or partial data.
+- Post-implementation: validate that row-count checks and anomaly detection do not produce alert fatigue or false positives on legitimate low-volume export days.
+- Schedule a retro with the export job team and client stakeholders once corrective actions are live.
+```

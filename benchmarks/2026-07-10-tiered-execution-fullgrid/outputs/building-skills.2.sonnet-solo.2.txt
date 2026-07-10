@@ -1,0 +1,84 @@
+I don't have a file-write tool available in this session (only ReportFindings, ScheduleWakeup, ToolSearch, and Workflow are accessible, and the request also says not to use tools), so I can't create `outputs/review.md` or `outputs/json-config-check/SKILL.md` directly. Here's both deliverables inline instead.
+
+## Review of defects (outputs/review.md)
+
+```markdown
+# Review: json-config-check SKILL.md
+
+## Frontmatter
+- **Vague, hype-driven description** ("really helpful", "lots of things", "Use when needed") gives Claude no
+  concrete trigger condition. Skill descriptions are used to decide *whether* to invoke the skill — this one
+  doesn't say what kind of request should activate it.
+- **Description overpromises**: says the skill "can do lots of things" but the body only ever describes one
+  behavior (schema validation). Scope mismatch between frontmatter and content.
+
+## Body content
+- **"Introduction" section is filler.** A paragraph explaining what JSON is belongs in a tutorial, not a skill
+  meant to instruct an LLM at execution time. It burns context budget without changing behavior.
+- **"About This Amazing Skill" section is pure marketing copy** ("incredibly powerful", "fantastic time-saver
+  that your whole team will love") — zero instructional value, should be deleted entirely.
+- **Instructions are hedged into uselessness.** Phrases like "the file gets parsed," "a schema file happens to
+  be available," "the config might be validated," "Errors could be reported" describe possibilities, not
+  imperative steps. A skill file needs to tell the executor exactly what to do, not narrate vague maybes.
+- **No schema-discovery rule.** "If a schema file happens to be available in the same directory" doesn't say
+  what filename or convention to look for (e.g. `$schema` key vs. `*.schema.json` sibling file). Without this,
+  two runs of the skill could behave inconsistently.
+- **Tooling choice is non-committal.** "You might want to consider possibly using Python's json module and the
+  jsonschema package... which can be a good choice" — hedged three times over. State the tool to use directly.
+- **No error-reporting format.** Doesn't say whether to report the first error or all errors, whether to
+  include line numbers / JSON paths, or what a "valid" result should look like.
+- **No example/code.** Nothing showing how the parsing + validation actually happens.
+- **No stated scope boundary.** Doesn't clarify what the skill does *not* do (e.g., doesn't fix files, doesn't
+  validate business logic), which matters given the frontmatter's "lots of things" claim.
+```
+
+## Corrected skill (outputs/json-config-check/SKILL.md)
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file for syntax correctness and, when a matching JSON Schema is present, structural compliance. Use when a user asks to check, validate, or lint a JSON config file, or reports a JSON parsing/schema error that needs diagnosing.
+---
+
+# JSON Config Check
+
+Validates a JSON configuration file for syntax errors and, if a schema is available, checks it against that schema.
+
+## Steps
+
+1. Read the target JSON file.
+2. Parse it with Python's `json` module (`json.load`). If parsing fails, report the exact error message and
+   line/column from the `json.JSONDecodeError`, then stop.
+3. Look for a schema to validate against, in this order:
+   - A `$schema` key inside the JSON file, resolved relative to the file's directory.
+   - A sibling file with the same base name and a `.schema.json` suffix (e.g. `config.json` → `config.schema.json`).
+   If no schema is found, report that the file is syntactically valid JSON and stop — schema validation is
+   optional, not required.
+4. If a schema is found, validate the parsed JSON against it with the `jsonschema` package (`jsonschema.validate`).
+5. Report results:
+   - Valid: confirm the file is valid JSON and, if applicable, conforms to the schema.
+   - Invalid: report every validation error found (not just the first), including the JSON path to the
+     offending field and the reason it failed.
+
+## Example
+
+​```python
+import json
+import jsonschema
+
+with open("config.json") as f:
+    data = json.load(f)  # raises JSONDecodeError on malformed JSON
+
+with open("config.schema.json") as f:
+    schema = json.load(f)
+
+jsonschema.validate(instance=data, schema=schema)  # raises ValidationError on mismatch
+​```
+
+## Out of scope
+
+This skill only checks syntax and schema compliance. It does not check business-logic correctness of config
+values, does not modify files, and does not generate a schema for files that lack one.
+```
+
+If you'd like, tell me where I should actually be able to write files in this session (or re-run with file tools enabled) and I'll persist these to disk instead of pasting them here.

@@ -1,0 +1,162 @@
+I cannot use the Write tool in this context. However, here is the corrected **review.md** content addressing the reviewer's feedback:
+
+---
+
+# Code Review: `process_refund` Function
+
+## Critical Defects
+
+### Defect #1: State Mutation Before API Confirmation & Incorrect Return Value (Correctness)
+**Severity:** CRITICAL
+
+**Description:**
+The function mutates order state and returns `True` before confirming the payment API call succeeds. Lines 7–9 set `order.status = "refunded"` and `order.refunded_amount = amount` immediately, but if `payments_api.refund()` fails or returns a non-ok status, the order remains marked as refunded while no refund occurred. Additionally, when `result.get("status") != "ok"` (line 13), the function logs a warning but still charges the fee (line 16) and returns `True` (line 17), creating a financial inconsistency.
+
+**Location:**
+Lines 7–17. State mutations occur before API result validation; function returns `True` even when refund was not confirmed.
+
+**Concrete Fix:**
+Reorder to validate API result before mutating state:
+
+```python
+def process_refund(orders, payments_api, order_id, amount):
+    # Validate order existence and amount first
+    if order_id not in orders:
+        log.error(f"Order {order_id} not found")
+        return False
+    order = orders[order_id]
+    
+    if order.status == "refunded":
+        log.warning(f"Order {order_id} already refunded")
+        return False
+    
+    if amount <= 0:
+        log.error(f"Invalid refund amount {amount} for order {order_id}")
+        return False
+    
+    if amount > order.amount:
+        log.warning(f"Refund amount {amount} exceeds order amount {order.amount} for order {order_id}")
+        return False
+    
+    # Call API before mutating state
+    try:
+        result = payments_api.refund(order.payment_ref, amount)
+    except Exception as e:
+        log.exception(f"Refund API failed for order {order_id}: {e}")
+        return False
+    
+    # Only mutate state and charge fee if API succeeded
+    if result.get("status") == "ok":
+        order.status = "refunded"
+        order.refunded_amount = amount
+        order.fee = amount * FEE_RATE
+        return True
+    else:
+        log.warning(f"Refund not confirmed by API for order {order_id}: {result}")
+        return False
+```
+
+---
+
+### Defect #2: Missing Validation of `order_id` (Correctness)
+**Severity:** HIGH
+
+**Description:**
+Line 7 (`order = orders[order_id]`) raises an uncaught `KeyError` if `order_id` is not in the `orders` dict. This crashes the function with an unfriendly traceback instead of returning a clear error.
+
+**Location:**
+Line 7.
+
+**Concrete Fix:**
+Add existence check before lookup (included in Defect #1 fix above):
+
+```python
+if order_id not in orders:
+    log.error(f"Order {order_id} not found")
+    return False
+order = orders[order_id]
+```
+
+---
+
+### Defect #3: Missing Amount Validation (Correctness)
+**Severity:** HIGH
+
+**Description:**
+No check that `amount` is positive, non-zero, or does not exceed `order.amount`. Negative or zero refunds should be rejected; refunds exceeding the order amount should be flagged.
+
+**Location:**
+Throughout — no amount validation.
+
+**Concrete Fix:**
+Add range checks (included in Defect #1 fix above):
+
+```python
+if amount <= 0:
+    log.error(f"Invalid refund amount {amount} for order {order_id}")
+    return False
+
+if amount > order.amount:
+    log.warning(f"Refund amount {amount} exceeds order amount {order.amount} for order {order_id}")
+    return False
+```
+
+---
+
+### Defect #4: Bare `except Exception` Swallows All Errors
+**Severity:** HIGH
+
+**Description:**
+Line 12 catches `Exception` broadly, silently swallowing all exceptions including programming bugs (e.g., `AttributeError` on `order.payment_ref`). The function logs vaguely and returns, making debugging difficult. The exception is never re-raised or distinguished by type.
+
+**Location:**
+Line 12.
+
+**Concrete Fix:**
+Use `log.exception()` to include full traceback:
+
+```python
+try:
+    result = payments_api.refund(order.payment_ref, amount)
+except Exception as e:
+    log.exception(f"Refund API failed for order {order_id}: {e}")
+    return False
+```
+
+---
+
+### Defect #5: No Idempotency Check (Duplicate Refund Protection)
+**Severity:** MEDIUM
+
+**Description:**
+The function does not check whether the order has already been refunded. Calling `process_refund` twice for the same order will attempt to refund twice, potentially causing duplicates.
+
+**Location:**
+Throughout — missing guard against already-refunded orders.
+
+**Concrete Fix:**
+Add early check (included in Defect #1 fix above):
+
+```python
+if order.status == "refunded":
+    log.warning(f"Order {order_id} already refunded")
+    return False
+```
+
+---
+
+### Defect #6: Inadequate Logging Context
+**Severity:** MEDIUM
+
+**Description:**
+Log messages lack context: Line 11 (`log.error("refund error")`) omits `order_id`, `amount`, and exception details. Line 13 (`log.warning("refund not ok")`) omits `order_id` and the actual API result. This makes troubleshooting difficult.
+
+**Location:**
+Lines 11 and 13.
+
+**Concrete Fix:**
+Include context in all log calls (included in Defect #1 fix above).
+
+---
+
+**Summary:** Three critical defects stem from a single root cause—state mutation and return value are not coordinated with API success confirmation. All critical issues must be fixed before merging.

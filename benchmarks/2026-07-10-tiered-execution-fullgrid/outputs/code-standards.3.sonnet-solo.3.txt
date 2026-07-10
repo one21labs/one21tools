@@ -1,0 +1,148 @@
+Here's the instrumented pipeline. The core idea: every record gets a stable `record_id` (`path:line_number`) generated in `ingest.py` and threaded through `enrich_record()`, so any log line from either module can be grepped by that one ID to reconstruct a record's full journey. All logs are structured JSON (one object per line) so on-call can filter/query them without regex archaeology, and every failure point is caught, logged with full context + stack trace, and skipped (never silently dropped, never crashes the whole run over one bad record).
+
+```python
+# ingest.py
+import json
+import logging
+import os
+import sys
+import time
+
+from enrich import enrich_record
+
+logger = logging.getLogger("ingest")
+
+_STANDARD_ATTRS = set(logging.LogRecord("", 0, "", 0, "", (), None).__dict__.keys())
+
+
+class JsonLogFormatter(logging.Formatter):
+    """Emits one JSON object per log line; any `extra=` fields pass through untouched."""
+
+    def format(self, record):
+        payload = {
+            "ts": self.formatTime(record, "%Y-%m-%dT%H:%M:%S"),
+            "level": record.levelname,
+            "logger": record.name,
+            "event": record.getMessage(),
+        }
+        for key, value in record.__dict__.items():
+            if key not in _STANDARD_ATTRS:
+                payload[key] = value
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload, default=str)
+
+
+def configure_logging():
+    level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(JsonLogFormatter())
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(level)
+
+
+def run(path):
+    configure_logging()
+    run_id = f"{path}:{int(time.time())}"
+    logger.info("run_started", extra={"run_id": run_id, "path": path})
+
+    total = ok = failed = skipped = 0
+
+    try:
+        f = open(path)
+    except OSError as exc:
+        logger.error("run_failed_to_open_input", extra={"run_id": run_id, "path": path}, exc_info=exc)
+        raise
+
+    with f:
+        for line_no, line in enumerate(f, start=1):
+            record_id = f"{path}:{line_no}"
+            total += 1
+            raw = line.strip()
+            if not raw:
+                skipped += 1
+                logger.debug("blank_line_skipped", extra={"record_id": record_id})
+                continue
+
+            try:
+                rec = json.loads(raw)
+            except json.JSONDecodeError as exc:
+                failed += 1
+                logger.error(
+                    "record_parse_failed",
+                    extra={"record_id": record_id, "raw_preview": raw[:200]},
+                    exc_info=exc,
+                )
+                continue
+
+            source_id = rec.get("id") if isinstance(rec, dict) else None
+            logger.info("record_read", extra={"record_id": record_id, "source_id": source_id})
+
+            try:
+                out = enrich_record(rec, record_id=record_id)
+            except Exception as exc:
+                failed += 1
+                logger.error("record_enrich_failed", extra={"record_id": record_id}, exc_info=exc)
+                continue
+
+            if out is None:
+                skipped += 1
+                logger.warning("record_skipped_by_enrich", extra={"record_id": record_id})
+                continue
+
+            try:
+                save(out, record_id=record_id)
+            except OSError as exc:
+                failed += 1
+                logger.error("record_save_failed", extra={"record_id": record_id}, exc_info=exc)
+                continue
+
+            ok += 1
+            logger.info("record_saved", extra={"record_id": record_id})
+
+    logger.info(
+        "run_finished",
+        extra={"run_id": run_id, "path": path, "total": total, "ok": ok, "failed": failed, "skipped": skipped},
+    )
+
+
+def save(rec, record_id=None):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    logger.debug("record_written", extra={"record_id": record_id})
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger("enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, record_id=None):
+    region_key = rec.get("region")
+    if region_key is None:
+        logger.warning("record_missing_region_field", extra={"record_id": record_id})
+        return None
+
+    region = GEO.get(region_key)
+    if region is None:
+        logger.warning("record_unknown_region", extra={"record_id": record_id, "region": region_key})
+        return None
+
+    rec["zone"] = region
+    logger.info("record_enriched", extra={"record_id": record_id, "region": region_key})
+    return rec
+```
+
+Key changes from the original:
+
+- **Tracing across modules**: `record_id = "{path}:{line_number}"` is generated once in `ingest.run()` and passed into `enrich_record()`. Every log line in both modules carries it, so `grep record_id=path:42` shows the record's complete path — read, enriched (or why not), saved (or why not).
+- **Structured logs**: a small JSON formatter means every line is a parseable object (`ts`, `level`, `event`, `record_id`, plus whatever context each call adds), instead of free-text strings that need regex parsing under pressure.
+- **No single bad record kills the run**: parse errors, enrich exceptions, and save (I/O) errors are each caught individually, logged with `exc_info` (full traceback) and enough context to reproduce (`raw_preview`, line number, region value), and the loop moves to the next record.
+- **`rec["region"]` → `rec.get("region")`**: a missing key is a data-quality issue, not a bug, so it's logged as a clear `record_missing_region_field` warning instead of an uncaught `KeyError` bubbling up as a generic crash.
+- **Run-level summary**: `run_started`/`run_finished` bracket the run with a `run_id`, and the finish line reports `total/ok/failed/skipped` counts so on-call gets a one-line health check before diving into per-record logs.
+- **`LOG_LEVEL` env var**: lets on-call bump to `DEBUG` in place (to see `record_written`/blank-line skips) without a code change.

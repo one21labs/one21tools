@@ -1,0 +1,110 @@
+I'll add production-grade logging that traces individual records and surfaces all failures clearly. The key is assigning each record a stable ID and logging at every decision point.
+
+```python
+# ingest.py
+import json
+import logging
+from enrich import enrich_record
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+def run(path):
+    record_counter = 0
+    processed = 0
+    saved = 0
+    dropped = 0
+    errors = 0
+    
+    logger.info(f"Starting pipeline run, input_file={path}")
+    
+    try:
+        f = open(path)
+    except FileNotFoundError:
+        logger.error(f"Input file not found: {path}")
+        return
+    except IOError as e:
+        logger.error(f"Failed to open input file {path}: {e}")
+        return
+    
+    try:
+        for line in f:
+            record_counter += 1
+            record_id = f"rec_{record_counter:06d}"
+            
+            try:
+                rec = json.loads(line)
+                logger.debug(f"{record_id}: Loaded record with region={rec.get('region')}")
+                
+                out = enrich_record(rec, record_id)
+                if out:
+                    logger.info(f"{record_id}: Enrichment succeeded, zone={out.get('zone')}")
+                    try:
+                        save(out, record_id)
+                        saved += 1
+                        logger.debug(f"{record_id}: Saved to output file")
+                    except IOError as e:
+                        errors += 1
+                        logger.error(f"{record_id}: Failed to save: {e}")
+                else:
+                    dropped += 1
+                    logger.info(f"{record_id}: Record dropped during enrichment")
+                
+                processed += 1
+            
+            except json.JSONDecodeError as e:
+                errors += 1
+                logger.error(f"{record_id}: Invalid JSON: {e}")
+            except Exception as e:
+                errors += 1
+                logger.error(f"{record_id}: Unexpected error: {e}")
+    
+    finally:
+        f.close()
+    
+    logger.info(
+        f"Pipeline complete: processed={processed}, saved={saved}, dropped={dropped}, errors={errors}"
+    )
+
+def save(rec, record_id):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id):
+    region = rec.get("region")
+    
+    if region is None:
+        logger.warning(f"{record_id}: Missing 'region' field")
+        return None
+    
+    zone = GEO.get(region)
+    if zone is None:
+        logger.warning(f"{record_id}: Unknown region={region}")
+        return None
+    
+    rec["zone"] = zone
+    logger.debug(f"{record_id}: Enriched with zone={zone}")
+    return rec
+```
+
+**What this adds:**
+
+- **Record tracing**: Each input record gets a stable ID (`rec_000001`, etc.) that flows through all logs
+- **Decision logging**: Every branch (success, drop, error) is logged with enough context to diagnose why
+- **Error diagnostics**: JSON parse failures, file I/O errors, and unexpected exceptions all log the record ID and failure reason
+- **Level hygiene**: DEBUG for routine operations, INFO for major milestones and drops, ERROR/WARNING for problems
+- **Summary statistics**: Final log shows counts so operators can spot anomalies (e.g., high drop rate)
+
+On-call can now search logs by record ID to follow any record's complete journey, and drops are diagnosable (missing region vs unknown region, for example).

@@ -1,0 +1,37 @@
+I can give you the review content here, but I can't actually create `process-review.md` without using a file-write tool — and the instructions in this request explicitly say not to use any tools. Flagging that conflict rather than silently doing one or the other. Let me know if you'd like me to go ahead and write the file (I'd need to use the Write tool for that), and I will.
+
+In the meantime, here's the review:
+
+---
+
+# Release Process Review
+
+## Summary
+The core problem is **batching and serialization**: work is held (in review, then on main, then in a manual changelog, then through three sequential approvals) far longer than the work itself takes. Every fix adds latency at multiple independent points, and those latencies compound. The result — infrequent, large, high-risk releases — is a direct consequence of the process shape, not team effort.
+
+## Findings
+
+1. **PR review latency (~2 days avg)** — likely a queuing/ownership problem (no clear reviewer SLA or rotation) rather than a review-quality problem.
+2. **Biweekly train batches ~40 changes** — batching this large makes it hard to isolate a bad change, raises the blast radius of any single release, and creates release-day stress. Bug hunting in a 40-change batch is much harder than in a 1-5 change batch.
+3. **Manual changelog assembly** — hand-copying PR descriptions is pure toil, is error-prone (missed/mis-copied entries), and doesn't scale as volume grows. This is a solved problem (generate from merged PR metadata/conventional commits).
+4. **Three sequential sign-offs for every release** — treats every release (including trivial ones) as equally risky, and sequential (vs. parallel) approval adds pure wall-clock time with no risk-reduction benefit over parallel review.
+5. **Hotfixes follow the identical path** — this is the most urgent problem. A one-line urgent fix should never wait behind 39 unrelated changes and a multi-day approval chain. This conflates "urgent, low-risk" with "routine, batched" and gives the team no lever to move fast when it matters.
+6. **No apparent risk-tiering** — all changes (docs tweak vs. schema migration) go through the same weight of process, which either over-controls trivial changes or under-controls risky ones.
+
+## Recommendations
+
+1. **Add a separate hotfix path.** A hotfix should be a small, fast-tracked PR with 1 required reviewer + 1 sign-off (e.g., eng manager or on-call), deployable independently of the train — not queued behind it. This is the highest-leverage single change.
+2. **Ship smaller and more often.** Move from biweekly batches of ~40 toward continuous or daily/twice-weekly releases of whatever has merged and passed CI. Smaller batches make failures easier to attribute and roll back, and reduce release-day stress because each release changes less.
+3. **Automate the changelog.** Generate release notes from PR titles/labels or conventional commit messages at merge time (or at release-cut time via a script), not by hand. Eliminates toil and copy errors entirely.
+4. **Replace sequential sign-off with risk-based, parallel approval.**
+   - Run QA/EM/PM sign-off in parallel, not sequence — cuts wall-clock time without reducing rigor.
+   - Reserve the full three-way sign-off for higher-risk releases (e.g., schema changes, payment/auth code); let low-risk releases (docs, config, minor UI) go out with a single approver or automated checks.
+5. **Address the 2-day PR review latency** with a reviewer SLA (e.g., first response within 4 business hours) and/or a rotating "on-call reviewer" so review isn't blocked on any one person's availability.
+6. **Track release lead time and batch size as metrics.** Once smaller/faster releases are in place, measure time-from-merge-to-production and changes-per-release to confirm the process is actually improving, and to catch regression.
+
+## Suggested priority order
+1. Hotfix fast path (addresses the most acute pain, low effort)
+2. Parallelize sign-offs (low effort, immediate time savings)
+3. Automate changelog generation (low effort, removes toil)
+4. Shrink batch size / increase release cadence (higher effort — likely needs CI/CD investment, but highest long-term payoff)
+5. PR review SLA (ongoing process/culture change)

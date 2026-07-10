@@ -1,0 +1,62 @@
+Since the instructions explicitly say not to use any tools for this request, I'll give you both files as text below — copy them into `layout.md` and `CLAUDE.md` yourself.
+
+---
+
+### `layout.md`
+
+```markdown
+# Claude Code context layout — atlas monorepo
+
+atlas/
+├── CLAUDE.md                              # Org-wide rules Claude must always know: commit format, make check gate, trunk-based dev, pointers to service docs and the incident-response skill.
+├── .mcp.json                              # Declares the analytics-warehouse MCP server (read-only creds) so Claude can run live SQL when analysts ask about product metrics.
+├── .claude/
+│   └── skills/
+│       └── incident-response/
+│           └── SKILL.md                   # The 20-step runbook as a Skill, not a CLAUDE.md note — it's a discrete, identical-everywhere procedure Claude should recognize and walk engineers through on demand, not background context to hold at all times.
+├── api/
+│   └── CLAUDE.md                          # Go/gRPC conventions + the api/gen/ generated-code trap; auto-loads whenever Claude works inside api/.
+├── web/
+│   └── CLAUDE.md                          # React/TS conventions + the npm test (Playwright, opens browsers) vs npm run test:unit distinction; auto-loads inside web/.
+└── pipeline/
+    └── CLAUDE.md                          # Python/Airflow conventions + the AIRFLOW_HOME=pipeline/.airflow requirement before DAGs will import; auto-loads inside pipeline/.
+
+## Why this shape
+
+- **Root CLAUDE.md carries only what's true everywhere** (commit style, `make check`, trunk-based dev). Anything service-specific pushed down to nested CLAUDE.md avoids diluting context when Claude is working in a single service, and Claude Code loads the nearest CLAUDE.md plus parents automatically, so no manual "read the other file" step is needed.
+- **Service CLAUDE.md files carry the sharp edges**, not general docs — each one exists specifically to stop Claude from making the mistake unique to that service (hand-editing generated code, running the slow/interactive test command, forgetting an env var). General "how this service works" documentation belongs in the service's own README, not here.
+- **The incident-response runbook is a Skill, not a CLAUDE.md block.** It's identical across every team, invoked occasionally and on-demand rather than needed on every turn, and is a step-by-step procedure — that's exactly what Skills are for. Putting 20 steps in root CLAUDE.md would burn context on every single interaction, including the vast majority that have nothing to do with an incident.
+- **Warehouse SQL access is an MCP server, not a markdown file.** "Run live SQL" is a tool capability, not instructions text — it belongs in `.mcp.json` (scoped to read-only credentials) rather than described in prose. Root CLAUDE.md should reference it briefly (that it exists, and the read-only guardrail) so Claude knows to use it when analysts ask metrics questions, but the connection itself is config, not context.
+- **No `pipeline/CLAUDE.md`-style env-var note gets duplicated in root** — it's only relevant inside `pipeline/`, so it stays local to avoid Claude trying to apply Airflow setup steps while working in `api/` or `web/`.
+```
+
+---
+
+### `CLAUDE.md` (root)
+
+```markdown
+# atlas monorepo
+
+Three services, one repo: `api/` (Go, gRPC), `web/` (React/TypeScript), `pipeline/` (Python, Airflow).
+Each has its own `CLAUDE.md` with service-specific rules — that file loads automatically when working in that directory. This root file covers what's true everywhere.
+
+## Org-wide conventions
+
+- **Commits**: conventional commits format (`feat:`, `fix:`, `chore:`, etc.) for every commit message.
+- **`make check` must pass before any PR.** Run it before proposing a PR is ready; if it fails, fix the failure rather than proposing to skip or override it.
+- **Trunk-based development.** No long-lived branches — keep branches short-lived and PRs small, merge to trunk frequently. Don't propose long-running feature branches.
+
+## Service-specific context
+
+- Working in `api/`? See `api/CLAUDE.md` — in particular, never hand-edit anything under `api/gen/`.
+- Working in `web/`? See `web/CLAUDE.md` — in particular, the difference between `npm test` and `npm run test:unit`.
+- Working in `pipeline/`? See `pipeline/CLAUDE.md` — in particular, the `AIRFLOW_HOME` requirement.
+
+## Incident response
+
+There's a 20-step incident-response runbook used identically across every team, available as a Skill. If an engineer describes an active incident or explicitly asks to run the runbook, use it to walk them through the steps in order rather than improvising a response from general knowledge.
+
+## Analytics warehouse access
+
+A read-only MCP connection to the analytics warehouse is configured in `.mcp.json`. When analysts ask about product metrics, query the warehouse directly via that connection rather than guessing at numbers. Only run read (`SELECT`) queries — never attempt schema changes or writes against the warehouse, even if asked.
+```

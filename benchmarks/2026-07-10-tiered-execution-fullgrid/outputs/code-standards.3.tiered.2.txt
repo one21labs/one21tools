@@ -1,0 +1,88 @@
+```python
+# ingest.py
+import json
+import logging
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+def run(path):
+    logger.info(f"Starting ingestion from {path}")
+    
+    total_read = 0
+    total_enriched = 0
+    total_rejected = 0
+    total_saved = 0
+    total_errored = 0
+    
+    try:
+        f = open(path)
+    except Exception as e:
+        logger.error(f"Failed to open input file {path}", exc_info=True)
+        raise
+    
+    try:
+        for line_num, line in enumerate(f, start=1):
+            total_read += 1
+            record_id = f"line_{line_num}"
+            
+            try:
+                rec = json.loads(line)
+                
+                if not isinstance(rec, dict):
+                    raise TypeError(f"Expected dict, got {type(rec).__name__}")
+                
+                if 'id' in rec:
+                    record_id = str(rec['id'])
+                
+                out = enrich_record(rec, record_id=record_id)
+                if out:
+                    total_enriched += 1
+                    save(out, record_id=record_id)
+                    total_saved += 1
+                    logger.debug(f"record_id={record_id} Saved record")
+                else:
+                    total_rejected += 1
+                    
+            except json.JSONDecodeError as e:
+                total_errored += 1
+                logger.error(f"record_id={record_id} Invalid JSON: {e.msg} at position {e.pos}")
+            except TypeError as e:
+                total_errored += 1
+                logger.error(f"record_id={record_id} Malformed record: {str(e)}")
+            except Exception as e:
+                total_errored += 1
+                logger.error(f"record_id={record_id} Error processing line {line_num}: {str(e)}", exc_info=True)
+    finally:
+        f.close()
+    
+    logger.info(f"Ingestion complete: read={total_read}, enriched={total_enriched}, rejected={total_rejected}, saved={total_saved}, errored={total_errored}")
+
+def save(rec, record_id=None):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id=None):
+    region_key = rec.get("region")
+    if region_key is None:
+        logger.warning(f"record_id={record_id} Missing region field")
+        return None
+    
+    zone = GEO.get(region_key)
+    if zone is None:
+        logger.warning(f"record_id={record_id} Unknown region: {region_key}")
+        return None
+    
+    rec["zone"] = zone
+    logger.debug(f"record_id={record_id} Enriched with zone: {zone}")
+    return rec
+```

@@ -1,0 +1,130 @@
+I'll add production-grade structured logging that enables tracing individual records through the pipeline and diagnosing all failures from logs alone.
+
+## ingest.py
+```python
+import json
+import logging
+import sys
+from logging.handlers import RotatingFileHandler
+from enrich import enrich_record
+
+# Configure structured logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+handler = RotatingFileHandler(
+    "pipeline.log", maxBytes=100*1024*1024, backupCount=10
+)
+formatter = logging.Formatter(
+    '%(asctime)s | %(name)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+
+# Also log errors to stderr for alerting
+error_handler = logging.StreamHandler(sys.stderr)
+error_handler.setLevel(logging.ERROR)
+error_handler.setFormatter(formatter)
+logger.addHandler(error_handler)
+
+def run(path):
+    logger.info(f"Pipeline started | input_file={path}")
+    processed = 0
+    saved = 0
+    failed = 0
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                record_id = None
+                try:
+                    rec = json.loads(line)
+                    record_id = rec.get("id", f"line_{line_num}")
+                    processed += 1
+                    
+                    logger.debug(f"Record received | record_id={record_id} | region={rec.get('region')}")
+                    
+                    out = enrich_record(rec, record_id)
+                    
+                    if out:
+                        try:
+                            save(out, record_id)
+                            saved += 1
+                            logger.info(f"Record saved | record_id={record_id} | zone={out.get('zone')}")
+                        except Exception as e:
+                            failed += 1
+                            logger.error(f"Save failed | record_id={record_id} | error={str(e)}", exc_info=True)
+                    else:
+                        logger.warning(f"Record rejected | record_id={record_id} | reason=invalid_region")
+                        failed += 1
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parse error | line={line_num} | error={str(e)}")
+                    failed += 1
+                except Exception as e:
+                    logger.error(f"Unexpected error | record_id={record_id} | line={line_num} | error={str(e)}", exc_info=True)
+                    failed += 1
+    
+    except FileNotFoundError:
+        logger.error(f"Input file not found | input_file={path}")
+        raise
+    except Exception as e:
+        logger.error(f"Pipeline failed | error={str(e)}", exc_info=True)
+        raise
+    
+    finally:
+        logger.info(f"Pipeline completed | processed={processed} | saved={saved} | failed={failed}")
+
+def save(rec, record_id):
+    try:
+        with open("out.jsonl", "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except IOError as e:
+        logger.error(f"IO error writing output | record_id={record_id} | file=out.jsonl | error={str(e)}")
+        raise
+```
+
+## enrich.py
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id):
+    """
+    Enrich record with zone mapping. Returns enriched record or None if region invalid.
+    """
+    region = rec.get("region")
+    
+    if region is None:
+        logger.warning(f"Missing region field | record_id={record_id}")
+        return None
+    
+    zone = GEO.get(region)
+    if zone is None:
+        logger.warning(f"Unknown region | record_id={record_id} | region={region} | valid_regions={list(GEO.keys())}")
+        return None
+    
+    logger.debug(f"Enrichment successful | record_id={record_id} | region={region} | zone={zone}")
+    rec["zone"] = zone
+    return rec
+```
+
+**Key improvements:**
+
+1. **Record tracing**: Each record gets an ID (from the record itself or line number). Every log entry includes it, enabling grep/query by record.
+
+2. **Structured logging**: Consistent format with `key=value` pairs for easy parsing and alerting.
+
+3. **All failure paths logged**: Invalid region, missing region, JSON errors, I/O errors, and unexpected crashes are all logged with context.
+
+4. **Operational visibility**: Pipeline summary (processed/saved/failed counts) logged at completion.
+
+5. **Log rotation**: Prevents disk overflow in production.
+
+6. **Error escalation**: Errors go to stderr for alerting systems to catch.
+
+7. **Full traceability**: On-call can now run `grep "record_id=XYZ" pipeline.log` to see a single record's complete journey and why it succeeded or failed.

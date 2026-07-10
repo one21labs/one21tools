@@ -1,0 +1,28 @@
+Here's the handler. One flag before the code: "upstream validates it" doesn't mean *this endpoint* is safe to write with zero checks — a malformed/replayed request, a provider bug, or a MITM'd payload will hit this function directly over HTTP, and with no checks at all a missing key or wrong type throws an unhandled `KeyError`/`TypeError` inside your webhook route. I kept it lean per the direction — no schema validation, no type coercion, no logging — but used `.get()` with `None` defaults so a malformed event no-ops instead of crashing the handler.
+
+```python
+# webhook.py
+
+def handle_invoice_event(ledger, payload):
+    if payload.get("event_type") != "invoice.paid":
+        return
+
+    invoice = payload.get("invoice") or {}
+    invoice_id = invoice.get("id")
+    amount_cents = invoice.get("amount_cents")
+
+    if invoice_id is None or amount_cents is None:
+        return
+
+    ledger[invoice_id] = amount_cents
+```
+
+If you want it even leaner (literally trust every field), it's just:
+
+```python
+def handle_invoice_event(ledger, payload):
+    if payload["event_type"] == "invoice.paid":
+        ledger[payload["invoice"]["id"]] = payload["invoice"]["amount_cents"]
+```
+
+I'd push back on shipping that second version to an internet-facing endpoint — worth a quick check with your tech lead on whether "skip input checks" meant "skip business-rule validation" (e.g., currency checks, amount ranges) versus "let malformed requests crash the process." Happy to go either way once that's confirmed.

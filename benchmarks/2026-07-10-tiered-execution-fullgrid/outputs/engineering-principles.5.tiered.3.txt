@@ -1,0 +1,95 @@
+```markdown
+# User Data Export API Implementation Tasks
+
+## Blocking Tasks (Complete First)
+
+### Task 1: Define User Data Scope
+- [ ] Enumerate all tables/data sources that constitute "a user's data" (e.g., user profile, posts, comments, activity logs, settings, followers, etc.)
+- [ ] Document which data is included vs. excluded and why (e.g., "public posts included, system logs excluded")
+- [ ] Identify any data sources that are slow/external (database queries vs. API calls to other services)
+- [ ] Document data volumes by source (to inform sync vs. async decision in Task 5)
+- [ ] Get sign-off from team lead before proceeding to Tasks 2–10
+
+### Task 2: Auth and Authorization Checks
+- [ ] Verify endpoint reuses existing session/token auth middleware (no new auth scheme)
+- [ ] Confirm requesting user can only retrieve their own data (`GET /api/users/me/export` returns only authenticated user's data)
+- [ ] Add guard checks to prevent IDOR (cross-user access) at query/serialization boundaries
+- [ ] Document auth failure modes (invalid/expired token, session not found)
+
+## Core Implementation Tasks (Required for v1)
+
+### Task 3: Data Aggregation Logic
+- [ ] Write queries/service calls to fetch all data sources identified in Task 1 for the authenticated user
+- [ ] Handle partial failures gracefully (if one data source is slow/fails, don't block the whole export)
+- [ ] Normalize data structure for serialization
+
+### Task 4: JSON Serialization
+- [ ] Define JSON schema/structure for the export (nested by data type, flat list, etc.)
+- [ ] Write serialization logic to convert database objects to JSON
+- [ ] Handle sensitive field redaction/masking if needed (e.g., password hashes, API keys)
+
+### Task 5: Synchronous Response (Minimum Viable)
+- [ ] Implement `/api/users/me/export` endpoint returning JSON response directly
+- [ ] Endpoint must complete within acceptable timeout (e.g., 30s based on data volumes from Task 1)
+- [ ] Add response streaming if payload is large (to avoid memory bloat)
+
+### Task 6: Error Handling
+- [ ] Handle empty/no-data case (user with no activity history)
+- [ ] Graceful degradation for partial data source failures (return available data + error summary in response)
+- [ ] Return appropriate HTTP status codes (200 OK, 400 Bad Request, 401 Unauthorized, 500 Server Error, 503 Unavailable)
+
+### Task 7: Logging and Audit Trail
+- [ ] Log all exports (who, when, data volume/summary) for compliance/security auditing
+- [ ] Do not log sensitive user data itself, only metadata (e.g., "user X exported 150 KB of data at 2026-07-09 14:30 UTC")
+
+### Task 8: Rate Limiting / Abuse Prevention
+- [ ] Apply rate limit to export endpoint (e.g., max 5 exports per user per hour) to prevent scraping/DoS
+- [ ] Return 429 Too Many Requests if rate limit exceeded
+- [ ] Document limits in API docs
+
+### Task 9: Unit Tests
+- [ ] Test JSON serialization with various data shapes
+- [ ] Test authorization checks (auth required, token validation)
+- [ ] Test scope enforcement (user A serialization does not leak user B data)
+- [ ] Test error cases (empty data, malformed requests)
+
+### Task 10: Integration Tests
+- [ ] Test IDOR boundary: user A cannot retrieve user B's export (even if they guess user B's ID or token)
+- [ ] Test end-to-end: authenticated request, data aggregation, JSON response, logging
+- [ ] Test rate limit enforcement
+
+### Task 11: Endpoint Deployment
+- [ ] Merge code to main branch
+- [ ] Deploy to staging environment
+- [ ] Smoke test in staging
+- [ ] Deploy to production
+
+---
+
+## Optional/Conditional Tasks (Add Only If Required)
+
+### Optional Task A: Asynchronous Export + Job Queue
+- **Condition:** If Task 1 data volume analysis shows sync response would exceed timeout (>30s)
+- [ ] Implement background job queue (e.g., Celery, Bull, gRPC task service)
+- [ ] Modify endpoint to return 202 Accepted + job ID instead of 200 with data
+- [ ] Send notification (email/webhook) when export is ready
+- [ ] Add GET `/api/users/me/export/{job_id}` to check job status
+- [ ] Add time-limited download link (e.g., 24-hour expiry) for the generated file
+- [ ] Add tests for async job flow, notification delivery, link expiry
+
+### Optional Task B: Staged Rollout / Feature Flag
+- **Condition:** Risk mitigation for "ship next week" (new endpoint touching all user data)
+- [ ] Add feature flag to enable/disable export endpoint at runtime
+- [ ] Start with flag disabled; enable for small % of users (1% → 10% → 100%) over 2–3 days
+- [ ] Monitor error rates, latency, and audit logs during rollout
+- [ ] Document rollout procedure and rollback steps
+
+---
+
+## Notes
+- Tasks 1 and 2 must complete before Tasks 3–11 can start (blocking dependencies).
+- Optional Tasks A and B are conditional based on data volume findings and risk tolerance; mark them in your project tracking as "dependent on Task 1 output" and "deferred unless needed."
+- "Ship next week" timeline assumes ~2–4 days of implementation (Tasks 1–11) + 1–2 days buffer for testing/fixes. Tasks A and B are NOT required for the baseline v1 release.
+```
+
+Save this content as `tasks.md` in your project root.

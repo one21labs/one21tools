@@ -1,0 +1,133 @@
+Looking at this pipeline, the core issues are: no record tracing across modules, and failures leave no diagnostic trail. I'll add structured JSON logging with correlation IDs so operators can grep for any record and see its complete path.
+
+Here are the updated modules:
+
+```python
+# ingest.py
+import json
+import logging
+import sys
+from enrich import enrich_record
+
+logging.basicConfig(level=logging.INFO, format='%(message)s', stream=sys.stdout)
+logger = logging.getLogger(__name__)
+
+def run(path):
+    line_num = 0
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    rec = json.loads(line)
+                    correlation_id = rec.get('_id', f"{path}:{line_num}")
+                    rec['_correlation_id'] = correlation_id
+                    
+                    logger.info(json.dumps({
+                        'event': 'record_ingested',
+                        'correlation_id': correlation_id,
+                        'line': line_num
+                    }))
+                    
+                    out = enrich_record(rec)
+                    if out is None:
+                        logger.warning(json.dumps({
+                            'event': 'record_rejected',
+                            'correlation_id': correlation_id,
+                            'line': line_num,
+                            'reason': 'enrichment failed'
+                        }))
+                    else:
+                        save(out)
+                        logger.info(json.dumps({
+                            'event': 'record_saved',
+                            'correlation_id': correlation_id,
+                            'line': line_num
+                        }))
+                except json.JSONDecodeError as e:
+                    logger.error(json.dumps({
+                        'event': 'parse_failed',
+                        'line': line_num,
+                        'error': str(e),
+                        'raw': line[:100]
+                    }))
+                except Exception as e:
+                    logger.error(json.dumps({
+                        'event': 'processing_failed',
+                        'line': line_num,
+                        'error': str(e),
+                        'type': type(e).__name__
+                    }))
+    except IOError as e:
+        logger.error(json.dumps({
+            'event': 'file_open_failed',
+            'path': path,
+            'error': str(e)
+        }))
+
+def save(rec):
+    correlation_id = rec.get('_correlation_id', 'unknown')
+    try:
+        with open("out.jsonl", "a") as f:
+            f.write(json.dumps(rec) + "\n")
+    except IOError as e:
+        logger.error(json.dumps({
+            'event': 'write_failed',
+            'correlation_id': correlation_id,
+            'error': str(e)
+        }))
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        sys.exit(1)
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+import logging
+import json
+
+logger = logging.getLogger(__name__)
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec):
+    correlation_id = rec.get('_correlation_id', 'unknown')
+    region = rec.get('region')
+    
+    if region is None:
+        logger.warning(json.dumps({
+            'event': 'enrich_missing_region',
+            'correlation_id': correlation_id
+        }))
+        return None
+    
+    zone = GEO.get(region)
+    if zone is None:
+        logger.warning(json.dumps({
+            'event': 'enrich_unknown_region',
+            'correlation_id': correlation_id,
+            'region': region,
+            'valid': list(GEO.keys())
+        }))
+        return None
+    
+    logger.debug(json.dumps({
+        'event': 'region_mapped',
+        'correlation_id': correlation_id,
+        'from': region,
+        'to': zone
+    }))
+    
+    rec['zone'] = zone
+    return rec
+```
+
+**Key changes:**
+
+- **Correlation IDs**: Every record gets `_correlation_id` (derived from record's `_id` or `filename:line`), allowing any log line to be traced back
+- **JSON logs**: Structured format for parsing, grep, and feeding to log aggregation
+- **Complete error context**: Parse failures show the raw line; enrichment failures show which region code failed and what's valid
+- **Diagnostic breadth**: Records ingested, enriched, saved, or rejected—each state is logged, plus all I/O and processing errors
+- **Efficient levels**: INFO for flow, DEBUG for detail (can be toggled), WARNING for data quality, ERROR for system faults
+
+An on-call engineer can now `grep correlation_id logs` to see exactly what happened to any record, and `grep ERROR` to find all failures with full context.

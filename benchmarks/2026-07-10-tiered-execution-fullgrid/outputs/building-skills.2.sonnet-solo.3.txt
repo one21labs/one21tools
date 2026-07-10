@@ -1,0 +1,70 @@
+I'll note upfront: the request asks me to write output files but also explicitly instructs me not to use any tools. I'm following the explicit "no tools" instruction, so below is the content that would go into each file, clearly labeled by path, rather than actual file writes.
+
+---
+
+## `outputs/review.md`
+
+# Review of `json-config-check/SKILL.md` (draft)
+
+## Defects found
+
+1. **Frontmatter `description` is unusable for skill discovery.** "This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed." — this gives no concrete indication of what the skill does or when it should fire. Descriptions should be specific, third-person, and state a concrete triggering condition (e.g., "Use when validating JSON config files against a schema").
+
+2. **Marketing/filler language throughout.** Phrases like "This incredibly powerful skill," "a fantastic time-saver that your whole team will love," and the "About This Amazing Skill" header add no instructional value and just waste context. Skill bodies should be operational, not promotional copy.
+
+3. **"Introduction" section is generic background, not instruction.** A paragraph explaining what JSON is in general is irrelevant to *how the skill should behave* and can be cut entirely.
+
+4. **No concrete instructions — everything is hedged.** "the file gets parsed," "might be validated," "could be reported... if any are found," "You might want to consider possibly using..." — none of this tells the model what to actually do: what command to run, how to detect a schema file, what to do on failure. A skill needs deterministic, actionable steps, not speculation.
+
+5. **No schema-discovery rule.** "If a schema file happens to be available in the same directory" never defines a naming convention or lookup order (e.g., `$schema` key, `*.schema.json`), so behavior would be inconsistent across runs.
+
+6. **No error-handling / failure-mode guidance.** Nothing specifies what to do if the JSON itself fails to parse (should stop before attempting schema validation), or if the `jsonschema` package isn't installed.
+
+7. **No example commands or code.** It suggests "Python's json module and the jsonschema package" but provides no snippet or invocation, leaving execution entirely to guesswork.
+
+8. **No output/reporting format specified.** Doesn't define what to tell the user (error line/column, failing schema path, pass/fail summary), so results would vary between invocations.
+
+## Summary of fix
+Rewrote the skill with a concrete, third-person, trigger-specific description; removed all filler/marketing content and the generic JSON background; replaced vague prose with a numbered instruction sequence covering syntax validation, schema discovery order, schema validation with a code sample, and a required results summary; and added explicit failure-mode handling (stop on syntax error; fall back to syntax-only validation if `jsonschema` is unavailable).
+
+---
+
+## `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file for syntax correctness and, when a matching JSON Schema is present, validates it against that schema. Use when the user asks to check, validate, or lint a JSON config file, or reports a JSON parsing/config error.
+---
+
+# JSON Config Check
+
+## Purpose
+
+Validate a JSON configuration file for syntax errors, and if a corresponding JSON Schema is available, validate the file's structure and types against that schema.
+
+## Instructions
+
+1. Identify the target JSON file from the user's request (ask for the path if ambiguous).
+2. Check for syntax errors first:
+   - Run `python3 -c "import json; json.load(open('<path>'))"` (or use the `json` module directly if scripting).
+   - If parsing fails, report the exact error message and line/column number to the user and stop — do not attempt schema validation on invalid JSON.
+3. Look for a schema to validate against, in this order:
+   - A file referenced by a `$schema` key inside the JSON file itself.
+   - A file in the same directory named `<config-name>.schema.json` or `schema.json`.
+   - If none is found, skip schema validation and report the file as syntactically valid JSON with no schema found.
+4. If a schema is found, validate with the `jsonschema` package:
+   ```python
+   import json, jsonschema
+   config = json.load(open("<config-path>"))
+   schema = json.load(open("<schema-path>"))
+   jsonschema.validate(instance=config, schema=schema)
+   ```
+   Report any `ValidationError`, including the failing path (e.g., `config['database']['port']`) and the reason.
+5. Summarize results for the user: whether the file is valid JSON, whether a schema was found, and whether schema validation passed or failed (with specifics).
+
+## Notes
+
+- `jsonschema` is a third-party package (`pip install jsonschema`). If it isn't available, fall back to reporting syntax-only validation rather than failing silently.
+- This skill only reports issues; it does not modify the config file.
+```

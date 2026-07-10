@@ -5,7 +5,7 @@ Runs ONE arm's full grid (24 evals x reps = 72 cells by default) via hermetic `c
 subprocess calls -- stdlib only, no repo Python deps. Designed to run INSIDE WSL Debian, invoked
 from Windows as:
 
-    wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution/harness.py --arm sonnet-solo
+    wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-tiered-execution-fullgrid/harness.py --arm sonnet-solo
 
 Replaces the prior harness.workflow.js executor (see README "Why claude -p instead of the Workflow
 runner"). Reuses harness.workflow.js's NEUTRAL_FRAME and plan/work/validate prompt texts verbatim.

@@ -1,0 +1,62 @@
+I can't write to `review.md` here — the instructions for this task explicitly say not to use any tools (which includes file writes), so I'm answering in text only. Here's the review, most severe first:
+
+## 1. State mutated before the refund actually succeeds (data corruption)
+```python
+order.status = "refunded"
+order.refunded_amount = amount
+try:
+    result = payments_api.refund(...)
+```
+If `payments_api.refund` raises, the function returns `False`, but the order is *already* marked `"refunded"` with `refunded_amount` set — even though no money moved. The order record is now permanently wrong.
+**Fix:** Only mutate `order.status`/`order.refunded_amount` after confirming `result.get("status") == "ok"`. Do the API call first, then update state.
+
+## 2. A failed refund is still reported as a success
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok")
+order.fee = amount * FEE_RATE
+return True
+```
+When the gateway reports failure, the code logs a warning but still sets the fee and returns `True`. Combined with #1, a rejected refund gets recorded as a completed one.
+**Fix:** 
+```python
+if result.get("status") != "ok":
+    log.warning("refund not ok for order %s", order_id)
+    return False
+```
+and move the `order.status = "refunded"` assignment here, after this check passes.
+
+## 3. No validation of `amount`
+There's no check that `amount` is positive, non-zero, or doesn't exceed the order total (or remaining refundable balance). A caller passing a negative or oversized amount will be processed and sent straight to the payment API.
+**Fix:** Validate `0 < amount <= order.remaining_refundable` before doing anything else; reject with a clear error otherwise.
+
+## 4. Unchecked lookup — `KeyError` on bad `order_id`
+```python
+order = orders[order_id]
+```
+An unknown `order_id` throws an uncaught `KeyError`, crashing the caller instead of failing gracefully.
+**Fix:** `order = orders.get(order_id)`; if `None`, log and return `False` (or raise a domain-specific `OrderNotFoundError`).
+
+## 5. No idempotency guard — double-refund risk
+Nothing checks whether the order is already `"refunded"` before processing. A retried call (e.g., after a timeout on the caller's side) will refund the same order twice.
+**Fix:** At the top, if `order.status == "refunded"`, log and return `False`/short-circuit without calling the API again.
+
+## 6. Exception handling loses context
+```python
+except Exception:
+    log.error("refund error")
+```
+Catches everything indiscriminately and logs no exception detail, order id, or traceback — this will be painful to debug in production for a payments path.
+**Fix:** `log.error("refund error for order %s: %s", order_id, e, exc_info=True)`, and narrow the except clause to exceptions `payments_api` actually raises rather than bare `Exception`.
+
+## 7. Ambiguous fee semantics
+`order.fee = amount * FEE_RATE` is computed and stored but it's unclear whether this fee is deducted from the refunded amount or just recorded informationally. As written, the customer's `refunded_amount` doesn't reflect the fee at all, which is likely a business-logic bug.
+**Fix:** Clarify the intended behavior (e.g., `order.refunded_amount = amount - fee`) and add a one-line comment noting that fee is/isn't netted out, since this isn't obvious from the code.
+
+## 8. Boolean return conflates distinct failure modes
+`False` is returned for "order not found," "API error," and "gateway rejected" alike (once fixed), giving callers no way to distinguish or handle them differently.
+**Fix:** Raise typed exceptions or return a small result/enum instead of a bare bool.
+
+## 9. No success-path audit log
+Only error/warning paths log anything. For a payments handler, a successful refund (order_id, amount, payment_ref) should be logged for auditability.
+**Fix:** Add `log.info("refund processed for order %s: amount=%s", order_id, amount)` on success.

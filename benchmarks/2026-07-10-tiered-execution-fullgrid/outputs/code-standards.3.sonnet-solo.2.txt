@@ -1,0 +1,141 @@
+Here's the instrumented pipeline. The core idea: every record gets a `record_id` (its source line, e.g. `data.jsonl:42`) that's threaded from `ingest.py` into `enrich_record()` and stamped on every log line via a logging filter — so `grep record_id=data.jsonl:42` shows that record's full path through both modules. Per-record failures are isolated (one bad line can't kill the run) and a summary is emitted at the end of each run.
+
+```python
+# ingest.py
+import json
+import logging
+import sys
+
+from enrich import enrich_record
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s record_id=%(record_id)s %(message)s",
+    stream=sys.stdout,
+)
+
+
+class _DefaultRecordId(logging.Filter):
+    def filter(self, record):
+        if not hasattr(record, "record_id"):
+            record.record_id = "-"
+        return True
+
+
+logger = logging.getLogger("ingest")
+logger.addFilter(_DefaultRecordId())
+
+
+def run(path):
+    logger.info("run started path=%s", path)
+    total = ok = skipped = malformed = failed = 0
+
+    with open(path) as f:
+        for line_no, raw_line in enumerate(f, start=1):
+            record_id = f"{path}:{line_no}"
+            line = raw_line.strip()
+            if not line:
+                continue
+            total += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                malformed += 1
+                logger.error(
+                    "malformed JSON, skipping line: %s", e,
+                    extra={"record_id": record_id},
+                )
+                continue
+
+            try:
+                out = enrich_record(rec, record_id)
+            except Exception:
+                failed += 1
+                logger.exception(
+                    "enrich_record raised an exception, skipping record",
+                    extra={"record_id": record_id},
+                )
+                continue
+
+            if out is None:
+                skipped += 1
+                logger.warning(
+                    "enrich_record returned no result, skipping",
+                    extra={"record_id": record_id},
+                )
+                continue
+
+            try:
+                save(out)
+            except Exception:
+                failed += 1
+                logger.exception(
+                    "failed to save enriched record",
+                    extra={"record_id": record_id},
+                )
+                continue
+
+            ok += 1
+            logger.info("record saved successfully", extra={"record_id": record_id})
+
+    logger.info(
+        "run finished path=%s total=%d ok=%d skipped=%d malformed=%d failed=%d",
+        path, total, ok, skipped, malformed, failed,
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger("enrich")
+
+
+class _DefaultRecordId(logging.Filter):
+    def filter(self, record):
+        if not hasattr(record, "record_id"):
+            record.record_id = "-"
+        return True
+
+
+logger.addFilter(_DefaultRecordId())
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, record_id="-"):
+    region_key = rec.get("region")
+    if region_key is None:
+        logger.warning(
+            "record missing 'region' field, cannot enrich",
+            extra={"record_id": record_id},
+        )
+        return None
+
+    region = GEO.get(region_key)
+    if region is None:
+        logger.warning(
+            "unknown region '%s', no zone mapping found", region_key,
+            extra={"record_id": record_id},
+        )
+        return None
+
+    rec["zone"] = region
+    logger.info(
+        "record enriched region=%s zone=%s", region_key, region,
+        extra={"record_id": record_id},
+    )
+    return rec
+```
+
+Key decisions:
+- `record_id = "<path>:<line_no>"` needs no new fields on the input data and is assigned before parsing, so even malformed JSON is traceable to a line.
+- Each pipeline stage (parse, enrich, save) is wrapped so one record's failure logs a full traceback (`logger.exception`) but doesn't abort the run.
+- `enrich_record` now checks for a missing `region` key explicitly instead of letting `rec["region"]` raise a raw `KeyError` — the log message says *why* a record was skipped instead of just showing an exception.
+- The per-run summary line (`total/ok/skipped/malformed/failed`) lets on-call quickly tell if a "misbehaving run" is a handful of bad records or a systemic issue.
