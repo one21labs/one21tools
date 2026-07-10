@@ -1,0 +1,46 @@
+{
+ "benchmark": "routing-escalation",
+ "issue": 109,
+ "date": "2026-07-10",
+ "run_status": "not yet run -- this file is the PRE-REGISTRATION, written before any checker call",
+ "question": "Does routing (haiku attempts the task once; a checker ships or escalates; on escalate sonnet redoes the WHOLE task, no coaching) reach sonnet-solo quality at materially lower cost?",
+ "protocol_adrs": ["0019", "0023", "0024", "0025", "0027"],
+ "design": {
+  "substrate": "benchmarks/2026-07-10-tiered-execution-fullgrid's graded gradient subset (8 evals x 3 reps): the haiku-solo and sonnet-solo cells ARE the two halves of the routing arm (issue #109). The routing arm is COMPOSED, not re-executed: routing(eval,rep) = haiku-solo(eval,rep) if the checker says SHIP, else sonnet-solo(eval, SAME rep). Composition is exact for this design: escalation discards the haiku attempt entirely and sonnet redoes the task from the original request alone (no coaching), so there is no interaction between the halves that a live run would have and the simulation lacks.",
+  "gradient_evals": ["building-skills.1", "building-skills.2", "building-skills.3", "code-standards.3", "engineering-principles.6", "optimizing-context.1", "optimizing-context.4", "optimizing-context.5"],
+  "new_spend": "checker calls only: 24 haiku gradient cells x 2 model checker variants = 48 hermetic claude -p calls; the mechanized variant is offline ($0).",
+  "checker_variants": {
+   "sonnet-judge": "sonnet, sees the ORIGINAL REQUEST + the haiku deliverable ONLY (no eval expectations/rubric -- deployment-realistic), returns STRICT JSON {verdict: SHIP|ESCALATE, reason}. Prompt framing mirrors the fullgrid harness.py validate_prompt so the fidelity number is comparable to #41's 25% validator false-accept; decision semantics differ: SHIP/ESCALATE, no corrections requested (routing has no coaching).",
+   "haiku-judge": "identical prompt, model haiku -- the cheap-checker variant.",
+   "mechanized": "SHIP iff ALL of the eval's mechanized structural checks (benchmarks/lib/mechanized_checks.py, read from the fullgrid's graded/mechanized.csv) pass on the haiku cell; checker cost $0. CAVEAT: these checks were authored from the eval expectations, so this variant models the deployment case where task-type-specific deterministic lint checks are hand-written -- its fidelity is an upper bound on what rubric-informed checklists buy, not a rubric-free judge."
+  },
+  "checker_parse_failure_rule": "an unparseable checker response counts as ESCALATE (fail-safe) and is flagged in the composed record",
+  "escalation_pairing": "escalated (eval,rep) takes sonnet-solo's SAME rep index -- deterministic, decided before any checker call"
+ },
+ "executor": {
+  "vehicle": "checker_harness.py (Python stdlib), same hermetic claude -p driver pattern as the fullgrid's harness.py, run inside WSL Debian",
+  "hermeticity": "clean CLAUDE_CONFIG_DIR ($HOME/issue30/claude-config), --disallowedTools full deny list, prompt on stdin, empty scratch cwd outside the repo checkout (ADR 0023)",
+  "effort": "medium (CLAUDE_EFFORT=medium, matching the substrate run)"
+ },
+ "grading": {
+  "no_new_grading": "routing cell quality = the already-blind-graded frac-met of whichever half ships (met_final = min(grader, prosecutor) per ADR 0025, from the fullgrid's verdicts.jsonl + prosecute_counts.jsonl). Grades were assigned blind, before this experiment existed; the checker never sees grades; the composition is deterministic arithmetic.",
+  "designer_knowledge_limitation": "the aggregate outcome of both halves (haiku ~0.315, sonnet ~0.597 frac-met on the gradient battery) was already public in issue #109 before this pre-registration; per-cell grades were not consulted when authoring the checker prompts. Recorded as a limitation, not a blind."
+ },
+ "metrics": {
+  "headline_quality": "fraction_met, eval-clustered mean delta routing_variant - sonnet-solo over the 8 gradient evals (reps averaged within eval, ADR 0019); 95% CI reported as secondary confidence, not gating (ADR 0027-style directional bar at n=8)",
+  "cost": "real per-cell cost_usd from the substrate cells' claude -p envelopes; routing cell cost = haiku_cost + checker_cost + (escalated ? sonnet_cost(same rep) : 0). Median per-cell cost ratio vs sonnet-solo gates (issue #109's phrasing); mean/total cost ratio and composed sequential wall-clock ratio (haiku_wall + checker_wall + escalated x sonnet_wall) reported for context.",
+  "checker_fidelity": "PRIMARY SECONDARY METRIC (issue #109's pre-registered threat). false-accept = checker says SHIP on a cell whose haiku frac_met < (that eval's sonnet-solo mean frac_met - 0.05), i.e. shipping it loses more than the non-inferiority margin vs escalating. Reported as rate over all 24 cells (comparable to #41's 6/24 = 25% validator figure) and as rate among accepts. Escalation rate E reported per variant."
+ },
+ "adoption_bar": {
+  "pre_registered_before_run": true,
+  "per_variant": "ADOPT routing(variant) iff ALL THREE: (1) quality: mean_delta(routing_variant - sonnet-solo) > -0.05 on fraction-met (point estimate, eval-clustered over the 8 gradient evals); (2) cost: median per-cell cost ratio (routing_variant / sonnet-solo) <= 0.6; (3) checker fidelity: false-accept rate over all 24 cells <= 0.15 (the issue's ~10-15% bound, taken at its permissive end).",
+  "multiplicity": "all 3 variants are evaluated against the same pre-registered bar; if more than one clears, adopt the cheapest (lowest median cost ratio). Small multiplicity (3 pre-registered variants) accepted and disclosed.",
+  "kill_rule": "if NO variant achieves false-accept <= 0.15, routing cannot reach sonnet-solo quality on this battery; record the null without further work (issue #109's pre-registered decision rule).",
+  "record_either_way": "ADR 0024, append-only"
+ },
+ "limitations": [
+  "n=8 clustered evals -- same graded gradient subset and directional-bar rationale as ADR 0035",
+  "single-shot text tasks are the pessimal granularity for orchestration overhead (ADR 0035 [unverifiable]); routing's checker overhead is one call, so the granularity critique is weaker here but still applies to generalization",
+  "gradient battery selects tasks where haiku LOSES to sonnet -- exactly the population where a checker must escalate; an in-production task mix with more haiku-parity tasks would mechanically favor routing on cost. The verdict binds this battery only."
+ ]
+}
