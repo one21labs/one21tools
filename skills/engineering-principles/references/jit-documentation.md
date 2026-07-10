@@ -19,6 +19,7 @@ Ask these questions in order:
 
 | Question | Yes | No |
 |----------|-----|-----|
+| Must the rule travel with a skill/plugin when installed elsewhere? | → a shipped skill/plugin file (SKILL.md, references/, agents/, hooks/, scripts/); repo-level docs may point at it, never solely house it | next question |
 | Does this apply to every file in the project? | → CLAUDE.md | next question |
 | Does this apply to a specific module or file? | → source header | next question |
 | Does this describe a feature plan or future intent? | → ROADMAP | next question |
