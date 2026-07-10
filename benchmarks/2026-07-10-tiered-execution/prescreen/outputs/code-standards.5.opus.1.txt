@@ -1,0 +1,29 @@
+Here's `webhook.py`, kept lean per your design:
+
+```python
+"""Webhook handler for billing provider events."""
+
+
+def handle_invoice_event(ledger, payload):
+    """Record paid invoices into the ledger; ignore other event types.
+
+    payload is the parsed JSON dict from the provider, e.g.:
+        {"event_type": "invoice.paid",
+         "invoice": {"id": "inv_123", "amount_cents": 4200, "currency": "usd"}}
+    """
+    if payload.get("event_type") != "invoice.paid":
+        return
+
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+I followed the "skip defensive validation" call — no shape-checking, no currency allow-listing, no amount sanity bounds, no auth/signature verification in this function. That's your tech lead's call to make and it's a reasonable one *if* the upstream guarantee holds.
+
+Two things I want to flag plainly, not to relitigate the design but because this is billing code and the failure mode is silently-wrong money:
+
+1. **The one line I did keep is `event_type` gating**, because your own spec requires ignoring non-paid events — that's business logic, not defensive clutter.
+
+2. **"Upstream validates every event" protects against malformed *events*, not against a compromised or misrouted *request*.** The provider's validation runs on their side; anything that reaches your endpoint over the network — a replayed request, a spoofed POST, a misconfigured proxy forwarding the wrong body — hasn't passed through it. The usual guard for that is a signature check on the raw request body at the HTTP boundary (before JSON parsing), not field validation in this handler. If you already verify the webhook signature at the route layer, then this handler is genuinely fine as-is and you can ignore this. If you don't, that's the gap worth raising with your tech lead — it's a different concern than the input-validation latency they were weighing.
+
+Want me to add the signature-verification stub at the route layer, or is that already handled upstream of this function?

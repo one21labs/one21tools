@@ -1,0 +1,411 @@
+I checked what I can actually do in this session: the only tools available to me are things like Artifact, SendUserFile, Workflow, and the scheduling/task tools — there is **no filesystem write/edit tool and no shell**. So I can't literally create files under `outputs/sanitizing-customer-exports/` from here. What I can do is give you the complete, ready-to-drop-in skill contents, one file at a time with its exact path. Save each block to the indicated path and you'll have a well-formed skill.
+
+Here is the full skill.
+
+---
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: >-
+  Redact PII from a customer CSV before it leaves the company. Use whenever
+  someone asks to sanitize, redact, scrub, de-identify, or "make shareable" a
+  customer export/CSV, or before emailing/uploading customer data to an
+  outside party. Drops email/phone/ssn columns, replaces name with an opaque
+  id, masks emails and phone numbers found inside free-text columns (notes,
+  comments), and writes a new <original>.redacted.csv without ever touching
+  the original file.
+---
+
+# Sanitizing customer exports
+
+Support hands customer CSVs to outside parties (vendors, auditors, customers
+themselves). Before any such file leaves the company it must be run through
+this redaction so no PII escapes. The rules are fixed and non-negotiable —
+do not improvise column handling.
+
+## The fixed rules
+
+1. **Always drop** the columns `email`, `phone`, and `ssn` (case-insensitive).
+2. **Replace** the `name` column with an opaque, non-reversible id.
+3. **Scan free-text columns** `notes` and `comments` for email addresses and
+   phone numbers and mask those substrings in place (surrounding text is kept).
+4. Write the result to `<original>.redacted.csv`.
+5. **Never modify the original in place.** The original is read-only input.
+
+See `reference.md` for the exact matching rules, edge cases, and rationale.
+
+## How to run it
+
+Use the bundled script — do not re-implement the logic inline.
+
+```bash
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+This writes `path/to/customers.redacted.csv` and leaves the original untouched.
+
+Recommended flags:
+
+- `--verify` — after writing, re-scan **every** cell of the output for any
+  residual email or phone number and fail loudly if one is found. Use this
+  before sending anything externally.
+- `--salt <value>` (or env `REDACTION_SALT`) — the salt used to derive opaque
+  ids. Set a secret, stable team salt so the same customer maps to the same id
+  across exports while remaining non-reversible. Without it a built-in default
+  is used (opaque, but linkable by anyone who knows the default).
+- `--force` — overwrite an existing `.redacted.csv` (refused by default).
+
+Example, the way it should normally be run before sharing:
+
+```bash
+REDACTION_SALT="$SUPPORT_REDACTION_SALT" \
+  python scripts/redact_csv.py exports/acme_customers.csv --verify
+```
+
+## What to tell the requester after running
+
+- Which columns were dropped and which were masked (the script prints a summary).
+- The path of the redacted file to share: `<original>.redacted.csv`.
+- Remind them: share the `.redacted.csv`, never the original.
+
+## Guardrails
+
+- If an expected column (`name`, `notes`, `comments`) is absent, that step is
+  skipped and noted in the summary — that is fine, not an error.
+- If a column you don't recognize might contain PII, do **not** silently pass it
+  through. Flag it to the requester and confirm before sharing; the fixed rules
+  only cover the columns listed above.
+- Never paste raw customer rows into chat. Operate on files only.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export.
+
+Fixed rules (see ../SKILL.md and ../reference.md):
+  * Drop columns: email, phone, ssn        (case-insensitive)
+  * Replace the `name` column with an opaque, non-reversible id
+  * Mask emails and phone numbers inside free-text columns: notes, comments
+  * Write <original>.redacted.csv; never modify the original in place
+
+Usage:
+    python redact_csv.py customers.csv [--verify] [--force] [--salt VALUE]
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import hashlib
+import hmac
+import os
+import re
+import sys
+
+# --- Configuration -----------------------------------------------------------
+# Column names are matched case-insensitively after stripping surrounding
+# whitespace. Edit these lists if the team's export schema changes.
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+# Fallback salt used to derive opaque ids when neither --salt nor the
+# REDACTION_SALT env var is provided. Opaque, but not secret — set a real
+# team salt for non-linkable ids.
+DEFAULT_SALT = "sanitizing-customer-exports:v1"
+
+EMAIL_MASK = "[REDACTED_EMAIL]"
+PHONE_MASK = "[REDACTED_PHONE]"
+
+# --- Detection patterns ------------------------------------------------------
+
+EMAIL_RE = re.compile(
+    r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}"
+)
+
+# NANP-style phone numbers: optional country code, 3-digit area code
+# (optionally parenthesised), then 3 + 4 digits with common separators.
+# Anchored on non-word boundaries so we don't chop up longer digit runs
+# (e.g. order ids). See reference.md for known limitations.
+PHONE_RE = re.compile(
+    r"""(?<!\w)
+        (?:\+?\d{1,3}[\s.\-]?)?      # optional country code
+        (?:\(\d{3}\)|\d{3})         # area code, optional parens
+        [\s.\-]?
+        \d{3}
+        [\s.\-]?
+        \d{4}
+        (?!\w)""",
+    re.VERBOSE,
+)
+
+
+def normalize(header: str) -> str:
+    return (header or "").strip().lower()
+
+
+def opaque_id(value: str, salt: str) -> str:
+    """Deterministic, non-reversible id for a name value.
+
+    Same (value, salt) -> same id, so a customer keeps one id across exports
+    without the id revealing the name. Using HMAC with a secret salt prevents
+    reversing common names via a precomputed table.
+    """
+    value = (value or "").strip()
+    if value == "":
+        return ""
+    digest = hmac.new(salt.encode("utf-8"), value.encode("utf-8"),
+                      hashlib.sha256).hexdigest()
+    return "cust_" + digest[:12]
+
+
+def mask_free_text(text: str) -> str:
+    if not text:
+        return text
+    text = EMAIL_RE.sub(EMAIL_MASK, text)
+    text = PHONE_RE.sub(PHONE_MASK, text)
+    return text
+
+
+def output_path(src: str) -> str:
+    root, ext = os.path.splitext(src)
+    return root + ".redacted" + (ext if ext else ".csv")
+
+
+def find_residual_pii(row: dict) -> list[str]:
+    hits = []
+    for col, val in row.items():
+        if val and (EMAIL_RE.search(val) or PHONE_RE.search(val)):
+            hits.append(col)
+    return hits
+
+
+def redact(src: str, dst: str, salt: str, verify: bool) -> dict:
+    with open(src, newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        if reader.fieldnames is None:
+            raise ValueError("Input CSV appears to be empty (no header row).")
+
+        original_fields = reader.fieldnames
+        norm = {name: normalize(name) for name in original_fields}
+
+        dropped = [c for c in original_fields if norm[c] in DROP_COLUMNS]
+        name_cols = [c for c in original_fields if norm[c] == NAME_COLUMN]
+        text_cols = [c for c in original_fields if norm[c] in FREE_TEXT_COLUMNS]
+        kept_fields = [c for c in original_fields if norm[c] not in DROP_COLUMNS]
+
+        residual = {}
+        rows_out = 0
+
+        with open(dst, "w", newline="", encoding="utf-8") as out:
+            writer = csv.DictWriter(out, fieldnames=kept_fields)
+            writer.writeheader()
+            for i, row in enumerate(reader, start=1):
+                for c in name_cols:
+                    row[c] = opaque_id(row.get(c, ""), salt)
+                for c in text_cols:
+                    row[c] = mask_free_text(row.get(c, ""))
+                clean = {c: row.get(c, "") for c in kept_fields}
+                if verify:
+                    hits = find_residual_pii(clean)
+                    if hits:
+                        residual[i] = hits
+                writer.writerow(clean)
+                rows_out += 1
+
+    return {
+        "dropped": dropped,
+        "name_cols": name_cols,
+        "text_cols": text_cols,
+        "kept_fields": kept_fields,
+        "rows": rows_out,
+        "residual": residual,
+    }
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(
+        description="Redact PII from a customer CSV export.")
+    p.add_argument("csv", help="Path to the original customer CSV.")
+    p.add_argument("--salt", default=os.environ.get("REDACTION_SALT"),
+                   help="Salt for opaque ids (or set REDACTION_SALT).")
+    p.add_argument("--force", action="store_true",
+                   help="Overwrite an existing .redacted.csv.")
+    p.add_argument("--verify", action="store_true",
+                   help="Re-scan every output cell for residual email/phone "
+                        "and fail if any is found.")
+    args = p.parse_args(argv)
+
+    src = args.csv
+    if not os.path.isfile(src):
+        print(f"error: no such file: {src}", file=sys.stderr)
+        return 2
+
+    dst = output_path(src)
+    if os.path.abspath(dst) == os.path.abspath(src):
+        print("error: refusing to write over the original file.",
+              file=sys.stderr)
+        return 2
+    if os.path.exists(dst) and not args.force:
+        print(f"error: {dst} already exists (use --force to overwrite).",
+              file=sys.stderr)
+        return 2
+
+    salt = args.salt or DEFAULT_SALT
+    if not args.salt:
+        print("note: using built-in default salt; set --salt/REDACTION_SALT "
+              "for non-linkable ids.", file=sys.stderr)
+
+    try:
+        result = redact(src, dst, salt, args.verify)
+    except (OSError, ValueError, csv.Error) as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+    print(f"Redacted {result['rows']} row(s): {src} -> {dst}")
+    print(f"  dropped columns : {result['dropped'] or '(none present)'}")
+    print(f"  name -> id       : {result['name_cols'] or '(none present)'}")
+    print(f"  masked free-text : {result['text_cols'] or '(none present)'}")
+
+    if args.verify:
+        if result["residual"]:
+            print("VERIFY FAILED: residual email/phone found in output:",
+                  file=sys.stderr)
+            for line, cols in list(result["residual"].items())[:20]:
+                print(f"  row {line}: columns {cols}", file=sys.stderr)
+            print("Do NOT share this file. Review the flagged columns; they "
+                  "may hold PII not covered by the fixed rules.",
+                  file=sys.stderr)
+            return 3
+        print("  verify           : OK (no residual email/phone in output)")
+
+    print(f"\nShare ONLY: {dst}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/reference.md`
+
+```markdown
+# Redaction rules — reference
+
+This documents exactly what `scripts/redact_csv.py` does and why. The skill's
+behavior is fixed; this file is for auditors and for anyone extending it.
+
+## Column matching
+
+Headers are matched **case-insensitively** after stripping surrounding
+whitespace. `Email`, `EMAIL`, and ` email ` all match the drop rule. Only the
+listed columns are treated specially; every other column is passed through
+unchanged (and its order preserved).
+
+| Column                 | Action                                        |
+|------------------------|-----------------------------------------------|
+| `email`, `phone`, `ssn`| Dropped entirely from the output.             |
+| `name`                 | Replaced with an opaque id (`cust_<hex12>`).  |
+| `notes`, `comments`    | Emails and phone numbers masked in place.     |
+| anything else          | Passed through unchanged.                     |
+
+If a column is absent, its step is silently skipped — that is expected, not an
+error. The run summary states which steps actually applied.
+
+## Opaque ids
+
+The `name` value is replaced by `cust_` + the first 12 hex chars of
+`HMAC-SHA256(salt, name)`.
+
+- **Deterministic:** the same name + same salt always yields the same id, so a
+  customer keeps one id within and across exports (useful for joining) without
+  the id revealing the name.
+- **Non-reversible:** HMAC with a secret team salt defeats precomputed
+  ("rainbow table") reversal of common names. Set `--salt` / `REDACTION_SALT`
+  to a secret, stable value. The built-in default salt is opaque but public, so
+  ids made with it are linkable by anyone who knows it — fine for one-off
+  scrubs, not for adversarial recipients.
+- Empty name cells map to empty output (not to an id).
+
+## Free-text masking
+
+Within `notes` and `comments`, matched substrings are replaced; the rest of the
+sentence is preserved so the text stays useful.
+
+- **Email** → `[REDACTED_EMAIL]`
+  Pattern: `local@domain.tld` with the usual local-part characters.
+- **Phone** → `[REDACTED_PHONE]`
+  Pattern: NANP-style — optional `+CC`, 3-digit area code (optionally in
+  parentheses), then 3 + 4 digits, with space / dot / hyphen separators.
+  Examples caught: `555-123-4567`, `(555) 123 4567`, `+1 555.123.4567`.
+
+### Known limitations of phone detection
+
+The phone pattern is US/NANP-centric to avoid masking unrelated digit runs
+(order numbers, IDs). It will **not** catch every international format. It is
+deliberately anchored on word boundaries so it won't slice a longer digit
+string. If your exports contain non-NANP numbers, extend `PHONE_RE` in the
+script and re-test. When in doubt, run with `--verify`.
+
+## --verify (defense in depth)
+
+`--verify` re-scans **every** cell of the produced file (not just notes /
+comments) for any residual email or phone number and exits non-zero if one is
+found, naming the offending columns. Use it before external sharing: it catches
+PII sitting in an unexpected column that the fixed rules don't cover, so a human
+can decide before the file leaves the company.
+
+## Invariants
+
+- The original file is opened read-only and never written to.
+- Output is `<original>.redacted.csv`; the script refuses to overwrite the
+  original, and refuses to overwrite an existing redacted file without `--force`.
+- Output is UTF-8; input is read as UTF-8 with BOM tolerated.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/examples/customers.csv`
+
+```csv
+id,name,email,phone,ssn,plan,notes,comments
+1001,Jane Doe,jane@example.com,555-123-4567,111-22-3333,pro,"Called about billing, reach at 555-987-6543",Prefers email jane.doe@work.com
+1002,John Smith,john@acme.io,(555) 222-1212,444-55-6666,free,"No issues",Follow up next week
+```
+
+Running:
+
+```bash
+python scripts/redact_csv.py examples/customers.csv --verify
+```
+
+produces `examples/customers.redacted.csv`:
+
+```csv
+id,name,plan,notes,comments
+1001,cust_1a2b3c4d5e6f,pro,"Called about billing, reach at [REDACTED_PHONE]",Prefers email [REDACTED_EMAIL]
+1002,cust_9f8e7d6c5b4a,free,"No issues",Follow up next week
+```
+
+(The `cust_…` ids depend on the salt, so yours will differ.)
+
+---
+
+That's the complete skill: `SKILL.md` with proper frontmatter and trigger-rich description, an executable `scripts/redact_csv.py` doing the real work (deterministic non-reversible ids, in-place masking, read-only original, `--verify` safety net), a `reference.md` audit doc, and an `examples/` pair.
+
+Two things worth confirming before your team relies on it:
+
+1. **The opaque-id choice.** I made ids deterministic + HMAC-salted so a customer keeps one id across exports while staying non-reversible. If you'd rather ids be *unlinkable across exports* (fresh random id each run), that's a one-line change — tell me which you want.
+2. **Phone matching is NANP/US-centric** to avoid masking order numbers. If your exports carry international numbers, the pattern needs widening.
+
+Want me to send these to you as actual files (I can package the contents via `SendUserFile`) instead of inline text?

@@ -1,0 +1,179 @@
+I don't have any file-writing tools in this session — no Read/Write/Edit/Bash. I loaded the full deferred-tool set to confirm; they're all scheduling/task/worktree tools, none can create files. So I can't physically write to `outputs/`. Below are the two deliverables in full — copy each into the stated path.
+
+---
+
+## `outputs/review.md`
+
+```markdown
+# Review: json-config-check SKILL.md
+
+## Verdict
+Do not merge as-is. The draft reads like marketing copy and a JSON
+tutorial, not a skill. It gives an agent almost nothing executable, and
+its frontmatter won't trigger reliably. Specific defects below.
+
+## Frontmatter defects
+
+1. **Vague, non-triggering description.** "really helpful … and stuff …
+   lots of things … Use when needed" contains zero concrete trigger
+   conditions. The description is the ONLY thing the model sees when
+   deciding whether to load the skill, so it must name the task and the
+   cues that should invoke it (file types, user intent). "Use when
+   needed" is a no-op.
+
+2. **Description overpromises and contradicts the body.** It claims the
+   skill "can do lots of things," but the body describes exactly one
+   capability: validate a config against a schema. Scope in the
+   description must match what the skill actually does, or the model
+   will invoke it for the wrong tasks.
+
+3. **Hype instead of information.** "really helpful", "It can do lots of
+   things!" — exclamation and salesmanship waste the description's
+   limited budget and give the router no signal.
+
+## Body defects
+
+4. **The "Introduction" is a JSON 101 tutorial.** Explaining what JSON
+   is and that valid JSON matters is filler the model already knows. It
+   burns context and delays the actual instructions.
+
+5. **"About This Amazing Skill" is pure marketing.** "incredibly
+   powerful", "fantastic time-saver", "your whole team will love" —
+   none of this instructs the agent. Delete entirely.
+
+6. **Hedged, non-committal instructions.** "the file gets parsed …
+   might be validated … Errors could be reported … You might want to
+   consider possibly using." A skill is a procedure; it must use
+   imperative, definite steps ("Parse the file", "Validate against the
+   schema", "Report every error"). Hedging leaves the agent to guess.
+
+7. **No actual procedure.** There are no concrete steps, no commands, no
+   input/output contract. It never says where the config file comes
+   from, how the schema is located, what a validation run looks like, or
+   what the agent should return. An agent cannot execute this.
+
+8. **No handling of the obvious edge cases.** Missing schema, malformed
+   (unparseable) JSON, and multiple errors are all waved at ("if a
+   schema happens to be available", "might") rather than specified.
+
+9. **Vague, passive tooling guidance.** "You might want to consider
+   possibly using Python's json module and the jsonschema package …
+   which can be a good choice." Either the skill prescribes a tool or it
+   doesn't; this fence-sitting helps no one.
+
+10. **Title/name too generic for its scope.** "JSON Config Check" and
+    the surrounding text don't distinguish *syntax* validation from
+    *schema* validation, which is what the skill actually targets.
+
+## Summary of the rewrite
+- Rewrote the description to be specific, third-person, and
+  trigger-oriented, scoped to what the skill does.
+- Deleted the JSON tutorial and all marketing sections.
+- Replaced hedged prose with a definite, numbered procedure.
+- Added an input/output contract, a concrete example, and explicit
+  handling for missing schema / unparseable JSON / multiple errors.
+```
+
+---
+
+## `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: >-
+  Validates JSON configuration files for syntax errors and, when a
+  matching JSON Schema is present, checks the config against it. Use
+  when the user asks to validate, lint, or verify a JSON config file,
+  when a JSON config fails to load, or before deploying a change to a
+  JSON config.
+---
+
+# JSON Config Check
+
+Validate a JSON configuration file in two stages: first that it parses,
+then—if a schema is available—that it conforms to that schema. Report
+every problem found with its location.
+
+## Inputs
+
+- **Config file**: the path the user names, or the JSON config referenced
+  by the current task.
+- **Schema (optional)**: a JSON Schema for the config. Look for it in this
+  order:
+  1. A path the user provided.
+  2. A `$schema` URL/path referenced inside the config file.
+  3. A sibling file in the same directory named `<config>.schema.json`
+     or `schema.json`.
+  If none is found, run syntax validation only and say so.
+
+## Procedure
+
+1. **Read** the config file.
+2. **Parse** it as JSON. If parsing fails, stop and report the parse
+   error with the line and column; do not attempt schema validation on
+   unparseable input.
+3. **Locate the schema** using the order above. If none exists, skip to
+   step 5 and note that only syntax was checked.
+4. **Validate** the parsed config against the schema. Collect *all*
+   violations—do not stop at the first.
+5. **Report** the result (see Output).
+
+## Tooling
+
+Use Python:
+
+```bash
+python -c "import json,sys; json.load(open(sys.argv[1]))" <config>
+```
+
+For schema validation, use the `jsonschema` package and iterate all
+errors rather than raising on the first:
+
+```python
+import json
+from jsonschema import Draft202012Validator
+
+config = json.load(open(config_path))
+schema = json.load(open(schema_path))
+errors = sorted(
+    Draft202012Validator(schema).iter_errors(config),
+    key=lambda e: list(e.path),
+)
+for e in errors:
+    loc = "/".join(str(p) for p in e.path) or "(root)"
+    print(f"{loc}: {e.message}")
+```
+
+If `jsonschema` is not installed, install it (`pip install jsonschema`)
+or fall back to syntax-only validation and tell the user.
+
+## Output
+
+Report one of:
+
+- **Valid** — "`<file>` is valid JSON" and, if a schema was used,
+  "and conforms to `<schema>`."
+- **Parse error** — the message plus line/column, e.g.
+  `config.json:12:5: expecting ',' delimiter`.
+- **Schema violations** — a list, one per line, each as
+  `<json-path>: <message>`. List every violation, not just the first.
+- **Syntax-only** — when no schema was found, state that only syntax was
+  checked and no schema validation ran.
+
+## Example
+
+Request: "Check config/app.json before I deploy."
+
+1. Read `config/app.json` → parses cleanly.
+2. Find `config/app.schema.json` next to it.
+3. Validate: two violations.
+4. Report:
+   ```
+   config/app.json parses, but fails config/app.schema.json:
+   retries: -1 is less than the minimum of 0
+   endpoints/0/url: 'htp://x' does not match URI format
+   ```
+```
+
+Want me to adjust the schema-discovery rules, the tooling (e.g. a Node/`ajv` path instead of Python), or the output format before you drop these in?

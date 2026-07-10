@@ -1,0 +1,66 @@
+I'm not able to write files in this session — no filesystem tools are available here, so I can't create `CLAUDE.md` or `runbook.md` directly. Here's the merged content, ready for you to paste in.
+
+I put everything Claude needs while coding into `CLAUDE.md`, and split out only the 14-step deploy runbook into `runbook.md` (it's a human-run release checklist, not something Claude consults while writing code) — `CLAUDE.md` still names the exact abort/rollback thresholds inline so that safety-critical info can't be missed even if the runbook file is never opened.
+
+## CLAUDE.md
+
+```markdown
+# CLAUDE.md
+
+## Onboarding
+1. Clone the repo
+2. `pnpm install`
+3. Copy `.env.example` to `.env`
+4. `pnpm dev`
+5. Open `localhost:3000`
+
+(Same steps as README.md — keep both in sync if either changes.)
+
+## Style Rules
+- Prefer `const` over `let`
+- Use meaningful, descriptive names
+- Components in PascalCase; hooks prefixed with `use`
+- Keep functions small
+- Avoid deeply nested ternaries
+
+## API Auth — READ BEFORE WRITING ANY /api/* REQUEST CODE
+Requests to `/api/*` do **NOT** use Bearer auth. Do not write `Authorization: Bearer ...` code for these routes — it will fail.
+
+Instead, every request must carry an `X-Client-Sig` header: an HMAC-SHA256 signature of the request body, generated with the key from `scripts/sign.mjs`.
+
+Full details: `docs/auth.md`.
+
+## Tests
+- `pnpm test` — launches real Chromium instances and requires the dev server running. Slow; full e2e.
+- `pnpm test:unit` — use this for fast iteration while developing.
+
+## Deploy
+Deploying to production is a 14-step manual process — see `runbook.md`. Do not improvise a shorter deploy path.
+
+Critical thresholds (so these are never missed even if runbook.md isn't opened):
+- Abort the build if the main bundle chunk exceeds **900kB** (`pnpm run bundle-analyze`).
+- Rollback the canary if the error rate exceeds **0.5%** during the 15-minute watch window.
+```
+
+## runbook.md
+
+```markdown
+# Deploy Runbook
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — abort if main chunk > 900kB.
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for staging healthcheck.
+7. Run smoke suite: `pnpm smoke:staging`
+8. Verify checkout flow manually with test card 4242.
+9. Post staging sign-off in #launch.
+10. `./ship prod --canary 5`
+11. Watch error rate for 15 minutes; rollback via `./ship rollback` if > 0.5%.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in #releases.
+```
+
+Save these into `CLAUDE.md` and `runbook.md` in your project root and you're set for Friday.

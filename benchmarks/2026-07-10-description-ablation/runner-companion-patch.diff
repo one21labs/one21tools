@@ -1,0 +1,20 @@
+Companion patch to ../2026-07-07-toolkit-grid/trigger-kit/runner-patches.diff — apply BOTH.
+The kit's patch 1 stops an unrelated first tool call from hard-failing the run, but only in
+the stream-event path; the full-assistant-message fallback still returned on the first
+tool_use, ending the run False whenever the model explored (e.g. Bash) before invoking the
+planted skill. Same defect, second code path — found while reproducing the kit on 2026-07-10.
+
+--- a/skills/skill-creator/scripts/run_eval.py
++++ b/skills/skill-creator/scripts/run_eval.py
+@@ -165,7 +165,10 @@ def run_single_query(
+                                 triggered = True
+                             elif tool_name == "Read" and clean_name in tool_input.get("file_path", ""):
+                                 triggered = True
+-                            return triggered
++                        # PATCHED (local, companion to patch 1): only end on a positive
++                        # match; an unrelated tool call keeps watching here too.
++                        if triggered:
++                            return True
+
+                     elif event.get("type") == "result":
+                         return triggered
