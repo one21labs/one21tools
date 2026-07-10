@@ -16,17 +16,20 @@
  *
  * SEE ALSO: ../skills/decide/references/doc-budgets.md (the altitude ladder + token table).
  * TESTING: char-budget.test.mjs (`node --test pdca-workflow/scripts/*.test.mjs` from the repo root).
+ *
+ * Every relative path here resolves against the CURRENT WORKING DIRECTORY (Node's default for a
+ * relative fs path) — never against this file's own location. Both invokers run from their own
+ * repo root already: the in-repo gate (`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`,
+ * per .github/workflows/gates.yml) and a vendored consumer copy (`node scripts/adr-lint.mjs`, per
+ * pdca-init's SKILL.md). A fixed `../../` offset from this file only held for the plugin's own
+ * two-levels-deep `pdca-workflow/scripts/` nesting, not a consumer's flat `scripts/` (#84).
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-// Repo root (this file lives at <root>/pdca-workflow/scripts/).
-const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 // CRLF-normalized char length, so counts are checkout-agnostic (Windows core.autocrlf=true).
 export const charLen = (relPath) =>
-  readFileSync(join(ROOT, relPath), "utf8").replace(/\r\n/g, "\n").length;
+  readFileSync(relPath, "utf8").replace(/\r\n/g, "\n").length;
 
 // Pure decision logic (unit-tested): over the cap = a violation.
 export const overBudget = (chars, cap) => chars > cap;
@@ -53,9 +56,13 @@ export const LITE_ADR_CHAR_BUDGET = 1500;
 export const AGENT_CHAR_BUDGET = 3000;
 
 // Shared per-file check — one loop body, so the "path:chars/cap" report format cannot diverge
-// between the doc and agent walks.
+// between the doc and agent walks. ENOENT-tolerant like the directory walks below: a budgeted doc
+// that doesn't exist (e.g. no CLAUDE.md yet) has nothing to over-budget-check, so it's skipped, not
+// a crash (#84 — oversizeDocs() used to throw on a missing CLAUDE.md).
 const pushIfOver = (relPath, cap, out) => {
-  const n = charLen(relPath);
+  let n;
+  try { n = charLen(relPath); }
+  catch (e) { if (e.code === "ENOENT") return; throw e; }
   if (overBudget(n, cap)) out.push(`${relPath}:${n}/${cap}`);
 };
 
@@ -66,14 +73,14 @@ export function oversizeDocs() {
   return out;
 }
 
-// Guard: no agent prompt in `dir` (ROOT-relative) exceeds AGENT_CHAR_BUDGET. An ABSENT dir is
+// Guard: no agent prompt in `dir` (CWD-relative) exceeds AGENT_CHAR_BUDGET. An ABSENT dir is
 // tolerated — a consumer may have no agents — but ONLY ENOENT: any other readdir failure throws,
 // so the gate cannot go silently vacuous. `dir` is injectable so the test can prove positive
 // detection on a fixture. Returns "path:chars/cap" per violation.
 export function oversizeAgents(dir = "pdca-workflow/agents") {
   const out = [];
   let names;
-  try { names = readdirSync(join(ROOT, dir)); }
+  try { names = readdirSync(dir); }
   catch (e) { if (e.code === "ENOENT") return out; throw e; }
   for (const f of names.filter((f) => f.endsWith(".md"))) pushIfOver(`${dir}/${f}`, AGENT_CHAR_BUDGET, out);
   return out;
@@ -85,10 +92,10 @@ export function oversizeAgents(dir = "pdca-workflow/agents") {
 export function agentNameMismatches(dir = ".claude/agents") {
   const out = [];
   let names;
-  try { names = readdirSync(join(ROOT, dir)); }
+  try { names = readdirSync(dir); }
   catch (e) { if (e.code === "ENOENT") return out; throw e; }
   for (const f of names.filter((f) => f.endsWith(".md"))) {
-    const fm = readFileSync(join(ROOT, dir, f), "utf8").match(/^---\n([\s\S]*?)\n---/);
+    const fm = readFileSync(join(dir, f), "utf8").match(/^---\n([\s\S]*?)\n---/);
     const nameLine = fm && fm[1].match(/^name:\s*(.*)$/m);
     const name = nameLine ? nameLine[1].trim() : null;
     const expected = f.replace(/\.md$/, "");

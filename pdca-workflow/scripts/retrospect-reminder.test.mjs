@@ -8,6 +8,14 @@
  * the contract: fire on a real `gh pr create` wherever it sits in the command; never fire on a
  * command merely QUOTING the phrase; the documented early-quote limitation stays a silent miss —
  * never a false fire, never a wider regression.
+ *
+ * Invoked exactly as hooks.json invokes it — direct exec of the script path, no `bash` prefix
+ * (#84: a `bash [HOOK]` invocation here masked the hook shipping without its exec bit, since bash
+ * doesn't care about the file's permission bits). This requires the file to carry the exec bit
+ * (`git update-index --chmod=+x`) and a POSIX shell to resolve the `#!/usr/bin/env bash` shebang —
+ * true on the Linux CI runner this gate ships to; on a Windows dev box without a POSIX exec layer
+ * this test may not run the hook the same way the OS does, which is a platform gap in the dev
+ * environment, not in the fix.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -16,7 +24,7 @@ import { fileURLToPath } from "node:url";
 
 const HOOK = fileURLToPath(new URL("../hooks/retrospect-reminder.sh", import.meta.url));
 const run = (command) =>
-  spawnSync("bash", [HOOK], { input: JSON.stringify({ tool_input: { command } }), encoding: "utf8" });
+  spawnSync(HOOK, [], { input: JSON.stringify({ tool_input: { command } }), encoding: "utf8" });
 const fires = (command) => run(command).stdout.includes("hookSpecificOutput");
 
 test("fires on a bare gh pr create", () => {

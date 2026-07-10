@@ -30,6 +30,16 @@ test("no budgeted doc exceeds its char cap", () => {
   assert.deepEqual(oversizeDocs(), []);
 });
 
+test("oversizeDocs tolerates a budgeted doc that doesn't exist (ENOENT), like the agent walks (#84)", () => {
+  DOC_BUDGETS["no-such-doc-xyz.md"] = 10;
+  try {
+    assert.doesNotThrow(() => oversizeDocs());
+    assert.deepEqual(oversizeDocs().filter((d) => d.includes("no-such-doc-xyz")), []);
+  } finally {
+    delete DOC_BUDGETS["no-such-doc-xyz.md"];
+  }
+});
+
 test("AGENT_CHAR_BUDGET is a positive char cap (enforcement isn't silently gutted)", () => {
   assert.ok(Number.isInteger(AGENT_CHAR_BUDGET) && AGENT_CHAR_BUDGET > 0);
 });
