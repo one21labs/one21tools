@@ -2,7 +2,7 @@
 id: 0013
 title: "building-skills evals: delegate execution to skill-creator, own the cost verdict"
 status: accepted
-summary: "Empirical skill evals are HYBRID: execution stays DELEGATED to skill-creator's benchmark harness (paired with/without runs, graded assertions); this repo owns only the thin layer upstream lacks — the evals.json schema gate in validate.py (the REOPEN-IF fired: eval artifacts now exist in-repo) and eval_verdict.py, the cost-per-benefit verdict (Wilson CI + delta per 1k chars of SKILL.md body). No owned harness. Keeps: author-separation, fresh independent grader, validate.py authoritative, prose vendored."
+summary: "Empirical skill evals are HYBRID: execution stays DELEGATED to skill-creator's benchmark harness (paired with/without runs, graded assertions); this repo owns only the thin layer upstream lacks — the evals.json schema gate in validate.py (the REOPEN-IF fired: eval artifacts now exist in-repo) and eval_verdict.py, the cost-per-benefit verdict (Wilson CI + delta per 1k chars of SKILL.md body). No owned PAIRED-BENCHMARK harness (ADR 0033 owns the trigger runner). Keeps: author-separation, fresh independent grader, validate.py authoritative, prose vendored."
 ---
 
 # 0013 — building-skills evals: delegate execution, own the cost verdict
@@ -13,7 +13,8 @@ summary: "Empirical skill evals are HYBRID: execution stays DELEGATED to skill-c
 - Context: skill-creator's benchmark harness (paired with_skill/without_skill runs, graded assertions, token/time stats) is NOT in this marketplace nor bundled in Claude Code. Char budgets enforce only the COST side of a skill; no mechanism measured whether its content BUYS anything. The owner requires skills be empirically shown to justify their context cost.
 
 ## Decision
-**Delegate execution; own the schema gate + the verdict. No owned harness — one concern, one PR.**
+**Delegate execution; own the schema gate + the verdict. No owned PAIRED-BENCHMARK harness
+(ADR 0033 separately vendors and owns the trigger runner) — one concern, one PR.**
 1. **Execution stays skill-creator's.** Its benchmark mode already runs the paired baseline with graded assertions and aggregate stats (`aggregate_benchmark` -> `benchmark.json`). Re-building that loop here re-forks an upstream that already superseded itself — gold-plating. The protocol home is `skills/building-skills/references/empirical-evals.md` (install pointer, authoring disciplines, run recipe, verdict).
 2. **Schema gate (the fired REOPEN-IF).** Eval artifacts now exist in-repo (`skills/code-standards/evals/evals.json`, the pilot — authored in skill-creator's CURRENT schema; its `references/schemas.md` stays the schema SSoT, never mirrored here). validate.py R7 gates the shape (skill_name=folder, unique int ids, non-empty prompt/expected_output/expectations); cases in validate_test.py; runs in the existing required gates step.
 3. **Owned verdict layer — `scripts/eval_verdict.py` + test.** Post-processes upstream `benchmark.json` ONLY: pairs runs by (eval_id, run_number) across configurations; win rate with Wilson 95% CI; mean pass-rate delta; the verdict metric — **delta per 1k chars of SKILL.md body** (benefit over the enforced cost). `--fail-under` for local regression loops. Python, stdlib, in the dev-skills toolkit (ADR 0010).
