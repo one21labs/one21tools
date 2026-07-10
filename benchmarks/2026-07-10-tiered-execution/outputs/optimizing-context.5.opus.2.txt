@@ -1,0 +1,85 @@
+I can't write files in this session — there's no file-system access here, so I'll give you the exact contents to save. Two files, which matches the one escape hatch your tech lead allowed. Here's the reasoning for the split, then the content.
+
+**What goes where, and why:**
+- **CLAUDE.md** gets everything Claude needs *while writing code*: style rules, the API auth gotcha (emphasized hard, since that's the recurring failure), test commands, and setup. This is the always-loaded context.
+- **runbook.md** gets *only* the 14-step deploy procedure. That's the one thing I moved out. It's step-by-step operational content used at deploy time, not while coding — keeping it in CLAUDE.md would bloat every session's context without helping Claude write better code. CLAUDE.md links to it so nothing is "missed": when a deploy is happening, Claude is pointed straight to it.
+
+Nothing is dropped. The onboarding text is included inline (it's tiny) with a note that it mirrors README so they stay in sync.
+
+---
+
+**`CLAUDE.md`**
+
+````markdown
+# CLAUDE.md
+
+Single source of truth for working in this repo. Read all of it.
+
+## ⚠️ API auth — read this before writing any request code
+
+Requests to `/api/*` do **NOT** use Bearer auth. Do not write `Authorization: Bearer ...`.
+
+Every `/api/*` request must carry an **`X-Client-Sig`** header:
+- Value = **HMAC-SHA256 of the request body**
+- Key comes from **`scripts/sign.mjs`**
+- This is a custom scheme. Full details in **`docs/auth.md`**.
+
+If you find yourself writing standard Bearer / OAuth token code for `/api/*`, stop — it will fail. Sign the body with `scripts/sign.mjs` and set `X-Client-Sig`.
+
+## Code style
+
+- Prefer `const` over `let`.
+- Use meaningful, descriptive names.
+- Components in `PascalCase`; hooks prefixed with `use`.
+- Keep functions small.
+- Avoid deeply nested ternaries.
+
+## Testing
+
+- `pnpm test` launches **real Chromium** instances and needs the **dev server running**. Use it for full/E2E checks.
+- For fast iteration use **`pnpm test:unit`** — no browser, no dev server.
+
+## Local setup
+
+(Mirrors `README.md` — keep the two in sync if either changes.)
+
+1. Clone the repo.
+2. `pnpm install`
+3. Copy `.env.example` to `.env`.
+4. `pnpm dev`
+5. Open `localhost:3000`.
+
+## Deploying
+
+The production deploy is a 14-step gated procedure. Do **not** improvise it.
+Follow **`runbook.md`** exactly, top to bottom.
+````
+
+---
+
+**`runbook.md`**
+
+````markdown
+# Deploy runbook
+
+Follow every step in order. Do not skip gates.
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — **abort if main chunk > 900 kB**.
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for staging healthcheck.
+7. Run smoke suite: `pnpm smoke:staging`
+8. Verify checkout flow manually with test card **4242**.
+9. Post staging sign-off in **#launch**.
+10. `./ship prod --canary 5`
+11. Watch error rate for **15 minutes**; roll back via `./ship rollback` if **> 0.5%**.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in **#releases**.
+````
+
+---
+
+If you'd rather have the runbook inlined into CLAUDE.md too (truly one file), say so and I'll give you a single combined version — but I'd advise against it for the reason above. Also worth a 30-second follow-up after launch: the setup steps now live in both CLAUDE.md and README.md, so pick one as canonical to avoid drift.

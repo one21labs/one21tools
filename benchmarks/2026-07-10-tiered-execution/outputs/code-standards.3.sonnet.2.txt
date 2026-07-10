@@ -1,0 +1,152 @@
+I don't have file-system access in this session, so here are the full contents to save as `ingest.py` and `enrich.py`.
+
+**Design:** a per-record `record_id` (from `rec["id"]` if present, else `run_id:Lline_no`) and a per-run `run_id` are propagated via `contextvars` and injected into *every* log line by a logging filter — so you can `grep 'record=<id>'` across both modules without threading an id through every function call. Each record is wrapped in its own try/except so one bad record never kills the batch, and the run emits a start/end summary with counts.
+
+```python
+# ingest.py
+import json
+import logging
+import sys
+import time
+import uuid
+from contextvars import ContextVar
+
+from enrich import enrich_record
+
+logger = logging.getLogger("pipeline.ingest")
+
+RUN_ID = ContextVar("run_id", default="-")
+RECORD_ID = ContextVar("record_id", default="-")
+
+
+class ContextFilter(logging.Filter):
+    """Injects the current run_id/record_id into every log record."""
+
+    def filter(self, record):
+        record.run_id = RUN_ID.get()
+        record.record_id = RECORD_ID.get()
+        return True
+
+
+def configure_logging(level=logging.INFO):
+    handler = logging.StreamHandler(sys.stderr)
+    handler.addFilter(ContextFilter())
+    handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s run=%(run_id)s record=%(record_id)s "
+        "%(name)s:%(funcName)s - %(message)s"
+    ))
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
+
+
+def run(path):
+    run_id = uuid.uuid4().hex[:8]
+    token_run = RUN_ID.set(run_id)
+    logger.info("run started path=%s", path)
+
+    total = ok = skipped = failed = 0
+    start = time.monotonic()
+
+    try:
+        with open(path) as f:
+            for line_no, line in enumerate(f, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                total += 1
+
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    failed += 1
+                    logger.error(
+                        "failed to parse record at line %d: invalid JSON: %r",
+                        line_no, line[:200], exc_info=True,
+                    )
+                    continue
+
+                record_id = str(rec.get("id", f"{run_id}:L{line_no}"))
+                token_rec = RECORD_ID.set(record_id)
+                try:
+                    logger.debug("record received: %s", rec)
+                    try:
+                        out = enrich_record(rec)
+                    except Exception:
+                        failed += 1
+                        logger.exception("enrichment raised an unhandled exception")
+                        continue
+
+                    if out is None:
+                        skipped += 1
+                        logger.info("record dropped by enrichment (no output)")
+                        continue
+
+                    try:
+                        save(out)
+                    except Exception:
+                        failed += 1
+                        logger.exception("failed to save enriched record")
+                        continue
+
+                    ok += 1
+                    logger.debug("record saved successfully")
+                finally:
+                    RECORD_ID.reset(token_rec)
+    except FileNotFoundError:
+        logger.error("input file not found: %s", path)
+        raise
+    finally:
+        elapsed = time.monotonic() - start
+        logger.info(
+            "run finished path=%s total=%d ok=%d skipped=%d failed=%d elapsed=%.2fs",
+            path, total, ok, skipped, failed, elapsed,
+        )
+        RUN_ID.reset(token_run)
+
+
+def save(rec):
+    record_id = RECORD_ID.get()
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    logger.debug("wrote record %s to out.jsonl", record_id)
+
+
+if __name__ == "__main__":
+    configure_logging(level=logging.INFO)
+    if len(sys.argv) != 2:
+        logger.error("usage: python ingest.py <path-to-jsonl>")
+        sys.exit(1)
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger("pipeline.enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec):
+    region_key = rec.get("region")
+    if region_key is None:
+        logger.warning("record missing 'region' field; dropping record. keys=%s", list(rec.keys()))
+        return None
+
+    region = GEO.get(region_key)
+    if region is None:
+        logger.warning("unknown region %r (no zone mapping); dropping record", region_key)
+        return None
+
+    rec["zone"] = region
+    logger.debug("enriched record with zone=%s", region)
+    return rec
+```
+
+Notes:
+- `enrich_record` now handles a missing `region` key by logging and returning `None` instead of raising `KeyError`, consistent with how it already handles unknown regions — a malformed record no longer needs to propagate as an exception.
+- Every log line carries `run=<run_id> record=<record_id>`, so an on-call engineer can `grep 'record=abc123'` and see that record's entire path — parse, enrich decision, save — across both modules.
+- Parse failures, enrichment exceptions, and save failures are each caught and counted separately, and the final "run finished" line gives `total/ok/skipped/failed` so a misbehaving run is visible at a glance before drilling into per-record logs.

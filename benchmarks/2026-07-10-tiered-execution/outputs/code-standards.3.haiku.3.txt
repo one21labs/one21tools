@@ -1,0 +1,142 @@
+I'll provide the updated modules as code you can save directly:
+
+**ingest.py:**
+```python
+import json
+import logging
+import sys
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+def setup_logging():
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.addHandler(handler)
+
+def run(path):
+    setup_logging()
+    logger.info(json.dumps({"event": "ingest_start", "path": path}))
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                process_line(line, line_num)
+    except Exception as e:
+        logger.error(json.dumps({
+            "event": "ingest_failed",
+            "path": path,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }))
+        raise
+    
+    logger.info(json.dumps({"event": "ingest_complete", "path": path}))
+
+def process_line(line, line_num):
+    try:
+        rec = json.loads(line)
+    except json.JSONDecodeError as e:
+        logger.error(json.dumps({
+            "event": "parse_failed",
+            "line_num": line_num,
+            "error": str(e)
+        }))
+        return
+    
+    record_id = rec.get("id") or str(abs(hash(json.dumps(rec, sort_keys=True))))
+    
+    logger.info(json.dumps({
+        "event": "record_received",
+        "record_id": record_id,
+        "region": rec.get("region")
+    }))
+    
+    try:
+        out = enrich_record(rec, record_id)
+        if out:
+            save(out, record_id)
+        else:
+            logger.info(json.dumps({
+                "event": "record_filtered",
+                "record_id": record_id,
+                "reason": "enrichment returned None"
+            }))
+    except Exception as e:
+        logger.error(json.dumps({
+            "event": "record_processing_failed",
+            "record_id": record_id,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }))
+
+def save(rec, record_id):
+    try:
+        with open("out.jsonl", "a") as f:
+            f.write(json.dumps(rec) + "\n")
+        logger.info(json.dumps({
+            "event": "record_saved",
+            "record_id": record_id
+        }))
+    except Exception as e:
+        logger.error(json.dumps({
+            "event": "save_failed",
+            "record_id": record_id,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }))
+        raise
+```
+
+**enrich.py:**
+```python
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id):
+    region = rec.get("region")
+    
+    logger.info(json.dumps({
+        "event": "enrichment_start",
+        "record_id": record_id,
+        "input_region": region
+    }))
+    
+    if region not in GEO:
+        logger.info(json.dumps({
+            "event": "enrichment_skipped",
+            "record_id": record_id,
+            "region": region,
+            "valid_regions": list(GEO.keys())
+        }))
+        return None
+    
+    zone = GEO[region]
+    rec["zone"] = zone
+    
+    logger.info(json.dumps({
+        "event": "enrichment_complete",
+        "record_id": record_id,
+        "output_zone": zone
+    }))
+    
+    return rec
+```
+
+**What changed:**
+
+1. **Record IDs**: Each record gets a stable ID (from `rec["id"]` if present, otherwise a hash) that appears in every log line, enabling end-to-end tracing.
+
+2. **Structured JSON logging**: Every event logs JSON with consistent fields (`event`, `record_id`, error details), so you can grep/parse logs programmatically and correlate records across modules.
+
+3. **All failure modes logged**: Parse errors, invalid regions, I/O failures, and unexpected exceptions are all logged with type and context.
+
+4. **Entry/exit points**: Each module logs when it starts/completes processing, plus every intermediate step, so you can reconstruct what happened to any record from logs alone.
+
+An on-call engineer can now run `grep '"record_id":"abc123"' production.log` to see a single record's journey: received → enrichment → filtered/saved/failed, with the exact reason for any decision.

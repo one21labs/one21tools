@@ -1,0 +1,232 @@
+I'm in a headless session without file-system tools, so I'll provide both documents as formatted text that you can copy directly. Here's the complete context design:
+
+---
+
+## **layout.md**
+
+```markdown
+# Claude Code Context Layout for atlas Monorepo
+
+## Overview
+The atlas monorepo spans three services with different languages, frameworks, and workflows. Context is layered: shared conventions at root, service-specific details in service folders, and external resources (runbook, analytics config) in dedicated locations.
+
+## File Organization & Rationale
+
+### Root Level
+| File | Purpose | Rationale |
+|------|---------|-----------|
+| **CLAUDE.md** | Master configuration; org-wide conventions; initialization | Single source of truth for trunk-based dev, conventional commits, and `make check` gate across all services. |
+| **.claude/atlas-context.md** | Service overview, team contacts, key architecture decisions | Quick reference when switching between services; avoids context-thrashing. |
+| **docs/incident-response-runbook.md** | 20-step incident-response process (org-wide, canonical) | Centralize the runbook so all teams reference the same steps; Claude walks engineers through it sequentially. |
+| **.claude/analytics-warehouse.md** (gitignored) | Analytics warehouse endpoint, SQL helpers, analyst-only credentials | Keep secrets out of repo; loaded only for analyst contexts; not committed to Git. |
+
+### Service-Specific Contexts
+| Service | File | Key Content | Rationale |
+|---------|------|-----------|-----------|
+| **api/** | api/CLAUDE.md | Go/gRPC specifics; proto generation flow; api/gen/ excluded from context | Prevents Claude from being confused by generated code; documents that `make proto` is the source-of-truth generator. |
+| **web/** | web/CLAUDE.md | React/TypeScript; Playwright browser tests vs. `npm run test:unit`; npm dev server | Clarifies test distinction so Claude doesn't run full browser tests when unit tests are intended. |
+| **pipeline/** | pipeline/CLAUDE.md | Python/Airflow; AIRFLOW_HOME=pipeline/.airflow requirement; DAG import setup | Explicit env var ensures DAGs can be imported; documenting BEFORE context load prevents silent import failures. |
+
+### Context Loading Strategy
+1. **Root context always loads**: CLAUDE.md, .claude/atlas-context.md, docs/incident-response-runbook.md
+2. **Service context loads conditionally**: When Claude's cwd is within api/, web/, or pipeline/, load the service CLAUDE.md (extends root)
+3. **Analytics context loads on demand**: Load .claude/analytics-warehouse.md only if user email indicates analyst role
+4. **Exclude generated code**: api/gen/ excluded from all context; reference .proto files instead
+
+### Special Mechanisms
+
+**Generated Code (api/gen/)**
+- Mechanism: Exclude from context; regenerate via `make proto` only
+- Failure mode: Never hand-edit; edits are silently overwritten
+- Commit policy: Always commit generated code; never .gitignore gen/
+
+**Environment Initialization**
+- AIRFLOW_HOME must be set to pipeline/.airflow before pipeline work
+- Mechanism: Root CLAUDE.md exports; pipeline/CLAUDE.md enforces
+- Failure: DAG imports fail silently if not set; document upfront
+
+**Test Command Disambiguation**
+- web/: Distinguish `npm test` (Playwright, browsers) vs. `npm run test:unit` (fast, mocked)
+- Mechanism: web/CLAUDE.md documents; Claude asks user if unclear
+
+**Incident Response Runbook**
+- Location: Canonical docs/incident-response-runbook.md (org-wide)
+- Mechanism: Root CLAUDE.md references; Claude walks engineers through 20 steps
+- Access: Any engineer; not gated
+
+**Analytics Warehouse Access**
+- Location: .claude/analytics-warehouse.md (gitignored, contains secrets)
+- Gating: Load only for analysts (email/team check)
+- Flow: Claude generates SQL → shows for review → executes
+- Rationale: Queries can be expensive/sensitive; always review first
+
+### Cross-Service Changes
+1. Load contexts for affected services
+2. Verify `make check` passes across all services (from root)
+3. Commit message calls out cross-service impact
+4. Coordinate review timing across service teams
+
+### Conflict Resolution
+- **Service CLAUDE.md wins for that service** (e.g., api/CLAUDE.md test guidance overrides root)
+- **Root CLAUDE.md wins for cross-service** (e.g., conventional commits, trunk-based dev)
+- **Document all overrides explicitly** in service CLAUDE.md
+
+### Security Boundaries
+- **Git-committed**: CLAUDE.md files, runbook, service contexts
+- **Gitignored**: .claude/analytics-warehouse.md (analytics credentials)
+- **Authorization**: Check email before loading analytics context
+```
+
+---
+
+## **CLAUDE.md** (root)
+
+```markdown
+# Claude Code for atlas
+
+This configuration coordinates Claude work across the atlas monorepo (api, web, pipeline services).
+
+## Org Conventions (All Services)
+
+- **Commits**: Conventional Commits format (`type(scope): description`)
+- **Pre-PR Gate**: `make check` must pass before any pull request
+- **Branching**: Trunk-based development; no long-lived feature branches
+- **Code Review**: All changes require review; Claude assists but does not push directly
+
+Violating these is a hard stop—do not bypass (e.g., --no-verify).
+
+## Initialization
+
+When starting work in atlas, set this environment variable:
+```bash
+export AIRFLOW_HOME=pipeline/.airflow
+```
+
+This must be set **before** any pipeline work. DAG imports will fail silently without it.
+
+## Service-Specific Contexts
+
+Load service-specific CLAUDE.md when working within that service's directory:
+
+- **api/CLAUDE.md**: Go, gRPC, protobuf, generated code handling
+- **web/CLAUDE.md**: React, TypeScript, Playwright tests vs. unit tests
+- **pipeline/CLAUDE.md**: Python, Airflow DAGs, environment requirements
+
+Service files override root guidance for their scope only.
+
+## Code Generation: api/gen/
+
+**Policy**: Everything under `api/gen/` is generated by `make proto` and must never be hand-edited.
+
+- **Hand-edits are silently overwritten** on next regeneration
+- **Always regenerate via**: `make proto` (defined in Makefile)
+- **Always commit** regenerated code; never exclude gen/ from commits
+- **Reference source of truth**: Edit .proto files, not generated Go code
+
+**Claude must not**:
+- Hand-edit any file in api/gen/
+- Suggest hand-edits to generated code
+- Reason about generated code as if it's source
+
+**Claude should**:
+- Exclude api/gen/ from context to avoid confusion
+- Refer to .proto files when discussing API contracts
+- Regenerate via `make proto` after proto changes
+
+## Shared Resources
+
+### Incident Response Runbook
+**Location**: docs/incident-response-runbook.md
+
+When an engineer asks Claude to walk them through incident response (e.g., "help me debug the outage"), Claude should:
+1. Load docs/incident-response-runbook.md
+2. Walk through the 20-step process sequentially
+3. Adapt language to the current service/incident but preserve step order
+4. Provide service-specific grep patterns, log paths, dashboards
+
+**Access**: Any atlas engineer can invoke this runbook.
+
+### Analytics Warehouse Queries
+**Location**: .claude/analytics-warehouse.md (gitignored, secrets inside)
+
+Analysts may ask Claude to run SQL queries against the analytics warehouse when investigating product metrics. Claude should:
+1. Check if the user's email indicates analyst role (e.g., @company.com + analytics team)
+2. Load .claude/analytics-warehouse.md (contains endpoint, SQL helpers)
+3. Generate a SQL query based on the analyst's question
+4. **Always show the generated query to the analyst for review before executing**
+5. Execute via the analytics CLI or warehouse connector
+6. Return results
+
+**Access**: Restricted to analytics team members only. Gate by email domain or explicit team check.
+
+**Important**: Warehouse queries can be expensive or expose sensitive data; always review before run.
+
+## Context Files
+
+Claude loads these automatically:
+- `.claude/atlas-context.md` — Service overview, team contacts, architecture notes
+- `docs/incident-response-runbook.md` — Org-wide incident response process
+- `.claude/analytics-warehouse.md` — (if analyst role detected) analytics config + secrets
+
+Plus service-specific CLAUDE.md when in that service's directory.
+
+## Multi-Service Changes
+
+When a change spans multiple services (e.g., API contract + web client + pipeline DAG):
+1. Load contexts for affected services
+2. Run `make check` from root to verify all services pass
+3. Document cross-service impact in the commit message
+4. Coordinate review timing across service teams
+
+## Error Handling
+
+**If `make check` fails**:
+- Do not bypass with --no-verify or similar
+- Fix the root cause (lint, formatting, tests, etc.)
+- Re-run `make check` to confirm
+
+**If AIRFLOW_HOME is not set**:
+- Stop and run: `export AIRFLOW_HOME=pipeline/.airflow`
+- Then retry the pipeline import/task
+
+**If api/gen/ has been hand-edited**:
+- Revert the hand-edits
+- Run `make proto` to regenerate
+- Commit the regenerated code
+
+## Claude Must Not
+
+- Push code directly to any branch (submit for review instead)
+- Bypass security gates (--no-verify, force-push, etc.)
+- Hand-edit api/gen/ files
+- Assume gen/ code is source-of-truth
+- Run `npm test` in web/ when `npm run test:unit` is intended (ask if unclear)
+- Assume DAGs can be imported without AIRFLOW_HOME set
+
+## Claude Should
+
+- Enforce conventional commits at every commit
+- Run `make check` before suggesting any commit
+- Load service-specific CLAUDE.md when switching services
+- Refer to .proto files, not generated code, when discussing API design
+- Verify AIRFLOW_HOME before pipeline work
+- Distinguish web/ test commands (browser vs. unit)
+- Offer to walk engineers through the incident runbook if they ask for incident response help
+
+---
+
+For additional context on architecture, team structure, and service interactions, see `.claude/atlas-context.md`.
+```
+
+---
+
+**How to use these**:
+
+1. **Create layout.md** in your atlas root as a design reference (helps future contributors understand the context strategy)
+2. **Create CLAUDE.md** in your atlas root; this is what Claude Code reads to configure behavior
+3. **Create service-specific CLAUDE.md** files in api/, web/, and pipeline/ that extend the root config with language/framework-specific guidance
+4. **Create .claude/atlas-context.md** with service overview, team info, and key architecture notes
+5. **Create docs/incident-response-runbook.md** with your org's 20-step process (or link to where it lives)
+6. **Create .claude/analytics-warehouse.md** (gitignored) with warehouse endpoint and SQL boilerplate
+
+The layout avoids context-thrashing by layering: shared rules at root, service quirks in service folders, external resources (runbook, analytics) in dedicated files that load conditionally.

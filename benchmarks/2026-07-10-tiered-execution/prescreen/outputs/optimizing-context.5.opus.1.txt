@@ -1,0 +1,80 @@
+I can't write files in this session — it's headless with no filesystem tools, so I can't create `CLAUDE.md` on disk myself. Here's the merged content ready to paste into `CLAUDE.md` (and one `runbook.md`), plus the one judgment call I made.
+
+**The one thing I moved out:** the 14-step deploy procedure → `runbook.md`, with a loud pointer from `CLAUDE.md`. It's a rarely-run checklist, not per-turn guidance; keeping it inline buries the always-relevant rules (auth especially). This uses exactly the one extra file you permitted. Everything else stays in `CLAUDE.md`.
+
+**One flag, not a change:** the onboarding block is "same text as README.md." Pasting it in creates two copies that will drift. I kept it per your directive but added a note marking README as the source of truth — consider deleting the duplicate later.
+
+---
+
+### `CLAUDE.md`
+
+````markdown
+# CLAUDE.md
+
+Single source of truth for working in this repo. Read all of it.
+
+## ⚠️ API auth — READ THIS FIRST (common failure)
+
+Requests to `/api/*` do **NOT** use Bearer auth. Do not write `Authorization: Bearer ...`.
+
+Every `/api/*` request must carry an **`X-Client-Sig`** header:
+- Value = **HMAC-SHA256 of the request body**
+- Key comes from **`scripts/sign.mjs`**
+- This is a custom scheme. Full details: **`docs/auth.md`**
+
+If you find yourself reaching for Bearer/OAuth boilerplate here, stop — it will fail. Use `scripts/sign.mjs` to sign the body and set `X-Client-Sig`.
+
+## Code style
+
+- Prefer `const` over `let`.
+- Use meaningful, descriptive names.
+- Components in `PascalCase`; hooks prefixed with `use`.
+- Keep functions small.
+- Avoid deeply nested ternaries.
+
+## Testing
+
+- `pnpm test` — launches **real Chromium** instances and needs the dev server running. Slow; not for tight iteration.
+- `pnpm test:unit` — use this for iteration.
+
+## Getting started (onboarding)
+
+> Note: this mirrors README.md — README is the source of truth if the two ever disagree.
+
+1. Clone the repo.
+2. `pnpm install`
+3. Copy `.env.example` to `.env`.
+4. `pnpm dev`
+5. Open `localhost:3000`.
+
+## Deploying
+
+Do **not** improvise a deploy. Follow **`runbook.md`** step by step (14 steps, includes canary + rollback thresholds).
+````
+
+---
+
+### `runbook.md`
+
+````markdown
+# Deploy Runbook
+
+Follow in order. Do not skip steps.
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — **abort if main chunk > 900kB.**
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for staging healthcheck.
+7. Run smoke suite: `pnpm smoke:staging`
+8. Verify checkout flow manually with test card `4242`.
+9. Post staging sign-off in **#launch**.
+10. `./ship prod --canary 5`
+11. Watch error rate for **15 minutes**; if **> 0.5%**, roll back with `./ship rollback`.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in **#releases**.
+````
+
+Want me to also produce a version with the deploy steps inlined into `CLAUDE.md` instead, if your lead prefers literally one file?

@@ -1,0 +1,113 @@
+I'll provide production-grade logging that enables record-level tracing across the pipeline. Here are the updated modules:
+
+## ingest.py
+
+```python
+import json
+import logging
+from enrich import enrich_record
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)-8s | %(name)s | record_id=%(record_id)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
+
+class RecordIdFilter(logging.Filter):
+    def filter(self, record):
+        record.record_id = getattr(record, 'record_id', 'system')
+        return True
+
+logger.addFilter(RecordIdFilter())
+
+def run(path):
+    logger.info(f"Pipeline run starting from {path}", extra={'record_id': 'system'})
+    processed = failed = 0
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    rec = json.loads(line)
+                    record_id = rec.get('id') or f'line_{line_num}'
+                    
+                    enriched = enrich_record(rec, record_id)
+                    if enriched is not None:
+                        save(enriched, record_id)
+                        processed += 1
+                    else:
+                        failed += 1
+                
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parse failed: {str(e)[:100]}", extra={'record_id': f'line_{line_num}'})
+                    failed += 1
+                except Exception as e:
+                    rid = rec.get('id') if 'rec' in locals() else f'line_{line_num}'
+                    logger.exception(f"Unexpected error processing record", extra={'record_id': rid})
+                    failed += 1
+    
+    except FileNotFoundError:
+        logger.error(f"Input file not found: {path}", extra={'record_id': 'system'})
+        raise
+    except Exception as e:
+        logger.exception(f"Fatal error during pipeline run", extra={'record_id': 'system'})
+        raise
+    
+    logger.info(f"Pipeline run complete - processed={processed}, failed={failed}, total={processed+failed}", 
+                extra={'record_id': 'system'})
+
+def save(rec, record_id):
+    try:
+        with open("out.jsonl", "a") as f:
+            f.write(json.dumps(rec) + "\n")
+        logger.debug(f"Output record written", extra={'record_id': record_id})
+    except IOError as e:
+        logger.error(f"Failed to write output: {str(e)}", extra={'record_id': record_id})
+        raise
+```
+
+## enrich.py
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id=None):
+    if record_id is None:
+        record_id = rec.get('id', 'unknown')
+    
+    if 'region' not in rec:
+        logger.warning(f"Missing required field: region", extra={'record_id': record_id})
+        return None
+    
+    region = rec['region']
+    zone = GEO.get(region)
+    
+    if zone is None:
+        logger.warning(f"Unknown region: {region}", extra={'record_id': record_id})
+        return None
+    
+    rec['zone'] = zone
+    logger.debug(f"Enrichment applied: region={region} -> zone={zone}", extra={'record_id': record_id})
+    return rec
+```
+
+## Key improvements
+
+**Record tracing**: Every log line includes `record_id`, so on-call can grep logs: `grep 'record_id=abc123'` to see that record's entire journey.
+
+**Failure diagnostics**: 
+- Missing/invalid JSON is logged with line number
+- Missing `region` field is logged (not silent drop)
+- Unknown region values are logged with the actual value
+- All exceptions include full tracebacks
+
+**Observability**:
+- Run start/end with summary stats (processed/failed counts)
+- Each module logs at appropriate levels (debug for routine, warning for skips, error for failures)
+
+**Flow tracking**: The record_id flows from ingest → enrich → save, so a single record's path is fully traceable.

@@ -1,0 +1,52 @@
+Since this session has no file-system access, I can't write these to disk — here's the full content for both files, ready to paste into `layout.md` and `CLAUDE.md` in your repo root.
+
+## layout.md
+
+```markdown
+# Atlas Context Layout
+
+| Path | Mechanism | Rationale |
+|---|---|---|
+| `CLAUDE.md` | root memory file | org-wide rules (commits, `make check`, trunk-based dev) that apply regardless of which part of the repo you're in; kept short — a directory map plus non-negotiables, not service detail |
+| `api/CLAUDE.md` | nested memory file | Go/gRPC conventions + the `api/gen/` generated-code warning; only loads when Claude is working inside `api/`, so gRPC minutiae doesn't pollute web/pipeline sessions |
+| `web/CLAUDE.md` | nested memory file | React/TS conventions + the `npm test` (Playwright, real browsers) vs `npm run test:unit` split — the single highest-risk gotcha for this service, called out where it's read |
+| `pipeline/CLAUDE.md` | nested memory file | Python/Airflow conventions + the `AIRFLOW_HOME=pipeline/.airflow` requirement, without which DAGs silently fail to import |
+| `.claude/skills/incident-response/SKILL.md` | Skill | the 20-step runbook is identical company-wide and engineers want it walked through when they describe a live incident ("prod db is down") — a Skill can trigger on that description automatically, vs. a slash command which needs the engineer to already know the command name |
+| `.claude/settings.json` (checked in) | shared permissions | pre-approves `make check`, `make proto`, `npm run test:unit`, etc., and **denies** Write/Edit under `api/gen/**` as enforced policy rather than prose — a comment in a CLAUDE.md gets ignored under pressure, a deny rule doesn't |
+| `.mcp.json` (checked in) | project MCP config | registers a read-only connection to the analytics warehouse so any analyst gets live-SQL access out of the box, no per-machine setup |
+| `.claude/settings.local.json` (gitignored) | per-engineer local settings | individual warehouse credentials or personal permission tweaks that shouldn't be committed |
+
+## Notes on specific decisions
+
+- **`api/gen/` is enforced twice, deliberately**: explained in `api/CLAUDE.md` (so Claude understands *why* and regenerates via `make proto` instead of hand-fixing) and hard-blocked in `.claude/settings.json` (so it can't happen even if the model forgets). Documentation gives reasoning; permissions give the guarantee.
+- **Incident response as a Skill, not a command**: it needs to fire off a description of symptoms, not a remembered invocation, and every team should get the exact same 20 steps rather than a per-team fork.
+- **Warehouse access is read-only at the credential/MCP-server level**, not just "please only SELECT" in a markdown file — CLAUDE.md text is guidance, not a security boundary.
+- **Root `CLAUDE.md` is a map, not a manual**: each nested file owns its service's quirks so Claude only loads what's relevant to the directory it's actually touching.
+```
+
+## CLAUDE.md
+
+```markdown
+# Atlas
+
+Monorepo for the Atlas platform.
+
+## Structure
+- `api/` — Go, gRPC service. See `api/CLAUDE.md`.
+- `web/` — React/TypeScript frontend. See `web/CLAUDE.md`.
+- `pipeline/` — Python/Airflow data pipeline. See `pipeline/CLAUDE.md`.
+
+## Non-negotiable rules
+- Conventional Commits for every commit message (`feat:`, `fix:`, `chore:`, ...).
+- `make check` must pass before opening or updating any PR. Run it — don't assume it would pass.
+- Trunk-based development: no long-lived branches. Branch off `main`, land small PRs quickly.
+- Never hand-edit generated code. If a file looks generated, check for a `Makefile` target before touching it (see `api/CLAUDE.md`).
+
+## Incident response
+For live incidents, describe what's happening (e.g. "prod DB is down", "elevated 5xx on checkout") and Claude will walk the 20-step incident-response runbook — same procedure for every team, don't improvise a different one.
+
+## Analytics
+A read-only MCP connection to the analytics warehouse is configured (`.mcp.json`). Ask product-metrics questions directly and Claude will write and run the SQL. The connection is read-only — no writes or DDL will succeed.
+```
+
+A few things I sketched but didn't write out as full files (happy to produce if useful): the three nested `api/CLAUDE.md` / `web/CLAUDE.md` / `pipeline/CLAUDE.md`, the incident-response `SKILL.md`, and the `.claude/settings.json` / `.mcp.json` permission configs referenced above.

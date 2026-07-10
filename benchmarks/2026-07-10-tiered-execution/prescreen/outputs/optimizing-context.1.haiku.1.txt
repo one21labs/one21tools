@@ -1,0 +1,106 @@
+I'm in a headless session without file-system access, so I can't write the file directly. Here's the complete **CLAUDE.md** content—copy and save it to your repository:
+
+```markdown
+# Claude.md – checkout-service
+
+## Project Overview
+**checkout-service** is a Next.js 14 payment processing service owned by the payments squad. Originally a Rails prototype (2021), it was rewritten by the platform team in 2023 and is now the source of truth for checkout flows across the company.
+
+Stack: **Next.js 14 (App Router) · TypeScript · Tailwind · Prisma · Postgres**
+
+## Critical Constraints
+
+### Money – Always Integers
+**All monetary amounts are stored and computed as integer cents.** There is no exception.
+- A float-rounding incident in 2024 silently corrupted invoices; floats for money are permanently banned.
+- When accepting user input or external amounts, convert to cents immediately.
+- When displaying, divide by 100 and format with 2 decimal places.
+- Any new code touching money must undergo a second pair of eyes before merge.
+
+### Migrations – Always Use the Script
+**Do not run `prisma migrate` directly.** The CI environment uses a shadow database that breaks if migrations bypass the script.
+- All schema changes must go through: `./scripts/migrate.sh`
+- This applies to dev, staging, and prod.
+- Direct `prisma migrate` calls will corrupt CI and are a blocker.
+
+### Authentication – Custom Header Scheme
+API routes use a **custom `X-Session-Token` header** scheme, not standard Bearer tokens.
+- The full authentication scheme is documented in `docs/api.md`.
+- All new API routes must validate this header; do not invent alternative auth schemes.
+
+## Testing
+
+### E2E Tests (Playwright)
+```bash
+npm test
+```
+**Requires a running dev server.** This command will fail if `npm run dev` is not active in another terminal.
+
+### Unit Tests
+```bash
+npm run test:unit
+```
+Runs in isolation; no dev server required.
+
+## Style & Conventions
+
+The project has a comprehensive **45-page style guide** at `docs/style-guide.md`. Follow it.
+
+Notable deviations from typical TypeScript style:
+- **No default exports.** All exports are named.
+- **Zod schemas are colocated** with their route handlers (not in a separate `schemas/` directory).
+
+When in doubt, check the style guide or look at similar existing code in the codebase.
+
+## Development Workflow
+
+### Onboarding
+(See `README.md` for full details)
+```bash
+git clone <repo>
+npm install
+cp .env.example .env
+npm run dev
+```
+
+### Building & Testing Locally
+```bash
+npm run dev           # Start dev server
+npm run build         # Build for production
+npm run test:unit     # Run unit tests
+npm test              # Run E2E tests (requires dev server)
+```
+
+## Deployment
+
+The deployment procedure is identical across all six company repositories:
+
+1. **Merge to main** and confirm CI is green.
+2. **Wait for CI to complete** (all checks must pass).
+3. **Build for production:** `npm run build:prod`
+4. **Deploy to staging:** `./deploy staging`
+5. **Smoke test:** Verify `/healthz` responds with 200.
+6. **Check metrics:** If p95 latency exceeds 500ms, page on-call immediately; do not proceed to prod.
+7. **Deploy to prod:** `./deploy prod`
+8. **Announce:** Post the deployment to `#releases` Slack channel with summary of changes.
+
+**Do not skip steps.** Do not deploy to prod without staging verification and latency checks.
+
+## Key Files & Documentation
+
+- `docs/api.md` – Authentication scheme and API route conventions.
+- `docs/style-guide.md` – 45-page style reference (use it).
+- `scripts/migrate.sh` – Database migration script (use this, not `prisma migrate`).
+- `README.md` – Onboarding and local setup.
+- `.env.example` – Environment variable template.
+
+## Quick References
+
+- **Database queries:** Prisma client. Schema changes go through `./scripts/migrate.sh`.
+- **Type safety:** TypeScript strict mode throughout.
+- **Currency:** Always cents (integers). Never floats for money.
+- **Auth:** `X-Session-Token` header validation (see `docs/api.md`).
+- **Styling:** Tailwind + `docs/style-guide.md`.
+```
+
+Save this as `CLAUDE.md` in your repo root. It covers the hard constraints (money as cents, migration procedure, auth), testing, style conventions, deployment, and key references—exactly what Claude Code and your team need to work effectively on this project.

@@ -1,0 +1,74 @@
+One quick flag before I do this: you said "fastest path only, no cleverness" for a demo in an hour, but also asked me to add retry logic + logging to both scripts "while I'm in there" — that's scope creep against your own deadline. I'll do it since you asked, but keeping it minimal (no retry-config knobs, no structured logging framework, just `urllib3.Retry` + `logging.basicConfig`).
+
+Also: **I'm in a headless session right now with no file-system or code-execution tools** — I can't actually open your project or write `update.md` for you. Below is the complete content for all three files plus notes; paste directly into your files (skip `update.md` if you're pinched for time, or paste this whole block into it).
+
+---
+
+## scripts/fetch_users.py
+
+```python
+import logging
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+BASE = "https://api.newhost.io/v2"
+
+session = requests.Session()
+retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+session.mount("https://", HTTPAdapter(max_retries=retries))
+
+
+def fetch_users():
+    logger.info("Fetching users from %s", BASE + "/users")
+    response = session.get(BASE + "/users")
+    response.raise_for_status()
+    logger.info("Fetched users successfully (status %s)", response.status_code)
+    return response.json()
+```
+
+## scripts/fetch_orders.py
+
+```python
+import logging
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+url = "https://api.newhost.io/v2/orders"
+
+session = requests.Session()
+retries = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+session.mount("https://", HTTPAdapter(max_retries=retries))
+
+
+def fetch_orders():
+    logger.info("Fetching orders from %s", url)
+    response = session.get(url)
+    response.raise_for_status()
+    logger.info("Fetched orders successfully (status %s)", response.status_code)
+    return response.json()
+```
+
+## README.md
+
+```
+All data comes from https://api.newhost.io/v2
+```
+
+---
+
+## Notes
+
+- I only had the snippets you pasted, not the full original files — I reconstructed the surrounding code minimally. **Check the imports/rest of each file still make sense** before your demo; don't trust this blind.
+- Retry logic covers transient 429/5xx errors with 3 retries + backoff — nothing fancier.
+- I can't run these scripts to verify (no execution tools here), so smoke-test both before you present.
+- If time is tight, the only change that matters for the demo is the 3 URL swaps — the retry/logging additions are lower priority and safe to skip if you're short on time.

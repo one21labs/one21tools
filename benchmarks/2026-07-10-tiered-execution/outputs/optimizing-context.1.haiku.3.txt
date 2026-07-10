@@ -1,0 +1,81 @@
+I'm in a headless session without file-system tools, so I can't write directly to disk. Here's the CLAUDE.md content for you to save:
+
+```markdown
+# Claude Code — checkout-service
+
+## Project overview
+
+**Stack:** Next.js 14 (App Router), TypeScript, Tailwind, Prisma on Postgres.  
+**Ownership:** Payments squad. Rewritten in 2023 by platform team from Rails prototype (2021).  
+**Repository:** Standard npm workflow.
+
+## Setup and running
+
+```bash
+npm install
+cp .env.example .env
+npm run dev
+```
+
+Full onboarding is covered in README.md.
+
+## Testing
+
+- **E2E tests** (Playwright): `npm test` — requires running dev server
+- **Unit tests**: `npm run test:unit`
+
+## Critical constraints
+
+### Money handling — ABSOLUTELY NO FLOATS
+
+All monetary amounts are **integer cents**. A float-rounding bug in 2024 corrupted invoices across the platform.
+
+**Rules:**
+- Never use `number` or `parseFloat()` for prices, amounts, totals
+- All money types must be integers (cents)
+- If working with external APIs that return floats, convert/round explicitly before storing
+- Type-check relentlessly; consider a `Cents` branded type if adding new money logic
+
+### Database migrations — DO NOT RUN `prisma migrate` DIRECTLY
+
+Always use:
+```bash
+./scripts/migrate.sh
+```
+
+Running `prisma migrate` directly breaks the shadow database that CI relies on. This is non-negotiable.
+
+## Code style
+
+See `docs/style-guide.md` (45 pages). Two key deviations from standard TypeScript:
+
+1. **No default exports** — only named exports
+2. **Zod schemas colocated** — place Zod schemas next to route handlers that use them
+
+## Authentication
+
+API routes authenticate with custom `X-Session-Token` header scheme (not Bearer tokens).  
+Full details: `docs/api.md`
+
+## Deployment
+
+Identical procedure across all six company repos:
+
+1. Merge to `main`
+2. Wait for CI green
+3. `npm run build:prod`
+4. `./deploy staging`
+5. Smoke-test `/healthz` endpoint
+6. **Page on-call if p95 latency exceeds 500ms**
+7. `./deploy prod`
+8. Announce in #releases
+
+## Dangerous operations — check first
+
+- Running migrations outside `./scripts/migrate.sh`
+- Adding floats or `number` types for money
+- Modifying auth headers without updating `docs/api.md`
+- Force-pushing to `main` or touching deployed branches
+```
+
+Copy this into `CLAUDE.md` at your repo root. It will guide Claude Code and future contributors on the repo's critical constraints, especially the money-handling rule and migration workflow.

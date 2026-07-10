@@ -1,0 +1,34 @@
+Here's the updated `notifier.py` with configurable backoff support:
+
+```python
+import json
+import time
+import urllib.request
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bs = d.get("backoff_seconds", 1)
+    return r, to, bs
+
+def snd(u, pl, r, to, bs):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1:
+                time.sleep(bs)
+    return None
+```
+
+Changes:
+- `ld()` now loads `backoff_seconds` from the config (defaults to 1 second)
+- `snd()` accepts `bs` parameter and calls `time.sleep(bs)` between retry attempts
+- Sleep only happens between retries, not after the final failure (checked with `if i < r - 1`)
+
+Your config file can now include `"backoff_seconds": 2` (or any value) to control the delay.

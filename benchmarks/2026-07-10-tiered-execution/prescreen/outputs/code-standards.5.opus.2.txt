@@ -1,0 +1,27 @@
+Here's `webhook.py`:
+
+```python
+"""Webhook handler for billing provider invoice events."""
+
+
+def handle_invoice_event(ledger, payload):
+    """Record paid-invoice amounts into the ledger.
+
+    payload is the parsed JSON event from the billing provider, e.g.
+        {"event_type": "invoice.paid",
+         "invoice": {"id": "inv_123", "amount_cents": 4200, "currency": "usd"}}
+
+    Only invoice.paid events are recorded; other event types are ignored.
+    """
+    if payload["event_type"] != "invoice.paid":
+        return
+
+    invoice = payload["invoice"]
+    ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+That's the whole module. As requested, it does no shape/type validation on the payload — it assumes `event_type`, `invoice`, `invoice["id"]`, and `invoice["amount_cents"]` are all present and well-formed, trusting the upstream provider's validation.
+
+Note that the `event_type` check stays regardless — that's not defensive validation, it's the required dispatch logic ("ignore other event types"), and keying by invoice id makes it naturally idempotent if the provider re-delivers the same event on a retry.
+
+One thing worth a two-line follow-up with your tech lead, purely FYI and not a request to change anything: the "upstream validates every event" guarantee covers *malicious/malformed* input, but it doesn't cover version skew (provider adds/renames a field), a bug on their side, or a misrouted event — any of which surfaces here as an uncaught `KeyError` that takes down the handler rather than being logged. Since this writes to a money ledger, the usual reason teams keep a thin guard at this boundary is failure *mode* (skip + log one bad event vs. 500 the whole endpoint), not distrust of the provider. Your call — the code above does exactly what you asked.

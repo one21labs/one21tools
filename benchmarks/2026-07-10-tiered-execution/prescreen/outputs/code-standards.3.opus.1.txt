@@ -1,0 +1,202 @@
+Since I can't write to your filesystem in this session, here are the two updated modules in full. Drop them in as `ingest.py` and `enrich.py`.
+
+The design goal you gave — *follow one record across both modules, diagnose every failure from logs alone* — drives three decisions:
+
+1. **A correlation ID per record** (`run_id` + `rec_id`) stamped on every log line, so `grep` on one record shows its entire path across both files.
+2. **Structured JSON logs** so on-call can filter by field (`rec_id`, `event`, `outcome`) instead of parsing prose.
+3. **Per-record isolation** — one bad record logs and is skipped; it never kills the run — plus an explicit terminal event for *every* record (`saved` / `skipped` / `failed`), so a missing record in the output is always explained by a log line.
+
+# ingest.py
+```python
+import json
+import logging
+import os
+import sys
+import time
+import uuid
+
+from enrich import enrich_record
+
+log = logging.getLogger("pipeline.ingest")
+
+
+class JsonFormatter(logging.Formatter):
+    """One JSON object per line so logs are greppable by field."""
+
+    def format(self, record):
+        payload = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(record.created)),
+            "level": record.levelname,
+            "logger": record.name,
+            "event": getattr(record, "event", None),
+            "msg": record.getMessage(),
+        }
+        # Attach any structured context the caller bound (run_id, rec_id, ...).
+        for key in ("run_id", "rec_id", "lineno", "outcome", "reason", "region"):
+            val = getattr(record, key, None)
+            if val is not None:
+                payload[key] = val
+        if record.exc_info:
+            payload["exc"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
+def configure_logging():
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(JsonFormatter())
+    root = logging.getLogger("pipeline")
+    root.handlers[:] = [handler]
+    root.setLevel(os.environ.get("PIPELINE_LOG_LEVEL", "INFO"))
+    root.propagate = False
+
+
+def _rec_id(rec, lineno):
+    """Stable per-record correlation id: prefer the record's own id, else line number."""
+    if isinstance(rec, dict):
+        for key in ("id", "record_id", "uuid"):
+            if rec.get(key) is not None:
+                return str(rec[key])
+    return f"line-{lineno}"
+
+
+def run(path):
+    configure_logging()
+    run_id = uuid.uuid4().hex[:12]
+    stats = {"read": 0, "saved": 0, "skipped": 0, "failed": 0}
+
+    log.info("run starting", extra={"event": "run_start", "run_id": run_id})
+
+    try:
+        with open(path) as fh:
+            for lineno, line in enumerate(fh, start=1):
+                stats["read"] += 1
+                ctx = {"run_id": run_id, "lineno": lineno}
+
+                # --- parse -------------------------------------------------
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    stats["failed"] += 1
+                    log.error(
+                        "malformed JSON, record skipped",
+                        extra={**ctx, "event": "parse_error",
+                               "outcome": "failed", "rec_id": f"line-{lineno}",
+                               "reason": str(exc)},
+                    )
+                    continue
+
+                rec_id = _rec_id(rec, lineno)
+                ctx["rec_id"] = rec_id
+                log.info("record read", extra={**ctx, "event": "record_read"})
+
+                # --- enrich ------------------------------------------------
+                try:
+                    out = enrich_record(rec, run_id=run_id, rec_id=rec_id)
+                except Exception:
+                    stats["failed"] += 1
+                    log.exception(
+                        "enrich raised, record dropped",
+                        extra={**ctx, "event": "enrich_error", "outcome": "failed"},
+                    )
+                    continue
+
+                if not out:
+                    # enrich_record already logged the specific skip reason.
+                    stats["skipped"] += 1
+                    log.info("record skipped by enrich",
+                             extra={**ctx, "event": "record_skipped",
+                                    "outcome": "skipped"})
+                    continue
+
+                # --- save --------------------------------------------------
+                try:
+                    save(out)
+                except Exception:
+                    stats["failed"] += 1
+                    log.exception(
+                        "save failed, record not persisted",
+                        extra={**ctx, "event": "save_error", "outcome": "failed"},
+                    )
+                    continue
+
+                stats["saved"] += 1
+                log.info("record saved",
+                         extra={**ctx, "event": "record_saved", "outcome": "saved"})
+    except OSError:
+        log.exception("could not read input file",
+                      extra={"event": "input_error", "run_id": run_id})
+        raise
+    finally:
+        log.info(
+            "run complete: read=%(read)d saved=%(saved)d "
+            "skipped=%(skipped)d failed=%(failed)d" % stats,
+            extra={"event": "run_end", "run_id": run_id, **stats},
+        )
+
+    return stats
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    run(sys.argv[1])
+```
+
+# enrich.py
+```python
+import logging
+
+log = logging.getLogger("pipeline.enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, run_id=None, rec_id=None):
+    """Add a zone from the record's region.
+
+    Returns the enriched record, or None if it cannot be enriched. Every
+    None-return path emits a log line naming the specific reason, and the
+    run_id/rec_id are echoed so the record can be traced back to ingest.
+    """
+    ctx = {"run_id": run_id, "rec_id": rec_id}
+
+    # Missing field is a different failure mode than an unknown value — log
+    # them distinctly so on-call can tell a schema problem from a data problem.
+    if "region" not in rec:
+        log.warning(
+            "missing 'region' field, cannot enrich",
+            extra={**ctx, "event": "enrich_skip",
+                   "outcome": "skipped", "reason": "missing_region"},
+        )
+        return None
+
+    raw_region = rec["region"]
+    region = GEO.get(raw_region)
+    if region is None:
+        log.warning(
+            "unknown region %r, cannot enrich" % raw_region,
+            extra={**ctx, "event": "enrich_skip", "outcome": "skipped",
+                   "reason": "unknown_region", "region": str(raw_region)},
+        )
+        return None
+
+    rec["zone"] = region
+    log.info(
+        "region %r -> zone %s" % (raw_region, region),
+        extra={**ctx, "event": "enrich_ok", "region": str(raw_region)},
+    )
+    return rec
+```
+
+### What changed and why it's traceable
+
+- **`enrich_record` now takes `run_id`/`rec_id`.** Without them the enrich logs couldn't be joined to the ingest logs for the same record. They're keyword args with defaults, so any other caller of `enrich_record` still works unchanged.
+- **Original bug fixed as a side effect:** the old `rec["region"]` raised `KeyError` on any record missing the field, aborting the whole run. Now it's a logged, per-record skip.
+- **Every record reaches exactly one terminal event** — `record_saved`, `record_skipped`, `parse_error`, `enrich_error`, or `save_error` — so a record absent from `out.jsonl` always has a log line explaining why.
+- **Trace one record:** `grep '"rec_id":"line-42"'` (or the record's real id) across the log stream returns its full journey: `record_read → enrich_ok/enrich_skip → record_saved/skipped/failed`.
+- **Run-level summary** at the end gives on-call an at-a-glance health check (`read=... saved=... skipped=... failed=...`) tagged with the `run_id`.
+
+Two small notes if you want to take it further: `save` opens `out.jsonl` per record (`"a"` mode) — fine for correctness, but under thousands of records you may want a single file handle passed through the run for throughput. And if you already run structured logging infra (e.g. a JSON handler configured globally), delete `configure_logging()` and the `JsonFormatter` here so you don't double-configure — the module-level loggers will inherit your existing setup.

@@ -1,0 +1,146 @@
+I can't actually write to the filesystem in this session — there are no file/write tools available to me here (only plain-text output). So I'll give you the two deliverables inline, ready to paste into `outputs/json-config-check/SKILL.md` and `outputs/review.md`. Below each is the exact file content.
+
+---
+
+## `outputs/review.md`
+
+```markdown
+# Review: json-config-check SKILL.md
+
+## Summary
+The draft does not function as a skill. A skill is a procedure the agent
+executes, plus a description that lets the agent decide *when* to load it.
+This draft is instead a marketing blurb wrapped around a vague, hedged
+paragraph. It would rarely trigger, and if it did, it gives the agent
+nothing concrete to do. Rewrite required.
+
+## Frontmatter defects
+
+1. **Description is non-functional for matching.** "really helpful for
+   working with JSON configuration files and stuff... It can do lots of
+   things! Use when needed." The description is the *only* thing the model
+   sees when deciding whether to invoke the skill. It must state, in the
+   third person, what the skill does and the concrete conditions that
+   trigger it. "Use when needed" is circular and gives zero signal.
+
+2. **No trigger keywords.** No mention of "validate", "schema", "lint",
+   "well-formed", "config error" — the exact terms a user would use. Without
+   them the skill won't surface at the right time.
+
+3. **Hype instead of information.** "really helpful", "and stuff", "lots of
+   things", "It can do lots of things!" describe nothing. Every word of a
+   description should narrow scope, not inflate it.
+
+## Body defects
+
+4. **JSON 101 tutorial (the "Introduction" section).** Explaining what JSON
+   is and that it's "easy for humans to read" is content the model already
+   knows. It wastes context and adds no instruction. Delete entirely.
+
+5. **"About This Amazing Skill" is pure marketing.** "incredibly powerful",
+   "fantastic time-saver", "your whole team will love" — zero procedural
+   content. A skill body is instructions for the agent, not a sales page.
+
+6. **Instructions are hedged into uselessness.** "the config *might* be
+   validated", "Errors *could* be reported", "You might want to consider
+   possibly using...". A skill must give definite, imperative steps. As
+   written, the agent cannot tell what it is actually supposed to do.
+
+7. **No actual procedure.** There are no numbered steps, no commands, no
+   inputs/outputs, no ordering. "The skill works by reading the file. Then
+   the file gets parsed." is a description of a program, not instructions
+   the agent can follow.
+
+8. **Critical logic left implicit.** Nothing says to stop if the file
+   doesn't parse (schema-validating unparseable JSON is meaningless), how to
+   locate a schema, or what a good error report contains (path, bad value,
+   violated constraint).
+
+9. **Tooling mentioned but not wired up.** It name-drops Python's `json`
+   module and `jsonschema` but gives no command, no install fallback, and no
+   handling for when the package is missing.
+
+10. **Redundant / empty structure.** Three headings ("Introduction",
+    "About This Amazing Skill", "How It Works") and none carry an executable
+    step. The whole body collapses to roughly one vague sentence of real
+    content.
+
+## Verdict
+Do not merge as-is. Rewrite with (a) a specific, trigger-laden description
+and (b) an imperative, numbered procedure covering: locate file → check
+well-formedness → find schema → validate → report all errors. Corrected
+version provided in SKILL.md.
+```
+
+---
+
+## `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Validates JSON configuration files for well-formedness and, when a JSON Schema is available, against that schema, reporting every error with its location. Use when the user asks to check, validate, lint, or verify a JSON config file, or mentions JSON schema validation, malformed/invalid JSON, or config load errors.
+---
+
+# JSON Config Check
+
+Validate a JSON configuration file: confirm it parses, and if a schema is
+available, check the data against it. Report every error with its location.
+Do not modify the file unless the user explicitly asks you to fix it.
+
+## Steps
+
+1. **Locate the target file.** Use the file named in the request. If none is
+   named, search the working directory for likely configs (`*.json`,
+   `config/*.json`) and confirm the target with the user before proceeding.
+
+2. **Check well-formedness first.** Parse the file:
+   `python3 -c "import json,sys; json.load(open(sys.argv[1]))" <file>`
+   If parsing fails, report the exact line, column, and message from the
+   error, then **stop** — schema validation on unparseable JSON is
+   meaningless.
+
+3. **Find a schema**, in this order:
+   - a `$schema` reference inside the config file,
+   - a sibling `<config>.schema.json` or `schema.json` in the same directory,
+   - a path the user supplied.
+   If no schema is found, report that the file is well-formed but was not
+   schema-validated, then stop.
+
+4. **Validate against the schema and collect all errors** (not just the
+   first):
+   ```
+   python3 - "$CONFIG" "$SCHEMA" <<'PY'
+   import json, sys
+   from jsonschema import Draft7Validator
+   data   = json.load(open(sys.argv[1]))
+   schema = json.load(open(sys.argv[2]))
+   errors = sorted(Draft7Validator(schema).iter_errors(data),
+                   key=lambda e: list(e.path))
+   for e in errors:
+       path = "/".join(str(p) for p in e.path) or "(root)"
+       print(f"{path}: {e.message}")
+   sys.exit(1 if errors else 0)
+   PY
+   ```
+   If `jsonschema` is missing, install it (`pip install jsonschema`) or tell
+   the user it is required.
+
+5. **Report results.** State pass/fail and an error count. For each error,
+   give the JSON path (e.g. `server/port`), the failing value, and the
+   constraint that was violated.
+
+## Notes
+
+- Report every schema error in one pass; do not stop at the first.
+- Never write to the config file unless asked. If you do fix it, preserve
+  key order and formatting.
+- Match the schema draft to the config's `$schema` when one is declared;
+  the snippet above defaults to Draft 7.
+```
+
+---
+
+**Key changes I made:** the description now states exactly what the skill does and lists the concrete triggers the model matches on; the JSON-tutorial and marketing sections are gone; and the body is a definite, numbered procedure with real commands, a hard stop on parse failure, schema discovery logic, all-errors reporting, and a missing-dependency fallback — replacing the draft's hedged "might/could/possibly" prose.
+
+Want me to also produce a `scripts/validate.py` helper to reference from step 4, or adjust the schema draft handling?

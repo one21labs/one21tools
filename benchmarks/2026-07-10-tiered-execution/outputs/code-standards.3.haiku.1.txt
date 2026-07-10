@@ -1,0 +1,116 @@
+Here are the updated modules with production-grade logging:
+
+**ingest.py**
+```python
+import json
+import logging
+import sys
+from enrich import enrich_record
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
+
+def run(path):
+    logger.info(f"Starting run: path={path}")
+    records_processed = 0
+    records_saved = 0
+    records_filtered = 0
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    rec = json.loads(line)
+                    record_id = rec.get("id", f"line_{line_num}")
+                    logger.debug(f"Processing: record_id={record_id}")
+                    
+                    out = enrich_record(rec, record_id)
+                    records_processed += 1
+                    
+                    if out:
+                        try:
+                            save(out, record_id)
+                            records_saved += 1
+                        except Exception as e:
+                            logger.error(f"Save failed: record_id={record_id}, error={e}")
+                    else:
+                        logger.info(f"Record filtered during enrichment: record_id={record_id}")
+                        records_filtered += 1
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"JSON parse error: line={line_num}, error={e}")
+                except Exception as e:
+                    logger.error(f"Unexpected error processing line: line={line_num}, error={e}")
+                    
+    except FileNotFoundError:
+        logger.error(f"File not found: path={path}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Fatal error during run: error={e}")
+        sys.exit(1)
+    
+    logger.info(f"Run completed: processed={records_processed}, saved={records_saved}, filtered={records_filtered}")
+
+def save(rec, record_id):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    logger.debug(f"Record saved to output: record_id={record_id}")
+```
+
+**enrich.py**
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id=None):
+    if record_id is None:
+        record_id = rec.get("id", "unknown")
+    
+    try:
+        region = rec.get("region")
+        logger.debug(f"Enriching record: record_id={record_id}, region={region}")
+        
+        zone = GEO.get(region)
+        if zone is None:
+            logger.warning(f"Unknown region filtered record: record_id={record_id}, region={region}")
+            return None
+        
+        rec["zone"] = zone
+        logger.debug(f"Record enriched successfully: record_id={record_id}, zone={zone}")
+        return rec
+        
+    except Exception as e:
+        logger.error(f"Enrichment failed: record_id={record_id}, error={e}")
+        return None
+```
+
+**Key improvements for production traceability:**
+
+1. **Record IDs in every log**: Engineers can `grep "record_id=abc123"` to follow one record's entire path across both modules.
+
+2. **Appropriate log levels**:
+   - `DEBUG`: Detailed flow tracking (processing, enrichment steps, saves)
+   - `INFO`: Important state (filtered records, run summary)
+   - `WARNING`: Handled errors (unknown regions)
+   - `ERROR`: Failures needing attention (parse errors, save failures, enrichment errors)
+
+3. **Structured key=value format**: Easy to parse and grep; tools can extract metrics.
+
+4. **Comprehensive failure diagnostics**: Every error includes the record_id and detailed context so on-call can understand exactly what failed and why.
+
+5. **Resilient**: A single record's save failure doesn't crash the pipeline; it's logged and processing continues.
+
+6. **Run visibility**: Summary stats (processed/saved/filtered counts) show overall pipeline health at a glance.
+
+On-call engineers can now diagnose issues by:
+- Grepping for a specific `record_id` to see its full journey
+- Checking ERROR level logs for failures
+- Reading context fields (region, line number, etc.) to understand what was attempted when something failed
+- Reviewing run summary to spot volume anomalies

@@ -1,0 +1,481 @@
+No file-writing tools are available in this session, so I can't write to disk directly. Below is the **complete skill**, every file laid out at its path under `outputs/sanitizing-customer-exports/`. Save each block verbatim and you'll have a ready-to-use, self-contained Claude Code skill.
+
+---
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+````markdown
+---
+name: sanitizing-customer-exports
+description: >-
+  Redact PII from a customer CSV export before it is shared outside the company.
+  Use this whenever someone asks to sanitize, redact, scrub, de-identify, or
+  "make shareable" a customer CSV, or before sending/exporting/attaching customer
+  data to an external party, vendor, or ticket. Drops email/phone/ssn columns,
+  pseudonymizes the name column, and masks emails and phone numbers found in
+  free-text columns, writing a separate redacted copy without touching the original.
+---
+
+# Sanitizing customer exports
+
+Support policy: **no raw customer PII leaves the company.** Before any customer
+CSV export is shared externally, run it through the redactor in this skill. The
+rules below are fixed — do not improvise or relax them per request.
+
+## Fixed redaction policy
+
+| Column(s)            | Action                                                        |
+|----------------------|---------------------------------------------------------------|
+| `email`, `phone`, `ssn` | **Dropped** entirely (column removed from output)          |
+| `name`               | **Replaced** with an opaque, non-reversible id                |
+| `notes`, `comments`  | **Scanned** for email addresses and phone numbers; matches masked in place |
+| everything else      | Passed through unchanged                                      |
+
+Matching of column names is **case-insensitive** and ignores surrounding
+whitespace (`Email`, ` SSN `, `Notes` all match).
+
+The **original file is never modified**. The redacted copy is written next to it
+as `<original>.redacted.csv` (e.g. `customers.csv` → `customers.redacted.csv`).
+
+## How to run it
+
+```bash
+python scripts/redact_csv.py path/to/customers.csv
+```
+
+This writes `path/to/customers.redacted.csv` and prints a summary of exactly what
+was dropped, pseudonymized, and scrubbed. Options:
+
+- `-o, --output PATH` — write somewhere other than the default location.
+- `--force` — overwrite the redacted file if it already exists.
+
+The script refuses to overwrite the input and reads the whole input before
+writing anything, so a failure never corrupts the original.
+
+## Stable vs. ephemeral opaque ids
+
+By default each run uses a random salt, so the opaque id for a given name is **not
+comparable across files** (good default: minimizes re-identification risk). If you
+need the same name to map to the same id across multiple exports (e.g. to join two
+redacted files), set a shared secret salt:
+
+```bash
+REDACT_SALT="your-team-secret" python scripts/redact_csv.py customers.csv
+```
+
+Keep that salt secret — anyone with the salt and a guessed name can reproduce its id.
+
+## Before you share the result — always verify
+
+The regexes catch common formats, not every possible one. After running:
+
+1. Open the `.redacted.csv` and confirm the `email`, `phone`, and `ssn` columns
+   are **gone**, not blanked.
+2. Skim `notes`/`comments` for any email/phone the masker missed (unusual formats,
+   obfuscated addresses like "name at company dot com"), and for other PII the
+   policy doesn't cover (SSNs, addresses, account numbers written into free text).
+3. Check the summary for a **"expected column not found"** warning — it may mean
+   PII is present under a different header name that the policy doesn't drop.
+
+See `reference.md` for the exact matching rules, known limitations, and the
+manual-review checklist. Run `python tests/test_redact.py` to sanity-check the
+redactor after any edit.
+````
+
+---
+
+### `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it is shared externally.
+
+Fixed policy (do not change without support-lead sign-off):
+  - Drop columns:        email, phone, ssn
+  - Pseudonymize:        name  -> opaque, non-reversible id
+  - Scrub free text in:  notes, comments  (mask email addresses + phone numbers)
+
+Column names match case-insensitively, ignoring surrounding whitespace.
+The original file is NEVER modified. The redacted copy is written next to it
+as <original>.redacted.csv.
+"""
+
+import argparse
+import csv
+import hashlib
+import hmac
+import os
+import re
+import secrets
+import sys
+
+# --- Policy (case-insensitive, whitespace-trimmed matching) ------------------
+
+DROP_COLUMNS = ("email", "phone", "ssn")
+PSEUDONYMIZE_COLUMNS = ("name",)
+FREE_TEXT_COLUMNS = ("notes", "comments")
+
+# --- Masking patterns for free-text columns ----------------------------------
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}")
+
+# North-American-style phone numbers: optional country code, optional
+# parenthesized/bare area code, common separators. Bounded by non-digits so we
+# don't clip the middle of a longer number.
+PHONE_RE = re.compile(
+    r"""(?<!\d)                    # not preceded by a digit
+        (?:\+?\d{1,3}[\s.\-]?)?    # optional country code
+        (?:\(\d{3}\)|\d{3})        # area code, parenthesized or bare
+        [\s.\-]?                   # separator
+        \d{3}                      # exchange
+        [\s.\-]?                   # separator
+        \d{4}                      # subscriber number
+        (?!\d)                     # not followed by a digit
+    """,
+    re.VERBOSE,
+)
+
+EMAIL_MASK = "[EMAIL REDACTED]"
+PHONE_MASK = "[PHONE REDACTED]"
+
+
+def classify_columns(fieldnames):
+    """Split the header into (drop, pseudonymize, free_text) sets of the actual
+    header strings, matching policy names case-insensitively and trimmed."""
+    drop, pseudo, freetext = set(), set(), set()
+    for name in fieldnames:
+        key = (name or "").strip().lower()
+        if key in DROP_COLUMNS:
+            drop.add(name)
+        elif key in PSEUDONYMIZE_COLUMNS:
+            pseudo.add(name)
+        elif key in FREE_TEXT_COLUMNS:
+            freetext.add(name)
+    return drop, pseudo, freetext
+
+
+def make_opaque_id(value, salt):
+    """Deterministic, non-reversible id for a name. Empty names stay empty."""
+    norm = (value or "").strip().lower()
+    if not norm:
+        return ""
+    digest = hmac.new(salt, norm.encode("utf-8"), hashlib.sha256).hexdigest()
+    return "cust-" + digest[:12]
+
+
+def scrub_free_text(value):
+    """Mask email addresses and phone numbers inside a free-text field."""
+    value = EMAIL_RE.sub(EMAIL_MASK, value)      # emails first
+    value = PHONE_RE.sub(PHONE_MASK, value)
+    return value
+
+
+def default_output_path(input_path):
+    root, ext = os.path.splitext(input_path)
+    if ext.lower() == ".csv":
+        return root + ".redacted.csv"
+    return input_path + ".redacted.csv"
+
+
+def redact(input_path, output_path, salt, force=False):
+    """Read input_path, apply the policy, write output_path. Returns a summary
+    dict. The input is fully read before anything is written."""
+    if os.path.abspath(input_path) == os.path.abspath(output_path):
+        raise SystemExit("refusing to write over the original file")
+    if os.path.exists(output_path) and not force:
+        raise SystemExit(
+            f"{output_path} already exists (use --force to overwrite)"
+        )
+
+    with open(input_path, newline="", encoding="utf-8-sig") as f_in:
+        reader = csv.DictReader(f_in)
+        fieldnames = reader.fieldnames
+        if not fieldnames:
+            raise SystemExit("input CSV has no header row; cannot apply policy")
+
+        drop, pseudo, freetext = classify_columns(fieldnames)
+        out_fields = [c for c in fieldnames if c not in drop]
+
+        rows_out = []
+        for row in reader:
+            new_row = {}
+            for col in out_fields:
+                val = row.get(col) or ""
+                if col in pseudo:
+                    new_row[col] = make_opaque_id(val, salt)
+                elif col in freetext:
+                    new_row[col] = scrub_free_text(val)
+                else:
+                    new_row[col] = val
+            rows_out.append(new_row)
+
+    # Only touch the filesystem after the input is safely read and processed.
+    with open(output_path, "w", newline="", encoding="utf-8") as f_out:
+        writer = csv.DictWriter(f_out, fieldnames=out_fields)
+        writer.writeheader()
+        writer.writerows(rows_out)
+
+    present = {(c or "").strip().lower() for c in fieldnames}
+    expected = DROP_COLUMNS + PSEUDONYMIZE_COLUMNS + FREE_TEXT_COLUMNS
+    missing = [c for c in expected if c not in present]
+
+    return {
+        "output_path": output_path,
+        "dropped": sorted(drop),
+        "pseudonymized": sorted(pseudo),
+        "scrubbed": sorted(freetext),
+        "missing_expected": missing,
+        "rows": len(rows_out),
+        "out_fields": out_fields,
+    }
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("input", help="path to the customer CSV export to redact")
+    parser.add_argument(
+        "-o", "--output",
+        help="output path (default: <input-without-.csv>.redacted.csv)",
+    )
+    parser.add_argument(
+        "--force", action="store_true",
+        help="overwrite the redacted output file if it already exists",
+    )
+    args = parser.parse_args(argv)
+
+    if not os.path.isfile(args.input):
+        raise SystemExit(f"no such file: {args.input}")
+
+    output_path = args.output or default_output_path(args.input)
+
+    salt_hex = os.environ.get("REDACT_SALT")
+    if salt_hex:
+        salt = salt_hex.encode("utf-8")
+        salt_note = "REDACT_SALT env var (ids stable across runs with this salt)"
+    else:
+        salt = secrets.token_bytes(16)
+        salt_note = "ephemeral per-run salt (ids NOT comparable across files)"
+
+    summary = redact(args.input, output_path, salt, force=args.force)
+
+    print(f"Redacted {summary['rows']} row(s) -> {summary['output_path']}")
+    print(f"  dropped columns:      {summary['dropped'] or '(none found)'}")
+    print(f"  pseudonymized:        {summary['pseudonymized'] or '(none found)'}")
+    print(f"  free-text scrubbed:   {summary['scrubbed'] or '(none found)'}")
+    print(f"  opaque id salt:       {salt_note}")
+    if summary["missing_expected"]:
+        print(
+            "  WARNING: expected policy column(s) not found in this file: "
+            + ", ".join(summary["missing_expected"])
+            + "\n           Confirm PII isn't present under a different header name."
+        )
+    print("  Reminder: eyeball the output before sharing (see reference.md).")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/reference.md`
+
+```markdown
+# Redaction reference
+
+Details behind `scripts/redact_csv.py`. The policy itself is fixed; this document
+explains exactly how it is applied and where human review is still required.
+
+## Column matching
+
+- A header matches a policy column when `header.strip().lower()` equals the policy
+  name. So `Email`, `EMAIL`, and ` email ` all count as `email`.
+- Dropped columns (`email`, `phone`, `ssn`) are removed from the output header and
+  every row — the data does not appear in the redacted file at all.
+- `name` is replaced by `cust-<12 hex chars>`, an HMAC-SHA256 of the lowercased,
+  trimmed name under a salt. The mapping is one-way; there is no un-redact.
+- Empty `name` cells stay empty (they carry no identity to pseudonymize).
+
+## Opaque id salt
+
+- No `REDACT_SALT` set → a fresh random salt each run. Same name → **different** id
+  in different runs/files. This is the safe default.
+- `REDACT_SALT=<secret>` set → same name → **same** id across every file redacted
+  with that salt, which lets you join two redacted exports. Treat the salt as a
+  secret: anyone who has it and guesses a name can regenerate that name's id.
+
+## Free-text masking (`notes`, `comments`)
+
+Substrings that match these patterns are replaced in place; surrounding text is
+preserved.
+
+- **Email** → `[EMAIL REDACTED]`
+  Pattern: `local@domain.tld` with the usual local/domain characters.
+- **Phone** → `[PHONE REDACTED]`
+  Matches optional `+CC`, an area code (bare or `(555)`), and `NXX-NXXX` style
+  groups separated by space, `.`, or `-`. Bounded by non-digits so it won't clip
+  the interior of a longer number.
+
+Emails are masked before phones so digits inside an address aren't mistaken for a
+phone number.
+
+## Known limitations — why manual review is still required
+
+The maskers target **common** formats, not every possibility. Before sharing,
+review the output for:
+
+- **Obfuscated contacts** — "jane at acme dot com", "call me: five five five...",
+  numbers split across words, or unusual international formats.
+- **Other PII in free text** — SSNs, physical addresses, account/order numbers,
+  dates of birth, and full names written into `notes`/`comments` are **not**
+  removed by policy. Redact these by hand if present.
+- **PII under a different header** — if the export uses `e-mail`, `mobile`,
+  `social`, `customer_name`, etc., those headers do not match the policy names and
+  will pass through. The script prints a warning when an expected policy column is
+  missing; investigate it. If a column clearly holds `email`/`phone`/`ssn`/`name`
+  data under another name, rename the header to the policy name and re-run, or
+  escalate to the support lead to extend the policy.
+- **Non-UTF-8 files** — the script reads UTF-8 (BOM-tolerant). Convert exotic
+  encodings first.
+
+## Manual-review checklist (do this every time)
+
+1. `email`, `phone`, `ssn` columns are **absent** from the redacted header.
+2. `name` shows `cust-...` ids, no real names.
+3. Spot-check `notes`/`comments`: emails and phones are masked; no leftover PII.
+4. No "expected column not found" surprise in the run summary.
+5. Only then attach/send the `.redacted.csv`.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/examples/sample_customers.csv`
+
+```csv
+id,name,email,phone,ssn,notes,comments
+1001,Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Prefers email at jane.doe@example.com","Called back on (555) 987-6543, resolved"
+1002,John Smith,jsmith@example.org,+1 555.222.3333,987-65-4321,"No contact issues","Follow up next week"
+1003,Ana Ruiz,ana@example.net,5554441212,222-33-4444,"Reach at ana@example.net or 555 444 1212","VIP account"
+```
+
+Running `python scripts/redact_csv.py examples/sample_customers.csv` produces
+`examples/sample_customers.redacted.csv` with columns `id,name,notes,comments`,
+where `name` is opaque ids and the emails/phones inside `notes`/`comments` are
+masked.
+
+---
+
+### `outputs/sanitizing-customer-exports/tests/test_redact.py`
+
+```python
+#!/usr/bin/env python3
+"""Sanity checks for the redactor. Run: python tests/test_redact.py"""
+
+import os
+import sys
+import csv
+import tempfile
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scripts"))
+import redact_csv as r  # noqa: E402
+
+SALT = b"test-salt"
+
+
+def _write_csv(path, header, rows):
+    with open(path, "w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow(header)
+        w.writerows(rows)
+
+
+def test_policy():
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "customers.csv")
+        _write_csv(
+            src,
+            ["id", "Name", "Email", "phone", "SSN", "notes", "comments"],
+            [[
+                "1", "Jane Doe", "jane@example.com", "555-123-4567",
+                "123-45-6789",
+                "reach jane@example.com", "call (555) 987-6543 please",
+            ]],
+        )
+        out = r.default_output_path(src)
+        assert out.endswith("customers.redacted.csv"), out
+
+        summary = r.redact(src, out, SALT)
+
+        # dropped columns are gone (case-insensitive match)
+        with open(out, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fields = reader.fieldnames
+            row = next(reader)
+
+        for gone in ("Email", "phone", "SSN"):
+            assert gone not in fields, f"{gone} should have been dropped"
+        assert fields == ["id", "Name", "notes", "comments"], fields
+
+        # name pseudonymized and deterministic under a fixed salt
+        assert row["Name"].startswith("cust-"), row["Name"]
+        assert row["Name"] == r.make_opaque_id("Jane Doe", SALT)
+
+        # free text scrubbed
+        assert "jane@example.com" not in row["notes"]
+        assert r.EMAIL_MASK in row["notes"]
+        assert "555" not in row["comments"]
+        assert r.PHONE_MASK in row["comments"]
+
+        assert summary["rows"] == 1
+        assert summary["missing_expected"] == []
+
+
+def test_never_touches_original():
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "customers.csv")
+        _write_csv(src, ["name", "email"], [["A", "a@x.com"]])
+        before = open(src, encoding="utf-8").read()
+        r.redact(src, r.default_output_path(src), SALT)
+        after = open(src, encoding="utf-8").read()
+        assert before == after, "original file must be unchanged"
+
+
+def test_refuses_self_overwrite():
+    with tempfile.TemporaryDirectory() as d:
+        src = os.path.join(d, "customers.csv")
+        _write_csv(src, ["name"], [["A"]])
+        try:
+            r.redact(src, src, SALT)
+        except SystemExit:
+            pass
+        else:
+            raise AssertionError("should refuse to overwrite the input")
+
+
+def test_empty_name_stays_empty():
+    assert r.make_opaque_id("", SALT) == ""
+    assert r.make_opaque_id("   ", SALT) == ""
+
+
+if __name__ == "__main__":
+    test_policy()
+    test_never_touches_original()
+    test_refuses_self_overwrite()
+    test_empty_name_stays_empty()
+    print("all tests passed")
+```
+
+---
+
+## What's in the skill and why
+
+- **`SKILL.md`** — frontmatter with a trigger-rich `description` so Claude invokes it on the right requests, the fixed policy as a table, the exact run command, the salt behavior, and a mandatory verify step.
+- **`scripts/redact_csv.py`** — the actual worker: case-insensitive column matching, column dropping, one-way HMAC pseudonymization, in-place masking of emails/phones in free text, `<original>.redacted.csv` output, refuses to overwrite the input, and reads fully before writing so a crash never corrupts the original.
+- **`reference.md`** — the detail Claude should read when edge cases come up: matching rules, salt tradeoffs, regex behavior, and an explicit **limitations + manual-review checklist** (the honest part: regexes miss obfuscated contacts, and SSNs/addresses in free text are out of policy scope).
+- **`examples/sample_customers.csv`** — a runnable input so the skill can be demonstrated/tested immediately.
+- **`tests/test_redact.py`** — guards the four properties that matter: policy correctness, original untouched, self-overwrite refused, empty-name handling.
+
+One design decision worth flagging: the opaque id uses a **random salt by default** (safest — ids aren't reversible or cross-file linkable) with an opt-in `REDACT_SALT` for when you deliberately need stable ids to join exports. If your team would rather have simple sequential ids (`CUST-0001`) or always-stable hashing, say so and I'll adjust the script.

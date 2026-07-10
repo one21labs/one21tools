@@ -1,0 +1,163 @@
+Below are the two modules rewritten with production-grade, traceable logging. I can't write files in this session, so paste these in as `ingest.py` and `enrich.py`.
+
+The design centers on one idea: **every log line for a given record carries the same `rec_id`**, so on-call can `grep` a single id and see its entire path across both modules — parsed, enriched or dropped (with the reason), saved or failed.
+
+## ingest.py
+
+```python
+import json
+import logging
+import os
+
+from enrich import enrich_record
+
+log = logging.getLogger("pipeline.ingest")
+
+OUT_PATH = "out.jsonl"
+
+
+def _rec_id(rec, lineno):
+    """Stable identifier for tracing a record across both modules.
+
+    Prefer the record's own id so the same value appears in upstream/downstream
+    systems; fall back to the input line number so a record is *always*
+    identifiable even when malformed or missing an id.
+    """
+    if isinstance(rec, dict):
+        for key in ("id", "record_id", "uuid"):
+            if rec.get(key) is not None:
+                return str(rec[key])
+    return f"line:{lineno}"
+
+
+def run(path):
+    log.info("run.start path=%s pid=%s", path, os.getpid())
+    counts = {"read": 0, "parse_error": 0, "enriched": 0, "dropped": 0, "save_error": 0}
+
+    try:
+        f = open(path)
+    except OSError:
+        # Nothing downstream can happen; make the run-level failure obvious.
+        log.exception("run.open_failed path=%s", path)
+        raise
+
+    with f:
+        for lineno, line in enumerate(f, start=1):
+            counts["read"] += 1
+
+            if not line.strip():
+                log.debug("skip.blank_line lineno=%s", lineno)
+                continue
+
+            # Parse in its own try so one bad line never aborts the whole run.
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                counts["parse_error"] += 1
+                # Log a bounded preview, not the full line, to avoid dumping huge
+                # or sensitive payloads into logs.
+                log.error(
+                    "parse.failed lineno=%s preview=%r",
+                    lineno, line[:200].rstrip(),
+                )
+                continue
+
+            rec_id = _rec_id(rec, lineno)
+            log.info("record.received rec_id=%s lineno=%s", rec_id, lineno)
+
+            try:
+                out = enrich_record(rec, rec_id=rec_id)
+            except Exception:
+                # Defensive: enrich should handle its own errors, but if it
+                # raises we must still identify which record killed it.
+                counts["dropped"] += 1
+                log.exception("enrich.crashed rec_id=%s lineno=%s", rec_id, lineno)
+                continue
+
+            if not out:
+                counts["dropped"] += 1
+                # enrich_record already logged *why* it dropped the record.
+                log.info("record.dropped rec_id=%s lineno=%s", rec_id, lineno)
+                continue
+
+            try:
+                save(out)
+            except OSError:
+                counts["save_error"] += 1
+                log.exception("save.failed rec_id=%s lineno=%s", rec_id, lineno)
+                continue
+
+            counts["enriched"] += 1
+            log.info("record.saved rec_id=%s lineno=%s", rec_id, lineno)
+
+    log.info(
+        "run.finished path=%s read=%d enriched=%d dropped=%d parse_error=%d save_error=%d",
+        path, counts["read"], counts["enriched"], counts["dropped"],
+        counts["parse_error"], counts["save_error"],
+    )
+    return counts
+
+
+def save(rec):
+    with open(OUT_PATH, "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    run(sys.argv[1])
+```
+
+## enrich.py
+
+```python
+import logging
+
+log = logging.getLogger("pipeline.enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, rec_id="unknown"):
+    """Attach a geo zone to a record.
+
+    Returns the enriched record, or None when the record cannot be enriched.
+    `rec_id` is passed through from ingest so every log line here can be tied
+    back to the same record in the ingest logs.
+    """
+    # Missing region field is a data-quality problem distinct from an
+    # unrecognized region value — log them separately so both are diagnosable.
+    if "region" not in rec:
+        log.warning("enrich.missing_region_field rec_id=%s keys=%s",
+                    rec_id, sorted(rec.keys()))
+        return None
+
+    raw_region = rec["region"]
+    zone = GEO.get(raw_region)
+    if zone is None:
+        log.warning(
+            "enrich.unknown_region rec_id=%s region=%r known=%s",
+            rec_id, raw_region, sorted(GEO),
+        )
+        return None
+
+    rec["zone"] = zone
+    log.info("enrich.ok rec_id=%s region=%r zone=%s", rec_id, raw_region, zone)
+    return rec
+```
+
+## What changed and why
+
+- **Cross-module trace key.** `ingest` computes a `rec_id` once (record's own `id`, else `line:N`) and threads it into `enrich_record`. Grep one `rec_id` and you get the record's full history in both modules. The line-number fallback guarantees an id even for records that are malformed or lack one.
+- **Every failure has its own log line and reason.** The original code had three silent drop/failure paths: JSON parse errors (crashed the whole run), unknown regions (`return None`), and any `save` I/O error. Now each is caught, logged at an appropriate level, and — critically — the run continues instead of aborting on one bad line.
+- **Missing-field vs. unknown-value are distinguished.** `rec["region"]` would previously `KeyError` and kill the run; now a missing `region` key logs `missing_region_field`, while a present-but-unrecognized value logs `unknown_region` with the list of known regions, so on-call can tell a schema bug from a config gap.
+- **Run-level summary.** `run.start` / `run.finished` bracket every run with counts (read/enriched/dropped/parse_error/save_error), so you can confirm at a glance whether a run's drop rate is anomalous before drilling into individual records.
+- **Log hygiene.** Parse-failure previews are truncated to 200 chars to avoid dumping huge or sensitive payloads; level choices are INFO for normal lifecycle, WARNING for droppable data issues, ERROR/exception for parse and I/O failures.
+- **Config left to the app.** Modules only call `logging.getLogger(...)`; the `__main__` block configures handlers/format/level (via `LOG_LEVEL`). That keeps the modules import-safe and lets your production log config (JSON formatter, shipping, etc.) own the output.
+
+One follow-up worth confirming: if your records already carry a canonical id under a different key than `id`/`record_id`/`uuid`, tell me the field name and I'll make `_rec_id` prefer it so the trace key matches your other systems.

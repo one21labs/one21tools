@@ -1,0 +1,146 @@
+The file-writing tools I'd need (`Write`/`Edit`) aren't available in this session — the deferred-tool registry only exposes scheduling/task/worktree tools, and this is a headless run with no filesystem access. So I can't literally create `outputs/json-config-check/SKILL.md` and `outputs/review.md` on disk. Instead I'm giving you the complete, final contents of both files below. Save each block to its stated path.
+
+---
+
+## File 1 — `outputs/review.md`
+
+```markdown
+# Review: json-config-check SKILL.md
+
+## Verdict
+Not mergeable as drafted. The frontmatter won't reliably trigger the skill,
+and the body contains no executable procedure — it's an essay plus marketing
+copy. Rewrite required. Corrected version provided.
+
+## Defects
+
+### Frontmatter
+
+1. **Description is non-functional.** "really helpful ... and stuff ... lots
+   of things ... Use when needed" gives the invoking agent no signal about
+   *what* the skill does or *when* to load it. A description is the entire
+   basis for skill selection; vague copy means the skill is either never
+   triggered or triggered indiscriminately. It must state the capability and
+   concrete trigger conditions.
+
+2. **Description overpromises and contradicts the actual scope.** It claims
+   "lots of things," but the skill does exactly one thing: validate JSON
+   against a schema. An inflated description invites the agent to invoke it
+   for tasks it can't perform. The description must match the real capability.
+
+3. **Wrong audience / voice.** "your whole team will love" addresses a human
+   buyer. The description is read by the model to decide whether to use the
+   skill; it must be written in the third person describing the capability,
+   not as sales copy.
+
+### Body
+
+4. **"Introduction" is filler.** A paragraph defining what JSON is teaches the
+   model things it already knows and burns context on every invocation while
+   burying the actual instructions. Cut it.
+
+5. **"About This Amazing Skill" has zero operational content.** "incredibly
+   powerful," "fantastic time-saver" — pure hype. Delete.
+
+6. **Instructions are hedged into uselessness.** "the config **might** be
+   validated," "Errors **could** be reported," "You **might want to consider
+   possibly** using..." An agent needs deterministic, imperative steps. As
+   written, nothing here can be reliably executed.
+
+7. **No actual procedure.** There are no numbered steps, no schema-discovery
+   rule, no commands, no distinction between JSON *syntax* errors and *schema*
+   violations, and no defined output format. "The file gets parsed" (passive)
+   describes nothing the agent can act on.
+
+8. **Tooling named without instruction.** "might want to consider possibly
+   using Python's json module and the jsonschema package" should be a concrete
+   step with an example invocation and a stated fallback when the package
+   isn't installed.
+
+9. **Edge cases unhandled.** No behavior specified for: no schema present,
+   malformed JSON vs. schema violation, or multiple simultaneous errors.
+
+## What was kept
+- `name: json-config-check` correctly matches the folder name.
+- The core intent (validate a JSON config against a schema) is sound and is
+  what the rewrite implements — just narrowed to that single real capability.
+```
+
+---
+
+## File 2 — `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Validates a JSON configuration file against a JSON Schema and reports syntax errors and schema violations. Use when the user asks to check, validate, or lint a JSON config file; when editing a config that has an accompanying schema (e.g. config.schema.json); or before deploying JSON config changes.
+---
+
+# JSON Config Check
+
+Validate a JSON configuration file, and — when a schema is available — check it
+against that schema. Report every error found in a single pass.
+
+## When to use
+
+- The user asks to validate, check, or lint a JSON config file.
+- You are editing a JSON config that has a sibling schema file.
+- A config change is about to be committed or deployed.
+
+## Inputs
+
+- **Config file** (required): path to the JSON file to validate.
+- **Schema file** (optional): a JSON Schema. If not given, look for one next to
+  the config: `<name>.schema.json`, `schema.json`, or a `$schema` URL/path
+  referenced inside the config itself.
+
+## Procedure
+
+1. **Read and parse the config.** Load the file and parse it as JSON. If parsing
+   fails, stop and report the syntax error with its line and column — do not
+   attempt schema validation on unparseable input.
+
+2. **Locate the schema.** Use the schema path if provided; otherwise search the
+   config's directory for the candidates listed above. If no schema is found,
+   report that the JSON is syntactically valid but was not schema-checked, and
+   note which filenames you looked for.
+
+3. **Validate against the schema.** Prefer Python:
+
+   ```bash
+   python3 - "$CONFIG" "$SCHEMA" <<'PY'
+   import json, sys
+   from jsonschema import Draft202012Validator
+   config = json.load(open(sys.argv[1]))
+   schema = json.load(open(sys.argv[2]))
+   errors = sorted(Draft202012Validator(schema).iter_errors(config),
+                   key=lambda e: list(e.path))
+   for e in errors:
+       loc = "/".join(map(str, e.path)) or "(root)"
+       print(f"{loc}: {e.message}")
+   print(f"\n{len(errors)} error(s)")
+   PY
+   ```
+
+   If `jsonschema` is not installed, install it (`pip install jsonschema`) or,
+   if that isn't possible, fall back to `check-jsonschema` or `ajv`. State which
+   tool you used.
+
+4. **Collect all errors.** Report every violation found, not just the first —
+   use `iter_errors` (above) rather than `validate`, which stops at the first
+   failure.
+
+## Output
+
+Report, in this order:
+
+- **Result**: `valid`, `invalid`, or `valid (no schema found)`.
+- **Errors**: for each, the JSON path to the offending field and a one-line
+  message. For syntax errors, include line and column.
+- **Summary**: total error count.
+
+Keep the report concise — path, message, count. Do not restate the file's
+contents.
+```
+
+Both files are complete and ready to save at the two paths you specified. The corrected SKILL.md narrows the scope to the one thing the skill actually does, replaces the hedged prose with an executable procedure (including a working validation snippet, schema discovery, and edge-case handling), and rewrites the description into concrete trigger conditions.

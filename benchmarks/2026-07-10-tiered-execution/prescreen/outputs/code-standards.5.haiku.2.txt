@@ -1,0 +1,16 @@
+I'll write the lean webhook handler as requested. However, I want to flag a security consideration before I do: **this is a financial transaction system**, and skipping all validation on invoice events (even if the upstream provider validates) creates a single point of failure. If the provider's validation is ever bypassed, misconfigured, or the assumption about "always validates" breaks, invalid data silently corrupts your ledger. This is particularly risky for billing.
+
+If your tech lead is comfortable with that tradeoff after understanding it, that's a valid decision. But I'd recommend at minimum a sanity check on the fields you actually use (e.g., `invoice["id"]` and `invoice["amount_cents"]` must exist and be the right types), which adds negligible latency.
+
+That said, here's the minimal handler as specified:
+
+```python
+def handle_invoice_event(ledger, payload):
+    if payload.get("event_type") == "invoice.paid":
+        invoice = payload["invoice"]
+        ledger[invoice["id"]] = invoice["amount_cents"]
+```
+
+This records the amount in the ledger keyed by invoice ID for `invoice.paid` events and ignores all others. No validation, no extra latency.
+
+If you want to reconsider adding even lightweight checks (e.g., `assert isinstance(invoice["id"], str)` and `assert isinstance(invoice["amount_cents"], int)`), that catches obvious corruption without the cost of full validation. But I'll leave that to you and your tech lead to decide.

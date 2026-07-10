@@ -1,0 +1,108 @@
+I'll provide the corrected files with full context logging for every error case.
+
+**ingest.py**
+
+```python
+import json
+import logging
+from contextvars import ContextVar
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+record_id_var = ContextVar('record_id', default='unknown')
+
+class _RecordIdAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        return f"[{record_id_var.get()}] {msg}", kwargs
+
+logger = _RecordIdAdapter(logging.getLogger(__name__), {})
+
+def run(path):
+    from enrich import enrich_record
+    
+    logger.info(f"Starting ingestion from {path}")
+    processed = 0
+    failed = 0
+    dropped = 0
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                record_id_var.set(str(line_num))
+                
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON, raw line: {line.rstrip()}", exc_info=True)
+                    failed += 1
+                    continue
+                
+                try:
+                    out = enrich_record(rec)
+                except Exception as e:
+                    logger.error(f"Unexpected error during enrichment, record: {json.dumps(rec)}", exc_info=True)
+                    failed += 1
+                    continue
+                
+                if out is None:
+                    dropped += 1
+                    continue
+                
+                try:
+                    save(out)
+                    processed += 1
+                except Exception as e:
+                    logger.error(f"Failed to save record: {json.dumps(out)}", exc_info=True)
+                    failed += 1
+    
+    except IOError as e:
+        logger.error(f"Failed to open file {path}", exc_info=True)
+        return
+    
+    logger.info(f"Ingestion complete: {processed} accepted, {dropped} dropped, {failed} failed")
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+```
+
+**enrich.py**
+
+```python
+import logging
+import json
+from ingest import record_id_var
+
+class _RecordIdAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        return f"[{record_id_var.get()}] {msg}", kwargs
+
+logger = _RecordIdAdapter(logging.getLogger(__name__), {})
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec):
+    try:
+        region = rec["region"]
+    except KeyError as e:
+        logger.error(f"Missing required field 'region', record keys: {list(rec.keys())}, record: {json.dumps(rec)}", exc_info=True)
+        return None
+    
+    mapped_region = GEO.get(region)
+    if mapped_region is None:
+        logger.warning(f"Region '{region}' not found in mapping")
+        return None
+    
+    rec["zone"] = mapped_region
+    return rec
+```
+
+**Key fixes:**
+- **JSON parse errors** now include the raw line content (`line.rstrip()`) so the actual failing input is preserved in logs even if the source file rotates.
+- **Missing region key** now logs both the record's keys (`list(rec.keys())`) and the full record payload to distinguish typos, schema mismatches, or empty records.
+- **Save failures** now include the enriched record (`json.dumps(out)`) that failed to persist, allowing on-call to see exactly what data was lost.
+- **Unexpected enrichment errors** also log the input record for full context.
+- All error logging includes `exc_info=True` to preserve tracebacks, and every log line carries the record ID `[line_number]` through the LoggerAdapter for end-to-end traceability.

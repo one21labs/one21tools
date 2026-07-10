@@ -1,0 +1,157 @@
+Here are the updated modules with production-grade logging:
+
+## ingest.py
+
+```python
+import json
+import logging
+import sys
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+def run(path):
+    logger.info("Pipeline run started", extra={"file": path})
+    
+    line_num = 0
+    processed = 0
+    dropped = 0
+    errors = 0
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    rec = json.loads(line)
+                    record_id = rec.get("id", f"line_{line_num}")
+                    
+                    logger.debug(
+                        "Record received",
+                        extra={"record_id": record_id, "line": line_num, "input": rec}
+                    )
+                    
+                    out = enrich_record(rec, record_id)
+                    
+                    if out:
+                        save(out, record_id)
+                        processed += 1
+                    else:
+                        dropped += 1
+                        logger.info(
+                            "Record dropped during enrichment",
+                            extra={"record_id": record_id, "line": line_num}
+                        )
+                
+                except json.JSONDecodeError as e:
+                    errors += 1
+                    logger.error(
+                        "Failed to parse JSON",
+                        extra={"line": line_num, "error": str(e), "raw_line": line[:200]}
+                    )
+                except Exception as e:
+                    errors += 1
+                    record_id = f"line_{line_num}"
+                    logger.error(
+                        "Unexpected error processing record",
+                        extra={"record_id": record_id, "line": line_num, "error": str(e)},
+                        exc_info=True
+                    )
+    
+    except IOError as e:
+        logger.error("Failed to open input file", extra={"file": path, "error": str(e)})
+        return
+    
+    logger.info(
+        "Pipeline run completed",
+        extra={
+            "file": path,
+            "total_lines": line_num,
+            "processed": processed,
+            "dropped": dropped,
+            "errors": errors
+        }
+    )
+
+def save(rec, record_id):
+    try:
+        with open("out.jsonl", "a") as f:
+            f.write(json.dumps(rec) + "\n")
+        logger.debug("Record saved to output", extra={"record_id": record_id})
+    except IOError as e:
+        logger.error(
+            "Failed to save record",
+            extra={"record_id": record_id, "error": str(e), "record": rec},
+            exc_info=True
+        )
+        raise
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(extra)s",
+        handlers=[
+            logging.FileHandler("pipeline.log"),
+            logging.StreamHandler(sys.stdout)
+        ]
+    )
+    
+    if len(sys.argv) < 2:
+        print("Usage: python ingest.py <input_file>")
+        sys.exit(1)
+    
+    run(sys.argv[1])
+```
+
+## enrich.py
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id=None):
+    if record_id is None:
+        record_id = rec.get("id", "unknown")
+    
+    region_code = rec.get("region")
+    
+    if not region_code:
+        logger.warning(
+            "Record missing region field",
+            extra={"record_id": record_id, "available_fields": list(rec.keys())}
+        )
+        return None
+    
+    region = GEO.get(region_code)
+    if region is None:
+        logger.warning(
+            "Unknown region code",
+            extra={
+                "record_id": record_id,
+                "region_code": region_code,
+                "valid_regions": list(GEO.keys())
+            }
+        )
+        return None
+    
+    rec["zone"] = region
+    logger.debug(
+        "Record enriched",
+        extra={"record_id": record_id, "region_code": region_code, "zone": region}
+    )
+    
+    return rec
+```
+
+**Key improvements:**
+
+- **Record tracking**: Each record gets a unique ID (from input or auto-generated) that flows through both modules for end-to-end tracing
+- **Comprehensive logging**: Every path is logged—successful enrichment, dropped records, parse errors, I/O failures
+- **Diagnostic context**: Failures log the exact error, available/expected values, and problematic data
+- **Logging levels**: DEBUG for flow details, INFO for dropped records, ERROR for failures  
+- **Centralized configuration**: Main block sets up file + console logging; logs go to `pipeline.log` for on-call inspection
+- **No silent failures**: Every record outcome is logged (processed/dropped/error)
+
+When a run misbehaves, engineers can search `pipeline.log` for any record's ID to see its exact path: parse → enrich decision → success/failure with full context.

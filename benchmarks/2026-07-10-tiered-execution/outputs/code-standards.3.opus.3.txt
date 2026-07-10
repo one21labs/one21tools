@@ -1,0 +1,161 @@
+Here are the two modules rewritten with production-grade logging. The design goal: every record carries a stable `trace_id` that appears in every log line it touches in both modules, and every way a record can fail (bad JSON, missing/unknown region, save failure) emits a diagnostic log with the reason and the offending data — so no record silently disappears.
+
+# ingest.py
+
+```python
+import json
+import logging
+import os
+import uuid
+
+from enrich import enrich_record
+
+log = logging.getLogger("pipeline.ingest")
+
+OUT_PATH = "out.jsonl"
+
+
+def _trace_id(rec, line_no):
+    """Prefer a stable business key so the id is greppable across systems;
+    fall back to a synthetic id so a record is never untraceable."""
+    for key in ("id", "record_id", "uuid"):
+        if isinstance(rec, dict) and rec.get(key):
+            return str(rec[key])
+    return f"line{line_no}-{uuid.uuid4().hex[:8]}"
+
+
+def run(path):
+    run_id = uuid.uuid4().hex[:12]
+    log.info("run start run_id=%s path=%s pid=%s", run_id, path, os.getpid())
+
+    stats = {"read": 0, "parse_error": 0, "enriched": 0, "skipped": 0, "save_error": 0}
+
+    try:
+        source = open(path)
+    except OSError:
+        # Nothing can be traced if we can't even open the input; make it loud.
+        log.exception("run abort run_id=%s: cannot open input path=%s", run_id, path)
+        raise
+
+    with source:
+        for line_no, line in enumerate(source, start=1):
+            if not line.strip():
+                continue
+            stats["read"] += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as exc:
+                stats["parse_error"] += 1
+                # Log the raw payload (truncated) so on-call can reproduce the bad line.
+                log.error(
+                    "run_id=%s line=%s parse_error at col=%s: %s | raw=%r",
+                    run_id, line_no, exc.colno, exc.msg, line[:500],
+                )
+                continue
+
+            trace_id = _trace_id(rec, line_no)
+            log.info("run_id=%s trace_id=%s line=%s ingested", run_id, trace_id, line_no)
+
+            try:
+                out = enrich_record(rec, run_id=run_id, trace_id=trace_id)
+            except Exception:
+                # enrich_record should not raise, but if it does, one bad record
+                # must not kill a run of thousands.
+                stats["skipped"] += 1
+                log.exception(
+                    "run_id=%s trace_id=%s line=%s enrich crashed", run_id, trace_id, line_no
+                )
+                continue
+
+            if not out:
+                stats["skipped"] += 1
+                # enrich_record already logged the specific reason at WARNING.
+                log.info("run_id=%s trace_id=%s line=%s dropped after enrich", run_id, trace_id, line_no)
+                continue
+
+            try:
+                save(out, run_id=run_id, trace_id=trace_id)
+            except OSError:
+                stats["save_error"] += 1
+                log.exception(
+                    "run_id=%s trace_id=%s line=%s save failed", run_id, trace_id, line_no
+                )
+                continue
+
+            stats["enriched"] += 1
+            log.info("run_id=%s trace_id=%s line=%s completed", run_id, trace_id, line_no)
+
+    log.info(
+        "run end run_id=%s read=%s enriched=%s skipped=%s parse_error=%s save_error=%s",
+        run_id, stats["read"], stats["enriched"], stats["skipped"],
+        stats["parse_error"], stats["save_error"],
+    )
+    return stats
+
+
+def save(rec, run_id, trace_id):
+    with open(OUT_PATH, "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    log.debug("run_id=%s trace_id=%s persisted to %s", run_id, trace_id, OUT_PATH)
+
+
+if __name__ == "__main__":
+    import sys
+
+    logging.basicConfig(
+        level=os.environ.get("LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    )
+    run(sys.argv[1])
+```
+
+# enrich.py
+
+```python
+import logging
+
+log = logging.getLogger("pipeline.enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, run_id=None, trace_id=None):
+    # run_id/trace_id are threaded through from ingest so a record's enrich-side
+    # log lines share the same id as its ingest-side lines.
+    ctx = "run_id=%s trace_id=%s" % (run_id, trace_id)
+
+    if "region" not in rec:
+        # Distinguish "field absent" from "field present but unknown" — different bugs.
+        log.warning("%s missing 'region' field; keys=%s", ctx, sorted(rec.keys()))
+        return None
+
+    raw_region = rec["region"]
+    region = GEO.get(raw_region)
+    if region is None:
+        log.warning(
+            "%s unknown region=%r; known=%s", ctx, raw_region, sorted(GEO.keys())
+        )
+        return None
+
+    rec["zone"] = region
+    log.info("%s enriched region=%r -> zone=%s", ctx, raw_region, region)
+    return rec
+```
+
+## What changed and why
+
+**Traceability across modules.** `ingest.run` mints a per-run `run_id` and a per-record `trace_id` (a real business key like `id`/`record_id`/`uuid` when present, otherwise a synthetic `lineN-<hash>`). Both ids are passed into `enrich_record`, so grepping one `trace_id` returns the full story — ingested → enriched/dropped → completed — across both files.
+
+**Every failure is diagnosable.** The original code had three silent-failure or crash paths, now all logged with the data needed to act:
+- **Bad JSON** — original `json.loads` would raise and kill the whole run. Now caught, logged at ERROR with line number, column, and the truncated raw line, and the run continues.
+- **Missing `region` key** — original `rec["region"]` raised `KeyError`. Now handled explicitly and distinguished from an *unknown* region value (they're different bugs: schema drift vs. a missing GEO mapping).
+- **Unknown region** — was a silent `return None`. Now WARNING with the offending value and the known keys.
+- **Save failure** — original I/O error killed the run mid-batch. Now caught per-record and logged so you know exactly which record didn't persist.
+
+**Operational summary.** Each run ends with a one-line tally (`read/enriched/skipped/parse_error/save_error`) so on-call can confirm at a glance whether a run was healthy without reading every line.
+
+**A few notes for your environment:**
+- I used the stdlib `logging` module with `%`-style lazy formatting (no string cost unless the line is emitted). If you ship JSON logs to something like Datadog/ELK, swap the formatter for a JSON one or use `logging`'s `extra=` fields — the `run_id`/`trace_id` are already the fields you'd index on.
+- `save` opens `out.jsonl` per record as in the original. At "thousands per run" that's fine, but if this grows, hold one file handle open for the run instead.
+- Raw payloads are truncated to 500 chars in logs to bound log volume and limit exposure of record contents — adjust if your records carry PII you must keep out of logs entirely.

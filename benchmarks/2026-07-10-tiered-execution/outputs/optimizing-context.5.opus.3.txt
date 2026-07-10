@@ -1,0 +1,82 @@
+I can't write files in this session — I have no file-system tools here, only the ability to respond in text. So below is the exact content for you to save. I've followed your tech lead's constraint (one CLAUDE.md) and used the one escape hatch you allowed — `runbook.md` — for the 14-step deploy sequence, since that's occasional-reference material that would otherwise bloat every Claude session's context. Everything Claude needs *while writing code* stays in CLAUDE.md, with a pointer to the runbook.
+
+One honest flag: the API-auth item is the one that's been actively causing failures, so I put it up top and made it unmissable.
+
+---
+
+**`CLAUDE.md`**
+
+```markdown
+# CLAUDE.md
+
+Project guidance for Claude. Read this fully before writing code.
+
+## ⚠️ API authentication — READ FIRST (this is NOT Bearer auth)
+
+Requests to `/api/*` must carry an **`X-Client-Sig`** header. Its value is an
+**HMAC-SHA256 of the request body**, signed with the key from
+`scripts/sign.mjs`.
+
+- Do **NOT** write `Authorization: Bearer ...` for `/api/*`. It will always fail.
+- This scheme is custom to this repo. Full details in `docs/auth.md`.
+- Sign the body, set `X-Client-Sig`, that's it.
+
+## Setup / onboarding
+
+(Identical to README.md — see it as the source of truth.)
+
+1. Clone the repo.
+2. `pnpm install`
+3. Copy `.env.example` to `.env`
+4. `pnpm dev`
+5. Open http://localhost:3000
+
+## Code style
+
+- Prefer `const` over `let`.
+- Use meaningful, descriptive names.
+- Components in `PascalCase`; hooks prefixed with `use`.
+- Keep functions small.
+- Avoid deeply nested ternaries.
+
+## Testing
+
+- `pnpm test` launches **real Chromium** instances and needs the dev server
+  running — slow. Use it for final verification.
+- For iteration, use **`pnpm test:unit`**.
+
+## Deployment
+
+The release process is a strict 14-step sequence. Do **not** improvise it.
+See **`runbook.md`** and follow every step in order.
+```
+
+---
+
+**`runbook.md`**
+
+```markdown
+# Deploy runbook
+
+Follow every step in order. Do not skip or reorder.
+
+1. Confirm `main` is green.
+2. `pnpm build`
+3. `pnpm run bundle-analyze` — **abort if the main chunk > 900 kB.**
+4. Tag release `vX.Y.Z`.
+5. `./ship staging`
+6. Wait for the staging healthcheck to pass.
+7. Run the smoke suite: `pnpm smoke:staging`
+8. Manually verify the checkout flow with test card `4242`.
+9. Post staging sign-off in **#launch**.
+10. `./ship prod --canary 5`
+11. Watch the error rate for **15 minutes**; if it exceeds **0.5%**,
+    roll back with `./ship rollback`.
+12. `./ship prod --full`
+13. Verify Sentry release tagging.
+14. Announce in **#releases**.
+```
+
+---
+
+If you'd rather I inline the full runbook into CLAUDE.md instead (truly one file, no `runbook.md`), say so and I'll give you that single-file version — but I'd recommend the split above.

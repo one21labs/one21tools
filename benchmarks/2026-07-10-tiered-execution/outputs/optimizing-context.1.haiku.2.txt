@@ -1,0 +1,110 @@
+I'm in a headless session without file-write tools, so I'll provide the complete CLAUDE.md content below. You can copy this and save it as `CLAUDE.md` in your repo root:
+
+```markdown
+# Claude Code — checkout-service
+
+**Owned by:** Payments Squad  
+**Last updated:** 2026-07-10
+
+## Quick Start
+
+```bash
+npm install
+cp .env.example .env
+npm run dev        # starts Next.js dev server
+npm run test:unit  # unit tests
+npm test           # E2E tests (requires dev server running)
+```
+
+## Stack & Architecture
+
+- **Framework:** Next.js 14 (App Router)
+- **Language:** TypeScript (strict mode)
+- **Styling:** Tailwind CSS
+- **Database:** Postgres + Prisma ORM
+- **Package Manager:** npm
+
+Originated as a Rails prototype (2021), rewritten 2023 by platform team, now maintained by payments squad.
+
+## Critical Constraints
+
+### Money Handling: Integer Cents Only
+
+**DO NOT USE FLOATS FOR MONETARY AMOUNTS.** All money is stored and calculated as integer cents. A float-rounding bug in 2024 corrupted invoices—this is not a style preference, it is a hard requirement.
+
+- `100` = $1.00, `1050` = $10.50
+- Never divide money by anything that could produce a decimal
+- Never store money as a float in the database
+- Validate at the boundary: reject decimal input and convert to cents
+
+## Database & Migrations
+
+**Always use `./scripts/migrate.sh`** for all schema changes. Do not run `prisma migrate` directly—it breaks the shadow database that CI depends on.
+
+```bash
+./scripts/migrate.sh  # runs migrations safely
+```
+
+The migration script handles shadow DB synchronization; direct Prisma runs will cause CI to fail.
+
+## Testing
+
+- **Unit tests:** `npm run test:unit` (can run anytime)
+- **E2E tests:** `npm test` (requires `npm run dev` to be running in another terminal)
+
+The E2E suite uses Playwright and depends on a live dev server. Both must pass before merging to main.
+
+## Authentication
+
+API routes use a custom `X-Session-Token` header scheme, **not** standard Bearer tokens.
+
+Full authentication scheme and token format are documented in `docs/api.md`. Always reference that file when:
+- Adding new API routes
+- Validating tokens
+- Debugging auth failures
+
+## Code Style
+
+Follow the **45-page style guide** at `docs/style-guide.md`. Two key deviations from typical TypeScript:
+
+1. **No default exports.** Use named exports only.
+2. **Colocate Zod schemas** with their route handlers (same file, no separate schema modules).
+
+## Deployment
+
+Identical procedure across all six company repos:
+
+1. Merge to `main`
+2. Wait for CI to go green
+3. `npm run build:prod`
+4. `./deploy staging`
+5. Smoke-test `/healthz` endpoint
+6. If p95 latency exceeds 500ms, page on-call; do not proceed to prod
+7. `./deploy prod`
+8. Announce in `#releases` Slack channel
+
+Do not skip steps or proceed if health checks fail.
+
+## Onboarding
+
+Full onboarding instructions are in `README.md` (already documented). Standard setup:
+
+```bash
+git clone <repo>
+npm install
+cp .env.example .env
+npm run dev
+```
+
+No custom setup beyond this.
+
+## Key Files
+
+- `docs/style-guide.md` — Comprehensive TypeScript/Next.js style reference
+- `docs/api.md` — Authentication scheme and API documentation
+- `scripts/migrate.sh` — Safe migration runner (use instead of `prisma migrate`)
+- `.env.example` — Environment template
+- `README.md` — Project setup and onboarding
+```
+
+Copy this entire content into a new file named `CLAUDE.md` at your repo root, then commit it. The file will guide Claude Code (and other developers) on the critical constraints, workflows, and conventions specific to checkout-service.
