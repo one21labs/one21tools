@@ -1,0 +1,43 @@
+Here's the gate, two ways — pick whichever matches how you already invoke pytest.
+
+**Option A: bake it into pytest config (works locally and in CI identically)**
+
+`pyproject.toml`:
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=your_package --cov-report=term-missing --cov-report=xml --cov-fail-under=80"
+```
+
+Or `setup.cfg`:
+```ini
+[tool:pytest]
+addopts = --cov=your_package --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+```
+
+`--cov-fail-under=80` makes `pytest` itself exit non-zero if total line coverage is below 80%, so any CI runner fails automatically — no extra script needed.
+
+**Option B: keep pytest config threshold-free, gate explicitly in CI** (useful if you want the number configurable per-branch or don't want local runs to fail on low coverage)
+
+`.coveragerc` or `[tool.coverage.report]` in `pyproject.toml`:
+```toml
+[tool.coverage.run]
+source = ["your_package"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+```
+
+Then in CI (e.g. GitHub Actions step):
+```yaml
+- name: Run tests with coverage
+  run: |
+    pytest --cov=your_package --cov-report=xml --cov-report=term-missing
+    coverage report --fail-under=80
+```
+
+`coverage report --fail-under=80` re-checks the `.coverage` data file and exits 1 if under threshold — redundant with `fail_under` in config but explicit in the pipeline log, which some teams prefer for visibility.
+
+**My recommendation:** Option A — one line, enforces the gate everywhere pytest runs (dev machines included), no duplicate threshold to keep in sync between config and CI script. Only reach for Option B if you specifically want local runs to not fail on this.
+
+Want me to also add branch coverage (`--cov-branch`) or a coverage diff gate (fail if a PR *decreases* coverage rather than a flat 80%)?

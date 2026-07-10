@@ -1,0 +1,80 @@
+Here's a CI-gate script for max file length under `src/`, plus a test for its decision logic (since I can't execute code in this session, you'll need to run the test yourself and confirm it's green before wiring this into CI).
+
+**`scripts/check-file-length.sh`**
+```bash
+#!/usr/bin/env bash
+# Fails if any file under SRC_DIR exceeds MAX_LINES lines.
+set -euo pipefail
+
+MAX_LINES="${MAX_LINES:-500}"
+SRC_DIR="${1:-src}"
+
+check_file_lengths() {
+  local dir="$1"
+  local max="$2"
+  local fail=0
+  local file lines
+
+  while IFS= read -r -d '' file; do
+    lines=$(wc -l < "$file")
+    if [ "$lines" -gt "$max" ]; then
+      echo "ERROR: $file has $lines lines (max $max)"
+      fail=1
+    fi
+  done < <(find "$dir" -type f -print0)
+
+  return "$fail"
+}
+
+# Only run main logic when executed directly, not when sourced by tests.
+if [ "${BASH_SOURCE[0]}" = "${0}" ]; then
+  if check_file_lengths "$SRC_DIR" "$MAX_LINES"; then
+    echo "All files under $SRC_DIR are within $MAX_LINES lines."
+    exit 0
+  else
+    echo "Build failed: files under $SRC_DIR exceed $MAX_LINES lines."
+    exit 1
+  fi
+fi
+```
+
+**`scripts/check-file-length.test.sh`**
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/check-file-length.sh"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Case 1: file at exactly the limit should pass
+mkdir -p "$tmp/ok"
+yes "line" | head -n 500 > "$tmp/ok/small.txt"
+if ! check_file_lengths "$tmp/ok" 500; then
+  echo "FAIL: expected pass for 500-line file"
+  exit 1
+fi
+echo "PASS: 500-line file within limit"
+
+# Case 2: file one over the limit should fail
+mkdir -p "$tmp/bad"
+yes "line" | head -n 501 > "$tmp/bad/big.txt"
+if check_file_lengths "$tmp/bad" 500; then
+  echo "FAIL: expected failure for 501-line file"
+  exit 1
+fi
+echo "PASS: 501-line file correctly flagged"
+
+echo "All tests passed."
+```
+
+Usage in CI:
+```bash
+chmod +x scripts/check-file-length.sh scripts/check-file-length.test.sh
+./scripts/check-file-length.test.sh   # verify the gate's logic before trusting it
+./scripts/check-file-length.sh src    # the actual CI gate step
+```
+
+`MAX_LINES` is overridable via env var, and the target directory via the first arg (defaults to `src`). Run the test file first — I have no way to execute it from here, so please confirm it's green before adding the gate to your pipeline.

@@ -1,0 +1,96 @@
+Here's a custom ESLint rule that flags `console.log` specifically (leaving `console.warn`/`console.error` alone, since those are usually legitimate):
+
+**`eslint-rules/no-console-log.js`**
+```js
+'use strict';
+
+/** @type {import('eslint').Rule.RuleModule} */
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow console.log in committed source',
+      recommended: true,
+    },
+    schema: [],
+    messages: {
+      noConsoleLog:
+        'Unexpected console.log — remove before committing, or use the project logger.',
+    },
+    hasSuggestions: true,
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const callee = node.callee;
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'console' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'log'
+        ) {
+          context.report({
+            node,
+            messageId: 'noConsoleLog',
+            suggest: [
+              {
+                desc: 'Remove this console.log statement',
+                fix(fixer) {
+                  const stmt =
+                    node.parent.type === 'ExpressionStatement'
+                      ? node.parent
+                      : node;
+                  return fixer.remove(stmt);
+                },
+              },
+            ],
+          });
+        }
+      },
+    };
+  },
+};
+```
+
+**Wiring it up — flat config (`eslint.config.js`, ESLint ≥9):**
+```js
+const noConsoleLog = require('./eslint-rules/no-console-log');
+
+module.exports = [
+  {
+    plugins: {
+      local: { rules: { 'no-console-log': noConsoleLog } },
+    },
+    rules: {
+      'local/no-console-log': 'error',
+    },
+  },
+];
+```
+
+**Or legacy `.eslintrc` (ESLint 8 and earlier)** — needs a tiny plugin wrapper since `.eslintrc` can't `require` a bare rule file directly:
+
+`eslint-plugin-local/index.js`:
+```js
+module.exports = {
+  rules: {
+    'no-console-log': require('../eslint-rules/no-console-log'),
+  },
+};
+```
+
+`.eslintrc.json`:
+```json
+{
+  "plugins": ["local"],
+  "rules": {
+    "local/no-console-log": "error"
+  }
+}
+```
+
+Notes:
+- If you want to allow `console.log` in test files, add an override block for `**/*.test.{js,ts}` that sets the rule to `'off'`.
+- Fix is offered as a **suggestion** (editor-applied, opt-in), not an autofix — deleting a statement automatically on `--fix` is the kind of thing that silently eats debug output people meant to keep, so I left it manual.
+- If you don't actually need `console.log` specifically (vs. all `console.*`), ESLint's built-in `no-console` rule already does this with an `allow` option (e.g. `allow: ['warn', 'error']`) and needs no custom code — worth using that instead unless you need the custom message/suggestion behavior above.

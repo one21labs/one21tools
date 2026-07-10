@@ -1,0 +1,87 @@
+Here's the checker plus a test harness for its decision logic — per my standing constraint, I won't hand you a gating script without a test, but note: **this is a headless session with no execution tools, so I haven't run either script myself.** Run `test-check-file-length.sh` locally before wiring it into CI.
+
+**`check-file-length.sh`** (the gate):
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="${1:-src}"
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "Directory '$SRC_DIR' not found" >&2
+  exit 1
+fi
+
+violations=0
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (max $MAX_LINES)" >&2
+    violations=$((violations + 1))
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$violations" -gt 0 ]; then
+  echo "$violations file(s) exceed $MAX_LINES lines" >&2
+  exit 1
+fi
+
+echo "All files under $SRC_DIR are within $MAX_LINES lines"
+exit 0
+```
+
+**`test-check-file-length.sh`** (executable test of the gate's decision logic — run this first):
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CHECKER="$SCRIPT_DIR/check-file-length.sh"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$tmp/src"
+
+# Case 1: file exactly at the limit -> must pass
+yes "line" | head -n 500 > "$tmp/src/ok.txt"
+if ! "$CHECKER" "$tmp/src" >/dev/null; then
+  echo "TEST FAILED: expected pass for 500-line file" >&2
+  exit 1
+fi
+echo "PASS: 500-line file allowed"
+
+# Case 2: one file over the limit -> must fail
+yes "line" | head -n 501 > "$tmp/src/over.txt"
+if "$CHECKER" "$tmp/src" >/dev/null; then
+  echo "TEST FAILED: expected failure for 501-line file" >&2
+  exit 1
+fi
+echo "PASS: 501-line file rejected"
+rm -f "$tmp/src/over.txt"
+
+# Case 3: empty dir -> must pass
+rm -f "$tmp/src/ok.txt"
+if ! "$CHECKER" "$tmp/src" >/dev/null; then
+  echo "TEST FAILED: expected pass for empty dir" >&2
+  exit 1
+fi
+echo "PASS: empty dir allowed"
+
+echo "All tests passed"
+```
+
+**CI wiring (GitHub Actions example):**
+```yaml
+- name: Check file length limits
+  run: |
+    chmod +x ./check-file-length.sh
+    ./check-file-length.sh src
+```
+
+To verify before merging:
+```bash
+chmod +x check-file-length.sh test-check-file-length.sh
+./test-check-file-length.sh
+```

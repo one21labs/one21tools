@@ -1,0 +1,63 @@
+Here's a custom ESLint rule that flags `console.log` calls, plus how to wire it in.
+
+**`eslint-rules/no-console-log.js`**
+```js
+'use strict';
+
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow console.log calls in committed source',
+      category: 'Best Practices',
+    },
+    schema: [],
+    messages: {
+      noConsoleLog: 'Unexpected console.log(). Remove debug logging before committing, or use a proper logger.',
+    },
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'console' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'log'
+        ) {
+          context.report({ node, messageId: 'noConsoleLog' });
+        }
+      },
+    };
+  },
+};
+```
+
+**Flat config (`eslint.config.js`, ESLint 9+):**
+```js
+const noConsoleLog = require('./eslint-rules/no-console-log');
+
+module.exports = [
+  {
+    plugins: { local: { rules: { 'no-console-log': noConsoleLog } } },
+    rules: { 'local/no-console-log': 'error' },
+  },
+];
+```
+
+**Legacy config (`.eslintrc.js`):**
+```js
+module.exports = {
+  plugins: ['local'],
+  rules: { 'local/no-console-log': 'error' },
+};
+// requires eslint-plugin-local (or similar) resolving to your rules dir
+```
+
+Notes:
+- This only flags `console.log` specifically — `console.warn`/`error`/`info` still pass, since those are usually intentional. Widen the `callee.property.name` check if you want to catch all `console.*`.
+- Standard `# eslint-disable-next-line local/no-console-log` still works for legitimate cases (e.g. CLI tools where stdout output is the point).
+- If you just want the blunt built-in version instead of a custom rule, ESLint ships `no-console` (`"no-console": "error"`) — reach for that unless you need the narrower "only `.log`" behavior above.
+- "Committed source" suggests you may also want this enforced at commit time, not just editor/CI time — a `lint-staged` + Husky pre-commit hook running `eslint --max-warnings=0` on staged files would close that gap. Say the word if you want that wired up too.

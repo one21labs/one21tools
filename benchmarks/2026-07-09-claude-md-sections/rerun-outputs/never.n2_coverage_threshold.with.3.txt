@@ -1,0 +1,35 @@
+The simplest approach: coverage.py has this built in via `--cov-fail-under`, so no custom script is needed — the gate logic is coverage.py's own (well-tested) code, not something you're writing and shipping untested.
+
+**pyproject.toml**
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+```
+(Swap `src` for your actual package path. `--cov-fail-under` and `fail_under` do the same thing — set both is fine, `addopts` alone is enough if you don't need `coverage report` to independently gate too.)
+
+If you use `setup.cfg`/`pytest.ini` instead of `pyproject.toml`:
+```ini
+[tool:pytest]
+addopts = --cov=src --cov-report=term-missing --cov-fail-under=80
+```
+
+**CI step (GitHub Actions example)**
+```yaml
+- name: Run tests with coverage gate
+  run: |
+    pip install pytest pytest-cov
+    pytest --cov=src --cov-report=term-missing --cov-fail-under=80
+```
+`pytest --cov-fail-under=80` exits non-zero (exit code 2) when line coverage is below 80%, which fails the CI job automatically — no extra script or threshold-parsing logic required.
+
+One nuance: if you set `fail_under` in `[tool.coverage.report]` *and* pass `--cov-fail-under` on the command line, the CLI flag wins. Pick one source of truth — I'd put it in `pyproject.toml`/`.coveragerc` so `coverage report` run standalone also gates the same way, and drop it from CI-specific config.
+
+If you actually need something beyond a flat threshold (e.g., diff-coverage on changed lines only, or per-package thresholds), that *would* need a custom script — let me know and I'll write one with a test for its decision logic.

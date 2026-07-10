@@ -1,0 +1,35 @@
+Simplest approach: use coverage.py's built-in `fail_under` so `pytest --cov` itself exits non-zero — no extra script needed.
+
+**pyproject.toml**
+```toml
+[tool.coverage.run]
+source = ["your_package"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+```
+
+(If you're on `setup.cfg`/`.coveragerc` instead:)
+```ini
+[coverage:run]
+source = your_package
+branch = True
+
+[coverage:report]
+fail_under = 80
+show_missing = True
+```
+
+**Pipeline step**, e.g. GitHub Actions:
+```yaml
+- name: Run tests with coverage gate
+  run: pytest --cov --cov-report=term-missing --cov-fail-under=80
+```
+
+Notes:
+- `--cov-fail-under=80` (CLI) or `fail_under = 80` (config) both work — CLI flag overrides config if both present, so pick one source of truth to avoid confusion. I'd keep it in `pyproject.toml` and drop the flag, so local `pytest --cov` runs are gated the same way as CI.
+- This is a **total/line coverage** gate across the whole run, not per-file — if you also want to block PRs that drop coverage on *changed* lines specifically (diff coverage), that needs a separate tool like `diff-cover` layered on top; happy to add that if you want stricter enforcement.
+- `pytest --cov` needs `pytest-cov` installed (not just `coverage.py`) for the `--cov-report`/`--cov-fail-under` flags to exist — confirm that's already a dev dependency.

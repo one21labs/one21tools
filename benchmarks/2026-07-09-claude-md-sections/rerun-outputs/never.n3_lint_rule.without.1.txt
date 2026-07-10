@@ -1,0 +1,94 @@
+Here's a custom ESLint rule that flags `console.log` calls, plus the simpler built-in alternative in case that's all you need.
+
+## Option A: Just use the built-in rule (simplest)
+
+If you don't actually need custom logic, ESLint already has this:
+
+```js
+// .eslintrc.js
+module.exports = {
+  rules: {
+    'no-console': ['error', { allow: ['warn', 'error'] }],
+  },
+};
+```
+
+## Option B: Custom rule (if you need special behavior, e.g. flat-out ban all `console.*`, custom messages, or fixers)
+
+```js
+// eslint-rules/no-console-log.js
+'use strict';
+
+/** @type {import('eslint').Rule.RuleModule} */
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow console.log in committed source',
+      recommended: true,
+    },
+    schema: [],
+    messages: {
+      unexpected: 'Unexpected console.log(). Remove before committing or use the project logger.',
+    },
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'console' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'log'
+        ) {
+          context.report({ node, messageId: 'unexpected' });
+        }
+      },
+    };
+  },
+};
+```
+
+Wire it up as a local plugin:
+
+```js
+// eslint-rules/index.js
+module.exports = {
+  rules: {
+    'no-console-log': require('./no-console-log'),
+  },
+};
+```
+
+```js
+// .eslintrc.js
+module.exports = {
+  plugins: ['local-rules'], // or use `overrideConfigFile`/flat config resolution
+  rules: {
+    'local-rules/no-console-log': 'error',
+  },
+};
+```
+
+For flat config (`eslint.config.js`, ESLint 9+):
+
+```js
+// eslint.config.js
+const localRules = require('./eslint-rules');
+
+module.exports = [
+  {
+    plugins: { local: localRules },
+    rules: {
+      'local/no-console-log': 'error',
+    },
+  },
+];
+```
+
+**Notes:**
+- The custom version only catches the literal `console.log(...)` pattern — it won't flag `console['log'](...)` or aliased references (`const log = console.log`). If you want to catch those too, say so and I'll extend the AST check.
+- To scope this to "committed source" only (not test files, scripts, etc.), add an `ignorePatterns`/`overrides` block excluding `**/*.test.js`, `scripts/**`, etc.
+- Want a companion Husky/lint-staged pre-commit hook so this actually blocks commits rather than just flagging in CI/editor? I can add that too.

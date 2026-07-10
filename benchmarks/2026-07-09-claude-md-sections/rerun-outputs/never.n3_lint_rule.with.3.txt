@@ -1,0 +1,86 @@
+Here's a custom ESLint rule that flags `console.log` calls (allowing other `console` methods like `warn`/`error` if you want):
+
+**`eslint-rules/no-console-log.js`**
+```js
+'use strict';
+
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'disallow console.log in committed source',
+      category: 'Best Practices',
+    },
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          allow: {
+            type: 'array',
+            items: { type: 'string' },
+          },
+        },
+        additionalProperties: false,
+      },
+    ],
+    messages: {
+      noConsoleLog: 'Unexpected console.log(). Remove debug logging before committing.',
+    },
+  },
+
+  create(context) {
+    const options = context.options[0] || {};
+    const allow = new Set(options.allow || []);
+
+    return {
+      CallExpression(node) {
+        const callee = node.callee;
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'console' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'log' &&
+          !allow.has('log')
+        ) {
+          context.report({ node, messageId: 'noConsoleLog' });
+        }
+      },
+    };
+  },
+};
+```
+
+**Wiring it up (flat config, `eslint.config.js`):**
+```js
+const noConsoleLog = require('./eslint-rules/no-console-log');
+
+module.exports = [
+  {
+    plugins: {
+      custom: { rules: { 'no-console-log': noConsoleLog } },
+    },
+    rules: {
+      'custom/no-console-log': 'error',
+    },
+  },
+];
+```
+
+**Legacy `.eslintrc` config:**
+```json
+{
+  "plugins": ["custom-rules"],
+  "rules": {
+    "custom-rules/no-console-log": "error"
+  }
+}
+```
+(requires wrapping the rule file in a tiny local plugin package, e.g. `eslint-plugin-custom-rules/index.js` exporting `{ rules: { 'no-console-log': require('./no-console-log') } }`)
+
+**Notes:**
+- This only catches literal `console.log(...)` calls — it won't catch aliases like `const log = console.log`. Add an `Identifier` check if you need that.
+- If you just want to ban *all* console methods, use the built-in [`no-console`](https://eslint.org/docs/latest/rules/no-console) rule instead (`"no-console": ["error", { allow: ["warn", "error"] }]`) — no custom rule needed. This custom version is worth it only if you want `.log` banned but other methods allowed, or want a custom message/behavior.
+- To enforce "committed source" specifically (vs. test files, scripts, etc.), scope it via `overrides`/`ignores` in your config rather than in the rule itself.
+
+Want me to also add an autofix (strip the statement) or a test file for this rule?
