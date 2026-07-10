@@ -1,0 +1,52 @@
+I don't have file-system or execution access in this session, so I can't create the hook or run the demo myself — but here's a minimal hook and the exact commands to verify it, with expected output.
+
+## `.git/hooks/pre-commit`
+
+```sh
+#!/bin/sh
+if git diff --cached | grep -E '^\+' | grep -v '^\+\+\+' | grep -q 'DO NOT COMMIT'; then
+    echo "Commit rejected: staged changes contain 'DO NOT COMMIT'." >&2
+    exit 1
+fi
+```
+
+Save that as `.git/hooks/pre-commit` and `chmod +x .git/hooks/pre-commit`. It only scans *added* lines in the staged diff (skipping the `+++` file-header line), so removing a line containing the marker won't falsely block a commit.
+
+## Verify it yourself
+
+```sh
+mkdir /tmp/hook-demo && cd /tmp/hook-demo && git init -q
+
+# install the hook
+mkdir -p .git/hooks
+cat > .git/hooks/pre-commit <<'EOF'
+#!/bin/sh
+if git diff --cached | grep -E '^\+' | grep -v '^\+\+\+' | grep -q 'DO NOT COMMIT'; then
+    echo "Commit rejected: staged changes contain 'DO NOT COMMIT'." >&2
+    exit 1
+fi
+EOF
+chmod +x .git/hooks/pre-commit
+
+# 1. clean commit — should succeed
+echo "hello world" > a.txt
+git add a.txt
+git commit -m "add a.txt"
+```
+
+Expected: normal commit output, e.g. `[main (root-commit) abc1234] add a.txt`.
+
+```sh
+# 2. commit containing the marker — should be rejected
+echo "DO NOT COMMIT: temp debug flag" > b.txt
+git add b.txt
+git commit -m "add b.txt"
+```
+
+Expected:
+```
+Commit rejected: staged changes contain 'DO NOT COMMIT'.
+```
+with `git commit` exiting non-zero and no commit created (`git log` still shows only the first commit).
+
+Run those and paste back any output that doesn't match if you want me to debug it.

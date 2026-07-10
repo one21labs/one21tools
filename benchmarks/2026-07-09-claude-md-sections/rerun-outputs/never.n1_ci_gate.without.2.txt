@@ -1,0 +1,48 @@
+Here's a portable bash script you can drop into CI (e.g., as `scripts/check-line-limits.sh`):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+FAILED=0
+
+if [ ! -d "$SRC_DIR" ]; then
+  echo "error: '$SRC_DIR' directory not found" >&2
+  exit 1
+fi
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (limit: $MAX_LINES)"
+    FAILED=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$FAILED" -eq 1 ]; then
+  echo "One or more files exceed the $MAX_LINES-line limit." >&2
+  exit 1
+fi
+
+echo "All files under $SRC_DIR are within the $MAX_LINES-line limit."
+```
+
+Make it executable and wire it into your pipeline:
+
+```bash
+chmod +x scripts/check-line-limits.sh
+```
+
+GitHub Actions step example:
+
+```yaml
+- name: Check file line limits
+  run: ./scripts/check-line-limits.sh
+```
+
+Notes:
+- `find` scans all files under `src/` recursively, including subdirectories — restrict with `-name "*.ts"` etc. if you only want specific extensions.
+- Uses `-print0`/`read -d ''` to handle filenames with spaces safely.
+- Adjust `MAX_LINES` or `SRC_DIR` at the top as needed.

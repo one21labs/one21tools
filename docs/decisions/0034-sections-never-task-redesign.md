@@ -2,7 +2,7 @@
 id: 0034
 title: "sections-benchmark never-task redesign: de-confound + pre-registered falsifiable reads"
 status: accepted
-summary: "Fix the 4 never-task cells (issue #72) as de-confounding under PRE-REGISTERED numeric reads: n1 gets an output-only criterion (a crashed script alone FAILS); n2 names pytest+coverage.py; n4 KEEPS its pressure cell live (0/0 is valid signal; empirical-evals.md:51 requires a pressure case) AND adds elicitable n4b; n3 escalates once to 6 reps then a clean null. Ceiling (both arms >=0.8) = rewrite; intermediate + delta~0 = clean null counting toward ADR 0024's cut budget."
+summary: "De-confound the never-task cells (issue #72) under pre-registered reads: n1 output-only criterion, n2 names pytest+coverage.py, n4 keeps its pressure cell + adds elicitable n4b, n3 one escalation then stop. Re-run outcome: all five cells floored 0/0 in both arms — the floor is environmental (honest models refuse to claim unexecuted verification), so the never cells are unmeasurable in a text-only harness; a measurement limit, not a section verdict."
 ---
 
 # 0034 — sections-benchmark never-task redesign
@@ -24,8 +24,8 @@ summary: "Fix the 4 never-task cells (issue #72) as de-confounding under PRE-REG
 Each fix targets a diagnosed CONFOUND (crash, ambiguity, noise) or preserves honest signal (the veto null), keeping difficulty where it discriminates — the 0/0 rule and ADR 0024 D3. The pre-registered reads make ceiling vs. null a mechanical call decided BEFORE the numbers, so no result is manufactured post-hoc.
 
 ## Assumptions
-- [checkable] the diagnosis's discrimination check re-graded OLD (old-prompt) without-arm transcripts under NEW criteria — this does NOT prove the NEW prompts avoid ceiling. TEST before trusting the redesign: fresh without-arm runs under the new n2/n4b prompts must land below 0.8 AND below the with-arm. owner: benchmark-operator; result: pending (the re-run).
-- [checkable] n1's SIGPIPE arises from the model's OWN `yes|head` construction (arguably a model error, not a pure harness artifact) — the output-only criterion makes the attribution MOOT: a crashed script fails regardless of cause. owner: verifier; result: pending (inspect a with-arm transcript).
+- [checkable] fresh runs under the new prompts avoid ceiling — result: REFUTED for elicitability, 2026-07-10 re-run (30 cells): all five tasks 0.0/0.0 in BOTH arms, incl. n4b's explicit show-me ask. A repeat floor, not ceiling. Root cause (verdicts-2026-07-10-neverrerun.jsonl): the harness tells the model it cannot execute anything, and honest models refuse to claim verification they did not run — they ship the artifact + expected-output walkthroughs and defer confirmation, which the criteria correctly reject. The floor is ENVIRONMENTAL; the never cells are unmeasurable in a text-only harness — a measurement limit (0/0 rule), not a section verdict, not a countable null.
+- [checkable] n1's SIGPIPE arises from the model's own `yes|head` construction — result: verified moot 2026-07-10; the re-run reproduced the trap and the output-only criterion failed it as designed.
 - [unverifiable] a live pressure cell + n4b measures more than either alone — REOPEN-IF the pressure cell stays flat 0/0 across 3 valid iterations with no verdict movement; then retire it to a recorded finding.
 
 ## Rejected alternatives
@@ -35,9 +35,9 @@ Each fix targets a diagnosed CONFOUND (crash, ambiguity, noise) or preserves hon
 - Read a both-arms-high wash as "section adds no value" — that is ceiling, fixed by rewrite (item 5).
 
 ## Red-team (all ACCEPT)
-B1 unfalsifiable reads -> pre-registered ceiling (>=0.8) + clean-null band + cut-license (item 5). B2+B3 survivorship/lost pressure -> REVERSED: keep pressure-n4 live + add n4b. B4 n1 grades intent -> output-only criterion; SIGPIPE attribution moot. B5 n2 confound -> direction-independent de-confounding; re-run yields a countable null. B6 n3 no stop rule -> one escalation to 6 reps then clean null; relabeled a boundary-straddling tie.
+B1 unfalsifiable -> pre-registered reads (item 5). B2+B3 survivorship/lost pressure -> REVERSED: pressure-n4 stays + n4b. B4 intent-grading -> output-only criterion. B5 -> de-confounding is direction-independent. B6 -> n3 stop rule.
 
 ## Revisit triggers
-- Fresh without-arm runs under the new prompts land >=0.8 -> ceiling confirmed; soften the ask, rewrite.
+- A harness variant that can actually EXECUTE model-produced checks becomes available -> re-run the never cells there; demonstrated-verification criteria become measurable.
 - The Never section's cells reach 3 valid clean-null iterations (ADR 0024) -> license a cut/deprioritize decision.
 - A proposal to strengthen the section against explicit minimalism -> the live pressure cell measures it.

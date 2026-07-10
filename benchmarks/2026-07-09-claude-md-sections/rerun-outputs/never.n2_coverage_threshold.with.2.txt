@@ -1,0 +1,42 @@
+Since I'm in a headless session I can't edit your repo directly — here's the config to add yourself.
+
+**Simplest approach: use pytest-cov's built-in threshold flag** — no custom script needed, so there's no bespoke gating logic to test (the threshold check itself lives in coverage.py's own tested code).
+
+### Option A — `pyproject.toml`
+
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+```
+
+(`--cov-fail-under` and `fail_under` do the same thing — setting both is redundant but harmless; pick one. If you use `pytest.ini` or `setup.cfg` instead of `pyproject.toml`, the `--cov-fail-under=80` addopt alone is sufficient.)
+
+### Option B — `pytest.ini`
+
+```ini
+[pytest]
+addopts = --cov=src --cov-report=term-missing --cov-fail-under=80
+```
+
+### CI step (GitHub Actions example)
+
+```yaml
+      - name: Run tests with coverage gate
+        run: pytest --cov-fail-under=80
+```
+
+That's the whole gate — `pytest` exits non-zero automatically when coverage is under 80%, which fails the CI job with no extra scripting.
+
+---
+
+### If you instead want a custom script (e.g. gating on diff-coverage, per-package thresholds, or parsing `coverage.json` for a Slack summary)
+
+That *is* bespoke decision logic and needs a test per the never-ship-untested-gate rule. Tell me the exact gating behavior you want (overall %, per-file, changed-lines-only, etc.) and I'll write both the script and a test asserting its pass/fail decision (e.g. "given a coverage.json with 79.9%, exits 1; given 80.0%, exits 0") before you run it in CI.

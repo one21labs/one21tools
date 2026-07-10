@@ -1,0 +1,67 @@
+Here's a custom ESLint rule that flags `console.log` calls, plus the simpler built-in alternative — pick based on what you need.
+
+## Quick option: built-in rule (no custom code needed)
+
+If you just need to ban `console.log` specifically (allowing `warn`/`error`), the built-in `no-console` rule already supports this via config — no custom rule required:
+
+```js
+// .eslintrc.js or eslint.config.js
+rules: {
+  'no-console': ['error', { allow: ['warn', 'error'] }],
+}
+```
+
+## Custom rule (if you need it as its own named rule, e.g. for a shared plugin)
+
+**`rules/no-console-log.js`**
+
+```js
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow console.log in committed source',
+    },
+    schema: [],
+    messages: {
+      unexpected: 'Unexpected console.log statement.',
+    },
+  },
+  create(context) {
+    return {
+      CallExpression(node) {
+        const { callee } = node;
+        if (
+          callee.type === 'MemberExpression' &&
+          callee.object.type === 'Identifier' &&
+          callee.object.name === 'console' &&
+          callee.property.type === 'Identifier' &&
+          callee.property.name === 'log'
+        ) {
+          context.report({ node, messageId: 'unexpected' });
+        }
+      },
+    };
+  },
+};
+```
+
+**Register it** (flat config, `eslint.config.js`):
+
+```js
+const noConsoleLog = require('./rules/no-console-log');
+
+module.exports = [
+  {
+    plugins: { custom: { rules: { 'no-console-log': noConsoleLog } } },
+    rules: { 'custom/no-console-log': 'error' },
+  },
+];
+```
+
+Or legacy `.eslintrc.js` via a small local plugin package (`eslint-plugin-custom` with `rules/no-console-log.js` exported from its index) referenced as `plugins: ['custom']`.
+
+### Notes
+- This only matches the literal pattern `console.log(...)` — it won't catch `const log = console.log; log(...)` (aliasing). If you need to catch that too, you'd track identifier bindings, which adds real complexity for a rule that's easy to bypass anyway — usually not worth it unless you've seen people actually do this to evade the lint.
+- To "flag in committed source" specifically (vs. all source, including scratch/debug files), pair this with `ignorePatterns` in your ESLint config or scope it to a lint-staged/pre-commit hook rather than baking exclusions into the rule itself.
+- Want a test file for this rule (`RuleTester`-based) so it's actually verified rather than just plausible? I'd recommend it before wiring it into CI — say the word and I'll write one, though I can't run it in this session since I don't have file/execution access here.

@@ -1,0 +1,63 @@
+Since this session can't execute code, here's the script plus a small executable test for its pass/fail logic (per the never-ship-a-gate-without-a-test rule) — run the test yourself before wiring this into CI.
+
+**`check_file_length.sh`**
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+MAX_LINES=500
+SRC_DIR="src"
+failed=0
+
+while IFS= read -r -d '' file; do
+  lines=$(wc -l < "$file")
+  if [ "$lines" -gt "$MAX_LINES" ]; then
+    echo "FAIL: $file has $lines lines (max $MAX_LINES)"
+    failed=1
+  fi
+done < <(find "$SRC_DIR" -type f -print0)
+
+if [ "$failed" -eq 1 ]; then
+  echo "One or more files exceed $MAX_LINES lines."
+  exit 1
+fi
+
+echo "All files under $SRC_DIR are within $MAX_LINES lines."
+exit 0
+```
+
+**`test_check_file_length.sh`** (put next to the script above, run with `bash test_check_file_length.sh`)
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT="$SCRIPT_DIR/check_file_length.sh"
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
+# Case 1: file under limit -> script should exit 0
+mkdir -p "$tmp/pass/src"
+yes "line" | head -n 400 > "$tmp/pass/src/short.txt"
+
+# Case 2: file over limit -> script should exit 1
+mkdir -p "$tmp/fail/src"
+yes "line" | head -n 501 > "$tmp/fail/src/long.txt"
+
+if ! (cd "$tmp/pass" && bash "$SCRIPT" >/dev/null); then
+  echo "TEST FAILED: expected under-limit case to pass (exit 0)"
+  exit 1
+fi
+
+if (cd "$tmp/fail" && bash "$SCRIPT" >/dev/null); then
+  echo "TEST FAILED: expected over-limit case to fail (exit 1)"
+  exit 1
+fi
+
+echo "All tests passed."
+```
+
+Notes:
+- Adjust `SRC_DIR`/`MAX_LINES` or add a `-name '*.ts'`-style filter to `find` if you only want specific file types checked.
+- Wire `check_file_length.sh` into your CI job as a step; keep `test_check_file_length.sh` as a repo test (e.g., run in CI too, or at least locally) so any future edits to the gate logic stay verified.

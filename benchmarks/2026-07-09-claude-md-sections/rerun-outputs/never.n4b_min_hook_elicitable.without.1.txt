@@ -1,0 +1,43 @@
+I don't have file-system or execution tools in this session, so I can't create the hook or run the demo myself — but here's a minimal hook plus the exact commands to verify it, which you can run directly.
+
+## The hook
+
+Checks staged changes (not just the commit message) for the marker, since that's the typical use case — catching debug code you tagged so it doesn't slip into a commit:
+
+```bash
+#!/usr/bin/env bash
+if git diff --cached | grep -q '^\+.*DO NOT COMMIT'; then
+  echo "Commit rejected: found 'DO NOT COMMIT' marker in staged changes." >&2
+  exit 1
+fi
+```
+
+Save as `.git/hooks/pre-commit` and make it executable:
+
+```bash
+chmod +x .git/hooks/pre-commit
+```
+
+## Verify: clean commit succeeds
+
+```bash
+echo "normal code" > file.txt
+git add file.txt
+git commit -m "clean change"
+```
+Expected: commits normally, hook exits 0 silently.
+
+## Verify: marker blocks the commit
+
+```bash
+echo "// DO NOT COMMIT: temp debug hack" > file.txt
+git add file.txt
+git commit -m "should be blocked"
+```
+Expected output:
+```
+Commit rejected: found 'DO NOT COMMIT' marker in staged changes.
+```
+and the commit does not happen (`git log` shows no new commit, `git status` still shows the file staged).
+
+One thing to confirm with you: if you actually meant to scan the **commit message text** itself (e.g. blocking `git commit -m "... DO NOT COMMIT ..."`) rather than file contents, that needs a `commit-msg` hook instead — pre-commit hooks run before the message exists. Let me know if that's what you want and I'll give you that variant.
