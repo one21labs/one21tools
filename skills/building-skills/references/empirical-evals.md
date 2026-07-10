@@ -176,7 +176,8 @@ whether the whole does) is a deeper cut than the whole-skill verdict above — s
 
 - **Triggering is out of scope here** — the paired benchmark injects the skill, so it cannot
   measure whether the description ACTIVATES; use the triggering tests in
-  [evaluation-patterns.md](evaluation-patterns.md) and skill-creator's trigger runner.
+  [evaluation-patterns.md](evaluation-patterns.md) and the vendored trigger runner
+  ([description-ablation.md](description-ablation.md), ADR 0033).
 - **Deltas are model- and eval-relative** — re-benchmark before comparing verdicts across
   model generations; record the executor model (benchmark.json metadata carries it).
 - Upstream gaps worth routing upstream, not forking (ADR 0013): an independent grader
