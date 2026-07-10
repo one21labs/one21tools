@@ -39,9 +39,11 @@ Run this loop:
    decision rules, and the plugin cache is per-user (a link would dangle for teammates/CI). Only a
    repo hosting the plugin source itself links instead of copying. No index
    file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
-   — a mirror you don't keep can't drift). Copy `../../scripts/adr-lint.mjs` + `adr-lint.test.mjs`
-   into the project's `scripts/` and tell the user to run `node scripts/adr-lint.mjs` pre-merge /
-   in CI — the corpus poka-yoke (`../decide/references/adr-lint.md`).
+   — a mirror you don't keep can't drift). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
+   `adr-lint.test.mjs`, `char-budget.mjs`, and `char-budget.test.mjs` (the linter's import — without
+   it `adr-lint.mjs` throws `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
+   to run `node scripts/adr-lint.mjs` pre-merge / in CI — the corpus poka-yoke
+   (`../decide/references/adr-lint.md`).
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`. Infer the 4-8 advisors THIS project's decisions actually
@@ -52,7 +54,7 @@ Run this loop:
 
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
    review/edit the panel, then run `/decide` for their first decision. Offer (don't
-   auto-apply) the optional advisory CI: copy `../../templates/claude-review.yml` into
+   auto-apply) the optional advisory CI: copy `${CLAUDE_PLUGIN_ROOT}/templates/claude-review.yml` into
    `.github/workflows/` and print its OAuth-token / required-check setup steps.
 
 The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) ship with this plugin
