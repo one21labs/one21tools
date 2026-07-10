@@ -126,7 +126,7 @@ It pairs each eval's runs across configurations and reports:
   correlated, so each eval's mean delta becomes one win/loss/tie and the headline interval
   is over non-tied EVALS — trust the interval, not the point estimate; under 4 non-tied
   evals (the authoring floor) it prints a width warning. Pair-level W/L/T stays as detail.
-- **A 0/0 cell (both arms score zero) is a measurement failure, not a tie** — the eval isn't discriminating the treatment from the baseline; fix the eval, never read a 0/0 as license to cut the artifact.
+- **A 0/0 cell (both arms score zero) is a measurement failure, not a verdict** — the eval isn't discriminating the treatment from the baseline. Never read a 0/0 as license to cut the artifact; fix the eval via transcript-level diagnosis + the REWRITE discipline above (never difficulty-raise blind). If diagnosis instead confirms the skill genuinely doesn't help, it's a clean null — see "Keep cleanly-measured nulls."
 - **Mean pass-rate delta** and the mean run-time token delta.
 - **VERDICT — delta per 1k chars of loaded context**: the cost-per-benefit number. The
   denominator (ADR 0019) defaults to SKILL.md body (the always-on cost); `--include-references`
