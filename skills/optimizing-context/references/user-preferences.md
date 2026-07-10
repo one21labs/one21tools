@@ -102,9 +102,4 @@ You can ask Claude: "What preferences are you currently applying?" Claude will d
 
 ## Sources
 
-- Personalization features: https://support.claude.com/en/articles/10185728-understanding-claude-s-personalization-features
-
-
-## Sources
-
 - [Understanding Claude's Personalization Features](https://support.claude.com/en/articles/10185728-understanding-claude-s-personalization-features) - Official documentation

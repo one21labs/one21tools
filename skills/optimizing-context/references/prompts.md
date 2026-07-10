@@ -148,11 +148,5 @@ Each step gets Claude's fresh attention on the specific sub-task.
 
 ## Sources
 
-- Prompt engineering overview: https://docs.claude.com/en/docs/build-with-claude/prompt-engineering/overview
-- Context engineering: https://www.anthropic.com/engineering/context-engineering
-
-
-## Sources
-
 - [Prompt Engineering Overview](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview) - Official prompt engineering guide
 - [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) - Context as curated tokens
