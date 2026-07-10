@@ -1,7 +1,6 @@
 # one21tools
 
-Goal (home: README.md): quality output, autonomously — minimal direction and correction,
-self-improving via the measured loop. Prioritize all work against those two levers.
+Goal (home: README.md): quality output, autonomously. Prioritize all work against it.
 
 ## Stack & navigation
 No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
