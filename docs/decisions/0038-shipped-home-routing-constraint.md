@@ -29,3 +29,7 @@ Cost ~0 (one Decision-Test row). Risk low (additive; moves no existing rule). Va
 
 ## Revisit triggers
 - A new operational rule lands in a repo-only home despite the Decision-Test row → the wording is insufficient; strengthen it or add a validate.py check.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] the Decision Test carried scope-rows only — verified pre-edit; the shipping-boundary row shipped as its first row (PR #126).
+- [process] shipped same-PR as the decision; sequencing with 0039's row on the same table held (0038 landed first, 0039 rebased).

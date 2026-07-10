@@ -36,3 +36,7 @@ All three are experiment methodology that SHIPS with building-skills (ADR 0038) 
 ## Revisit triggers
 - A pre-reg again names a superseded metric → the cite isn't binding; template the pre-reg comment itself.
 - A grid again runs past a decidable cost gate → cost-pilot needs a hard stop (a gate script).
+
+## Act (post-ship — 2026-07-10)
+- [outcome] pre-registration.md ships with building-skills; empirical-evals.md took only the pointer (11,911/12,000 post-edit) — verified (PR #128).
+- [process] red-team O6 was right that the rules could never fit the headroom; the sibling-file split was decided pre-build, not ad hoc.

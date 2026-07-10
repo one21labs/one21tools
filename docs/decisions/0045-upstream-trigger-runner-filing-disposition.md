@@ -37,3 +37,7 @@ Base-rate ~0 merges discounts any new-PR value to mostly reputational; PR upkeep
 - PR #1323 merges → re-diff the vendored copy and un-vendor per ADR 0033 (a separate decision from filing stdin-DEVNULL, which is independent).
 - Upstream ships stdin-DEVNULL → close #94, drop the draft.
 - Owner approves the drafted text → post the stdin-DEVNULL PR and/or the #1323 comment per the external-publication rule (neither waits on the other).
+
+## Act (post-ship — 2026-07-10)
+- [outcome] both drafts posted in #94 (comment + retitle), nothing posted upstream; #94 stays open, owner-gated — verified (PR #131).
+- [pivot] red-team O7 removed the hold-until-#1323 coupling before ship.
