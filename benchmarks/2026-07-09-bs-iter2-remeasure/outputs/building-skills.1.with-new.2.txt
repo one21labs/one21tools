@@ -1,0 +1,144 @@
+This session is headless — I don't have file-system or code-execution tools available, so I can't actually write files to `outputs/sanitizing-customer-exports/` myself. Below is the complete skill, ready to save. Please create these files at the paths shown (or paste this into a normal Claude Code session and ask it to write them).
+
+## `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Use when a customer CSV export must be shared outside the company and needs PII redacted first. Drops email/phone/ssn columns, replaces name with an opaque id, masks embedded emails/phone numbers in free-text columns, and writes the result as <original>.redacted.csv without touching the original file.
+---
+
+# Sanitizing Customer Exports
+
+## Fixed rules
+
+1. Drop columns named `email`, `phone`, `ssn` (case-insensitive) entirely.
+2. Replace the `name` column with an opaque id. Same name -> same id within one export; ids carry no information derived from the original name.
+3. In free-text columns `notes` and `comments` (case-insensitive), find and mask embedded email addresses and phone numbers with `[EMAIL_REDACTED]` / `[PHONE_REDACTED]`. Leave the rest of the text untouched.
+4. Never modify the original file. Always write to `<original>.redacted.csv` next to it (e.g. `customers.csv` -> `customers.redacted.csv`).
+5. Any column not covered by these rules passes through unchanged.
+
+These rules are fixed — do not improvise alternate redaction schemes (e.g. hashing the email instead of dropping the column, or leaving `name` in place with a "confidential" note).
+
+## Running it
+
+```
+python scripts/redact_csv.py <path/to/export.csv>
+```
+
+Prints the output path on success. Exits non-zero and writes no output file if the input can't be parsed as CSV or has no header row.
+
+For a batch of exports, invoke it once per file rather than modifying it to accept multiple paths, unless asked to.
+
+## After running
+
+- Confirm `<original>.redacted.csv` exists and `<original>.csv` is byte-for-byte unchanged.
+- Open the redacted file and check: no `email`/`phone`/`ssn` columns remain, the `name` column holds opaque ids, and a couple of `notes`/`comments` rows have addresses/numbers masked.
+- Only the `.redacted.csv` file is safe to share externally. Never send the original.
+
+## Known limitations
+
+- Phone matching targets common US-style formats (`555-123-4567`, `(555) 123-4567`, `5551234567`, `+1 555-123-4567`). International formats without that digit grouping may slip through — hand-check free-text columns before sharing if the export contains non-US numbers.
+- Opaque ids are stable only within a single run against one file. Running the script again, or on a different file, produces different ids for the same name — don't rely on ids matching across exports.
+
+See `examples/sample_customers.csv` for a file to smoke-test the script against.
+```
+
+## `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before external sharing."""
+
+import csv
+import re
+import sys
+import uuid
+from pathlib import Path
+
+DROPPED_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
+PHONE_RE = re.compile(
+    r"(?<!\d)(?:\+?1[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?!\d)"
+)
+
+
+def mask_free_text(value):
+    value = EMAIL_RE.sub("[EMAIL_REDACTED]", value)
+    value = PHONE_RE.sub("[PHONE_REDACTED]", value)
+    return value
+
+
+def redact(input_path):
+    input_path = Path(input_path)
+    output_path = input_path.with_suffix(f".redacted{input_path.suffix}")
+
+    with input_path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
+        if not fieldnames:
+            raise ValueError(f"{input_path} has no header row")
+
+        lower_to_actual = {name.lower(): name for name in fieldnames}
+        drop_actual = {lower_to_actual[c] for c in DROPPED_COLUMNS if c in lower_to_actual}
+        name_actual = lower_to_actual.get(NAME_COLUMN)
+        free_text_actual = {lower_to_actual[c] for c in FREE_TEXT_COLUMNS if c in lower_to_actual}
+
+        out_fieldnames = [name for name in fieldnames if name not in drop_actual]
+
+        name_to_id = {}
+        rows_out = []
+        for row in reader:
+            if name_actual is not None:
+                original_name = row.get(name_actual) or ""
+                if original_name not in name_to_id:
+                    name_to_id[original_name] = f"CUST-{uuid.uuid4().hex[:8]}"
+                row[name_actual] = name_to_id[original_name]
+
+            for col in free_text_actual:
+                if row.get(col):
+                    row[col] = mask_free_text(row[col])
+
+            rows_out.append({k: row[k] for k in out_fieldnames})
+
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fieldnames)
+        writer.writeheader()
+        writer.writerows(rows_out)
+
+    return output_path
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("usage: redact_csv.py <path/to/export.csv>", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        output_path = redact(sys.argv[1])
+    except Exception as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(output_path)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+## `outputs/sanitizing-customer-exports/examples/sample_customers.csv`
+
+```csv
+name,email,phone,ssn,notes
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Called about billing, reachable at jane.doe@example.com or 555-987-6543"
+John Smith,john.smith@example.com,555-234-5678,234-56-7890,"No issues, prefers email contact"
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Follow-up needed"
+```
+
+Run `python scripts/redact_csv.py examples/sample_customers.csv` against this to smoke-test: expect `email`/`phone`/`ssn` columns gone, `Jane Doe` mapped to the same `CUST-xxxxxxxx` id on both her rows, and the embedded email/phone in `notes` replaced with `[EMAIL_REDACTED]`/`[PHONE_REDACTED]`.
+
+**One thing to flag:** I couldn't run `validate.py` or actually execute the script against the sample CSV to confirm it behaves as described, since this session has no code execution. Worth a quick test run before rolling this out to the support team.

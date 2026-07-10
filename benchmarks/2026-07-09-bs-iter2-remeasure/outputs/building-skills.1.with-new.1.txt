@@ -1,0 +1,170 @@
+I don't have file-system or code-execution access in this session, so I can't actually write files to `outputs/sanitizing-customer-exports/`. Here's the complete skill content — please save each block at the indicated path.
+
+---
+
+### `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Use when a customer CSV export needs to be shared outside the company. Drops the email, phone, and ssn columns; replaces name with an opaque per-export id; masks email addresses and phone numbers found inside free-text notes/comments columns; and writes the result as <original>.redacted.csv, leaving the original file untouched.
+---
+
+# Sanitizing Customer Exports
+
+Redact PII from a customer CSV before it leaves the company. Rules are fixed —
+do not improvise variations without security sign-off.
+
+## Usage
+
+```
+python scripts/redact_export.py path/to/customers.csv
+```
+
+Produces `path/to/customers.csv.redacted.csv`. Share only the `.redacted.csv`
+file. Never share, edit, or overwrite the original.
+
+## Rules (fixed)
+
+- Drop columns `email`, `phone`, `ssn` entirely (case-insensitive match on
+  column name).
+- Replace the `name` column value with an opaque id (`CUST-xxxxxxxxxx`).
+  Repeated occurrences of the same name within one export get the same id;
+  the id is not derived from or reversible to the original name.
+- In free-text columns `notes` and `comments`, mask embedded email addresses
+  as `[REDACTED-EMAIL]` and phone numbers as `[REDACTED-PHONE]`; leave the
+  rest of the text intact.
+- The original file is opened read-only and is never modified in place.
+- Output path is always `<original>.redacted.csv` next to the input.
+
+## Verification before sharing
+
+1. Open the `.redacted.csv` file and confirm `email`, `phone`, and `ssn`
+   columns are gone.
+2. Confirm the `name` column contains `CUST-...` values, not real names.
+3. Spot-check a few `notes`/`comments` rows for `[REDACTED-EMAIL]` /
+   `[REDACTED-PHONE]` where contact info used to be.
+4. Confirm the original file is unchanged (same size/contents as before).
+
+## Edge cases
+
+- Missing columns (e.g. no `ssn` column present) are skipped silently — not
+  an error.
+- Column matching is case-insensitive (`Email`, `EMAIL`, `email` all match).
+- Input must have a header row.
+- Handles BOM-prefixed UTF-8 exports (common from Excel).
+- If neither `notes` nor `comments` exists, that step is a no-op; other
+  rules still apply.
+
+See `examples/sample_customers.csv` for a sample input to test against.
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/scripts/redact_export.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export before it is shared outside the company.
+
+Usage:
+    python redact_export.py <input.csv>
+
+Writes <input.csv>.redacted.csv next to the original. The original file is
+opened read-only and is never modified.
+"""
+
+import csv
+import re
+import sys
+import uuid
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(
+    r"(?<!\d)(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?!\d)"
+)
+
+
+def mask_free_text(value):
+    if not value:
+        return value
+    value = EMAIL_RE.sub("[REDACTED-EMAIL]", value)
+    value = PHONE_RE.sub("[REDACTED-PHONE]", value)
+    return value
+
+
+def redact_csv(input_path):
+    input_path = Path(input_path)
+    if not input_path.is_file():
+        raise FileNotFoundError(f"No such file: {input_path}")
+
+    output_path = Path(str(input_path) + ".redacted.csv")
+
+    with input_path.open("r", newline="", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+
+        lower_map = {name.lower(): name for name in fieldnames}
+        drop = {lower_map[c] for c in DROP_COLUMNS if c in lower_map}
+        name_col = lower_map.get(NAME_COLUMN)
+        free_text_cols = {lower_map[c] for c in FREE_TEXT_COLUMNS if c in lower_map}
+
+        out_fieldnames = [c for c in fieldnames if c not in drop]
+
+        name_to_id = {}
+        rows = []
+        for row in reader:
+            if name_col:
+                original_name = row.get(name_col, "")
+                if original_name not in name_to_id:
+                    name_to_id[original_name] = f"CUST-{uuid.uuid4().hex[:10]}"
+                row[name_col] = name_to_id[original_name]
+
+            for col in free_text_cols:
+                if col in row and row[col]:
+                    row[col] = mask_free_text(row[col])
+
+            rows.append({k: v for k, v in row.items() if k not in drop})
+
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return output_path
+
+
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python redact_export.py <input.csv>", file=sys.stderr)
+        sys.exit(1)
+
+    output_path = redact_csv(sys.argv[1])
+    print(f"Wrote {output_path}")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### `outputs/sanitizing-customer-exports/examples/sample_customers.csv`
+
+```csv
+name,email,phone,ssn,notes
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Called about billing issue, reachable at jane.doe@example.com or 555-123-4567"
+John Smith,john.smith@example.com,555-987-6543,987-65-4321,"Prefers email contact"
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Follow-up needed, no new contact info"
+```
+
+Running the script against this file should drop `email`/`phone`/`ssn`, turn both `Jane Doe` rows into the same `CUST-...` id (different from `John Smith`'s), and mask the email/phone embedded in the first row's `notes` — without touching the sample file itself.
+
+---
+
+Once you've saved these three files at those paths, you can validate the skill with the `building-skills` tooling (`validate.py`) and package it as usual.
