@@ -44,8 +44,8 @@ import { fileURLToPath } from "node:url";
 import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
-// location — see char-budget.mjs's header comment (#84: a fixed offset from this file breaks a
-// vendored consumer copy, whose `scripts/` sits one level deep, not `pdca-workflow/scripts/`'s two).
+// location — see char-budget.mjs's header comment: a fixed offset from this file would break a
+// vendored consumer copy, whose `scripts/` sits one level deep, not `pdca-workflow/scripts/`'s two.
 
 /**
  * Pure decision logic. `files` is [{ name, text }] for each NNNN-*.md; `budget` is the char max

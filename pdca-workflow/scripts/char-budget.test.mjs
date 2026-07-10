@@ -30,7 +30,7 @@ test("no budgeted doc exceeds its char cap", () => {
   assert.deepEqual(oversizeDocs(), []);
 });
 
-test("oversizeDocs tolerates a budgeted doc that doesn't exist (ENOENT), like the agent walks (#84)", () => {
+test("oversizeDocs tolerates a budgeted doc that doesn't exist (ENOENT), like the agent walks", () => {
   DOC_BUDGETS["no-such-doc-xyz.md"] = 10;
   try {
     assert.doesNotThrow(() => oversizeDocs());

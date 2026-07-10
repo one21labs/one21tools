@@ -21,8 +21,8 @@
  * relative fs path) — never against this file's own location. Both invokers run from their own
  * repo root already: the in-repo gate (`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`,
  * per .github/workflows/gates.yml) and a vendored consumer copy (`node scripts/adr-lint.mjs`, per
- * pdca-init's SKILL.md). A fixed `../../` offset from this file only held for the plugin's own
- * two-levels-deep `pdca-workflow/scripts/` nesting, not a consumer's flat `scripts/` (#84).
+ * pdca-init's SKILL.md), whose flat `scripts/` sits one level deep rather than this plugin's
+ * two-levels-deep `pdca-workflow/scripts/`.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -58,7 +58,7 @@ export const AGENT_CHAR_BUDGET = 3000;
 // Shared per-file check — one loop body, so the "path:chars/cap" report format cannot diverge
 // between the doc and agent walks. ENOENT-tolerant like the directory walks below: a budgeted doc
 // that doesn't exist (e.g. no CLAUDE.md yet) has nothing to over-budget-check, so it's skipped, not
-// a crash (#84 — oversizeDocs() used to throw on a missing CLAUDE.md).
+// a crash.
 const pushIfOver = (relPath, cap, out) => {
   let n;
   try { n = charLen(relPath); }

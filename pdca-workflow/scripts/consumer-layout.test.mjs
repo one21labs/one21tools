@@ -1,12 +1,10 @@
 /*
  * consumer-layout.test.mjs — smoke test for the vendored linter AS A CONSUMER SEES IT (pdca-init's
- * copy set), not as this repo runs it (#84). Root cause of #84: every existing test asserted
- * adr-lint's decision logic, but nothing exercised the surface a consumer actually invokes — a
- * flat `<repo>/scripts/` one level deep (not this plugin's `pdca-workflow/scripts/`, two levels
- * deep), which broke on a missing `char-budget.mjs` import and a hardcoded `../../` root. This
- * test copies EXACTLY the files pdca-init's SKILL.md vendors into a temp dir shaped like a
- * consumer repo, then runs `adr-lint.mjs` there via `node`, the same way the SKILL.md tells the
- * user to — pinning the contract so it can't silently break again.
+ * copy set), not as this repo runs it: a consumer's flat `<repo>/scripts/` sits one level deep,
+ * not this plugin's `pdca-workflow/scripts/`, two levels deep. This test copies EXACTLY the files
+ * pdca-init's SKILL.md vendors into a temp dir shaped like a consumer repo, then runs
+ * `adr-lint.mjs` there via `node`, the same way the SKILL.md tells the user to — pinning the
+ * contract so it can't silently break.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
