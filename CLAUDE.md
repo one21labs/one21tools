@@ -46,6 +46,10 @@ deterministic logic; a doc that restates them rots).
 ## Shipping — PR
 - **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
   plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
+- **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
+  the issue and search PRs referencing it; repeat before the final push — parallel sessions close
+  issues concurrently (issue #30 ran twice). When issue-write permission is available, post a
+  one-line "in progress (session X)" claim comment at start and clear it on completion.
 - **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
   findings; address each or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). After a squash-merge the branch still
