@@ -1,0 +1,71 @@
+I don't have file-system access in this session, so I can't write directly to `outputs/json-config-check/SKILL.md` and `outputs/review.md`. Here's the review and the corrected skill inline — save them to those paths.
+
+## Review of defects (outputs/review.md content)
+
+**1. `description` frontmatter doesn't describe *when* to invoke the skill.** Skill descriptions are the primary signal Claude uses to decide whether a skill applies to a task. "This skill is really helpful for working with JSON configuration files and stuff... Use when needed" gives no concrete trigger condition (no mention of validation, schema-checking, or error diagnosis) and no capability summary. As written, Claude can't reliably match a user request to this skill.
+
+**2. Marketing/hype language throughout.** "really helpful," "stuff," "incredibly powerful," "fantastic time-saver that your whole team will love," "amazing skill" — none of this is instructional. It wastes context tokens and reads as ad copy rather than a procedure for an agent to follow.
+
+**3. Unnecessary background exposition.** The "Introduction" section explains what JSON is and why validation matters — general knowledge Claude already has. Skill bodies should contain the specific procedure/knowledge Claude *doesn't* already have, not encyclopedia content.
+
+**4. The "How It Works" section is not actionable.** Every sentence hedges: "might be validated," "could be reported," "You might want to consider possibly using." There's no deterministic procedure — no actual steps, no code, no specification of how errors should be formatted or surfaced. An agent reading this has no idea what to actually do.
+
+**5. Schema discovery logic is unspecified.** "If a schema file happens to be available in the same directory" doesn't say what filename/pattern to look for, whether to check a `$schema` key inside the JSON itself, or what to do when multiple candidates exist.
+
+**6. No error-handling behavior defined.** Doesn't specify what to do on a JSON parse failure vs. a schema validation failure, whether to report all errors or stop at the first, or what error detail (line/column, JSON path) to include.
+
+**7. No concrete implementation guidance.** Mentions `json` and `jsonschema` only as a vague suggestion ("can be a good choice") rather than specifying actual usage (e.g., collecting *all* schema violations via `Draft7Validator.iter_errors` instead of failing on the first).
+
+**8. Filler heading with no information content.** "About This Amazing Skill" duplicates the intro and adds nothing — pure noise.
+
+---
+
+## Corrected skill (outputs/json-config-check/SKILL.md content)
+
+```markdown
+---
+name: json-config-check
+description: Validates JSON configuration files for syntax correctness and, when a matching JSON Schema is available, checks conformance to that schema. Use when the user asks to validate, check, or lint a JSON config file, or needs help diagnosing a JSON parse or schema error.
+---
+
+# JSON Config Check
+
+## Procedure
+
+1. Locate the target JSON file (path given by the user, or inferred from context).
+
+2. Parse it with Python's `json` module:
+   ```python
+   import json
+   with open(path) as f:
+       data = json.load(f)
+   ```
+   If parsing fails, report the `json.JSONDecodeError` message including line and column, and stop — do not attempt schema validation on invalid JSON.
+
+3. Look for a schema, in this order:
+   - A `$schema` key inside the JSON file itself (may be a URL or relative path).
+   - A file named `<config-basename>.schema.json` in the same directory.
+   - A file named `schema.json` in the same directory.
+
+   If none of these exist, report that the file is syntactically valid JSON and that no schema was found — skip step 4.
+
+4. If a schema is found, validate with the `jsonschema` package, collecting *all* errors rather than stopping at the first:
+   ```python
+   import jsonschema
+   validator = jsonschema.Draft7Validator(schema)
+   errors = sorted(validator.iter_errors(data), key=lambda e: e.path)
+   ```
+
+5. Report results:
+   - **Valid, schema passed:** confirm success and note which schema file was used.
+   - **Valid, no schema found:** confirm the JSON is syntactically valid; note that no schema check was performed.
+   - **Valid, schema failed:** list each error with its JSON path (e.g. `properties.port`) and message.
+   - **Invalid JSON:** report the parse error location and message only.
+
+## Notes
+
+- Requires the `jsonschema` package (`pip install jsonschema`); only needed when a schema is actually found.
+- This is a read-only check — never modify the config file being validated.
+```
+
+Let me know if you'd like me to also draft the actual `outputs/` files as downloadable content, or if you can grant file-system access so I can write them directly.

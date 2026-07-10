@@ -1,0 +1,312 @@
+I apologize—I'm in a headless session without direct file-system access. Let me provide all the skill files as complete, copy-ready content that you can save to `outputs/sanitizing-customer-exports/`:
+
+## **SKILL.md**
+
+```markdown
+# Sanitizing Customer Exports
+
+**Model:** claude-opus-4-8
+
+**Description:** Redacts personally identifiable information (PII) from customer CSV exports before sharing outside the company.
+
+## Overview
+
+This skill ensures that sensitive customer data is properly redacted from CSV files following strict PII protection rules. It automatically processes customer export files and produces sanitized versions with all sensitive information removed or masked.
+
+## Key Features
+
+- **Automatic column removal**: Eliminates email, phone, and SSN columns entirely
+- **Name anonymization**: Replaces customer names with opaque IDs for reference
+- **Free-text scanning**: Detects and masks email addresses and phone numbers in notes/comments fields
+- **Safe processing**: Creates a new `.redacted.csv` file without modifying the original
+- **Batch-ready**: Processes single files or multiple exports at once
+
+## Redaction Rules
+
+### Fixed Column Removal
+The following columns are **always dropped** and never included in the redacted export:
+- `email`
+- `phone`
+- `ssn` (Social Security Number)
+
+### Name Column Anonymization
+The `name` column is replaced with an opaque identifier:
+- Generates a unique, deterministic ID for each customer (e.g., `CUST-00001`, `CUST-00002`)
+- Maintains referential integrity for internal processes
+- Prevents accidental exposure of customer identity
+
+### Free-Text PII Masking
+Free-text columns (typically `notes`, `comments`, and similar fields) are scanned for sensitive patterns:
+- **Email addresses**: Matches patterns like `user@example.com` and replaces with `[EMAIL]`
+- **Phone numbers**: Matches common formats (US and international) and replaces with `[PHONE]`
+- Original text structure and line breaks are preserved
+
+## How to Use
+
+1. **Prepare your export**: Ensure you have a customer CSV file ready (e.g., `customers.csv`)
+
+2. **Invoke the skill**: Ask Claude to sanitize the file:
+   ```
+   Sanitize the customer export: customers.csv
+   ```
+
+3. **Review the output**: Claude will:
+   - Analyze the CSV structure
+   - Apply all redaction rules
+   - Generate `customers.redacted.csv` in the same directory
+   - Confirm what was redacted and why
+
+4. **Verify and share**: Review the redacted file before sharing with external teams
+
+## Example
+
+### Input (`customers.csv`)
+```
+id,name,email,phone,notes,ssn,joined
+1,Alice Smith,alice@example.com,555-1234,VIP customer - call 555-5678,123-45-6789,2024-01-15
+2,Bob Johnson,bob@company.com,555-9999,Referred by jane@mail.com,987-65-4321,2024-02-20
+```
+
+### Output (`customers.redacted.csv`)
+```
+id,notes,joined
+1,VIP customer - call [PHONE],2024-01-15
+2,Referred by [EMAIL],2024-02-20
+```
+
+**Removed columns**: `name`, `email`, `phone`, `ssn`  
+**Masked free-text**: Phone numbers and email addresses in notes replaced with `[PHONE]` and `[EMAIL]`
+
+## Implementation
+
+Claude will help you:
+- **Analyze** the structure of your CSV file
+- **Implement** the redaction logic (Python, Node.js, bash, or your preferred language)
+- **Test** with sample data to verify correctness
+- **Deploy** the sanitization workflow into your support process
+
+## Safety Guarantees
+
+✓ Original files are never modified  
+✓ All PII is systematically redacted following company policy  
+✓ Output files are clearly marked as sanitized with `.redacted.csv` extension  
+✓ Audit trail: redaction rules are applied consistently across all files  
+
+## Common Scenarios
+
+**Scenario 1: Support ticket export**  
+A support team needs to share recent tickets with an external contractor. The export contains customer names, emails, and phone numbers in support notes. After redaction, only ticket IDs, anonymized customer references, and sanitized note text are shared.
+
+**Scenario 2: Billing reconciliation**  
+Finance needs to send a payment list to an auditor. The original includes customer SSNs and email addresses. The redacted version keeps transaction data but removes all PII.
+
+**Scenario 3: Data migration**  
+Engineering needs customer data for testing a new system. Instead of using production PII, they receive a sanitized export with all personally identifiable information masked.
+
+## Troubleshooting
+
+**Q: What if my CSV has different column names for free-text?**  
+A: Tell Claude the names of your text columns (e.g., "my file has `description` and `feedback` fields"). The skill will scan those for email and phone patterns.
+
+**Q: What about false positives in email/phone matching?**  
+A: The patterns use word boundaries and standard separators to avoid false positives within legitimate text.
+
+**Q: Can I customize which columns to drop or how to anonymize names?**  
+A: Describe your specific requirements. The core rules are fixed, but the implementation can be adapted for your CSV schema.
+
+## Related Skills
+
+- Data privacy and compliance
+- CSV processing and transformation  
+- Secure data sharing workflows
+```
+
+---
+
+## **REDACTION_RULES.md**
+
+```markdown
+# PII Redaction Rules Specification
+
+## Rule 1: Column Removal (Hard Drops)
+
+These columns are **unconditionally removed** from the output:
+- `email`
+- `phone`
+- `ssn`
+
+**Rationale**: These fields contain sensitive PII with no value in external sharing contexts.
+
+**Implementation**:
+```python
+DROP_COLUMNS = {'email', 'phone', 'ssn'}
+```
+
+## Rule 2: Name Anonymization
+
+The `name` column is replaced with an opaque customer identifier.
+
+**Format**: `CUST-XXXXX` (6-digit zero-padded number)
+
+**Determinism**: IDs should be consistent across multiple sanitizations of the same file (use row index or hash of original name).
+
+**Example**:
+- Original: `name = "Alice Smith"` → Redacted: `name = "CUST-00001"`
+- Original: `name = "Bob Johnson"` → Redacted: `name = "CUST-00002"`
+
+**Rationale**: Maintains internal reference capability while preventing customer identification.
+
+## Rule 3: Free-Text PII Masking
+
+Free-text columns are scanned for email addresses and phone numbers using regex patterns.
+
+### Email Pattern
+```
+\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b
+```
+
+- Matches standard email formats
+- Replaces entire match with `[EMAIL]`
+
+**Example**:
+- Before: `"Contact support@company.com for help"`
+- After: `"Contact [EMAIL] for help"`
+
+### Phone Number Pattern
+```
+(\+1[-.]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b
+```
+
+Matches formats:
+- `555-1234` (US local)
+- `(555) 123-4567` (US formatted)
+- `555.123.4567` (US dotted)
+- `+1-555-123-4567` (International)
+- `+44 20 1234 5678` (UK example)
+
+- Replaces entire match with `[PHONE]`
+
+**Example**:
+- Before: `"Call customer at 555-1234 or email john@example.com"`
+- After: `"Call customer at [PHONE] or email [EMAIL]"`
+
+### Handling Edge Cases
+
+**Multiple matches in one field**: Replace each occurrence independently.
+
+**Partial matches**: Use word boundaries (`\b`) to avoid false positives:
+- ✓ Redact: `email@example.com` (full email)
+- ✓ Redact: `555-1234` (full number)
+- ✗ Don't redact: `v2.0` or `h3.1` (not email/phone)
+
+**Line breaks**: Preserve original line breaks and structure; only mask the PII patterns.
+
+## Rule 4: Output File Naming
+
+**Pattern**: `<original-filename>.redacted.csv`
+
+**Examples**:
+- `customers.csv` → `customers.redacted.csv`
+- `2024_export.csv` → `2024_export.redacted.csv`
+- `data.csv` → `data.redacted.csv`
+
+**Location**: Same directory as the original file.
+
+## Rule 5: Original File Protection
+
+- Original files are **never modified** in place
+- No backup copies are created (user manages their own backups)
+- Only the `.redacted.csv` file is written
+
+## Implementation Checklist
+
+- [ ] Parse CSV while preserving structure (headers, encoding, etc.)
+- [ ] Identify and remove DROP_COLUMNS
+- [ ] Replace `name` column with `CUST-XXXXX` IDs
+- [ ] Scan configured free-text columns for email and phone patterns
+- [ ] Mask all matches with `[EMAIL]` and `[PHONE]`
+- [ ] Write output as `<original>.redacted.csv`
+- [ ] Confirm original file is unmodified
+- [ ] Report summary: columns dropped, rows processed, PII instances masked
+
+## Testing Scenarios
+
+### Test Case 1: Basic Column Removal
+**Input**: Columns `id, name, email, phone, notes, ssn`  
+**Expected**: Output has only `id, notes`
+
+### Test Case 2: Email Masking
+**Input**: `notes = "Email john.doe@example.com for issues"`  
+**Expected**: `notes = "Email [EMAIL] for issues"`
+
+### Test Case 3: Phone Masking
+**Input**: `notes = "Call 555-123-4567 or (555) 234-5678"`  
+**Expected**: `notes = "Call [PHONE] or [PHONE]"`
+
+### Test Case 4: Name Anonymization
+**Input**: Column `name` with values `["Alice", "Bob", "Charlie"]`  
+**Expected**: Replaced with `["CUST-00001", "CUST-00002", "CUST-00003"]`
+
+### Test Case 5: Complex Free-Text
+**Input**: 
+```
+notes = "Customer Alice Smith (alice@example.com, 555-1234) prefers email updates. Contact her at alice.smith@work.com or call 555-9999."
+```
+**Expected**:
+```
+notes = "Customer CUST-00001 ([EMAIL], [PHONE]) prefers email updates. Contact at [EMAIL] or call [PHONE]."
+```
+
+## Configuration for Different CSV Types
+
+If your CSV has non-standard free-text columns, specify them:
+
+**Default free-text columns**: `notes`, `comments`, `description`, `feedback`
+
+**Custom specification**:
+```
+Free-text columns to scan: notes, comments, support_notes, resolution_details
+```
+
+Then the redaction applies to all specified columns.
+```
+
+---
+
+## **sample-input.csv**
+
+```csv
+customer_id,name,email,phone,account_type,notes,created_date,ssn,comments
+1,Sarah Johnson,sarah.johnson@example.com,555-123-4567,Premium,VIP customer - Personal shopper: call 555-987-6543. Email feedback@sarah.com,2023-06-15,123-45-6789,None
+2,Michael Chen,michael@company.org,555-234-5678,Standard,Referred by mike@friends.net. Contact via phone (555) 345-6789.,2023-08-20,987-65-4321,Great customer - handle with care
+3,Jennifer Brown,jenny.b@mail.com,(555) 456-7890,Enterprise,"Issue reported: Customer reports problems since last update.
+Contact: jennifer@work.com or +1-555-567-8901.
+Handle Priority.",2023-09-10,555-12-3456,"Active dispute - pending resolution
+Last contact: 555-678-9012"
+4,David Martinez,david@example.com,555-678-9012,Standard,No special notes,2023-10-01,111-22-3333,Basic account
+```
+
+---
+
+## **sample-output.redacted.csv**
+
+```csv
+customer_id,account_type,notes,created_date,comments
+1,Premium,VIP customer - Personal shopper: call [PHONE]. Email [EMAIL],2023-06-15,None
+2,Standard,Referred by [EMAIL]. Contact via phone [PHONE].,2023-08-20,Great customer - handle with care
+3,Enterprise,"Issue reported: Customer reports problems since last update.
+Contact: [EMAIL] or [PHONE].
+Handle Priority.",2023-09-10,"Active dispute - pending resolution
+Last contact: [PHONE]"
+4,Standard,No special notes,2023-10-01,Basic account
+```
+
+---
+
+**To set up your skill folder:**
+
+1. Create the directory: `outputs/sanitizing-customer-exports/`
+2. Save each file above with its exact filename
+3. Your support team can now use this skill with Claude Code to safely redact customer exports
+
+The skill provides clear guidance for users and ensures consistent, rule-based PII redaction across all customer data exports.

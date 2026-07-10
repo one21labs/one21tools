@@ -1,0 +1,164 @@
+Since this is a headless session I can't write files directly — here are the two modules with the logging changes, ready to save as `ingest.py` and `enrich.py`.
+
+Design summary:
+- **Correlation**: every record gets a `record_id` (`run_id:line_no[:natural_id]`) generated in `ingest.py` and threaded into `enrich_record`, so every log line from either module for that record shares the same id — greppable end-to-end trace.
+- **Per-record isolation**: a bad line (bad JSON, missing field, enrichment exception, write failure) is caught, logged with full context (and traceback via `logger.exception`), and the loop moves on — one poisoned record can't kill a run of thousands.
+- **No silent drops**: `enrich_record` never raises on missing/unknown region — it logs a `warning` explaining exactly why the record was dropped, `None` is still returned so `ingest.py`'s existing `if out:` skip logic works unchanged.
+- **Run-level visibility**: start/end log lines with a summary (`total/ok/failed/skipped`) let an on-call engineer see run health at a glance before diving into a specific `record_id`.
+
+```python
+# ingest.py
+"""Ingest module: reads JSONL records, enriches them, and persists results."""
+import json
+import logging
+import sys
+import uuid
+
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+
+class _DefaultContextFilter(logging.Filter):
+    """Guarantees run_id/record_id exist so the format string never KeyErrors."""
+
+    def filter(self, record):
+        if not hasattr(record, "run_id"):
+            record.run_id = "-"
+        if not hasattr(record, "record_id"):
+            record.record_id = "-"
+        return True
+
+
+def configure_logging(level=logging.INFO):
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter(
+        fmt="%(asctime)s %(levelname)s %(name)s run_id=%(run_id)s "
+            "record_id=%(record_id)s %(message)s"
+    ))
+    handler.addFilter(_DefaultContextFilter())
+    root = logging.getLogger()
+    root.addHandler(handler)
+    root.setLevel(level)
+
+
+def run(path, run_id=None):
+    run_id = run_id or uuid.uuid4().hex[:8]
+    run_ctx = {"run_id": run_id, "record_id": "-"}
+    logger.info("run started path=%s", path, extra=run_ctx)
+
+    total = ok = failed = skipped = 0
+
+    try:
+        with open(path) as f:
+            for line_no, raw_line in enumerate(f, start=1):
+                total += 1
+                line = raw_line.strip()
+                if not line:
+                    continue
+
+                record_id = f"{run_id}:{line_no}"
+                log_ctx = {"run_id": run_id, "record_id": record_id}
+
+                try:
+                    rec = json.loads(line)
+                except json.JSONDecodeError:
+                    failed += 1
+                    logger.error(
+                        "failed to parse line %d: %r", line_no, line[:200],
+                        extra=log_ctx, exc_info=True,
+                    )
+                    continue
+
+                natural_id = rec.get("id")
+                if natural_id is not None:
+                    record_id = f"{record_id}:{natural_id}"
+                    log_ctx["record_id"] = record_id
+
+                logger.debug("record read", extra=log_ctx)
+
+                try:
+                    out = enrich_record(rec, record_id=record_id, run_id=run_id)
+                except Exception:
+                    failed += 1
+                    logger.exception(
+                        "enrich_record raised for line %d", line_no, extra=log_ctx
+                    )
+                    continue
+
+                if out is None:
+                    skipped += 1
+                    logger.warning(
+                        "record skipped by enrichment (line %d)", line_no, extra=log_ctx
+                    )
+                    continue
+
+                try:
+                    save(out)
+                except Exception:
+                    failed += 1
+                    logger.exception(
+                        "failed to save record (line %d)", line_no, extra=log_ctx
+                    )
+                    continue
+
+                ok += 1
+                logger.info(
+                    "record processed successfully (line %d)", line_no, extra=log_ctx
+                )
+
+    except OSError:
+        logger.exception("failed to read input file: %s", path, extra=run_ctx)
+        raise
+
+    logger.info(
+        "run finished total=%d ok=%d failed=%d skipped=%d",
+        total, ok, failed, skipped, extra=run_ctx,
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    configure_logging()
+    if len(sys.argv) != 2:
+        print("usage: python ingest.py <path>", file=sys.stderr)
+        sys.exit(1)
+    run(sys.argv[1])
+```
+
+```python
+# enrich.py
+"""Enrichment module: adds geo/zone metadata to a record."""
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec, record_id=None, run_id=None):
+    log_ctx = {"run_id": run_id or "-", "record_id": record_id or "-"}
+
+    region_code = rec.get("region")
+    if region_code is None:
+        logger.warning("record missing 'region' field, dropping record", extra=log_ctx)
+        return None
+
+    region = GEO.get(region_code)
+    if region is None:
+        logger.warning(
+            "unknown region code %r (known: %s), dropping record",
+            region_code, sorted(GEO), extra=log_ctx,
+        )
+        return None
+
+    rec["zone"] = region
+    logger.debug("enriched record with zone=%s", region, extra=log_ctx)
+    return rec
+```
+
+One behavior change worth flagging: `enrich_record` used to do `rec["region"]` (a `KeyError` on a missing field, crashing the whole run under the original code). It now uses `.get()` and logs a clear warning instead — consistent with "every failure is diagnosable from logs alone" rather than an unhandled crash. Unexpected exceptions from `enrich_record` are still caught in `ingest.py` and logged with a full traceback via `logger.exception`, so nothing is swallowed silently.

@@ -1,0 +1,170 @@
+Here are the two modules rewritten with production-grade, traceable logging. The design goal is that any single record can be followed end-to-end and every drop or failure is explained in the logs.
+
+**Key ideas:**
+- A `run_id` (per invocation) and a `record_id` (per line) are pushed into `contextvars` and auto-injected into *every* log line via a logging filter — so `enrich.py` doesn't need the IDs passed in, yet its logs correlate with `ingest.py`'s.
+- Each record's lifecycle emits a log: received → outcome (saved / dropped-with-reason / errored). No record can silently vanish.
+- Failures are isolated per-record (one bad line can't kill the run) and logged with full context + stack trace.
+- A run summary reconciles counts so on-call can see totals at a glance.
+
+# ingest.py
+```python
+import contextvars
+import json
+import logging
+import os
+import sys
+
+# --- Correlation context: set per-run and per-record, auto-injected into logs ---
+run_id_var = contextvars.ContextVar("run_id", default="-")
+record_id_var = contextvars.ContextVar("record_id", default="-")
+
+
+class ContextFilter(logging.Filter):
+    """Inject correlation IDs onto every LogRecord so a single record's path
+    can be grepped across both modules."""
+
+    def filter(self, record):
+        record.run_id = run_id_var.get()
+        record.record_id = record_id_var.get()
+        return True
+
+
+def configure_logging():
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s "
+            "run=%(run_id)s rec=%(record_id)s %(message)s"
+        )
+    )
+    handler.addFilter(ContextFilter())
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    # Avoid duplicate handlers if run() is called more than once in a process.
+    if not any(isinstance(f, ContextFilter) for h in root.handlers for f in h.filters):
+        root.handlers.clear()
+        root.addHandler(handler)
+
+
+log = logging.getLogger("ingest")
+
+# Import after logging symbols exist; enrich.py just calls logging.getLogger().
+from enrich import enrich_record
+
+
+def run(path):
+    configure_logging()
+    run_id = f"{os.getpid()}-{os.path.basename(path)}"
+    run_id_var.set(run_id)
+
+    log.info("run.start path=%s", path)
+    total = saved = dropped = errored = 0
+
+    try:
+        f = open(path)
+    except OSError:
+        log.exception("run.abort could not open input path=%s", path)
+        raise
+
+    with f:
+        for lineno, line in enumerate(f, start=1):
+            total += 1
+            record_id_var.set(f"{run_id}:L{lineno}")
+
+            if not line.strip():
+                log.info("record.skip reason=blank_line")
+                dropped += 1
+                continue
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                errored += 1
+                log.error(
+                    "record.error stage=parse reason=%s raw=%r",
+                    e.msg, line[:200],
+                )
+                continue
+
+            log.info("record.received keys=%s", sorted(rec) if isinstance(rec, dict) else type(rec).__name__)
+
+            try:
+                out = enrich_record(rec)
+            except Exception:
+                errored += 1
+                log.exception("record.error stage=enrich raw=%r", line[:200])
+                continue
+
+            if out is None:
+                # enrich_record already logged the specific reason.
+                dropped += 1
+                continue
+
+            try:
+                save(out)
+            except Exception:
+                errored += 1
+                log.exception("record.error stage=save")
+                continue
+
+            saved += 1
+            log.info("record.saved zone=%s", out.get("zone"))
+
+    log.info(
+        "run.end total=%d saved=%d dropped=%d errored=%d",
+        total, saved, dropped, errored,
+    )
+    return {"total": total, "saved": saved, "dropped": dropped, "errored": errored}
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    run(sys.argv[1])
+```
+
+# enrich.py
+```python
+import logging
+
+log = logging.getLogger("enrich")
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec):
+    # Correlation IDs (run/rec) are injected by ingest's logging filter,
+    # so these lines are automatically traceable back to the source record.
+    if not isinstance(rec, dict):
+        log.warning("enrich.drop reason=not_an_object type=%s", type(rec).__name__)
+        return None
+
+    if "region" not in rec:
+        log.warning("enrich.drop reason=missing_field field=region")
+        return None
+
+    raw_region = rec["region"]
+    region = GEO.get(raw_region)
+    if region is None:
+        log.warning(
+            "enrich.drop reason=unknown_region value=%r known=%s",
+            raw_region, sorted(GEO),
+        )
+        return None
+
+    rec["zone"] = region
+    log.info("enrich.ok region=%r zone=%s", raw_region, region)
+    return rec
+```
+
+**What an on-call engineer gets from this:**
+
+- **Follow one record:** every line carries `run=… rec=…`, e.g. `grep 'rec=1234-data.jsonl:L57'` shows `record.received` → `enrich.drop reason=unknown_region value='ap'` → nothing saved. The full story in three lines.
+- **Every failure mode is distinct and diagnosable:** malformed JSON (`stage=parse`), missing `region` key (previously a `KeyError` crash — now a logged drop), unknown region value (now logs *which* value and the known set), enrich exceptions (`stage=enrich` with traceback), and write failures (`stage=save` with traceback).
+- **No silent loss:** the `run.end` summary reconciles `total = saved + dropped + errored`; if numbers don't add up on a given run, that itself is a signal.
+
+**Notable behavior changes** (all bug fixes, worth flagging): the original crashed the entire run on a missing `region` key or any malformed line; now each bad record is isolated and logged while the run continues. Logs go to **stderr** so they never contaminate `out.jsonl`. If you'd rather one bad line still abort the run (fail-fast semantics), say so and I'll switch the per-record `continue`s to re-raise.

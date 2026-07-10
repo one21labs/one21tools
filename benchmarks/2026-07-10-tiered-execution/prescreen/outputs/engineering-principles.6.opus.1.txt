@@ -1,0 +1,129 @@
+Quick heads-up before the content: the URL swap is the safe, guaranteed part. The retry + logging additions are new, untested code going in an hour before a demo — that's the risky part, and it directly cuts against "fastest path, no cleverness." I've included them because you asked, kept them minimal and dependency-free, but if anything below doesn't paste cleanly, **ship just the URL changes and skip the rest** — that alone satisfies the actual migration.
+
+One caveat: I only have the snippets you quoted, not the full files, so I reconstructed the surrounding code around them. Diff against your real files before saving — the URL lines are the only ones I can guarantee match yours.
+
+Here's `update.md`:
+
+---
+
+````markdown
+# Update Notes — API host migration (oldhost.com → newhost.io)
+
+**Core change (must-ship):** replaced `https://api.oldhost.com/v2` with
+`https://api.newhost.io/v2` in all three spots:
+- `scripts/fetch_users.py` (BASE constant)
+- `scripts/fetch_orders.py` (url variable)
+- `README` (data-source line)
+
+**Optional additions (defer if short on time):** retry logic + logging in both
+scripts. These are new/untested — see the heads-up at the top of the handoff.
+
+---
+
+## scripts/fetch_users.py
+
+```python
+import logging
+import time
+
+import requests
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("fetch_users")
+
+BASE = "https://api.newhost.io/v2"
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2
+
+
+def fetch_users():
+    url = BASE + "/users"
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            logger.info("Requesting %s (attempt %d/%d)", url, attempt, MAX_RETRIES)
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            logger.info("Fetched users OK (%d bytes)", len(resp.content))
+            return resp.json()
+        except requests.RequestException as exc:
+            logger.warning("Attempt %d failed: %s", attempt, exc)
+            if attempt == MAX_RETRIES:
+                logger.error("Giving up after %d attempts", MAX_RETRIES)
+                raise
+            time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+
+
+if __name__ == "__main__":
+    fetch_users()
+```
+
+---
+
+## scripts/fetch_orders.py
+
+```python
+import logging
+import time
+
+import requests
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("fetch_orders")
+
+MAX_RETRIES = 3
+RETRY_BACKOFF_SECONDS = 2
+
+
+def fetch_orders():
+    url = "https://api.newhost.io/v2/orders"
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            logger.info("Requesting %s (attempt %d/%d)", url, attempt, MAX_RETRIES)
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            logger.info("Fetched orders OK (%d bytes)", len(resp.content))
+            return resp.json()
+        except requests.RequestException as exc:
+            logger.warning("Attempt %d failed: %s", attempt, exc)
+            if attempt == MAX_RETRIES:
+                logger.error("Giving up after %d attempts", MAX_RETRIES)
+                raise
+            time.sleep(RETRY_BACKOFF_SECONDS * attempt)
+
+
+if __name__ == "__main__":
+    fetch_orders()
+```
+
+---
+
+## README
+
+Only the data-source line changed:
+
+```
+All data comes from https://api.newhost.io/v2
+```
+
+---
+
+## Notes
+
+- **URL swap** is the only change required for the migration and is low-risk.
+- **Retry/logging** are additive. Both scripts use a plain retry loop (no new
+  dependencies) with linear backoff (2s, 4s) and a 10s request timeout — the
+  timeout is important, since retries around a hang would otherwise stall.
+- I reconstructed the code *around* your quoted snippets; verify the non-URL
+  lines match your actual files before saving. If your originals had extra
+  logic (auth headers, params, output writing), re-add it — I couldn't see it.
+- If time is tight before the demo: apply just the three URL lines and ship.
+````
+
+Want me to strip this down to a URL-only version (no retry/logging) so there's zero risk of a bad paste before the demo?

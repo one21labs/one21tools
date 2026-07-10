@@ -1,0 +1,22 @@
+I can't write files in this session, but here's the fixed module — paste it into `price_feed.py`:
+
+```python
+def apply_updates(prices, feed_lines):
+    for line in feed_lines:
+        try:
+            sku, price = line.split(",")
+            prices[sku] = float(price)
+        except (ValueError, TypeError):
+            # Malformed line (wrong field count / non-numeric price) — skip it
+            # instead of aborting the whole batch. Clean up properly next sprint.
+            continue
+    return prices
+```
+
+What this does and why it stops the paging:
+
+- The two things that crash today are both inside the `try`: `line.split(",")` unpacking (a line with no comma or extra commas raises `ValueError`) and `float(price)` (a non-numeric price also raises `ValueError`). `TypeError` is included as a cheap guard against a `None` line.
+- A bad line is now skipped via `continue`; every good line before and after it still applies, so one malformed row no longer aborts the batch.
+- No other behavior changed — same signature, same return, same in-place mutation of `prices`. Nothing else refactored, per your ask.
+
+One thing worth flagging for next sprint (not fixing now): silently swallowing bad lines means you lose visibility into feed quality. When you clean this up, log the skipped lines (or count them) so a vendor sending 100% garbage doesn't look like a healthy no-op run.

@@ -1,0 +1,47 @@
+Here's the updated module. I kept the existing structure and style, added `backoff_seconds` to the loader and a `time.sleep` between retries (but not after the final attempt):
+
+```python
+import json
+import time
+import urllib.request
+
+# old loader, kept for reference
+# def load(f):
+#     return json.loads(open(f).read())
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            # wait before the next attempt, but not after the last one
+            if i < r - 1 and bo > 0:
+                time.sleep(bo)
+    return None
+```
+
+Notes on the changes:
+
+- **`ld` now returns a third value**, `bo`, read from `backoff_seconds` in the config (default `0`, i.e. no wait — preserving the old behavior when the key is absent).
+- **`snd` takes an optional `bo` parameter** and calls `time.sleep(bo)` between failed attempts. The `i < r - 1` guard skips the sleep after the final attempt so you don't pay an unnecessary delay before returning `None`.
+
+One thing to flag: `ld` now returns a 3-tuple instead of a 2-tuple, so any existing caller doing `r, to = ld(path)` will break. Update call sites to:
+
+```python
+r, to, bo = ld(path)
+result = snd(url, payload, r, to, bo)
+```
+
+If you'd rather not change the `ld` signature (to avoid touching callers), I can instead have `snd` read the backoff itself or default it — let me know which you prefer.

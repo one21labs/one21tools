@@ -1,0 +1,97 @@
+Looking at the tech lead's defects, I can see two specific issues:
+
+1. **Unhandled exception in enrich_record call**: The `out = enrich_record(rec)` line is not wrapped in try/except. If a valid JSON line contains a bare value (int, float, bool, null), calling `enrich_record()` on it raises a TypeError (can't use `in` operator on non-dict), terminating the entire loop silently while "ingestion completed" still logs.
+
+2. **Inconsistent log levels**: Missing 'region' key logs at ERROR, but unknown region logs at WARNING. Both result in the same outcome (record dropped), so both should be WARNING per the plan's own guidance ("WARNING for skipped/dropped records, ERROR for failures").
+
+Here are the corrected files:
+
+# ingest.py
+```python
+import json
+import logging
+from enrich import enrich_record, record_id_var, RecordIDAdapter
+
+logger = RecordIDAdapter(logging.getLogger(__name__), {})
+
+def run(path):
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    logger.info(f"starting ingestion from {path}")
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, start=1):
+                record_id_var.set(line_num)
+                try:
+                    rec = json.loads(line)
+                    logger.debug("parsed JSON")
+                except json.JSONDecodeError as e:
+                    logger.error(f"failed to parse JSON: {e}")
+                    continue
+                
+                try:
+                    out = enrich_record(rec)
+                except Exception as e:
+                    logger.error(f"enrichment failed: {e}")
+                    continue
+                
+                if out:
+                    try:
+                        save(out)
+                    except Exception as e:
+                        logger.error(f"failed to save: {e}")
+    except FileNotFoundError:
+        logger.error(f"input file not found: {path}")
+    except Exception as e:
+        logger.error(f"unexpected error: {e}")
+    finally:
+        record_id_var.set(None)
+    
+    logger.info("ingestion completed")
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+    logger.debug("saved")
+```
+
+# enrich.py
+```python
+import logging
+import contextvars
+
+record_id_var = contextvars.ContextVar('record_id', default=None)
+
+class RecordIDAdapter(logging.LoggerAdapter):
+    def process(self, msg, kwargs):
+        record_id = record_id_var.get()
+        if record_id:
+            return f"record_id={record_id}: {msg}", kwargs
+        return msg, kwargs
+
+logger = RecordIDAdapter(logging.getLogger(__name__), {})
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec):
+    if "region" not in rec:
+        logger.warning("missing 'region' key")
+        return None
+    
+    region = GEO.get(rec["region"])
+    if region is None:
+        logger.warning(f"unknown region '{rec['region']}'")
+        return None
+    
+    rec["zone"] = region
+    logger.debug("enriched successfully")
+    return rec
+```
+
+**Changes made:**
+1. Wrapped `out = enrich_record(rec)` in a try/except block inside the per-line loop. Now any exception during enrichment is caught, logged with the record ID and error details, and the loop continues to the next record—preventing silent truncation of the file.
+2. Changed missing 'region' key logging from ERROR to WARNING, making it consistent with the unknown region case—both are skipped records, not system failures.
