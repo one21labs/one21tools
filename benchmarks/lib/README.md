@@ -32,8 +32,7 @@ Test: `cd benchmarks/lib && python -m unittest verdict_test`
 - The shared hermetic `claude -p` executor plumbing (ADR 0023, issue #110): `CLAUDE_DENY_TOOLS`,
   `NEUTRAL_FRAME`, `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
   (one retry on timeout/nonzero exit) and `summarize_call(call)` (envelope figures + wall-clock +
-  START/END TIMESTAMPS — the field whose omission in a copied driver forced git-ordering proof of
-  pre-registration). New harnesses import this; never copy it. The two pre-#110 harnesses keep
+  start/end timestamps). New harnesses import this; never copy it. The two pre-#110 harnesses keep
   their copies as append-only snapshots.
 
 Test: `cd benchmarks/lib && python -m unittest hermetic_driver_test`
