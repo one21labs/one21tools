@@ -2,6 +2,10 @@
 
 Shared helpers for benchmark harnesses (ADR 0026). Stdlib only.
 
+Convention: a derived/regenerable intermediate (a prep script's output that duplicates committed
+substrate data) gets a `.gitignore` entry in its benchmark dir BEFORE first commit (ADR 0026) —
+its home is the script that regenerates it, not git.
+
 ## bench_io.py
 
 - `dump_records`/`load_records(path, fmt="csv"|"tsv"|"jsonl")` — the record-format convention:
