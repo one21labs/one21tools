@@ -28,6 +28,11 @@ DEFAULT_TIMEOUT_S = 600
 CLAUDE_DENY_TOOLS = [
     "Skill", "Task", "Read", "Grep", "Glob", "Bash", "Edit", "Write",
     "WebFetch", "WebSearch", "NotebookEdit",
+    # Task/collaboration + subagent tools (issue #108): without these, a nested `claude -p`
+    # session reads and writes the PARENT session's shared task list -- an ADR 0023
+    # hermeticity hole, not just clutter.
+    "Agent", "TaskCreate", "TaskGet", "TaskList", "TaskOutput", "TaskStop", "TaskUpdate",
+    "SendMessage",
 ]
 
 NEUTRAL_FRAME = (
