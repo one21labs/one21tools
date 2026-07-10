@@ -49,7 +49,7 @@ deterministic logic; a doc that restates them rots).
 - **Squash-merge is the owner's per-PR call** (not automatic). After a squash-merge the branch still
   shows commits "ahead" of `main`, so judge merged-ness by PR state + file diff, not
   `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
-  branch onto `origin/main` before ranging or `/retrospect` — a stale local `main` re-adds the
+  branch onto `origin/main` before ranging, branching, or `/retrospect` — a stale local `main` re-adds the
   squashed commits as a phantom range. Preview what a branch/PR changes with three-dot
   (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
   `main` as reverting main's content.
