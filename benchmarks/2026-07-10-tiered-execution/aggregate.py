@@ -8,8 +8,11 @@ clustered observation, ADR 0019): mean fraction-met per arm over reps; per-arm-p
 mean minus sonnet-solo mean. Headline pair: tiered vs sonnet-solo (the ADOPTION gate); haiku-solo
 vs sonnet-solo is reported for context (the cost/quality floor), not gating.
 
-Cost/time come from costs.json + timing.json (operator-recorded post-run; see README "Cost/time
-capture" -- per-arm AGGREGATES, not per-cell, and left null rather than fabricated if missing).
+Cost/time come from the three <arm>.summary.json files that harness.py's claude -p driver writes
+per arm (real per-cell envelope totals, not an estimate) -- see README "Reproduce": harness.py
+writes them under its --outdir (~/tiered-run by default, inside WSL); the operator copies the
+three files into this benchmark directory before running aggregate.py. Per-arm AGGREGATES, not
+per-cell; left null rather than fabricated if a summary file is missing.
 
 Adoption bar -- PRE-REGISTERED in metadata.json BEFORE any run (ADR-0027-style directional bar,
 not CI-exclusion: at n=24 clustered evals a subtle non-inferiority margin is not reliably provable
@@ -89,24 +92,34 @@ for a, deltas in pair_deltas.items():
     mean, lo, hi = ci95(deltas)
     summary[a] = {"mean_delta": round(mean, 3), "ci95": [round(lo, 3), round(hi, 3)], "evals": len(deltas)}
 
-costs, timing = {}, {}
-costs_path, timing_path = os.path.join(BASE, "costs.json"), os.path.join(BASE, "timing.json")
-if os.path.exists(costs_path):
-    with open(costs_path, encoding="utf-8") as fh:
-        costs = json.load(fh)
-if os.path.exists(timing_path):
-    with open(timing_path, encoding="utf-8") as fh:
-        timing = json.load(fh)
+arm_summaries = {}
+for a in ARMS:
+    path = os.path.join(BASE, f"{a}.summary.json")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            arm_summaries[a] = json.load(fh)
+
+
+def total_tokens(s):
+    if not s:
+        return None
+    tin, tout = s.get("total_tokens_in"), s.get("total_tokens_out")
+    if not isinstance(tin, (int, float)) or not isinstance(tout, (int, float)):
+        return None
+    return tin + tout
+
 
 tiered = summary.get("tiered", {"mean_delta": None, "ci95": None})
 quality_ok = tiered["mean_delta"] is not None and tiered["mean_delta"] > MARGIN
 
-sonnet_tok = (costs.get(BASELINE) or {}).get("tokens_delta")
-tiered_tok = (costs.get("tiered") or {}).get("tokens_delta")
-sonnet_time = (timing.get(BASELINE) or {}).get("wall_clock_seconds")
-tiered_time = (timing.get("tiered") or {}).get("wall_clock_seconds")
+sonnet_tok = total_tokens(arm_summaries.get(BASELINE))
+tiered_tok = total_tokens(arm_summaries.get("tiered"))
+sonnet_time = (arm_summaries.get(BASELINE) or {}).get("wall_clock_s")
+tiered_time = (arm_summaries.get("tiered") or {}).get("wall_clock_s")
+sonnet_cost = (arm_summaries.get(BASELINE) or {}).get("total_cost_usd")
+tiered_cost = (arm_summaries.get("tiered") or {}).get("total_cost_usd")
 
-tok_ratio = time_ratio = None
+tok_ratio = time_ratio = cost_ratio = None
 cost_ok = False
 if isinstance(sonnet_tok, (int, float)) and sonnet_tok and isinstance(tiered_tok, (int, float)):
     tok_ratio = tiered_tok / sonnet_tok
@@ -114,6 +127,8 @@ if isinstance(sonnet_tok, (int, float)) and sonnet_tok and isinstance(tiered_tok
 if isinstance(sonnet_time, (int, float)) and sonnet_time and isinstance(tiered_time, (int, float)):
     time_ratio = tiered_time / sonnet_time
     cost_ok = cost_ok or time_ratio <= COST_RATIO_BAR
+if isinstance(sonnet_cost, (int, float)) and sonnet_cost and isinstance(tiered_cost, (int, float)):
+    cost_ratio = tiered_cost / sonnet_cost  # reported for context only; not part of the pre-registered gate
 
 adopt = bool(quality_ok and cost_ok)
 confidence = None
@@ -124,6 +139,7 @@ verdict = {
     "record": "verdict", "evals": len(evals), "pairs": summary,
     "tokens_ratio_tiered_over_sonnet": round(tok_ratio, 3) if tok_ratio is not None else None,
     "time_ratio_tiered_over_sonnet": round(time_ratio, 3) if time_ratio is not None else None,
+    "cost_usd_ratio_tiered_over_sonnet": round(cost_ratio, 3) if cost_ratio is not None else None,
     "quality_non_inferior": quality_ok, "cost_or_time_materially_lower": cost_ok,
     "adopt_tiered": adopt, "confidence": confidence,
     "adoption_bar": f"mean_delta(tiered-sonnet-solo) > {MARGIN} AND "
@@ -144,5 +160,6 @@ for a, s in summary.items():
     print(f"  {a} vs {BASELINE}: mean {s['mean_delta']:+.3f} CI [{s['ci95'][0]:+.3f},{s['ci95'][1]:+.3f}] (n={s['evals']} evals)")
 print(f"  tokens ratio (tiered/sonnet-solo): {verdict['tokens_ratio_tiered_over_sonnet']}")
 print(f"  time ratio (tiered/sonnet-solo): {verdict['time_ratio_tiered_over_sonnet']}")
+print(f"  cost $ ratio (tiered/sonnet-solo, reported only, not gating): {verdict['cost_usd_ratio_tiered_over_sonnet']}")
 print(f"\nVERDICT: {'ADOPT tiered' if adopt else 'DO NOT ADOPT tiered'} "
       f"(confidence: {confidence or 'n/a'}) -- bar: {verdict['adoption_bar']}")

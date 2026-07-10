@@ -11,7 +11,7 @@ Writes:
                     reads this for expectations; ADR 0019 blind grading).
   cells.tsv         key<TAB>skill, one row per eval (24 rows).
   evals_args.json   [{skill, eval_id, prompt}, ...] -- PROMPT ONLY, expectations stripped. This is
-                    the exact value to pass as harness.workflow.js's `args.evals` so the executor
+                    the exact file harness.py reads (its --evals-json default) so the executor
                     arms never see the grading criteria (no teaching to the test).
 """
 import json, os
@@ -47,4 +47,4 @@ for s in SKILLS:
     n = sum(1 for k in meta if meta[k]["skill"] == s)
     print(f"  {s}: {n} evals")
 print(f"evals_args.json: {len(evals_args)} prompt-only records "
-      f"(pass verbatim as harness.workflow.js args.evals)")
+      f"(harness.py --evals-json default; read verbatim, no expectations)")

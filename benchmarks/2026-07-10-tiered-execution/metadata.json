@@ -6,11 +6,14 @@
   "question": "Does a tiered configuration (sonnet plans + validates, haiku implements, <=2 worker iterations) match sonnet-solo quality at materially lower cost or time?",
   "protocol_adrs": ["0019", "0023", "0024", "0025", "0027"],
   "executor": {
-    "vehicle": "harness.workflow.js run by the Workflow tool (issue #41's explicit design; prior benchmarks used harness.sh + claude -p for the executor, this one needs the tiered arm's multi-step orchestrator/worker/validate control flow, which pipeline()/agent() express directly)",
+    "vehicle": "harness.py (Python stdlib), a hermetic claude -p driver run inside WSL Debian, replacing the original harness.workflow.js (Workflow tool) design -- see README 'Executor: harness.py (claude -p driver)' for why. grade.workflow.js and prosecute_counts.workflow.js are unaffected: they only ever handled small verdict records, not full response text or per-cell timing.",
+    "hermeticity": "claude -p hermetic per ADR 0023: clean CLAUDE_CONFIG_DIR ($HOME/issue30/claude-config -- no plugins, credentials only), --disallowedTools tool deny list (Skill Task Read Grep Glob Bash Edit Write WebFetch WebSearch NotebookEdit) so no repo access, prompt supplied on stdin only, and every call run from an empty scratch cwd outside the repo checkout (CLAUDE_CONFIG_DIR does not stop project-level CLAUDE.md auto-discovery by cwd traversal -- verified empirically before shipping the driver).",
+    "cost_time_capture": "real per-cell claude -p --output-format json result envelope (usage, total_cost_usd, duration_ms, duration_api_ms) plus harness.py's own measured wall-clock per call -- not the Workflow runner's per-arm-aggregate-only budget.spent() compromise.",
+    "parallelism": "ThreadPoolExecutor with EXACTLY 4 workers, fixed identically for every arm (protocol symmetry) -- not exposed as a per-arm-tunable flag.",
     "models": { "sonnet-solo": "sonnet", "haiku-solo": "haiku", "tiered": "orchestrator sonnet, worker haiku" },
-    "effort": "medium (agent() effort:'medium', matching prior benchmarks' CLAUDE_EFFORT=medium)",
+    "effort": "medium (CLAUDE_EFFORT=medium in the executor env, matching prior benchmarks)",
     "arms": ["sonnet-solo", "haiku-solo", "tiered"],
-    "arm_symmetry_control": "no skill content is injected in any arm; every arm gets the identical NEUTRAL_FRAME instruction not to read files, search the repo, run commands, or use any tools. ADR 0023's hermeticity requirement scopes to the control arm (ADR 0027 scoping note); the Workflow subagent may technically retain tool access, so the control here is ARM SYMMETRY (identical constraints, identically worded, across all 3 arms), not tool-denial enforced by the runner.",
+    "arm_symmetry_control": "no skill content is injected in any arm; every arm gets the identical NEUTRAL_FRAME instruction not to read files, search the repo, run commands, or use any tools. ADR 0023's hermeticity requirement scopes to the control arm (ADR 0027 scoping note); harness.py's --disallowedTools now enforces tool denial directly (not merely a runner convention), and ARM SYMMETRY (identical constraints, identically worded, across all 3 arms) still applies on top of it.",
     "no_treatment_content": true
   },
   "grid": { "skills": 4, "evals_per_skill": 6, "evals_total": 24, "arms": 3, "reps": 3, "executor_cells": 216 },
@@ -31,10 +34,9 @@
     "clustering_unit": "one of the 24 evals -- reps average within an eval before clustering, per ADR 0019"
   },
   "cost_time_capture": {
-    "design_compromise": "The Workflow runner has no Date.now() inside a workflow script, so wall-clock cannot be captured per-cell or even per-arm from inside harness.workflow.js. Tokens ARE capturable in-workflow via budget.spent(), sampled once at the start and once at the end of each arm's whole pipeline run (harness.workflow.js's tokens_start/tokens_end fields) -- but only as a PER-ARM AGGREGATE delta, not per-cell, because pipeline() runs a full arm's 72 cells concurrently so a per-cell split is not attributable. Wall-clock is captured OUTSIDE the workflow: the operator brackets each of the 3 per-arm Workflow invocations with a shell `date +%s.%N` immediately before and after, and records the difference in timing.json. Neither figure is fabricated to a false precision the instrumentation cannot support; both costs.json and timing.json ship as null-valued operator-filled templates, not invented numbers.",
-    "tokens_source": "costs.json, filled from each arm's persisted outputs/<arm>.json tokens_start/tokens_end (budget.spent() delta)",
-    "time_source": "timing.json, filled from operator-bracketed wall-clock around each arm's Workflow invocation",
-    "budget_spent_shape_unverified": "budget.spent()'s exact return shape (number vs structured object) is unverified in this repo -- no prior harness.workflow.js used it. costs.json's '_shape' field records what was actually observed on first use."
+    "design": "Superseded the original Workflow-runner compromise (no Date.now() inside a workflow script; budget.spent() only gave a PER-ARM AGGREGATE token delta since pipeline() runs a full arm's 72 cells concurrently). harness.py's claude -p driver measures wall-clock directly per call (time.monotonic() bracketing each subprocess call) and parses claude -p --output-format json's real result envelope (usage, total_cost_usd, duration_ms, duration_api_ms) per call -- true per-cell figures, not an aggregate estimate. Fields are read defensively (json envelope shape may vary by CLI version); whatever usage object is present is stored verbatim per call alongside the measured wall-clock.",
+    "per_cell_record": "<outdir>/cells/<arm>.<skill>.<eval_id>.r<rep>.json -- full per-call breakdown (plan/worker1/validate1/worker2 for tiered; exec for solo arms)",
+    "per_arm_summary": "<outdir>/<arm>.summary.json -- {arm, cells, failures, total_tokens_in, total_tokens_out, total_cost_usd, wall_clock_s, per_call_parallelism}; aggregate.py reads these three files (costs.json and timing.json are deleted, along with their null-valued operator-filled-template convention)"
   },
   "sample_rule": "keep 1 raw output per (skill, eval_id, arm) group, sorted-rep order; archive the rest into outputs/all.tar.gz via benchmarks/lib/bench_io.sample_and_archive_raw (ADR 0023 sample rule, ADR 0026 gzip-the-rest)",
   "adoption_bar": {
