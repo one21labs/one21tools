@@ -20,7 +20,6 @@ from eval_verdict import (
     reference_chars,
     denominator,
     pairs_by_eval,
-    pair_runs,
     eval_level,
     wilson_ci,
     aggregate,
@@ -38,21 +37,6 @@ def run(eval_id, run_number, configuration, pass_rate):
     """A minimal benchmark.json runs[] entry (schema: skill-creator references/schemas.md)."""
     return {"eval_id": eval_id, "run_number": run_number,
             "configuration": configuration, "result": {"pass_rate": pass_rate}}
-
-
-class PairRuns(unittest.TestCase):
-    def test_pairs_by_eval_and_run_number(self):
-        pairs = pair_runs([run(1, 1, "without_skill", 0.4), run(1, 1, "with_skill", 0.8),
-                           run(2, 1, "without_skill", 0.5), run(2, 1, "with_skill", 0.5)])
-        self.assertEqual(pairs, [(0.4, 0.8), (0.5, 0.5)])
-
-    def test_run_missing_its_twin_is_dropped(self):
-        pairs = pair_runs([run(1, 1, "with_skill", 0.9),
-                           run(2, 1, "without_skill", 0.3), run(2, 1, "with_skill", 0.6)])
-        self.assertEqual(pairs, [(0.3, 0.6)])
-
-    def test_empty_runs_yield_no_pairs(self):
-        self.assertEqual(pair_runs([]), [])
 
 
 class EvalLevel(unittest.TestCase):

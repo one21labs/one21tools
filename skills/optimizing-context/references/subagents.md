@@ -80,8 +80,7 @@ waste here compounds across every user x every iteration (rationale:
   fan out across many agents — run the bulk on the cheapest tier that clears the quality bar.
 - **ALWAYS set the worker/grader model explicitly** — subagents INHERIT the session model when
   `model` is unset, so a 100+-agent grid launched from an Opus session silently runs every worker
-  on the expensive tier. Real miss: two 144-agent grading passes ran on Opus because the tier was
-  left implicit. Set `model: sonnet`/`haiku` explicitly; use `inherit` only when you mean it.
+  on the expensive tier. Set `model: sonnet`/`haiku` explicitly; use `inherit` only when you mean it.
 
 ### Parallelism
 
