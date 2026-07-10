@@ -1,5 +1,8 @@
 # one21tools
 
+Goal (home: README.md): quality output, autonomously — minimal direction and correction,
+self-improving via the measured loop. Prioritize all work against those two levers.
+
 ## Stack & navigation
 No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,

@@ -2,6 +2,13 @@
 
 Claude Code skills for software development and engineering workflows.
 
+**Goal: quality output, autonomously.** Claude Code as a real assistant that needs minimal
+direction and correction, and self-improves through the measured loop below — so mistakes reduce
+and quality rises over time. Everything here serves one of those two levers: raise the measured
+benefit-per-token of what Claude loads (quality), or move rules into surfaces that fire without a
+human catching the miss — shipped gates, hooks, and skills, not prose (autonomy). Work is
+prioritized against them.
+
 Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: documentation is held to CI-checked character budgets.
 
 The differentiating idea: manufacturing quality principles translate directly to AI-assisted code. Lean's waste elimination becomes YAGNI and SSoT enforcement. Toyota's poka-yoke becomes boundary validation. Deming's "build quality in" becomes catching defects at source rather than inspecting them out downstream. The skills encode these as Claude directives.
