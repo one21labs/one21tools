@@ -11,6 +11,7 @@ Read this when validating skill structure or debugging validation failures.
 5. [Body Constraints](#body-constraints)
 6. [Valid Trigger Phrases](#valid-trigger-phrases)
 7. [Emoji Prohibition](#emoji-prohibition)
+8. [Test the Consumer Surface](#test-the-consumer-surface)
 
 ---
 
@@ -214,3 +215,10 @@ print("X Validation passed")  # checkmark emoji
 print("X Missing field")      # X emoji
 print("X Warning")            # warning emoji
 ```
+
+## Test the Consumer Surface
+
+A shipped artifact's test must exercise it the way its consumer invokes it: a hook via its
+hooks.json command line (not a direct `bash script.sh` call), a vendored script from a
+consumer-shaped layout, a CLI via its argv entry point. A test that calls internals the
+consumer never touches can stay green while the shipped surface is broken.
