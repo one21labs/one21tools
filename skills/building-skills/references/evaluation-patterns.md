@@ -15,13 +15,9 @@ Read this when designing tests for your skill.
 
 ## Evaluation Structure
 
-Author test cases as `evals/evals.json` in the skill folder, in **skill-creator's schema** —
-its `references/schemas.md` is the schema SSoT (don't restate it here; a mirror drifts).
-Live example: `skills/code-standards/evals/evals.json`. `validate.py` gates the shape.
-
-Authorship discipline — a delta on the Claude A/B split ([creation-process.md](creation-process.md)):
-have fresh Claude B write the `expectations` assertions, not the skill's author. An author
-grades their own intent; a fresh instance grades the artifact.
+Author test cases as `evals/evals.json` in the skill folder; `validate.py` gates the shape.
+Schema SSoT, live example, and authorship discipline (fresh Claude B writes the `expectations`,
+not the skill's author): [empirical-evals.md](empirical-evals.md#authoring-evals).
 
 ---
 
@@ -97,5 +93,5 @@ https://agentskills.io/skill-creation/evaluating-skills
 Caveats when crossing over:
 - validate.py stays authoritative for skills in this repo: its description-trigger rule is
   stricter than skill-creator's own conventions (skill-creator's own description would fail it).
-- On the harness path, grade with a fresh, ideally different, model — the bundled grader
-  otherwise inherits the session model.
+- Grading disciplines (fresh grader, blind the arm, mechanize first) live in
+  [empirical-evals.md](empirical-evals.md#running-the-benchmark).

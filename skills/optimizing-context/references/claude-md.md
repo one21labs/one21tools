@@ -10,8 +10,10 @@ CLAUDE.md is Claude Code's project-level context mechanism. It's loaded automati
 4. [Pitching References](#pitching-references)
 5. [Structure Guidance](#structure-guidance)
 6. [Token Allocation](#token-allocation)
-7. [Examples](#examples)
-8. [Iteration](#iteration)
+7. [CLAUDE.md as Forcing Function](#claudemd-as-forcing-function)
+8. [Examples](#examples)
+9. [Iteration](#iteration)
+10. [Sources](#sources)
 
 ## When to Use Which File
 

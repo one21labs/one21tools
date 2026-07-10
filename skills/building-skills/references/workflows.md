@@ -8,6 +8,7 @@ Read this when skills involve multi-step processes.
 2. [Conditional Workflows](#conditional-workflows)
 3. [Checkpoint Pattern](#checkpoint-pattern)
 4. [Feedback Loops](#feedback-loops)
+5. [Verifiable Intermediate Outputs](#verifiable-intermediate-outputs)
 
 ---
 

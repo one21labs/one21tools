@@ -77,11 +77,6 @@ def pairs_by_eval(runs: list) -> dict:
     return grouped
 
 
-def pair_runs(runs: list) -> list:
-    """Flat [(without_rate, with_rate), ...] across all evals (pair-level detail)."""
-    return [p for pairs in pairs_by_eval(runs).values() for p in pairs]
-
-
 def eval_level(by_eval: dict) -> dict:
     """Cluster replicates per eval (ADR 0019): an eval's mean delta > 0 is a win,
     < 0 a loss, 0 a tie. The headline Wilson CI is over non-tied EVALS - replicates

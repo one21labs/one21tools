@@ -83,7 +83,7 @@ Read the appropriate reference when creating/optimizing:
 | Plugins | [plugins.md](references/plugins.md) | Marketplace structure, auto-discovery |
 | Projects | [projects.md](references/projects.md) | Claude.ai projects |
 | User Preferences | [user-preferences.md](references/user-preferences.md) | Claude.ai defaults |
-| Prompts | [prompts.md](references/prompts.md) | Designing prompts, including slash commands |
+| Prompts | [prompts.md](references/prompts.md) | Designing prompts |
 | MCP | [mcp.md](references/mcp.md) | Server design |
 | Subagents | [subagents.md](references/subagents.md) | Task delegation |
 | Hooks | [hooks.md](references/hooks.md) | Automation |
