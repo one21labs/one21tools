@@ -2,7 +2,7 @@
 id: 0040
 title: "Mechanize #93 cross-file checks and the model-tier fan-out hook; reject the mirror cmp gate"
 status: accepted
-summary: "Mechanize two corpus-scoped guards in shipped scripts (#93 item 2: cross-file checks in validate.py + amendment-backlink in adr-lint.mjs; item 6: a PreToolUse hook that DENIES an Agent/Task call omitting an explicit model when subagent_type is absent or general-purpose — the case that silently inherits the parent session model; named frontmatter agents and forks are carved out), each with a decision-logic test. Reject item 7 (a cmp gate on the claude-review.yml mirror) per ADR 0015:20."
+summary: "Mechanize two corpus-scoped guards in shipped scripts (#93 item 2: cross-file checks in validate.py + amendment-backlink in adr-lint.mjs; item 6: a PreToolUse hook that DENIES a model-less Agent/Task call on an unmodeled surface — subagent_type absent/general-purpose; named agents and forks carved out), each with a decision-logic test. Reject item 7 (a cmp gate on the claude-review.yml mirror) per ADR 0015:20."
 ---
 
 # 0040 — Mechanize #93 cross-file checks and the model-tier fan-out hook; reject the mirror cmp gate
@@ -14,7 +14,7 @@ summary: "Mechanize two corpus-scoped guards in shipped scripts (#93 item 2: cro
 
 ## Decision
 1. **Item 2 — mechanize cross-file checks in shipped scripts.** validate.py gains: duplicate top-level headings, ToC↔heading match, dangling internal skill/reference pointers (it already walks references/*.md at validate.py:251-254). adr-lint.mjs gains an ADR amendment backlink ("Amend ADR NNNN" ⇒ NNNN cites the amender). Each ships with a decision-logic unit test (Never rule).
-2. **Item 6 — enforce explicit model tier at the interactive fan-out surface via a shipped PreToolUse hook.** A hook in `pdca-workflow/hooks/` DENIES (not merely warns) an Agent/Task call that omits `model` AND targets an unmodeled surface — `subagent_type` absent or `general-purpose`, the case that silently inherits the PARENT SESSION model (the ~564k miss). Carve out a named frontmatter-modeled agent and `fork` (both inherit the correct tier by design), so the deny fires only on the genuinely-ambiguous case; the override is trivial and IS the standard (set `model:` explicitly). hooks.json today carries only PostToolUse/Bash; PreToolUse is additive. check-workflow.mjs:28-47 guards only the Workflow `agent(` surface (verified — its regex matches `agent(`), NOT the interactive Agent tool where the miss occurred, so this hook covers a genuinely uncovered surface. CLAUDE.md keeps a supplementary fan-out pointer (repo-instance — for sessions that don't load the plugin).
+2. **Item 6 — enforce explicit model tier at the interactive fan-out surface via a shipped PreToolUse hook.** A hook in `pdca-workflow/hooks/` DENIES (not merely warns) an Agent/Task call that omits `model` AND targets an unmodeled surface — `subagent_type` absent or `general-purpose`, the case that silently inherits the PARENT SESSION model (the ~564k miss). Carve out a named frontmatter-modeled agent and `fork` (both inherit the correct tier by design); the override IS the standard (set `model:` explicitly). Matching strategy + limits live in the hook's own header (one home). check-workflow.mjs:28-47 guards only the Workflow `agent(` surface, NOT the interactive Agent tool where the miss occurred — this hook covers a genuinely uncovered surface.
 3. **Item 7 — REJECT the cmp gate on the claude-review.yml mirror.** Keep the re-copy discipline note.
 
 ## Justification
@@ -39,3 +39,8 @@ Item 6 has the best ratio in the batch — a deterministic shell hook (~0 per-ca
 - The hook can't decide model/subagent_type from tool_input on the real Agent surface (injection fails) → fall back to the CLAUDE.md line + a Workflow-only check-workflow.mjs extension.
 - The deny false-positives on a legitimate parent-model general-purpose fan-out → downgrade to warn or widen the carve-out.
 - A cross-file waste class recurs that validate.py's new checks miss → extend the checks.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] hook denies/carves out correctly in its 11-case surface-invoked test (PR #133); the LIVE injection [checkable] is still-open — signal: first plugin-loaded session.
+- [outcome] the backlink guard found one offender (0023↔0026), fixed same-PR.
+- [process] CLAUDE.md pointer dropped at build (budget); the hook is the decided mechanism.

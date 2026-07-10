@@ -47,3 +47,7 @@ Each rule is a verified-unhoused, one-line addition to a file that already ships
 ## Revisit triggers
 - A corpus audit finds a class none of these rules addresses → extend the taxonomy, not the count.
 - The audit-cadence trigger proves mis-tuned (see REOPEN-IF).
+
+## Act (post-ship — 2026-07-10)
+- [outcome] all eight shipped homes existed and took a one-line add under their char caps — verified at build (PR #132); 9c stayed rejected.
+- [process] one PR across 3 skills for one decision (the recorded PR-shape call); both touched plugins bumped, deviating from the version-exempt note for consistency with the batch's shipped-content precedent.

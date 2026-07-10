@@ -33,3 +33,7 @@ Verified mechanically safe on the cross-skill axis: validate_skill walks only th
 ## Revisit triggers
 - The two escape hatches prove insufficient for a real teaching case (e.g. a runnable example that must not carry the marker) → widen the override or the block-scope rule.
 - A portability break slips through in a non-fenced surface (inline code the lint doesn't scan) → extend the scanner to inline spans.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] zero current offenders corpus-wide and the #115 defect reproduces as a test case — verified (PR #130); both escape hatches shipped with the lint.
+- [process] red-team B5 moved the escape hatches from a revisit trigger into the day-one cut.
