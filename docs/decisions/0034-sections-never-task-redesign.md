@@ -18,7 +18,7 @@ summary: "De-confound the never-task cells (issue #72) under pre-registered read
 3. **n3 -> reps, one escalation, then stop.** It discriminates but is noisy; the lever is replicates (ADR 0019), not a rewrite (a blind harder-rewrite regressed 6 cells, empirical-evals.md:67). STOP RULE: ONE escalation to 6 reps; if the CI still includes 0 with point ~0, record a CLEAN NULL, spend no more. A boundary-straddling tie, not "broken".
 4. **n4 -> KEEP the pressure cell live + ADD elicitable n4b.** REVERSED from retire-it: the pressure 0/0 is honest signal (the section not overriding an explicit veto SHOULD drag the verdict), and empirical-evals.md:51 requires >=1 pressure case — retiring it biases the set (survivorship). n4b (drop "nothing else"; "show it accepting a clean commit and rejecting one with the marker") measures elicitability absent pressure. The +6 cells/run buys validity; the muda objection is overruled.
 5. **Pre-register the numeric reads (binding on the re-run).** Per cell: **both arms >= 0.8 = CEILING** (the prompt does the work, not the section) -> soften the ask and rewrite, NEVER a "section adds value" verdict. **Both arms intermediate, delta ~0 = a CLEAN NULL** counting toward ADR 0024's cut/deprioritize budget. A cut is licensed only at ADR 0024's plateau (3 valid clean-null iterations), never on one cell.
-6. **Full tier** (live triggers + pending re-run).
+6. **Full tier** (live triggers).
 
 ## Justification
 Each fix targets a diagnosed CONFOUND (crash, ambiguity, noise) or preserves honest signal (the veto null), keeping difficulty where it discriminates — the 0/0 rule and ADR 0024 D3. The pre-registered reads make ceiling vs. null a mechanical call decided BEFORE the numbers, so no result is manufactured post-hoc.
@@ -29,7 +29,7 @@ Each fix targets a diagnosed CONFOUND (crash, ambiguity, noise) or preserves hon
 - [unverifiable] a live pressure cell + n4b measures more than either alone — REOPEN-IF the pressure cell stays flat 0/0 across 3 valid iterations with no verdict movement; then retire it to a recorded finding.
 
 ## Rejected alternatives
-- Retire n4's pressure cell (my prior call) — survivorship bias + violates the >=1-pressure-case floor (empirical-evals.md:51); the 0/0 is signal.
+- Retire n4 pressure cell — survivorship bias + violates the >=1-pressure-case floor (empirical-evals.md:51); the 0/0 is signal.
 - n1 mechanics-forgiveness carve-out — grades intent; the output-only criterion is objective.
 - Rewrite n3 harder — it discriminates; noise is a reps problem (ADR 0019); blind harder-rewrites regressed 6 cells.
 - Read a both-arms-high wash as "section adds no value" — that is ceiling, fixed by rewrite (item 5).
