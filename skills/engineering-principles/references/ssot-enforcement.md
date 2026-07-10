@@ -33,6 +33,7 @@ When information exists in multiple places:
 | Copy-paste between files | Reference not established |
 | Conflicting documentation | No canonical doc |
 | "It depends on which file you look at" | Multiple sources, no authority |
+| Recurring appeal to an unstated premise across issues/PRs | Fact MISSING, not duplicated — write it once at its lowest-altitude home instead of re-deriving it ad hoc |
 
 ## Common SSoT Violations by Domain
 
