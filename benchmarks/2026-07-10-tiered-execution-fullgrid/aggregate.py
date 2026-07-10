@@ -94,7 +94,7 @@ for a, deltas in pair_deltas.items():
 
 arm_summaries = {}
 for a in ARMS:
-    path = os.path.join(BASE, f"{a}.summary.json")
+    path = os.path.join(BASE, "outputs", f"{a}.summary.json")
     if os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             arm_summaries[a] = json.load(fh)
