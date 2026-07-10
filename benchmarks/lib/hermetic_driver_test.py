@@ -4,8 +4,8 @@ import json
 import os
 import subprocess
 import unittest
+import unittest.mock
 from types import SimpleNamespace
-from unittest import mock
 
 from hermetic_driver import (CLAUDE_DENY_TOOLS, build_env, do_call, neutral_cwd,
                              summarize_call)
@@ -23,7 +23,7 @@ def fake_run(returncode=0, stdout=json.dumps(ENVELOPE), stderr=""):
 
 class BuildEnv(unittest.TestCase):
     def test_hermetic_env(self):
-        with mock.patch.dict(os.environ, {"CLAUDECODE": "1", "PATH": "/usr/bin"}, clear=False):
+        with unittest.mock.patch.dict(os.environ, {"CLAUDECODE": "1", "PATH": "/usr/bin"}, clear=False):
             env = build_env()
         self.assertNotIn("CLAUDECODE", env)
         self.assertTrue(env["CLAUDE_CONFIG_DIR"].endswith(os.path.join("issue30", "claude-config")))
