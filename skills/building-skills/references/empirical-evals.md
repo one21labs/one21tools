@@ -64,7 +64,7 @@ Disciplines:
   set toward skill-favorable evals (survivorship) and the delta-per-1k verdict then overstates.
   Fix a non-discriminating eval by REWRITING it to a harder case after transcript-level
   diagnosis — never a blind "make it harder" pass (that regressed 6 cells; see
-  benchmarks/2026-07-07-toolkit-grid/retune-results.md), never by deletion. (Distinct from a
+  one21labs/one21tools:benchmarks/2026-07-07-toolkit-grid/retune-results.md), never by deletion. (Distinct from a
   non-discriminating ASSERTION within an eval, which IS cut — see the DISCRIMINATE rule above.)
 
 ## Running the benchmark
