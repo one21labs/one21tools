@@ -1,6 +1,6 @@
 ---
 name: engineering-principles
-description: Apply when designing architecture, performing root cause analysis, eliminating waste, auditing for duplication, reviewing designs before implementation, or when quality/process questions arise, reference for TPS/Lean foundations. Foundational engineering principles for structured work - software, documentation, processes, planning. 
+description: Apply when designing architecture, planning work, performing root cause analysis, eliminating waste or duplication, reviewing designs before implementation, or when quality or process questions arise — Lean/TPS foundations for software, documentation, and process.
 ---
 
 # Engineering Principles

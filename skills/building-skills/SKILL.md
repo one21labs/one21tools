@@ -1,6 +1,6 @@
 ---
 name: building-skills
-description: Invoke when creating, updating, or validating skills. Apply conciseness principle to all skill content. Validate with `python skills/building-skills/scripts/validate.py` after edits. For context strategy (skill vs CLAUDE.md vs MCP), read optimizing-context skill instead.
+description: Invoke when creating, updating, or validating Claude Code skills, or turning repeated instructions into a reusable skill.
 ---
 
 # Building Skills

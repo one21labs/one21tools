@@ -1,6 +1,6 @@
 ---
 name: optimizing-context
-description: Invoke when advising on context engineering, writing CLAUDE.md files, setting up projects, designing agent architectures, or optimizing any mechanism that shapes Claude's input. Decision framework for choosing between Skills, CLAUDE.md, Prompts, Projects, MCP, Subagents, User Preferences, and Hooks. Optimize Claude's context for better outcomes. 
+description: Invoke when advising on context engineering: CLAUDE.md files, project setup, agent architectures, or choosing between skills, prompts, MCP, subagents, and hooks.
 ---
 
 # Optimizing Context
