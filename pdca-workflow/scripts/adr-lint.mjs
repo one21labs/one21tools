@@ -124,6 +124,21 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
       problems.push(`${a.name}: ${a.chars} chars > ${budget}-char budget`);
   }
 
+  // Amendment backlink (ADR 0040): an ADR that ACTIVELY amends another ("amends ADR NNNN") must
+  // be cited back from the amended ADR — an unpointed amendment is invisible from the record it
+  // changes (adr-template.md "Rationalize in place"). Passive "amended by NNNN" already carries
+  // the cite in the amended record itself, so only the active voice is checked.
+  const byId = new Map(adrs.map(x => [x.id, x]));
+  for (const a of adrs) {
+    for (const m of a.text.matchAll(/\bamend(?:s|ing)?\s+(?:ADR ?)?(\d{4})/gi)) {
+      const target = m[1];
+      if (target === a.id || !onDisk.has(target)) continue; // dangling cites are reported above
+      const t = byId.get(target);
+      if (t && !t.text.includes(a.id))
+        problems.push(`${a.name}: amends ADR ${target}, but ${target} does not cite ${a.id} back (unpointed amendment)`);
+    }
+  }
+
   return { problems };
 }
 

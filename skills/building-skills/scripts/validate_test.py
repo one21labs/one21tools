@@ -157,6 +157,53 @@ class ReferenceCaps(unittest.TestCase):
             self.assertIn("emoji", r.error)
 
 
+class DocStructureLint(unittest.TestCase):
+    """R8 (ADR 0040): duplicate H2 headings, stale intra-doc anchors, and dangling relative
+    .md links fail; clean structure, punctuated-heading slugs, and quoted content inside code
+    fences pass."""
+
+    def test_duplicate_h2_heading_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "## Sources\n\na\n\n## Sources\n\nb\n"
+            d = make_skill(Path(t), "dup-h2", body=body)
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("duplicate", r.error)
+
+    def test_stale_anchor_link_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "[Gone Section](#gone-section)\n\n## Here\n\nx\n"
+            d = make_skill(Path(t), "stale-anchor", body=body)
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("matches no heading", r.error)
+
+    def test_valid_toc_anchor_with_punctuation_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "- [Tier 2 — section ablation](#tier-2--section-ablation)\n\n## Tier 2 — section ablation\n\nx\n"
+            d = make_skill(Path(t), "punct-anchor", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_dangling_relative_md_link_fails(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "dangling-link", refs={"r.md": "see [gone](nowhere.md)\n"})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn("does not exist", r.error)
+
+    def test_existing_relative_md_link_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "good-link",
+                           refs={"a.md": "see [b](b.md)\n", "b.md": "see [a](a.md)\n"})
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_quoted_heading_inside_code_fence_is_not_counted(self):
+        with tempfile.TemporaryDirectory() as t:
+            body = "## Sources\n\nx\n\n```text\n## Sources\n[x](#gone)\n```\n"
+            d = make_skill(Path(t), "fenced-quote", body=body)
+            self.assertTrue(validate_skill(d).valid)
+
+
 class SelfReferentialPathLint(unittest.TestCase):
     """R6.2 (ADR 0044): a runnable fenced command anchored at the skill's OWN folder breaks in
     an installed plugin; cross-skill refs, non-runnable fences, and the two escape hatches

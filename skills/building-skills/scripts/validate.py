@@ -59,6 +59,42 @@ def contains_emoji(text: str) -> bool:
     return bool(EMOJI_PATTERN.search(text))
 
 
+def find_doc_structure_problems(text: str, label: str, base_dir: Path) -> List[str]:
+    """R8 (ADR 0040): per-file structural lints for skill content -- duplicate H2 headings
+    (the two-'## Sources' class), intra-doc anchor links that resolve to no heading (stale
+    ToCs), and relative .md links whose target file is absent (dangling reference pointers).
+    Fenced code blocks are stripped first so a quoted heading/link never counts."""
+    problems = []
+    kept = []
+    in_fence = False
+    for line in text.split("\n"):
+        if line.strip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        kept.append("" if in_fence else line)
+    clean = "\n".join(kept)
+
+    headings = re.findall(r"(?m)^(#{1,6})\s+(.+?)\s*$", clean)
+    h2 = [h for lvl, h in headings if lvl == "##"]
+    for dup in sorted({h for h in h2 if h2.count(h) > 1}):
+        problems.append(f"{label}: duplicate '## {dup}' heading")
+
+    def slugify(s: str) -> str:
+        s = re.sub(r"[^\w\s-]", "", s.lower())
+        return re.sub(r"\s", "-", s)
+
+    anchors = {slugify(h) for _, h in headings}
+    for target in re.findall(r"\[[^\]]*\]\(#([^)]+)\)", clean):
+        if target.lower() not in anchors:
+            problems.append(f"{label}: anchor link '#{target}' matches no heading")
+    for target in re.findall(r"\[[^\]]*\]\(([^)#\s]+\.md)\)", clean):
+        if target.startswith(("http://", "https://")):
+            continue
+        if not (base_dir / target).exists():
+            problems.append(f"{label}: link target '{target}' does not exist")
+    return problems
+
+
 # R6.2 (ADR 0044): info-strings treated as runnable commands; a ```text/tree-diagram/bare fence
 # is not linted, and this inline marker suppresses a deliberate worked example on its line.
 RUNNABLE_INFO_STRINGS = {"bash", "sh", "shell", "console"}
@@ -273,6 +309,11 @@ def validate_skill(skill_path: Path) -> ValidationResult:
             f"('[skills/]{folder_name}/scripts/...') breaks in an installed plugin -- use a bare "
             f"scripts/... path, or mark a deliberate example with '{SELF_PATH_ALLOW_MARKER}'"))
 
+    # R8 (ADR 0040): SKILL.md structural lints (duplicate H2s, stale anchors, dangling links)
+    structure = find_doc_structure_problems(content, "SKILL.md", skill_path)
+    if structure:
+        return ValidationResult(False, structure[0])
+
     # R5.2: No emojis in script files
     scripts_dir = skill_path / "scripts"
     if scripts_dir.exists():
@@ -305,6 +346,9 @@ def validate_skill(skill_path: Path) -> ValidationResult:
                     f"skill's own folder ('[skills/]{folder_name}/scripts/...') breaks in an "
                     f"installed plugin -- use a bare scripts/... path, or mark a deliberate "
                     f"example with '{SELF_PATH_ALLOW_MARKER}'"))
+            ref_structure = find_doc_structure_problems(ref_text, f"Reference {rel}", refs_dir)
+            if ref_structure:
+                return ValidationResult(False, ref_structure[0])
 
     # R7: evals/evals.json shape, when present (skill-creator schema; ADR 0013)
     evals_error = validate_evals_json(skill_path, folder_name)

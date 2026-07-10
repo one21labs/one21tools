@@ -122,6 +122,35 @@ test("no ADR exceeds the char budget on the real corpus", () => {
   assert.deepEqual(over, []);
 });
 
+test("fires on an unpointed amendment (amender not cited back)", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nThis amends ADR 0002's retention rule.\n" }),
+    adr("0002-b.md"),
+  ];
+  assert.match(lint({ files }).problems.join("\n"), /0001-a\.md: amends ADR 0002.*does not cite 0001/);
+});
+
+test("a backlinked amendment passes", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nThis amends ADR 0002's retention rule.\n" }),
+    adr("0002-b.md", { body: "\n# 0002\n\n## Decision\nAmended by ADR 0001 (see there).\n" }),
+  ];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("passive 'amended by' is not itself flagged as an amendment", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nAmended by ADR 0002 later.\n" }),
+    adr("0002-b.md"),
+  ];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("no unpointed amendment on the real corpus", () => {
+  const hits = lint({ files: corpus() }).problems.filter(p => /unpointed amendment/.test(p));
+  assert.deepEqual(hits, []);
+});
+
 test("fires UNFALSIFIABLE when an ADR states no falsifiable criterion", () => {
   const files = [adr("0001-first.md", { noCriterion: true })];
   assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
