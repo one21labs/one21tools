@@ -41,6 +41,8 @@ skill-creator available = fall back to the manual baseline steps in
 
 ## Authoring evals
 
+Pre-run discipline (pre-reg cites methodology; cost-pilot; prior-art): [pre-registration.md](pre-registration.md).
+
 Write `evals/evals.json` in the skill folder, in **skill-creator's schema** — its
 `references/schemas.md` is the schema SSoT; `skills/code-standards/evals/evals.json` is this
 repo's live example. `validate.py` gates the shape (skill_name matches the folder, unique
