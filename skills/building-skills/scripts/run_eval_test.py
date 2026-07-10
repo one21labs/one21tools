@@ -7,8 +7,8 @@ unittest. Run: python run_eval_test.py  (or: python -m unittest run_eval_test) f
 
 Covers the pure, subprocess-free extractions -- detect_trigger_line() (run_single_query's
 per-line stream loop) and summarize_query()/summarize_results() (run_eval's aggregation) --
-against the 4 vendored fixes (3 stream patches + timeout-as-null) plus a clean no-trigger
-stream. main()/run_single_query()'s IO (spawning `claude -p`) is untested here by design: it
+against the 5 vendored fixes (3 stream patches + timeout-as-null + the fallback-branch
+patch, issue #104) plus a clean no-trigger stream. main()/run_single_query()'s IO (spawning `claude -p`) is untested here by design: it
 needs a live WSL Claude session, which is exactly what these extractions avoid.
 """
 import json
@@ -45,10 +45,17 @@ def result_line() -> str:
     return json.dumps({"type": "result"})
 
 
+def assistant_message(*tool_calls: tuple[str, dict]) -> str:
+    """A fallback-path line: a full assistant message carrying tool_use content items."""
+    content = [{"type": "tool_use", "name": name, "input": tool_input, "id": "x"}
+               for name, tool_input in tool_calls]
+    return json.dumps({"type": "assistant", "message": {"content": content}})
+
+
 def feed(lines: list[str], clean_name: str) -> bool:
     """Run detect_trigger_line() over `lines` the way run_single_query's loop does: thread
     state, return on the first non-None verdict. Falls through to state.triggered (always False
-    -- see run_eval.py's fallback-branch note) if the stream ends undetected, matching
+    -- no keep-watching path sets it) if the stream ends undetected, matching
     run_single_query's post-loop `return state.triggered`."""
     state = DetectState(pending_tool_name=None, accumulated_json="", triggered=False)
     for line in lines:
@@ -59,7 +66,7 @@ def feed(lines: list[str], clean_name: str) -> bool:
 
 
 class UnrelatedToolCallPatch(unittest.TestCase):
-    """Fix 1 of 4: an unrelated first tool call must not end detection (upstream: `return
+    """Fix 1 of 5: an unrelated first tool call must not end detection (upstream: `return
     False` at the first non-Skill/Read content_block_start)."""
 
     def test_unrelated_call_then_matching_skill_still_triggers(self):
@@ -79,7 +86,7 @@ class UnrelatedToolCallPatch(unittest.TestCase):
 
 
 class WrongToolBlockPatch(unittest.TestCase):
-    """Fix 3 of 4: a completed tool block that doesn't match resets pending state and keeps
+    """Fix 3 of 5: a completed tool block that doesn't match resets pending state and keeps
     watching (upstream: `return clean_name in accumulated_json` / `return False` at the first
     content_block_stop / message_stop, closing the detection window)."""
 
@@ -129,6 +136,35 @@ class MatchingSkillBlock(unittest.TestCase):
         self.assertTrue(feed(lines, clean_name))
 
 
+class FallbackMessagePatch(unittest.TestCase):
+    """Fix 5 of 5: the full-assistant-message fallback must not return a terminal verdict on
+    the first unrelated tool_use (issue #104) -- only a positive match ends detection early;
+    an unmatched message keeps watching."""
+
+    def test_unrelated_then_matching_tool_in_same_message_triggers(self):
+        clean_name = "building-skills-skill-abc123"
+        line = assistant_message(("Bash", {"command": "ls"}),
+                                 ("Skill", {"skill": clean_name}))
+        self.assertTrue(feed([line], clean_name))
+
+    def test_unrelated_message_then_matching_message_triggers(self):
+        clean_name = "building-skills-skill-abc123"
+        lines = [assistant_message(("Bash", {"command": "ls"})),
+                 assistant_message(("Skill", {"skill": clean_name}))]
+        self.assertTrue(feed(lines, clean_name))
+
+    def test_unrelated_tools_only_is_not_triggered(self):
+        clean_name = "building-skills-skill-abc123"
+        lines = [assistant_message(("Bash", {"command": "ls"})), result_line()]
+        self.assertFalse(feed(lines, clean_name))
+
+    def test_matching_read_in_second_position_triggers(self):
+        clean_name = "building-skills-skill-abc123"
+        line = assistant_message(("Grep", {"pattern": "x"}),
+                                 ("Read", {"file_path": f"skills/{clean_name}/SKILL.md"}))
+        self.assertTrue(feed([line], clean_name))
+
+
 class NoTriggerStream(unittest.TestCase):
     def test_full_stream_with_no_matching_tool_call_is_not_triggered(self):
         clean_name = "building-skills-skill-abc123"
@@ -150,7 +186,7 @@ class NoTriggerStream(unittest.TestCase):
 
 
 class TimeoutAsNull(unittest.TestCase):
-    """Fix 4 of 4: a timed-out run records None -- excluded from trigger_rate's denominator and
+    """Fix 4 of 5: a timed-out run records None -- excluded from trigger_rate's denominator and
     from pass/fail, surfaced as a timeouts count (upstream scored a timeout as False, silently
     deflating rates under load). Exercised on summarize_query()/summarize_results(), the pure
     extraction of run_eval's aggregation."""
