@@ -33,3 +33,7 @@ Sync-before-spend is cheap prose against a realized $5-8 duplicate; it catches u
 ## Revisit triggers
 - The first duplicate-spend collision after this rule ships → mechanize the sync (auto-fetch at dispatch), don't add more prose.
 - A shipped dispatch/orchestration template appears → inline sync + claim as literal steps there.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] CLAUDE.md carries the rule at 5,952/6,000 chars after a budget-driven trim (the incident rationale stays here, its one home) — verified (PR #129).
+- [process] the first draft breached the 6,000 cap in CI; trimmed under it rather than exempted.

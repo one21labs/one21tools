@@ -38,3 +38,6 @@ Derive-from-lib is the doctrinal poka-yoke (CLAUDE.md — delete the mirror, der
 ## Revisit triggers
 - A stale-copy miss recurs after derive-from-lib ships → the gate earns its cost; build check-benchmark.mjs (with tests).
 - A new benchmark needs a helper the lib lacks → extend the lib, don't re-copy.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] deny_tools.txt is the single live home (frozen dated copies stay per item 4); bash mapfile read proven — verified (PR #127).

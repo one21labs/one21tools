@@ -39,3 +39,8 @@ Item 6 has the best ratio in the batch — a deterministic shell hook (~0 per-ca
 - The hook can't decide model/subagent_type from tool_input on the real Agent surface (injection fails) → fall back to the CLAUDE.md line + a Workflow-only check-workflow.mjs extension.
 - The deny false-positives on a legitimate parent-model general-purpose fan-out → downgrade to warn or widen the carve-out.
 - A cross-file waste class recurs that validate.py's new checks miss → extend the checks.
+
+## Act (post-ship — 2026-07-10)
+- [outcome] hook denies the unmodeled fan-out and passes the carve-outs in its 11-case surface-invoked test (PR #133); the LIVE injection [checkable] is still-open — named signal: first plugin-loaded session invokes Agent without model and observes the deny.
+- [outcome] the amendment-backlink guard found exactly one corpus offender (0023↔0026), fixed in the same PR — verified.
+- [process] red-team B1/B2 reshaped the hook from broad-warn to scoped-deny before build; the CLAUDE.md supplementary pointer was dropped at build (budget), the hook being the decided mechanism.
