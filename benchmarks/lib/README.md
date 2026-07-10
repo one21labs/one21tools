@@ -27,6 +27,16 @@ Test: `cd benchmarks/lib && python -m unittest bench_io_test`
 
 Test: `cd benchmarks/lib && python -m unittest verdict_test`
 
+## hermetic_driver.py
+
+- The shared hermetic `claude -p` executor plumbing (ADR 0023, issue #110): `CLAUDE_DENY_TOOLS`,
+  `NEUTRAL_FRAME`, `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
+  (one retry on timeout/nonzero exit) and `summarize_call(call)` (envelope figures + wall-clock +
+  start/end timestamps). New harnesses import this; never copy it. The two pre-#110 harnesses keep
+  their copies as append-only snapshots.
+
+Test: `cd benchmarks/lib && python -m unittest hermetic_driver_test`
+
 ## Workflow-pipeline persist step
 
 A harness's grading `Workflow` (e.g. `grade.workflow.js`) enriches each agent's raw return via
