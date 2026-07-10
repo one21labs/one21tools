@@ -125,7 +125,7 @@ bounded by (2)/(4), not eliminated. Treat those verdict components as directiona
 Post-process the harness's `benchmark.json` with the owned layer:
 
 ```
-python skills/building-skills/scripts/eval_verdict.py <benchmark.json> --skill <skill-folder>
+python scripts/eval_verdict.py <benchmark.json> --skill <skill-folder>
 ```
 
 It pairs each eval's runs across configurations and reports:
