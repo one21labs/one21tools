@@ -1,7 +1,7 @@
 ---
 id: 0033
 title: "Vendor the trigger runner as a first-party instrument (detection seam + 4 fixes)"
-status: proposed
+status: accepted
 summary: "Vendor skill-creator's run_eval.py with an extracted pure detection seam + 4 fixes (3 stream patches + timeout-as-null), guard the seam with a fixture test, pin a clean CLAUDE_CONFIG_DIR + SERIAL execution. Method -> new reference description-ablation.md (matched-load A/B; absolute rates never reportable). Scopes ADR 0013's 'No owned harness' to the paired-benchmark harness (now false: benchmarks/lib/ owned)."
 ---
 
