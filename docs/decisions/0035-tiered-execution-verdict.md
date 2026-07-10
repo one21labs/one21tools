@@ -24,7 +24,7 @@ The bar was written before any cell ran; every number above is from committed ar
 ## Assumptions
 - [checkable] the cost/time ratios reproduce from the committed summaries — owner: gate; result: verified 2026-07-10 (aggregate.py recomputes 2.935/3.22/2.272 from outputs/*.summary.json).
 - [unverifiable] per-task orchestration could pay at LARGER task granularity (multi-file implementation work), where one plan amortizes over more worker output — this run's single-shot text tasks are the pessimal case. REOPEN-IF a real multi-file workload shows tiered <=0.6x cost at non-inferior quality.
-- [checkable] the parallel run (claude/issue-41-8awnsc) reaches a compatible verdict — owner: whoever lands that branch; result: pending (named signal: that branch's PR).
+- [checkable] the parallel run (claude/issue-41-8awnsc) reaches a compatible verdict — result: verified 2026-07-10; its results.jsonl records adopt_tiered=false (tokens 8.8x, wall 4.8x, cost 4.1x vs sonnet; sonnet-haiku frac-met delta +0.282 CI [0.165,0.398]; validator false-accepted 6/24) — independent replication, same decision, plus: opus-sonnet delta ~0 on these tasks.
 
 ## Rejected alternatives
 - Adopt tiered for quality (it scored +0.10 over haiku-solo, +0.035 over sonnet on 3 tasks) — the issue's premise was cost/time efficiency; paying 2.3x for -0.057 quality is the opposite.
@@ -32,6 +32,6 @@ The bar was written before any cell ran; every number above is from committed ar
 - Grade the full 24-task battery for a stronger CI — most non-gradient tasks floor on model-tier comparison (parallel run's pre-screen); grading ties adds cost, not signal (pre-screen rule, empirical-evals.md).
 
 ## Revisit triggers
-- The parallel #41 run's verdict contradicts this one -> reconcile before either is cited as settled.
+- The parallel #41 run lands with materially different numbers than its branch snapshot -> re-reconcile.
 - A multi-file/agentic workload benchmark becomes runnable -> re-test tiered at that granularity (the [unverifiable] above).
 - Haiku-tier pricing or capability shifts materially -> re-run haiku-solo vs sonnet-solo on the gradient subset.
