@@ -113,7 +113,7 @@ Work through a task with Claude A (author). Test with Claude B (fresh instance).
 ### 3. Initialize
 
 ```bash
-python skills/building-skills/scripts/init.py <skill-name> [output-directory]
+python scripts/init.py <skill-name> [output-directory]
 ```
 
 ### 4. Implement
@@ -125,7 +125,7 @@ For multi-step processes, see [workflows.md](references/workflows.md). For outpu
 ### 5. Validate
 
 ```bash
-python skills/building-skills/scripts/validate.py <skill-folder>
+python scripts/validate.py <skill-folder>
 ```
 
 If validation fails, see [validation-rules.md](references/validation-rules.md) for constraints.
@@ -137,7 +137,7 @@ Before publishing, verify no hardcoded secrets and audit any third-party code. S
 ### 7. Package
 
 ```bash
-python skills/building-skills/scripts/package.py <skill-folder> [output-directory]
+python scripts/package.py <skill-folder> [output-directory]
 ```
 
 ---
