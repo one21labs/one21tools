@@ -2,6 +2,21 @@
 
 Subagents are specialized AI assistants with their own context windows, system prompts, and tool permissions. Available in Claude Code and Claude Agent SDK.
 
+## Table of Contents
+
+1. [Core Concept: Context Isolation](#core-concept-context-isolation)
+2. [When Subagent vs Other Mechanisms](#when-subagent-vs-other-mechanisms)
+3. [Subagent vs Task() Delegation](#subagent-vs-task-delegation)
+4. [Built-in Subagents (Claude Code)](#built-in-subagents-claude-code)
+5. [Model Tiering + Parallelism (match tier and concurrency to task)](#model-tiering--parallelism-match-tier-and-concurrency-to-task)
+6. [Custom Subagent Configuration](#custom-subagent-configuration)
+7. [Subagent Design Principles](#subagent-design-principles)
+8. [Resumable Subagents](#resumable-subagents)
+9. [Anti-Patterns](#anti-patterns)
+10. [Sources](#sources)
+
+---
+
 ## Core Concept: Context Isolation
 
 Each subagent operates in a fresh context. This prevents:
@@ -78,6 +93,7 @@ waste here compounds across every user x every iteration (rationale:
 - **Avoid FALSE serialization** — don't chain independent steps just because they touch the "same"
   repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
   that applies them.
+- **Verify against the right worktree** — a failed `cd` silently runs commands in a DIFFERENT checkout (false-green validate); `git worktree add <branch>` checks out the stale LOCAL branch, not origin's tip. Chain `validate && commit && push` so a mid-chain failure surfaces instead of hiding behind a stale checkout.
 - **`isolation:'worktree'` agents obey a DIFFERENT root's permissions** — the spawned worktree's own
   `.claude/settings.local.json`, not the session's; a narrow allow-list there floods prompts. Prefer
   in-process Workflow/Task; a bare `"Bash"` in user-global settings covers all roots.
