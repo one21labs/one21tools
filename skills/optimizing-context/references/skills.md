@@ -40,7 +40,8 @@ This minimizes context cost while maintaining capability.
 
 ### Token Efficiency
 
-Every token in a skill competes with conversation history and other context. Skills should contain only what Claude doesn't already know. Challenge each piece: "Does this justify its token cost?"
+Conciseness discipline (challenge each piece against what Claude already knows) is owned by the
+`building-skills` skill — see its Core Principles: Conciseness section.
 
 ## Skill vs Reference vs Prompt
 

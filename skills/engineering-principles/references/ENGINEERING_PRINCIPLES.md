@@ -37,15 +37,7 @@ Manufacturing engineering principles for all work - software, documentation, pro
 
 ## Seven Wastes (Software)
 
-| Waste | Manufacturing | Software | Mitigation |
-|-------|--------------|----------|------------|
-| Overproduction | Excess inventory | Extra features (YAGNI) | Build only what's needed |
-| Waiting | Idle time | Delays for approvals, builds | Fast CI/CD, async reviews |
-| Transportation | Moving materials | Handoffs between teams | Cross-functional teams |
-| Overprocessing | Excess refinement | Unnecessary complexity | Keep it simple |
-| Inventory | WIP stockpiles | Partially done work, branches | WIP limits, complete before starting new |
-| Motion | Worker movement | Task switching | Focus, single responsibility |
-| Defects | Rework | Bugs | Test-first, catch early |
+Manufacturing-origin mapping and per-domain breakdown: [waste-identification.md](waste-identification.md).
 
 ## Quality Principles
 
@@ -59,31 +51,12 @@ Manufacturing engineering principles for all work - software, documentation, pro
 
 ## Root Cause Analysis (5 Whys)
 
-**When to apply**: CRITICAL issues, recurring problems, systemic patterns.
-
-**When NOT to apply**: Minor issues, obvious typos, first-time occurrences.
-
-**Key insight**: If the fix only addresses the immediate cause, the problem will recur. Effective fixes target root causes.
+When to apply, method, and stopping criteria: [root-cause-analysis.md](root-cause-analysis.md).
 
 ## Design First, Implementation Second
 
-Foundational workflow: get design right before implementing. Rework is waste.
-
-| Domain | Design (Parent) | Implementation (Child) |
-|--------|-----------------|------------------------|
-| Software | Architecture, pseudocode, diagrams | Code |
-| Writing | Outline, structure | Draft, prose |
-| Product | Spec, wireframes | Build |
-| Planning | Design artifacts for approval | Execution |
-
-**Why design first:**
-- Fixing design is cheap; fixing implementation is expensive
-- Implementation follows from design (parent-child); prevents rework
-- "Plan" in PDSA means design, not jump to "Do"
-
-**In documentation:** docs show design intent (pseudocode, diagrams); code shows implementation. Code is SSoT for "how"; design docs are SSoT for "what/why".
-
-**Anti-pattern:** Implement first, fix later - causes rework, wasted effort, and in AI contexts, token waste.
+Foundational workflow: get design right before implementing. Rework is waste. Parent-child
+rationale, per-domain design/implementation split, and checklists: [design-review.md](design-review.md).
 
 ## Process Principles
 
@@ -155,43 +128,13 @@ LLM context windows impose constraints analogous to A3's one-page limit. Context
 | **Memory** | Remembers context across sessions | No memory between sessions |
 | **Cost** | Time (human labor) | Tokens (computational resource) |
 
-### CLAUDE.md Files: AI-First, Human-Maintainable
+### CLAUDE.md Files and Token Efficiency
 
-CLAUDE.md loads into the system prompt. Primary consumer: AI; secondary: humans maintaining it.
-
-**For AI (optimize first):**
-- Frontload critical facts (constraints, principles, conventions)
-- Explicit rules ("Do X" not "Consider X")
-- SSoT - reference canonical sources, no contradictions
-- Token efficient - tables for dense info, no redundancy
-- Structured sections; examples demonstrating desired behavior
-
-**For humans (maintainability):**
-- Clear headers, predictable structure (know where to add info)
-- Version control friendly (meaningful diffs), understandable for validation
-
-**Exclude:** Narrative about why CLAUDE.md exists, tutorials, marketing language.
-
-### Token Efficiency (Lean for LLMs)
-
-| Waste Type | Documentation Waste | Mitigation |
-|------------|---------------------|------------|
-| **Overproduction** | Verbose explanations, redundant sections | Write precisely - every token has purpose |
-| **Overprocessing** | Flowery language, unnecessary adjectives | Direct, technical language |
-| **Inventory** | Duplicate information in multiple places | SSoT - reference, don't duplicate |
-| **Defects** | Contradictions, outdated info | 100% review - validate all statements |
-| **Motion** | Poor organization, hard to find info | 5S/Seiton - predictable structure |
-
-### Actionable Guidance
-
-1. **Structure first**: Design hierarchy before writing content
-2. **Frontload**: Critical facts in first 50 lines (high-value real estate)
-3. **Reference > Duplicate**: Link to canonical sources
-4. **Be explicit**: "Do X" not "Consider doing X"
-5. **Examples over description**: Show desired output format
-6. **Tables for density**: Lower token cost than prose for structured info
-7. **Version control**: Context files are code - review with same rigor
-8. **Measure usage**: Track token consumption, optimize high-cost sections
+Applying the constraints above to CLAUDE.md authoring (constitution-not-manual philosophy, what to
+include, token allocation) is optimizing-context territory, not duplicated here:
+[claude-md.md](../../optimizing-context/references/claude-md.md). Token-efficiency waste mapping
+(Overproduction, Overprocessing, Inventory, Defects, Motion for documentation and context/prompts):
+[waste-identification.md](waste-identification.md).
 
 ## Application Hierarchy
 

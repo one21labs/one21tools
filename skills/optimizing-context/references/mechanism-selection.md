@@ -161,8 +161,7 @@ After changes, verify improvement:
 | Plugin selectivity | Install test plugin, verify only specified content in `/context` |
 | Skill activation | Does the skill trigger on 3+ realistic user phrasings (not documentation language)? |
 
-**Skill size targets** (SkillReducer empirical baselines, 2026): description <=100 tokens;
-body enforced by char cap. Descriptions >200 tokens show diminishing returns. Body content
->60% non-actionable (preamble, examples, documentation) is a documented waste pattern.
+**Skill size targets** (SkillReducer empirical baselines, 2026): checklist owned by
+[building-skills/SKILL.md](../../building-skills/SKILL.md#quality-checklist) (Anti-Pattern Baselines).
 
 If no measurable improvement, revert changes.

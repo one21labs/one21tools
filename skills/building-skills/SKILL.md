@@ -150,7 +150,7 @@ python scripts/package.py <skill-folder> [output-directory]
 - [ ] Name: matches folder, kebab-case, <=64 chars, no reserved words
 - [ ] Description: STARTS with trigger, <=1024 chars, no XML chars
 - [ ] Body: within the char cap (validate.py owns the number), ToC if >150 lines
-- [ ] No emojis in SKILL.md or scripts (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
+- [ ] No emojis in SKILL.md, scripts, or references/*.md (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
 
 ### Process
 
@@ -164,6 +164,8 @@ python scripts/package.py <skill-folder> [output-directory]
 ### Anti-Pattern Baselines (SkillReducer, 2026)
 
 Audit against public skill quality baselines:
-- [ ] Description present and starts with trigger phrase (26.4% of public skills fail this)
+- [ ] Description present, starts with trigger phrase, <=100 tokens (26.4% of public skills
+      fail the trigger-phrase check; >200 tokens shows diminishing returns)
 - [ ] Body content >40% actionable instructions — not preamble, examples, or documentation
+      (>60% non-actionable is a documented waste pattern)
 - [ ] Description activates on 3+ realistic user phrasings, not documentation language

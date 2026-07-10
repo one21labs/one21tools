@@ -12,8 +12,9 @@ BENEFIT side. Together: a skill is justified when its measured effect is worth i
 3. [Authoring evals](#authoring-evals)
 4. [Running the benchmark](#running-the-benchmark)
 5. [The verdict](#the-verdict)
-6. [Tier 2 — section ablation](#tier-2--section-ablation)
-7. [Scope and limits](#scope-and-limits)
+6. [Result snapshots](#result-snapshots)
+7. [Tier 2 — section ablation](#tier-2--section-ablation)
+8. [Scope and limits](#scope-and-limits)
 
 ---
 
