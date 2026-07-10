@@ -98,6 +98,8 @@ for a in ARMS:
     if os.path.exists(path):
         with open(path, encoding="utf-8") as fh:
             arm_summaries[a] = json.load(fh)
+    else:
+        print(f"WARNING: {path} missing -- cost/time ratios for {a} will be null")
 
 
 def total_tokens(s):

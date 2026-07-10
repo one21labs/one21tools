@@ -114,7 +114,9 @@ same Claude-grades-Claude residual ADR 0019 already carries.
 ## Reproduce
 
 Pipeline: `prep.py` -> `harness.py` per arm (inside WSL) -> `blind.py` -> `grade.workflow.js` ->
-`prosecute_counts.workflow.js` -> `aggregate.py` -> `archive_raw.py`.
+`prosecute_counts.workflow.js` -> `aggregate.py` -> `archive_raw.py`. Separately,
+`run_mechanized.py` regenerates `graded/mechanized.csv` (the structural-check column) from
+`outputs/cells/` via `benchmarks/lib/mechanized_checks.py` (tested: `mechanized_checks_test.py`).
 
 ```bash
 python prep.py                                    # meta.json, cells.tsv, evals_args.json (24 evals, no treatment content)
