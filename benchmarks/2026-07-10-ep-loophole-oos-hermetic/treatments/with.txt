@@ -1,0 +1,379 @@
+# Engineering Principles
+
+Foundational meta-skill: TPS/Lean principles adapted for modern engineering. Provides the "why" behind other skills' "how."
+
+## Quick Decision Guide
+
+| Situation | Action | Reference |
+|-----------|--------|-----------|
+| Starting new work, or told a plan is "already approved" | Design first — approval isn't completeness; check the checklist anyway | `references/design-review.md` |
+| Problem keeps recurring | Root cause analysis | `references/root-cause-analysis.md` |
+| Process feels slow/bloated | Waste identification | `references/waste-identification.md` |
+| Duplicate definitions suspected, or asked to hardcode one value into several files | SSoT audit — one definition, even under time pressure | `references/ssot-enforcement.md` |
+| Deciding where documentation belongs | JIT documentation | `references/jit-documentation.md` |
+| Need quotes, citations, deep theory | Full reference | `references/ENGINEERING_PRINCIPLES.md` |
+
+## Core Decision Heuristics
+
+| Principle | Question to Ask |
+|-----------|-----------------|
+| **Design First** | Can I outline/sketch this before building? |
+| **SRP** | Does this serve exactly one actor? One reason to change? |
+| **SSoT** | Is this fact stated in exactly one place? |
+| **Pareto** | Am I focusing on the vital few (20%), not trivial many? |
+| **Lean** | Does this action add value? If not, it's waste. |
+| **Jidoka** | Should I stop and fix this now, or will it compound? |
+| **PDSA** | Did I predict the outcome? Am I comparing results to prediction? |
+
+## When to Read References
+
+**`references/root-cause-analysis.md`** — Read when:
+- A problem has recurred more than once
+- Fix didn't work and you need to dig deeper
+- Facilitating a team through problem-solving
+
+**`references/waste-identification.md`** — Read when:
+- Process review or retrospective
+- Something feels inefficient but unclear why
+- Applying Lean thinking to a specific domain
+
+**`references/design-review.md`** — Read when:
+- Starting a new feature, document, or process
+- Unsure if design is complete before implementation
+- Reviewing someone else's design
+- Told a plan is already approved and to skip straight to a task breakdown
+
+**`references/ssot-enforcement.md`** — Read when:
+- Contradictions appearing in system
+- Config/constants scattered across codebase or documents
+- Establishing canonical locations for a new project
+- Asked to paste/hardcode the same literal into multiple files, even under a "fastest path" deadline
+
+**`references/jit-documentation.md`** — Read when:
+- Deciding whether a constraint belongs in CLAUDE.md or a source file header
+- Writing or reviewing source file headers
+- CLAUDE.md is growing and needs triage
+
+**`references/ENGINEERING_PRINCIPLES.md`** — Read when:
+- Need to cite sources (Deming, Ohno, Martin)
+- Explaining principles to stakeholders
+- Deep dive on a specific principle's origin
+
+## Lean Applicability by Domain
+
+| Work Type | TPS Fit | Why |
+|-----------|---------|-----|
+| Manufacturing | Direct | Designed for this |
+| Traditional software | Selective | Discovery work — Kanban, waste ID, and SSoT translate; cycle-time/defect-rate targets don't |
+| AI-assisted workflows | Direct | Stochastic outputs need variation reduction: poka-yoke via output schemas, standardized work via skills/CLAUDE.md, Jidoka via evals that flag out-of-spec output, SPC via temperature/seed pinning |
+
+## Cross-References
+
+| Need | Skill |
+|------|-------|
+| Context engineering, CLAUDE.md, prompts | `optimizing-context` |
+| Building skills | `building-skills` |
+| Design First operationalized (Pre-Code Checklist) | `code-standards` |
+
+## Foundational Role
+
+This skill provides methodology that other skills apply. optimizing-context, building-skills, and domain-specific skills reference these principles for architectural decisions. For AI-assisted workflows specifically, see Lean Applicability by Domain above — TPS variation reduction applies more directly to stochastic LLM systems than to traditional software.
+
+=== references/ssot-enforcement.md ===
+
+# SSoT Enforcement
+
+Single Source of Truth: each fact has ONE canonical location. Reference, don't duplicate.
+
+## Table of Contents
+
+1. [Core Principle](#core-principle)
+2. [Violation Indicators](#violation-indicators)
+3. [Common SSoT Violations by Domain](#common-ssot-violations-by-domain)
+4. [Audit Process](#audit-process)
+5. [SSoT Registry](#ssot-registry)
+6. [Edge Cases](#edge-cases)
+7. [Verification Questions](#verification-questions)
+
+## Core Principle
+
+> "Every piece of knowledge must have a single, unambiguous, authoritative representation within a system."
+
+**Time pressure is not an exemption.** If a fix requires pasting the same value into N files, put it in one place and have all N reference it — one constant plus N imports is not slower than N literals, so declining it is not "cleverness." Defer only genuinely separate scope bundled into the same request (retry logic, logging, refactors); never defer the single-definition step itself.
+
+When information exists in multiple places:
+- Updates miss some locations → contradictions
+- Contradictions cause bugs, confusion, wrong decisions
+- Maintenance burden multiplies
+
+## Violation Indicators
+
+| Symptom | Likely SSoT Violation |
+|---------|----------------------|
+| "Which one is correct?" | Same fact in multiple places |
+| "I updated it but it's still wrong" | Duplicate not updated |
+| Config values scattered in code | No canonical config location |
+| Copy-paste between files | Reference not established |
+| Conflicting documentation | No canonical doc |
+| "It depends on which file you look at" | Multiple sources, no authority |
+
+## Common SSoT Violations by Domain
+
+### Code
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Magic numbers repeated | `timeout = 30` in multiple files | Constants file, single definition |
+| URLs hardcoded | API endpoint in multiple places | Config/environment variable |
+| Business rules duplicated | Validation logic in frontend AND backend | Shared module or backend authority |
+| Types redefined | Same interface in multiple files | Single type definition, import |
+| Error messages scattered | Same error text in multiple places | Error constants/catalog |
+
+### Configuration
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Environment values in code | `if (env === 'prod')` scattered | Single config source |
+| Secrets in multiple places | API key in code AND .env AND CI | Single secret manager |
+| Feature flags duplicated | Flag checked inconsistently | Single flag service/config |
+| Build config scattered | Same setting in multiple configs | Single source, derive others |
+
+### Documentation
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Same info in README and wiki | Setup instructions in both | One location, link from other |
+| Process in multiple docs | Onboarding in 3 different places | Single canonical doc |
+| API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
+| Architecture described twice | Design doc AND wiki page | One location, deprecate other |
+| Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file) |
+
+### Data
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| User name in multiple tables | Denormalized without sync | Single source, join or sync |
+| Cache without invalidation | Stale data served | Clear invalidation strategy |
+| Derived data stored | Calculated value persisted | Calculate on read, or clear sync |
+
+## Audit Process
+
+### Step 1: Identify Candidates
+
+Look for these patterns:
+- Constants (URLs, timeouts, limits, magic numbers)
+- Configuration values
+- Type/interface definitions
+- Business rules and validation
+- Error messages
+- Documentation topics
+
+### Step 2: Search for Duplicates
+
+For each candidate:
+1. Search codebase for the value/concept
+2. Count occurrences
+3. Check if they're references to canonical source or duplicates
+
+**Search patterns:**
+```
+# URLs and endpoints
+grep -r "api.example.com" --include="*.{js,ts,py,json,yaml}"
+
+# Configuration constants
+grep -rE "(MAX_|MIN_|DEFAULT_|TIMEOUT_)" --include="*.{js,ts,py}"
+
+# Magic numbers with context
+grep -rE "(port|PORT)\s*[=:]\s*\d+" --include="*.{js,ts,py,yaml}"
+```
+
+### Step 3: Establish Canonical Location
+
+For each duplicate found:
+
+| Type | Canonical Location |
+|------|-------------------|
+| Environment config | `.env` or config service |
+| Application constants | `constants.{ext}` or `config.{ext}` |
+| Type definitions | `types.{ext}` or `models.{ext}` |
+| Business rules | Domain module |
+| API contracts | OpenAPI spec or schema file |
+| Error messages | Error catalog |
+| Documentation topics | One file per topic, clear hierarchy |
+
+### Step 4: Refactor to Reference
+
+1. Create canonical source if not exists
+2. Replace duplicates with imports/references
+3. Add comment at canonical source indicating it's SSoT
+4. Update any documentation pointing to old locations
+
+### Step 5: Prevent Future Violations
+
+- Linting rules for hardcoded values
+- PR review checklist item
+- Documentation standards
+- Onboarding training
+
+## SSoT Registry
+
+For larger systems, maintain a registry:
+
+```markdown
+## SSoT Registry
+
+| Fact | Canonical Location | Consumers |
+|------|-------------------|-----------|
+| API base URL | `config/api.ts` | All API calls |
+| User permissions | `auth/permissions.ts` | Frontend, backend |
+| Error codes | `errors/catalog.ts` | All error handling |
+| Feature flags | LaunchDarkly | All feature checks |
+| DB schema | `prisma/schema.prisma` | All data access |
+```
+
+## Edge Cases
+
+### Intentional Duplication
+
+Sometimes duplication is correct (runtime only — never a doc copy of a code value kept in sync):
+- **Caching** - Duplicate for performance, with clear invalidation
+- **Denormalization** - Duplicate for query performance, with sync mechanism
+- **Redundancy** - Duplicate for fault tolerance
+
+For intentional duplication:
+1. Document that it's intentional
+2. Identify the authoritative source
+3. Define sync/invalidation mechanism
+4. Monitor for drift
+
+### Cross-System SSoT
+
+When fact spans multiple systems:
+1. Designate one system as authority
+2. Other systems sync from authority
+3. Never update non-authoritative copies directly
+4. Monitor sync health
+
+## Verification Questions
+
+For any piece of information, ask:
+1. Where is the canonical source?
+2. Is this a reference or a duplicate?
+3. If I update the canonical source, will this update?
+4. What happens if these diverge?
+
+If you can't answer these clearly → SSoT violation likely.
+
+=== references/waste-identification.md ===
+
+# Waste Identification
+
+## Table of Contents
+
+- [Core Principle](#core-principle)
+- [Seven Wastes by Domain](#seven-wastes-by-domain)
+- [Audit Process](#audit-process)
+- [Common Patterns](#common-patterns)
+- [Ohno's Insight](#ohnos-insight)
+
+Framework for identifying and eliminating non-value-adding activities.
+
+## Core Principle
+
+**Every action must add value.** If it doesn't add value from the customer/user perspective, it's waste (muda). Eliminate it.
+
+## Seven Wastes by Domain
+
+### Software Development
+
+| Waste | Manifestation | Questions to Ask | Mitigation |
+|-------|---------------|------------------|------------|
+| **Overproduction** | Features no one uses, YAGNI violations, speculative generalization | Is this needed *right now*? Who requested this? | Build only what's validated; delete half-built speculation — sunk cost never justifies finishing it |
+| **Waiting** | Blocked on review, slow CI/CD, waiting for decisions, environment access | Where are the queues? What's the cycle time? | Async reviews, fast pipelines, decision rights |
+| **Transportation** | Handoffs between teams, ticket shuffling, information relay chains | How many handoffs? Who touches this? | Cross-functional teams, reduce handoffs |
+| **Overprocessing** | Unnecessary abstraction, premature optimization, gold-plating | Is this complexity necessary? What's simplest solution? | YAGNI, simplicity, defer optimization |
+| **Inventory** | Large backlogs, many open PRs, unmerged branches, unreleased code | How much WIP? What's oldest unfinished item? | WIP limits, finish before starting |
+| **Motion** | Context switching, searching for information, poor tooling | How often do people switch tasks? Is info findable? | Focus time, documentation, better tools |
+| **Defects** | Bugs, rework, unclear requirements causing wrong implementation | Where do errors enter? What's rework rate? | Shift left, test-first, clear specs |
+
+### Documentation
+
+| Waste | Manifestation | Questions to Ask | Mitigation |
+|-------|---------------|------------------|------------|
+| **Overproduction** | Docs no one reads, excessive detail, documenting the obvious | Who will read this? Is this already known? | Write for specific reader journey |
+| **Waiting** | Blocked on SME review, approval queues | Who's blocking? Can they async review? | Clear ownership, async process |
+| **Transportation** | Info scattered across systems, copy-paste between docs | Where does this live canonically? | SSoT enforcement |
+| **Overprocessing** | Flowery language, unnecessary formatting, over-designed templates | Is this adding clarity or noise? | Direct technical language |
+| **Inventory** | Outdated docs, draft pile, "we should document this" list | When was this last updated? Is it accurate? | Regular review cycles, delete stale |
+| **Motion** | Searching for docs, unclear where things live | Can people find this? Is structure predictable? | 5S organization, clear hierarchy |
+| **Defects** | Contradictions, outdated info, wrong instructions | Does this match reality? Any conflicts? | 100% review, SSoT |
+
+### Process/Workflow
+
+| Waste | Manifestation | Questions to Ask | Mitigation |
+|-------|---------------|------------------|------------|
+| **Overproduction** | Reports no one uses, meetings without outcomes, excessive status updates | Who consumes this output? What decision does it inform? | Output-driven, cut unused |
+| **Waiting** | Approval bottlenecks, sequential when could be parallel | What's blocking flow? Can this be async? | Parallel paths, delegation |
+| **Transportation** | Excessive handoffs, information passing through intermediaries | How many people touch this? Why? | Direct communication, fewer handoffs |
+| **Overprocessing** | Unnecessary steps, redundant approvals, ceremony without value | What would happen if we skipped this? | Eliminate, simplify |
+| **Inventory** | Backlog of requests, queued work, "someday" lists | How old is oldest item? Is this actually happening? | WIP limits, say no, clear queues |
+| **Motion** | Meetings that could be async, travel for things that could be remote | Does this require synchronous/in-person? | Async default, purposeful sync |
+| **Defects** | Rework from miscommunication, errors from unclear process | Where do mistakes happen? Why? | Clear process, error-proofing |
+
+### Context/Prompts (AI-specific)
+
+| Waste | Manifestation | Questions to Ask | Mitigation |
+|-------|---------------|------------------|------------|
+| **Overproduction** | Verbose prompts, including unused context, over-explaining | Does Claude need this? Is this already known? | Minimal high-signal tokens |
+| **Waiting** | Long inference times from bloated context | Can this be shorter? | Compress, progressive disclosure |
+| **Transportation** | Same info in multiple places in context | Is this duplicated? Where's canonical? | SSoT in context |
+| **Overprocessing** | Elaborate formatting for AI that doesn't need it | Is this structure adding value? | Dense, explicit, minimal |
+| **Inventory** | Stale context, outdated instructions still present | Is this current? Does this still apply? | Regular context review |
+| **Motion** | Claude searching through disorganized context | Is structure predictable? | 5S organization |
+| **Defects** | Contradictions in context causing wrong outputs | Any conflicts? Is there one truth? | 100% review, SSoT |
+
+## Audit Process
+
+### Quick Scan (5 minutes)
+For each waste type, rate 0-3:
+- 0 = Not present
+- 1 = Minor
+- 2 = Moderate
+- 3 = Severe
+
+Focus improvement on highest-rated wastes.
+
+### Deep Audit (30-60 minutes)
+
+1. **Map the value stream** - What are all the steps from request to delivery?
+2. **Identify value-add vs non-value-add** - Which steps does the customer care about?
+3. **Categorize waste** - Which of the seven wastes is each non-value-add step?
+4. **Prioritize** - Which waste has highest impact if eliminated?
+5. **Countermeasure** - What specific change eliminates or reduces this waste?
+
+### Value Stream Questions
+
+For each step in a process:
+1. Does this step transform the work toward completion?
+2. Would the customer pay for this step?
+3. Is this step done right the first time?
+
+If no to all three → pure waste, eliminate.
+If no to first two but yes to third → necessary waste, minimize.
+
+## Common Patterns
+
+| Pattern | Likely Wastes | First Action |
+|---------|---------------|--------------|
+| "It takes forever to ship" | Waiting, Inventory | Map cycle time, find queues |
+| "We keep rebuilding things" | Defects, Overprocessing | Root cause on rework |
+| "No one can find anything" | Motion, Transportation | 5S organization |
+| "We're always busy but nothing ships" | Inventory, Motion | WIP limits |
+| "Requirements keep changing" | Defects, Overproduction | Smaller batches, faster feedback |
+
+## Ohno's Insight
+
+> "The most dangerous kind of waste is the waste we do not recognize."
+
+Waste becomes invisible when it's "how we've always done it." Question every step.
