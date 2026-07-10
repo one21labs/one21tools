@@ -7,7 +7,7 @@ for a set of queries. Outputs results as JSON.
 VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated 2026-07-09
 (ADR 0033), plus:
   1. Five correctness fixes, each marked `# VENDORED (fix N of 5)` at its site. Fixes 1-3 are
-     the stream patches (benchmarks/2026-07-07-toolkit-grid/trigger-kit/runner-patches.diff;
+     the stream patches (one21labs/one21tools:benchmarks/2026-07-07-toolkit-grid/trigger-kit/runner-patches.diff;
      filing them upstream is DEFERRED pending owner approval to post externally) -- unpatched,
      the stream loop hard-fails detection on the first non-Skill/Read tool call and closes the
      detection window at the first content_block_stop/message_stop, producing WRONG trigger

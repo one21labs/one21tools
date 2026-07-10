@@ -32,7 +32,7 @@ Only matched-protocol A/B deltas are. An absolute trigger rate is bound to its f
   fire a REAL skill instead of, or as well as, the planted one. A live run had an installed
   dev-skills plugin shadow the planted variant and zero every cell, until `CLAUDE_CONFIG_DIR`
   was pinned clean (dated evidence:
-  benchmarks/2026-07-07-toolkit-grid/trigger-kit/FINDINGS.md).
+  one21labs/one21tools:benchmarks/2026-07-07-toolkit-grid/trigger-kit/FINDINGS.md).
 - **Worker-count collapse.** Concurrent workers plant same-description command files in the
   SHARED project root; the model sees N near-identical planted skills and invokes at most one,
   so rates collapse toward 1/N. `--num-workers 1` is therefore MANDATORY, not a tuning choice.
