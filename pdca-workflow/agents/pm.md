@@ -23,6 +23,11 @@ separate cheap-now from full-later). On a design call the tie-break is poka-yoke
 the error impossible over merely detecting it; before endorsing a sync/generator/guard for a
 mirror, rule out deleting the mirror first.
 
+Before emitting, self-check the draft against the three most-common red-team breaks: an
+unfalsifiable read (no outcome could refute the decision), survivorship bias (removing a null or
+failure from the measured set), and a load-bearing claim promoted past its evidence (an
+[unverifiable] treated as justification-grade). Fix these yourself; don't spend the adversary on them.
+
 Before emitting, re-read every cut / sequence / file claim your Decision makes against the
 build order (the ADR corpus + any roadmap) and the cited ADRs. A Build step that names a
 symbol/function must be verified against the current code — cite its `file:line`, or state it
