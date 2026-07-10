@@ -80,8 +80,11 @@ Focus improvement on highest-rated wastes.
 1. **Map the value stream** - What are all the steps from request to delivery?
 2. **Identify value-add vs non-value-add** - Which steps does the customer care about?
 3. **Categorize waste** - Which of the seven wastes is each non-value-add step?
-4. **Prioritize** - Which waste has highest impact if eliminated?
-5. **Countermeasure** - What specific change eliminates or reduces this waste?
+4. **Group findings by root cause** before countermeasures — see [root-cause-analysis.md](root-cause-analysis.md); an ungrouped finding list ends at symptoms.
+5. **Prioritize** - Which waste has highest impact if eliminated?
+6. **Countermeasure** - What specific change eliminates or reduces this waste? File countermeasures as issues, ONE per root cause (not per finding); each body carries Root cause / Fix / Prevention.
+
+Corpus-scoped audits (a whole repo, not a diff): fan out per-area finders under a cite-or-silence contract with structured returns, then one strong-tier synthesis pass. Recur by a real trigger (e.g. every N merged PRs), never a fixed calendar cadence — an untriggered audit is Overproduction.
 
 ### Value Stream Questions
 

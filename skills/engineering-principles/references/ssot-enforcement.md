@@ -66,6 +66,7 @@ When information exists in multiple places:
 | Architecture described twice | Design doc AND wiki page | One location, deprecate other |
 | Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
 | Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file) |
+| Expiring status prose | "advisory today", "when wired", "until X ships" | Status lives in the artifact/config; docs point at it |
 
 ### Data
 
@@ -129,6 +130,7 @@ For each duplicate found:
 
 ### Step 5: Prevent Future Violations
 
+- Search before stating: before writing a fact anywhere, search for its existing home — reference it if found; a duplicate starts as an innocent write
 - Linting rules for hardcoded values
 - PR review checklist item
 - Documentation standards
