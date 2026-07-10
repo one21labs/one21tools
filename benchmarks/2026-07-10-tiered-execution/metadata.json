@@ -1,0 +1,48 @@
+{
+  "benchmark": "tiered-agent-execution",
+  "issue": 41,
+  "date": "2026-07-10",
+  "run_status": "not yet run -- this file is the PRE-REGISTRATION, written before any executor or grading call",
+  "question": "Does a tiered configuration (sonnet plans + validates, haiku implements, <=2 worker iterations) match sonnet-solo quality at materially lower cost or time?",
+  "protocol_adrs": ["0019", "0023", "0024", "0025", "0027"],
+  "executor": {
+    "vehicle": "harness.workflow.js run by the Workflow tool (issue #41's explicit design; prior benchmarks used harness.sh + claude -p for the executor, this one needs the tiered arm's multi-step orchestrator/worker/validate control flow, which pipeline()/agent() express directly)",
+    "models": { "sonnet-solo": "sonnet", "haiku-solo": "haiku", "tiered": "orchestrator sonnet, worker haiku" },
+    "effort": "medium (agent() effort:'medium', matching prior benchmarks' CLAUDE_EFFORT=medium)",
+    "arms": ["sonnet-solo", "haiku-solo", "tiered"],
+    "arm_symmetry_control": "no skill content is injected in any arm; every arm gets the identical NEUTRAL_FRAME instruction not to read files, search the repo, run commands, or use any tools. ADR 0023's hermeticity requirement scopes to the control arm (ADR 0027 scoping note); the Workflow subagent may technically retain tool access, so the control here is ARM SYMMETRY (identical constraints, identically worded, across all 3 arms), not tool-denial enforced by the runner.",
+    "no_treatment_content": true
+  },
+  "grid": { "skills": 4, "evals_per_skill": 6, "evals_total": 24, "arms": 3, "reps": 3, "executor_cells": 216 },
+  "tiered_design": {
+    "pattern": "orchestrator (sonnet) writes a brief plan/spec -> worker (haiku) implements from the spec -> orchestrator (sonnet) validates against the ORIGINAL request -> may redispatch the worker ONCE with corrections",
+    "max_worker_iterations": 2,
+    "final_deliverable_rule": "always the worker's LAST output; the orchestrator never rewrites it (rewriting would contaminate which tier produced the graded deliverable)"
+  },
+  "grading": {
+    "blinded": true,
+    "grader": "claude (sonnet), blind per-expectation MET/NOT-MET",
+    "prosecutor": "uniform adversarial re-count on ALL cells (ADR 0025); met_final = min(grader, prosecutor)",
+    "grader_independence_residual": "grader is sonnet, the same tier as the sonnet-solo arm and the tiered orchestrator. Grader independence is unsolvable across only 2 model tiers (issue #41 owner call, comment 2026-07-09); accepted as the same Claude-grades-Claude family-bias residual ADR 0019 already carries, not a new confound specific to this benchmark."
+  },
+  "metric": {
+    "headline": "fraction_met (met/total), eval-clustered mean delta + 95% CI (ADR 0019, ADR 0025)",
+    "secondary": "binary_pass (all-expectations-met), not computed as a separate headline here (fraction-met is primary per ADR 0025); available by reusing grade.workflow.js's per-cell pass field if wanted later",
+    "clustering_unit": "one of the 24 evals -- reps average within an eval before clustering, per ADR 0019"
+  },
+  "cost_time_capture": {
+    "design_compromise": "The Workflow runner has no Date.now() inside a workflow script, so wall-clock cannot be captured per-cell or even per-arm from inside harness.workflow.js. Tokens ARE capturable in-workflow via budget.spent(), sampled once at the start and once at the end of each arm's whole pipeline run (harness.workflow.js's tokens_start/tokens_end fields) -- but only as a PER-ARM AGGREGATE delta, not per-cell, because pipeline() runs a full arm's 72 cells concurrently so a per-cell split is not attributable. Wall-clock is captured OUTSIDE the workflow: the operator brackets each of the 3 per-arm Workflow invocations with a shell `date +%s.%N` immediately before and after, and records the difference in timing.json. Neither figure is fabricated to a false precision the instrumentation cannot support; both costs.json and timing.json ship as null-valued operator-filled templates, not invented numbers.",
+    "tokens_source": "costs.json, filled from each arm's persisted outputs/<arm>.json tokens_start/tokens_end (budget.spent() delta)",
+    "time_source": "timing.json, filled from operator-bracketed wall-clock around each arm's Workflow invocation",
+    "budget_spent_shape_unverified": "budget.spent()'s exact return shape (number vs structured object) is unverified in this repo -- no prior harness.workflow.js used it. costs.json's '_shape' field records what was actually observed on first use."
+  },
+  "sample_rule": "keep 1 raw output per (skill, eval_id, arm) group, sorted-rep order; archive the rest into outputs/all.tar.gz via benchmarks/lib/bench_io.sample_and_archive_raw (ADR 0023 sample rule, ADR 0026 gzip-the-rest)",
+  "adoption_bar": {
+    "pre_registered_before_run": true,
+    "primary": "mean_delta(tiered - sonnet-solo) > -0.05 on fraction-met (non-inferiority margin, point estimate, eval-clustered over the 24 evals)",
+    "secondary_confidence": "the delta's 95% CI is reported, not gating -- strong confidence if its lower bound also clears -0.05, weak otherwise (ADR-0027-style directional bar: CI-exclusion of a -0.05 margin is not reliably achievable at n=24 clustered evals, same rationale ADR 0027 used for its diff bar)",
+    "cost_gate": "AND tokens_tiered <= 0.6 * tokens_sonnet-solo OR time_tiered <= 0.6 * time_sonnet-solo",
+    "decision": "ADOPT tiered only if BOTH the quality bar and the cost-or-time gate clear. Otherwise DO NOT ADOPT; record the result either way (ADR 0024, append-only).",
+    "haiku_solo_role": "reported vs sonnet-solo for context (the cost/quality floor) -- does not gate the tiered adoption decision"
+  }
+}
