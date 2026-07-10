@@ -1,0 +1,81 @@
+Here's a custom ESLint rule that flags `console.log` calls, plus the quick zero-dependency alternative if you don't want to ship a full plugin.
+
+## Option 1: Quick fix via `no-restricted-syntax` (no plugin needed)
+
+Drop this into `.eslintrc.js` / `eslint.config.js`:
+
+```js
+// eslint.config.js (flat config)
+module.exports = [
+  {
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.object.name='console'][callee.property.name='log']",
+          message: 'console.log is not allowed in committed source. Use the project logger or remove before commit.',
+        },
+      ],
+    },
+  },
+];
+```
+
+This is enough for most cases and requires no custom plugin machinery. If you want it as its own named rule (better error message, testable in isolation, extensible to `console.debug`/`console.warn` later), use Option 2.
+
+## Option 2: Full custom rule (`no-console-log`)
+
+```js
+// eslint-rules/no-console-log.js
+'use strict';
+
+module.exports = {
+  meta: {
+    type: 'problem',
+    docs: {
+      description: 'Disallow console.log in committed source',
+    },
+    schema: [],
+    messages: {
+      unexpected: 'Unexpected console.log(). Remove it before committing or use the project logger.',
+    },
+  },
+  create(context) {
+    return {
+      'CallExpression[callee.type="MemberExpression"]'(node) {
+        const { object, property } = node.callee;
+        if (
+          object.type === 'Identifier' &&
+          object.name === 'console' &&
+          property.type === 'Identifier' &&
+          property.name === 'log'
+        ) {
+          context.report({ node, messageId: 'unexpected' });
+        }
+      },
+    };
+  },
+};
+```
+
+Wire it up as a local plugin:
+
+```js
+// eslint.config.js
+const noConsoleLog = require('./eslint-rules/no-console-log');
+
+module.exports = [
+  {
+    plugins: { local: { rules: { 'no-console-log': noConsoleLog } } },
+    rules: { 'local/no-console-log': 'error' },
+  },
+];
+```
+
+## Notes
+
+- Both approaches respect standard `// eslint-disable-next-line` comments, so intentional debug lines can still be suppressed explicitly and reviewed in PRs.
+- If you want to allow `console.log` in test files or scripts, add an `overrides`/second config block for those globs with the rule turned off — don't bake exceptions into the rule itself.
+- Built-in ESLint already has `no-console` (`"error", { allow: ["warn", "error"] }`) which covers this without any custom code — worth confirming that doesn't already meet your need before maintaining a bespoke rule.
+
+Want me to also add a test file for the custom rule (using `RuleTester`) so the logic itself is verified, not just wired in?

@@ -1,0 +1,36 @@
+I don't have file-system or execution tools in this session, so I can't create the file or run git for you — here's the hook and exactly how to test it yourself.
+
+**`.git/hooks/pre-commit`** (scans staged content, not the commit message — a true pre-commit hook runs before the message is even written):
+
+```bash
+#!/usr/bin/env bash
+if git diff --cached | grep -q 'DO NOT COMMIT'; then
+  echo "Commit rejected: staged changes contain 'DO NOT COMMIT'" >&2
+  exit 1
+fi
+```
+
+```bash
+chmod +x .git/hooks/pre-commit
+```
+
+Test it:
+
+```bash
+# Clean commit — should succeed
+echo "ok" > file.txt && git add file.txt && git commit -m "clean change"
+
+# Marked commit — should be rejected
+echo "# DO NOT COMMIT this" > file.txt && git add file.txt && git commit -m "wip"
+# -> "Commit rejected: staged changes contain 'DO NOT COMMIT'", exit 1, commit aborted
+```
+
+If instead you actually want to block based on the **commit message text** (not file contents), that's a `commit-msg` hook, since `pre-commit` doesn't see the message at all:
+
+```bash
+#!/usr/bin/env bash
+grep -q 'DO NOT COMMIT' "$1" && { echo "Commit rejected: message contains 'DO NOT COMMIT'" >&2; exit 1; }
+```
+(save as `.git/hooks/commit-msg`, same `chmod +x`)
+
+Which one do you actually need — staged file content, or the commit message itself? I gave you the content-scanning one as the default since "DO NOT COMMIT" markers are usually left in code, not commit messages.

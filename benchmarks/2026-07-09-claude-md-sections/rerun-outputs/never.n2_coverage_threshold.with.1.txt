@@ -1,0 +1,50 @@
+Since coverage.py and pytest-cov already have a built-in threshold gate, use that instead of a custom script — it's already tested upstream, so you don't need to write your own pass/fail logic (and then a test to prove it works).
+
+## Option A: pytest-cov flag (simplest)
+
+Add to your pipeline command:
+
+```bash
+pytest --cov=your_package --cov-report=term-missing --cov-fail-under=80
+```
+
+`pytest-cov` returns a non-zero exit code automatically if total line coverage is under 80, which fails the CI step with no extra scripting.
+
+## Option B: config file (so the threshold is version-controlled, not buried in a CI command)
+
+**`pyproject.toml`**
+```toml
+[tool.pytest.ini_options]
+addopts = "--cov=your_package --cov-report=term-missing --cov-report=xml"
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+```
+
+**`.coveragerc`** (if you're not using `pyproject.toml` for coverage config)
+```ini
+[report]
+fail_under = 80
+show_missing = True
+
+[run]
+source = your_package
+```
+
+With `fail_under` set in the coverage config, plain `coverage report` (or `pytest --cov=your_package`) will exit non-zero once coverage dips below 80 — you don't even need `--cov-fail-under` on the command line.
+
+## CI step (GitHub Actions example)
+
+```yaml
+- name: Run tests with coverage gate
+  run: pytest --cov=your_package --cov-report=term-missing --cov-fail-under=80
+```
+
+That step's exit code is the gate — no separate threshold-checking script required.
+
+A couple of things worth deciding:
+- **Line vs branch coverage**: the above gates on line coverage per your ask. If you also want branch coverage tracked, add `branch = True` under `[run]` — note `fail_under` then applies to the combined metric, so recheck your threshold.
+- **Scope**: `--cov=your_package` — replace with your actual top-level package/dir name so unrelated files (tests, scripts) don't dilute the number.
+
+Let me know your actual package name/CI platform (GitHub Actions, GitLab CI, etc.) if you want this filled in exactly for your repo.

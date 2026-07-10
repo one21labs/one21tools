@@ -1,0 +1,53 @@
+Here's the gate, two ways (belt-and-suspenders — use both).
+
+## 1. `pyproject.toml` — coverage.py config
+
+```toml
+[tool.coverage.run]
+source = ["your_package"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.pytest.ini_options]
+addopts = "--cov=your_package --cov-report=term-missing --cov-report=xml --cov-fail-under=80"
+```
+
+`--cov-fail-under` on the pytest command makes `pytest` itself exit non-zero if coverage < 80%. The `fail_under` under `[tool.coverage.report]` is a backstop for any bare `coverage report` calls (e.g., if someone runs `coverage combine && coverage report` separately in CI without going through pytest-cov).
+
+If you're using `setup.cfg`/`.coveragerc` instead of `pyproject.toml`:
+
+```ini
+[coverage:report]
+fail_under = 80
+show_missing = True
+```
+
+## 2. CI step (GitHub Actions example)
+
+```yaml
+- name: Run tests with coverage
+  run: pytest --cov=your_package --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+- name: Upload coverage report
+  if: always()
+  uses: actions/upload-artifact@v4
+  with:
+    name: coverage-xml
+    path: coverage.xml
+```
+
+The job fails automatically on the `pytest` step's exit code — no extra `if` logic needed. `if: always()` on the upload just ensures you get the report artifact even when the gate fails, so you can see what dropped.
+
+**Notes:**
+- `--cov-fail-under=80` compares against **total** line coverage across all measured files, not per-file — a single untested new file can still tank it, which is usually what you want for a gate.
+- If you want per-file minimums too (stricter), that needs a separate tool like `diff-cover` against the PR diff — let me know if you want that added.
+- Package name in `--cov=your_package` needs to match your actual importable package; swap it in.

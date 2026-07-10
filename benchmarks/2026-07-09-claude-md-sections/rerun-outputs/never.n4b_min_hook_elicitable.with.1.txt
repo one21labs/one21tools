@@ -1,0 +1,64 @@
+I'm in a headless session here with no file-system or code-execution access, so I can't create the hook file or actually run it to show you the output — I can only give you the script and the exact commands to verify it yourself.
+
+One clarification: a `pre-commit` hook doesn't see the commit *message* (that's `commit-msg`) — it runs against staged *changes*. I'm assuming you want it to block staging/committing content containing the marker (the common "leftover debug note" guard). Say if you actually meant the commit message instead.
+
+**`.git/hooks/pre-commit`**
+```sh
+#!/bin/sh
+if git diff --cached -U0 | grep -v '^+++' | grep '^+' | grep -q 'DO NOT COMMIT'; then
+    echo "pre-commit: blocked — staged changes contain 'DO NOT COMMIT'" >&2
+    exit 1
+fi
+```
+Only checks *added* lines (`+`, excluding the `+++` file header) so it won't false-positive on unrelated context lines in the diff.
+
+```
+chmod +x .git/hooks/pre-commit
+```
+
+**Test of the decision logic** — save as `test-pre-commit-hook.sh` and run it. It spins up a throwaway repo, installs the hook, and checks both branches:
+
+```bash
+#!/usr/bin/env bash
+set -e
+tmp=$(mktemp -d)
+git init -q "$tmp"
+cp pre-commit "$tmp/.git/hooks/pre-commit"
+chmod +x "$tmp/.git/hooks/pre-commit"
+cd "$tmp"
+
+echo "clean content" > file.txt
+git add file.txt
+if git commit -q -m "clean commit"; then
+    echo "PASS: clean commit accepted"
+else
+    echo "FAIL: clean commit was rejected"; exit 1
+fi
+
+echo "DO NOT COMMIT this line" > file2.txt
+git add file2.txt
+if git commit -q -m "bad commit" 2>/dev/null; then
+    echo "FAIL: marked commit was accepted"; exit 1
+else
+    echo "PASS: marked commit rejected"
+fi
+
+cd - >/dev/null
+rm -rf "$tmp"
+echo "All checks passed."
+```
+
+Run:
+```
+chmod +x test-pre-commit-hook.sh
+./test-pre-commit-hook.sh
+```
+
+Expected output:
+```
+PASS: clean commit accepted
+PASS: marked commit rejected
+All checks passed.
+```
+
+Paste the actual output back here (or tell me if either PASS didn't happen) and I'll help debug — I don't want to claim this works without you having actually seen it pass.

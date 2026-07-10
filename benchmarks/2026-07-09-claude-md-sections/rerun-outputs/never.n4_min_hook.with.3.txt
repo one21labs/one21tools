@@ -1,0 +1,33 @@
+I don't have filesystem tools in this session, so here are the contents to save yourself.
+
+**`.git/hooks/pre-commit`** (make executable: `chmod +x`)
+
+```bash
+#!/bin/sh
+if git diff --cached | grep -q 'DO NOT COMMIT'; then
+    echo "Commit rejected: found 'DO NOT COMMIT' marker." >&2
+    exit 1
+fi
+```
+
+Since this gates commits, here's a minimal executable test of the decision logic (the same grep condition the hook relies on), so you're not shipping the gate unverified:
+
+**`test-pre-commit-hook.sh`**
+
+```bash
+#!/bin/sh
+set -e
+
+pass() { echo "PASS: $1"; }
+fail() { echo "FAIL: $1"; exit 1; }
+
+echo "safe content" | grep -q 'DO NOT COMMIT' \
+    && fail "clean diff should not match" \
+    || pass "clean diff is allowed"
+
+echo "// DO NOT COMMIT" | grep -q 'DO NOT COMMIT' \
+    && pass "marker is detected" \
+    || fail "marker should have matched"
+```
+
+Run it with `sh test-pre-commit-hook.sh` — both cases should print `PASS`.
