@@ -100,6 +100,14 @@ class DoCall(unittest.TestCase):
         self.assertEqual(seen["input"], "the prompt")
         self.assertIn("haiku", seen["cmd"])
 
+    def test_deny_list_loads_from_the_single_txt_home(self):
+        # ADR 0041: deny_tools.txt is the one language-neutral home (bash reads it via mapfile).
+        from pathlib import Path
+        txt = Path(__file__).with_name("deny_tools.txt").read_text().split()
+        self.assertEqual(CLAUDE_DENY_TOOLS, txt)
+        for tool in ("Task", "Agent", "TaskCreate", "TaskUpdate", "SendMessage"):
+            self.assertIn(tool, CLAUDE_DENY_TOOLS)
+
 
 class SummarizeCall(unittest.TestCase):
     def test_maps_envelope_fields_and_keeps_timestamps(self):

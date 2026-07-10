@@ -29,8 +29,10 @@ Test: `cd benchmarks/lib && python -m unittest verdict_test`
 
 ## hermetic_driver.py
 
-- The shared hermetic `claude -p` executor plumbing (ADR 0023, issue #110): `CLAUDE_DENY_TOOLS`,
-  `NEUTRAL_FRAME`, `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
+- The shared hermetic `claude -p` executor plumbing (ADR 0023, issue #110): `CLAUDE_DENY_TOOLS`
+  (loaded from `deny_tools.txt` — the one deny-list home, newline-delimited so a bash harness
+  reads it too: `mapfile -t DENY < lib/deny_tools.txt`, ADR 0041), `NEUTRAL_FRAME`,
+  `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
   (one retry on timeout/nonzero exit) and `summarize_call(call)` (envelope figures + wall-clock +
   start/end timestamps). New harnesses import this; never copy it. The two pre-#110 harnesses keep
   their copies as append-only snapshots.

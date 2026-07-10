@@ -22,18 +22,15 @@ import os
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 
 DEFAULT_TIMEOUT_S = 600
 
-CLAUDE_DENY_TOOLS = [
-    "Skill", "Task", "Read", "Grep", "Glob", "Bash", "Edit", "Write",
-    "WebFetch", "WebSearch", "NotebookEdit",
-    # Task/collaboration + subagent tools (issue #108): without these, a nested `claude -p`
-    # session reads and writes the PARENT session's shared task list -- an ADR 0023
-    # hermeticity hole, not just clutter.
-    "Agent", "TaskCreate", "TaskGet", "TaskList", "TaskOutput", "TaskStop", "TaskUpdate",
-    "SendMessage",
-]
+# One language-neutral deny-list home (ADR 0041): newline-delimited deny_tools.txt, read here
+# for python and via `mapfile -t DENY < .../deny_tools.txt` for bash harnesses. Includes the
+# task/collaboration + subagent tools (issue #108) -- without them a nested `claude -p` session
+# reads and writes the PARENT session's shared task list (an ADR 0023 hermeticity hole).
+CLAUDE_DENY_TOOLS = Path(__file__).with_name("deny_tools.txt").read_text().split()
 
 NEUTRAL_FRAME = (
     "Respond directly from the request text below. Do not read files, search the repository, "
