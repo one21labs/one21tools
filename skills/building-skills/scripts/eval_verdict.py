@@ -11,8 +11,13 @@ computes the win rate with a Wilson 95% CI, the mean pass-rate delta, and the ve
 NOT a CI gate (upstream runs are non-deterministic; this only post-processes their output).
 Decision logic is pure and unit-tested in eval_verdict_test.py; main() is the IO wrapper.
 
+Also carries an opt-in ADR 0023 check: --check-audit-sample re-derives a benchmark dir's
+metadata.json sample_rule and asserts every selected cell's transcript is present (the
+silent-drop tripwire) - independent of the verdict computation above.
+
 Usage:
     python eval_verdict.py <benchmark.json> --skill <skill-folder> [--fail-under DELTA]
+    python eval_verdict.py --check-audit-sample <benchmark-dir>
 """
 import argparse
 import json
@@ -117,6 +122,94 @@ def aggregate(pairs: list) -> dict:
             "mean_delta": mean_delta, "win_ci": wilson_ci(wins, wins + losses)}
 
 
+class AuditSampleError(Exception):
+    """metadata.json / sample_rule is missing or malformed. Raised, never swallowed: that
+    absence IS the silent-drop condition ADR 0023's completeness check exists to catch."""
+
+
+def load_sample_rule(benchmark_dir: Path) -> dict:
+    """Read and validate metadata.json's sample_rule (ADR 0023 minimal schema):
+        {"sample_rule": {"per_group": int, "group_by": [str, ...],
+                          "population": [{"file": str, <group_by field>: str, ...}, ...]}}
+    `population` lists every raw-output cell that existed before sampling (skill/eval harnesses
+    know this population; bench_io.sample_and_archive_raw only sees what sampling left behind).
+    Raises AuditSampleError naming exactly what's missing/malformed."""
+    meta_path = benchmark_dir / "metadata.json"
+    if not meta_path.is_file():
+        raise AuditSampleError(
+            f"{meta_path} not found - ADR 0023 requires a metadata.json with a machine-readable "
+            "sample_rule to audit the raw sample")
+    try:
+        metadata = json.loads(meta_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        raise AuditSampleError(f"{meta_path} is not valid JSON: {e}") from e
+    rule = metadata.get("sample_rule")
+    if rule is None:
+        raise AuditSampleError(
+            f"{meta_path} has no \"sample_rule\" key - ADR 0023 requires one to re-derive and "
+            "audit the raw sample")
+    for field in ("per_group", "group_by", "population"):
+        if field not in rule:
+            raise AuditSampleError(f"{meta_path} sample_rule missing required field {field!r}")
+    if not isinstance(rule["per_group"], int) or rule["per_group"] < 1:
+        raise AuditSampleError(
+            f"{meta_path} sample_rule.per_group must be a positive int, got {rule['per_group']!r}")
+    if not isinstance(rule["group_by"], list) or not rule["group_by"]:
+        raise AuditSampleError(
+            f"{meta_path} sample_rule.group_by must be a non-empty list, got {rule['group_by']!r}")
+    if not isinstance(rule["population"], list) or not rule["population"]:
+        raise AuditSampleError(
+            f"{meta_path} sample_rule.population must be a non-empty list, "
+            f"got {rule['population']!r}")
+    for i, entry in enumerate(rule["population"]):
+        if not isinstance(entry, dict) or "file" not in entry:
+            raise AuditSampleError(
+                f"{meta_path} sample_rule.population[{i}] missing \"file\": {entry!r}")
+        for key in rule["group_by"]:
+            if key not in entry:
+                raise AuditSampleError(
+                    f"{meta_path} sample_rule.population[{i}] missing group_by field {key!r}")
+    return rule
+
+
+def expected_sample(rule: dict) -> list:
+    """Re-derive which filenames the deterministic sample should have kept: population entries
+    sorted by filename, grouped by group_by field values, first per_group kept per group - this
+    mirrors bench_io.sample_and_archive_raw's actual algorithm (sorted-filename order, never
+    random - ADR 0023), so it re-derives rather than trusts whatever happens to be on disk."""
+    groups = {}
+    for entry in sorted(rule["population"], key=lambda e: e["file"]):
+        key = tuple(entry[k] for k in rule["group_by"])
+        groups.setdefault(key, []).append(entry["file"])
+    kept = []
+    for key in sorted(groups):
+        kept.extend(groups[key][:rule["per_group"]])
+    return kept
+
+
+def check_audit_sample(benchmark_dir: Path, outputs_subdir: str = "outputs") -> dict:
+    """ADR 0023 silent-drop tripwire: re-derive the expected sample from metadata.json's
+    sample_rule and check every selected cell's transcript is present under
+    benchmark_dir/outputs_subdir. Raises AuditSampleError if metadata.json/sample_rule is
+    missing or malformed (fail loudly - that absence is the silent-drop condition itself).
+    Presence gaps are returned, not raised, so a caller can report the full list.
+
+    Returns {"expected": [filenames the rule says must be present],
+             "missing": [expected filenames absent from outputs_subdir],
+             "archive_expected": bool (population has archived-away cells beyond the sample),
+             "archive_present": bool (outputs_subdir/all.tar.gz exists)}."""
+    rule = load_sample_rule(benchmark_dir)
+    expected = expected_sample(rule)
+    outputs_dir = benchmark_dir / outputs_subdir
+    missing = [f for f in expected if not (outputs_dir / f).is_file()]
+    return {
+        "expected": expected,
+        "missing": missing,
+        "archive_expected": len(rule["population"]) > len(expected),
+        "archive_present": (outputs_dir / "all.tar.gz").is_file(),
+    }
+
+
 def token_cost(run_summary: dict) -> float:
     """Mean token overhead of running WITH the skill (run-time cost, beside the context cost).
     Returns 0.0 when the summary lacks token stats."""
@@ -150,12 +243,32 @@ def fmt_report(agg: dict, evals: dict, content_chars: int, tok_delta: float,
     return "\n".join(lines)
 
 
+def report_audit_sample(report: dict) -> str:
+    """Render a check_audit_sample() report as CLI output text (pure - testable without IO)."""
+    lines = []
+    if report["missing"]:
+        lines.append(
+            f"[FAIL] {len(report['missing'])}/{len(report['expected'])} sampled transcripts "
+            "missing - silent-drop tripwire triggered (ADR 0023):")
+        lines.extend(f"  {f}" for f in report["missing"])
+    else:
+        lines.append(f"[OK] {len(report['expected'])} sampled transcripts present")
+    if report["archive_expected"]:
+        if report["archive_present"]:
+            lines.append("[OK] all.tar.gz present")
+        else:
+            lines.append("[FAIL] all.tar.gz missing - archived-away cells are unrecoverable")
+    return "\n".join(lines)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Cost-per-benefit verdict over a skill-creator benchmark.json.")
-    parser.add_argument("benchmark_json", type=Path)
-    parser.add_argument("--skill", type=Path, required=True,
-                        help="skill folder (its SKILL.md body is the default context cost)")
+    parser.add_argument("benchmark_json", type=Path, nargs="?",
+                        help="skill-creator benchmark.json (omit with --check-audit-sample)")
+    parser.add_argument("--skill", type=Path, default=None,
+                        help="skill folder (its SKILL.md body is the default context cost); "
+                             "required unless --check-audit-sample")
     parser.add_argument("--include-references", action="store_true",
                         help="charge the delta against SKILL.md body + all references/*.md "
                              "(upper bound: assumes every reference loaded) - ADR 0019")
@@ -164,7 +277,25 @@ def main() -> int:
                              "body/references estimate (ADR 0019)")
     parser.add_argument("--fail-under", type=float, default=None,
                         help="exit 1 if the mean pass-rate delta falls below this")
+    parser.add_argument("--check-audit-sample", type=Path, default=None, metavar="BENCHMARK_DIR",
+                        help="ADR 0023 silent-drop tripwire: re-derive BENCHMARK_DIR/metadata.json's "
+                             "sample_rule and assert every selected cell's transcript is present "
+                             "under BENCHMARK_DIR/outputs; prints a report and exits, skipping the "
+                             "verdict computation")
     args = parser.parse_args()
+
+    if args.check_audit_sample is not None:
+        try:
+            report = check_audit_sample(args.check_audit_sample)
+        except AuditSampleError as e:
+            print(f"[FAIL] {e}")
+            return 1
+        print(report_audit_sample(report))
+        return 1 if report["missing"] or (report["archive_expected"]
+                                           and not report["archive_present"]) else 0
+
+    if args.benchmark_json is None or args.skill is None:
+        parser.error("benchmark_json and --skill are required unless --check-audit-sample is given")
 
     benchmark = json.loads(args.benchmark_json.read_text(encoding="utf-8"))
     by_eval = pairs_by_eval(benchmark.get("runs", []))
