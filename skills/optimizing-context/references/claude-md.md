@@ -60,6 +60,7 @@ loses no history — git already has it.
 | Style guide regurgitation | Claude knows common styles | Note only deviations |
 | Rule cites a removed/decommissioned component | References dead code, misleads | Delete outright — the removal is a known fact, not a pending team decision to flag |
 | A procedure described as identical across many repos/teams, even in passing | Inlining duplicates upkeep N times over | Point to one on-demand home (skill, script, doc); recognize this from context, not only when explicitly asked where something belongs |
+| CLAUDE.md deep-links into a skill's `references/` | Bypasses the skill's SKILL.md routing table, skipping its onward handoffs | Link the skill or its SKILL.md; deep-link only leaf procedures |
 
 ## Pitching References
 
