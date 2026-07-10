@@ -1,0 +1,73 @@
+I'll analyze the code for defects and provide a severity-ordered review.
+
+## Code Review: Refund Handler
+
+### Critical Defects
+
+1. **State mutated before API call**
+   - **Issue**: `order.status` and `order.refunded_amount` are set before the API call. If the refund API fails, the order is permanently marked refunded when no refund occurred.
+   - **Failure scenario**: API timeout → order marked refunded → user not refunded → data corruption
+   - **Fix**: Move `order.status = "refunded"` and `order.refunded_amount = amount` to execute only after the API succeeds:
+   ```python
+   result = payments_api.refund(order.payment_ref, amount)
+   if result.get("status") == "ok":
+       order.status = "refunded"
+       order.refunded_amount = amount
+   ```
+
+### High Defects
+
+2. **Silent success after API failure**
+   - **Issue**: When `result.get("status") != "ok"`, the code logs a warning but returns `True`, signaling success to the caller when the refund failed.
+   - **Failure scenario**: Caller thinks refund succeeded; customer not refunded; accounting mismatch
+   - **Fix**:
+   ```python
+   if result.get("status") != "ok":
+       log.warning("refund not ok")
+       return False
+   ```
+
+3. **Fee charged regardless of refund success**
+   - **Issue**: `order.fee = amount * FEE_RATE` executes after the status check, so fees are recorded even when the refund failed.
+   - **Failure scenario**: Order marked with fee but refund never processed; accounting discrepancy
+   - **Fix**: Move fee calculation inside the success condition above.
+
+### Medium Defects
+
+4. **Overly broad exception handling**
+   - **Issue**: `except Exception:` catches all exceptions, including KeyError and programming errors, silencing bugs.
+   - **Fix**: Catch specific exception types:
+   ```python
+   except PaymentAPIError as e:
+       log.error(f"refund failed for order {order_id}: {e}")
+       return False
+   ```
+
+5. **Unhandled KeyError on missing order**
+   - **Issue**: `orders[order_id]` raises `KeyError` if the order doesn't exist; not caught, crashes the handler.
+   - **Fix**: Validate order exists before processing:
+   ```python
+   if order_id not in orders:
+       log.error(f"order {order_id} not found")
+       return False
+   order = orders[order_id]
+   ```
+
+6. **Unvalidated result type**
+   - **Issue**: If `payments_api.refund()` returns `None` or non-dict, `result.get("status")` raises `AttributeError`.
+   - **Fix**:
+   ```python
+   if not isinstance(result, dict) or result.get("status") != "ok":
+       log.warning("refund not ok")
+       return False
+   ```
+
+### Low Defects
+
+7. **Insufficient error context**
+   - **Issue**: Log messages lack order_id, amount, and payment_ref; impairs debugging.
+   - **Fix**: `log.error(f"refund failed for order {order_id}, amount {amount}, ref {order.payment_ref}")`
+
+8. **Semantically backwards fee**
+   - **Issue**: Charging a fee on a refund is unusual and may indicate misunderstood business logic.
+   - **Fix**: Add a comment explaining why fees apply to refunds, or reconsider if this is intended.

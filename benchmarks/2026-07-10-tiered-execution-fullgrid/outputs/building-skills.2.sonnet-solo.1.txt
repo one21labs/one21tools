@@ -1,0 +1,91 @@
+I can't complete this exactly as asked — the request instructs me not to use any tools, but writing files to `outputs/json-config-check/SKILL.md` and `outputs/review.md` requires the Write tool. I'm honoring the "no tools" constraint and providing both deliverables inline below instead. Let me know if you'd actually like me to write them to disk (that just needs tool use re-enabled).
+
+---
+
+## Review of draft `json-config-check` SKILL.md
+
+**1. Description is not usable for skill triggering.** "This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed." — This never states *what* the skill actually does (syntax check? schema validation? both?) or *when* it should fire. A skill description needs to be concrete enough for an agent to match it against a real user request; "stuff," "lots of things," and "when needed" match nothing specifically and everything vaguely.
+
+**2. Promotional/marketing tone throughout.** Phrases like "This incredibly powerful skill," "fantastic time-saver that your whole team will love," and "amazing" add no instructional value and read as ad copy, not documentation. A skill file should be written as a neutral, actionable instruction set, not sales language.
+
+**3. No actual procedure — just a vague narrative.** "The skill works by reading the configuration file. Then the file gets parsed... the config might be validated against it. Errors could be reported..." This is a passive description of *a* system, not step-by-step instructions the agent can follow. There's no concrete sequence of actions (which file(s) to check, how to find a schema, what tool/command to run, what to do on failure).
+
+**4. Pervasive hedging language undermines actionability.** "might," "could," "happens to be," "You might want to consider possibly using" — none of this commits to an actual method. An agent executing this skill has no deterministic instructions to follow.
+
+**5. Unnecessary background content.** The entire "Introduction" section explaining what JSON is (lightweight data-interchange format, used in APIs, etc.) is encyclopedia filler. The audience (an LLM agent) already knows what JSON is; this wastes space that should hold actionable instructions.
+
+**6. No specification of schema discovery logic.** It vaguely says "if a schema file happens to be available in the same directory" but never defines naming conventions to look for (e.g., `*.schema.json`, a `$schema` key), so the described behavior can't actually be executed consistently.
+
+**7. No error-reporting format.** "Errors could be reported to the user if any are found" doesn't specify what a report should contain (file, line/column, schema validation path, pass/fail summary), making output inconsistent across runs.
+
+**8. No handling of edge cases.** Multiple target files, missing files, malformed JSON with no schema present, or schema files that are themselves invalid are all unaddressed.
+
+**9. "About This Amazing Skill" section is redundant.** It restates the description in flowerier language and adds nothing beyond what should already be a tight, factual description field.
+
+---
+
+## Rewritten `outputs/json-config-check/SKILL.md`
+
+```markdown
+---
+name: json-config-check
+description: Validates JSON configuration files for syntax correctness and, when a matching JSON Schema is available, validates them against that schema. Use when a user asks to check, validate, lint, or debug a JSON config file, or needs help diagnosing a JSON parse or schema error.
+---
+
+# JSON Config Check
+
+## Purpose
+
+Validate one or more JSON configuration files for syntax correctness, and validate them against a JSON Schema when one is available.
+
+## Procedure
+
+1. Identify the target JSON file(s) from the user's request or the current working directory.
+2. Parse each file with a JSON parser, e.g.:
+   - `python3 -c "import json; json.load(open('path'))"`
+   - `jq . path`
+   If parsing fails, capture and report the exact error message (including line/column if the parser provides it), then stop processing that file.
+3. Look for an associated schema:
+   - A `$schema` key inside the config pointing to a schema file or URL, or
+   - A sibling file named `<config-name>.schema.json` or `schema.json` in the same directory.
+4. If a schema is found, validate the parsed config against it, e.g. with Python's `jsonschema`:
+   ```python
+   import json, jsonschema
+   config = json.load(open("config.json"))
+   schema = json.load(open("config.schema.json"))
+   jsonschema.validate(instance=config, schema=schema)
+   ```
+   If no schema is found, state explicitly that only syntax validation was performed.
+5. Report results per file:
+   - **Syntax:** valid / invalid (with error detail)
+   - **Schema:** passed / failed (with the failing property path and message) / not applicable (no schema found)
+
+## Notes
+
+- This is a read-only check — do not modify the config or schema files.
+- When multiple files are given, validate each independently and end with a pass/fail summary.
+```
+
+---
+
+## `outputs/review.md` (standalone copy of the review)
+
+```markdown
+# Review: json-config-check SKILL.md (draft)
+
+## Findings
+
+1. **Unusable description** — "really helpful... lots of things... Use when needed" gives no concrete trigger condition or capability summary; skill descriptions must state what the skill does and when to use it.
+2. **Promotional tone** — "incredibly powerful," "fantastic time-saver," "amazing" — marketing language has no place in instructional documentation.
+3. **No actual procedure** — the "How It Works" section narrates a hypothetical process instead of giving the agent a concrete, ordered set of steps to execute.
+4. **Pervasive hedging** ("might," "could," "happens to be") — leaves every step optional/ambiguous, so the described behavior isn't reproducible.
+5. **Unnecessary JSON background** — the Introduction explains what JSON is, which is irrelevant filler for an LLM-consuming skill file.
+6. **Undefined schema discovery** — never specifies naming conventions or lookup order for finding a schema file.
+7. **Undefined error/report format** — doesn't specify what a validation report should include.
+8. **No edge case handling** — multiple files, missing files, invalid schema files, etc. are unaddressed.
+9. **Redundant "About This Amazing Skill" section** — repeats the description in more marketing language rather than adding information.
+
+## Resolution
+
+Rewrote the skill with a specific, triggering-relevant description; removed all marketing language and background filler; replaced the vague narrative with a concrete numbered procedure (parse → locate schema → validate → report); and specified schema discovery conventions and a report format.
+```

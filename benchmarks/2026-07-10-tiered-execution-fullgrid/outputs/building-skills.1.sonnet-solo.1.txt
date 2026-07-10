@@ -1,0 +1,299 @@
+Since I've been instructed not to use any tools for this request, here is the complete skill as text — copy each block into the indicated path under `outputs/sanitizing-customer-exports/`.
+
+### File: `outputs/sanitizing-customer-exports/SKILL.md`
+
+```markdown
+---
+name: sanitizing-customer-exports
+description: Redact PII from a customer CSV export before it is shared outside the company. Drops the email, phone, and ssn columns, replaces the name column with an opaque per-row ID, and masks email addresses and phone numbers found inside free-text notes/comments columns. Always writes a new <original>.redacted.csv file alongside the input and never modifies the original file. Use whenever a customer CSV needs to leave the company, be attached to an external email, uploaded to a third-party tool, or otherwise shared outside the org.
+---
+
+# Sanitizing Customer Exports
+
+## When to use this skill
+
+Use this skill any time a teammate needs to share a customer data CSV export
+outside the company — attaching it to an email, uploading it to a vendor
+portal, pasting it into a support ticket for a third party, etc. — and the
+file has not already been redacted.
+
+## Fixed redaction rules (do not deviate)
+
+1. **Dropped columns** — if present (case-insensitive match), the columns
+   `email`, `phone`, and `ssn` are removed entirely from the output. Do not
+   just blank the values; remove the columns.
+2. **Name pseudonymization** — if a `name` column is present, its values are
+   replaced with an opaque per-row ID (`CUST-000001`, `CUST-000002`, ...) in
+   row order. Do not derive the ID from the name (e.g. do not hash the name)
+   — names are low-entropy and a hash can be reversed by dictionary attack.
+3. **Free-text scanning** — the `notes` and `comments` columns (if present,
+   case-insensitive) are scanned for embedded email addresses and phone
+   numbers, and only those substrings are masked in place with
+   `[REDACTED_EMAIL]` / `[REDACTED_PHONE]`. The rest of the free-text content
+   is left untouched.
+4. **Output path** — the redacted file is always written to
+   `<original>.redacted.csv` next to the original (e.g. `customers.csv` ->
+   `customers.redacted.csv`). If a redacted file already exists at that path,
+   it is overwritten (it's a derived artifact, safe to regenerate).
+5. **Original is never touched** — the input file is opened read-only and is
+   never written to, moved, or deleted.
+
+These rules are fixed and should not be made "smarter" or configurable
+on the fly (e.g. do not start fuzzy-matching column names like `Email
+Address` unless the user explicitly asks — confirm with them instead of
+guessing at scope).
+
+## How to run it
+
+Use the bundled script rather than re-implementing the logic inline:
+
+```bash
+python3 scripts/redact_csv.py /path/to/customers.csv
+```
+
+This produces `/path/to/customers.redacted.csv`.
+
+To see exactly which columns were dropped/pseudonymized/scanned without
+guessing, pass `--summary` (on by default) — the script prints a short
+report to stderr, e.g.:
+
+```
+Dropped columns: email, phone
+Pseudonymized column: name (127 rows)
+Scanned free-text columns: notes, comments (14 matches masked)
+Wrote: customers.redacted.csv
+```
+
+If the CSV has none of the recognized columns (no `email`/`phone`/`ssn` to
+drop, no `name` to pseudonymize, no `notes`/`comments` to scan), the script
+still writes a `.redacted.csv` copy (identical content) so the "always
+produce a redacted file, never touch the original" contract holds
+regardless of schema — but report to the user that no PII columns were
+found, since that often means the column names don't match what they
+expected and warrants a second look.
+
+## Verifying before sharing
+
+Before telling the user the file is safe to share:
+
+1. Confirm the script actually ran and the `.redacted.csv` file exists.
+2. Spot-check the printed summary against what the user expects (e.g. if
+   they mention a `phone_number` column, note that it won't be dropped
+   automatically — the rule matches the exact column name `phone`, not
+   variants — and ask whether to also drop it).
+3. Never claim a file is "PII-free" — only that the fixed rules above were
+   applied. Free-text columns beyond `notes`/`comments` are not scanned, and
+   masking is regex-based (best-effort, not a guarantee against all PII
+   formats). Say this explicitly if the user asks about compliance
+   guarantees.
+
+See `reference.md` for the exact matching rules and regex patterns, and
+`examples/` for a sample input/output pair.
+```
+
+### File: `outputs/sanitizing-customer-exports/scripts/redact_csv.py`
+
+```python
+#!/usr/bin/env python3
+"""Redact PII from a customer CSV export.
+
+Usage:
+    python3 redact_csv.py /path/to/customers.csv
+
+Writes /path/to/customers.redacted.csv. Never modifies the input file.
+"""
+
+import argparse
+import csv
+import re
+import sys
+from pathlib import Path
+
+DROP_COLUMNS = {"email", "phone", "ssn"}
+NAME_COLUMN = "name"
+FREE_TEXT_COLUMNS = {"notes", "comments"}
+
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+PHONE_RE = re.compile(
+    r"(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b"
+)
+
+
+def find_column(fieldnames, target):
+    for name in fieldnames:
+        if name.strip().lower() == target:
+            return name
+    return None
+
+
+def mask_free_text(value):
+    if not value:
+        return value, 0
+    masked, n_email = EMAIL_RE.subn("[REDACTED_EMAIL]", value)
+    masked, n_phone = PHONE_RE.subn("[REDACTED_PHONE]", masked)
+    return masked, n_email + n_phone
+
+
+def redact(input_path):
+    output_path = input_path.with_name(input_path.stem + ".redacted.csv")
+    if output_path.resolve() == input_path.resolve():
+        raise ValueError(
+            f"Refusing to write redacted output over the original file: {input_path}"
+        )
+
+    with input_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+
+        drop_cols = [c for c in fieldnames if c.strip().lower() in DROP_COLUMNS]
+        name_col = find_column(fieldnames, NAME_COLUMN)
+        free_text_cols = [
+            c for c in fieldnames if c.strip().lower() in FREE_TEXT_COLUMNS
+        ]
+
+        out_fieldnames = [c for c in fieldnames if c not in drop_cols]
+
+        rows = []
+        mask_count = 0
+        for i, row in enumerate(reader, start=1):
+            out_row = {k: v for k, v in row.items() if k not in drop_cols}
+            if name_col is not None:
+                out_row[name_col] = f"CUST-{i:06d}"
+            for col in free_text_cols:
+                masked, n = mask_free_text(out_row.get(col, ""))
+                out_row[col] = masked
+                mask_count += n
+            rows.append(out_row)
+
+    with output_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    return {
+        "output_path": output_path,
+        "dropped_columns": drop_cols,
+        "name_column": name_col,
+        "row_count": len(rows),
+        "free_text_columns": free_text_cols,
+        "mask_count": mask_count,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("input_csv", type=Path)
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        default=True,
+        help="Print a redaction summary to stderr (default: on).",
+    )
+    args = parser.parse_args()
+
+    if not args.input_csv.exists():
+        print(f"Input file not found: {args.input_csv}", file=sys.stderr)
+        sys.exit(1)
+
+    result = redact(args.input_csv)
+
+    if args.summary:
+        if result["dropped_columns"]:
+            print(f"Dropped columns: {', '.join(result['dropped_columns'])}", file=sys.stderr)
+        else:
+            print("Dropped columns: none found", file=sys.stderr)
+
+        if result["name_column"]:
+            print(
+                f"Pseudonymized column: {result['name_column']} ({result['row_count']} rows)",
+                file=sys.stderr,
+            )
+        else:
+            print("Pseudonymized column: none found (no 'name' column)", file=sys.stderr)
+
+        if result["free_text_columns"]:
+            print(
+                f"Scanned free-text columns: {', '.join(result['free_text_columns'])} "
+                f"({result['mask_count']} matches masked)",
+                file=sys.stderr,
+            )
+        else:
+            print("Scanned free-text columns: none found", file=sys.stderr)
+
+        print(f"Wrote: {result['output_path']}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### File: `outputs/sanitizing-customer-exports/reference.md`
+
+```markdown
+# Reference: matching rules and patterns
+
+## Column matching
+
+- Matching is **case-insensitive** and **exact** (after stripping
+  surrounding whitespace) against these names:
+  - Drop: `email`, `phone`, `ssn`
+  - Pseudonymize: `name`
+  - Scan for embedded PII: `notes`, `comments`
+- Matching is intentionally *not* fuzzy. A column named `Email Address`,
+  `phone_number`, or `Comments (internal)` will **not** be matched. This is
+  a deliberate choice to avoid silently dropping or scanning the wrong
+  column on a schema the rules weren't designed for. If a real export uses
+  different column names, that's a decision for a human to make explicitly,
+  not something to infer.
+
+## Name pseudonymization
+
+- Replacement IDs are sequential and derived from row order only:
+  `CUST-000001`, `CUST-000002`, ...
+- IDs are **not** derived from the name value (no hashing of the name).
+  Hashing a name is not safe pseudonymization — the input space of common
+  names is small enough to reverse by dictionary/rainbow-table attack.
+- IDs are not stable across separate runs/files — running the script twice
+  on the same input, or on two different exports, does not guarantee the
+  same person gets the same ID. If cross-file linkage by pseudonymous ID is
+  ever needed, that requires a separate, access-controlled mapping table
+  design — do not bolt that on ad hoc.
+
+## Free-text masking patterns
+
+- Email: `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}`
+- Phone (US-centric, tolerant of separators/parentheses/country code):
+  `(?:\+?\d{1,2}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b`
+- These are best-effort regexes, not a PII-detection guarantee. They will
+  miss international phone formats outside the pattern above, emails with
+  unusual TLDs handled incorrectly, and any PII that isn't an email or
+  phone number (addresses, names mentioned in free text, order numbers
+  tied to a person, etc.). Say this explicitly when reporting results —
+  do not represent free-text scanning as exhaustive.
+
+## Output path rule
+
+- `customers.csv` -> `customers.redacted.csv` (same directory, `.redacted`
+  inserted before the `.csv` extension).
+- If the computed output path is identical to the input path (e.g. an
+  unusual filename), the script raises an error rather than writing over
+  the original.
+```
+
+### File: `outputs/sanitizing-customer-exports/examples/sample_input.csv`
+
+```csv
+name,email,phone,ssn,notes
+Jane Doe,jane.doe@example.com,555-123-4567,123-45-6789,"Called about billing, reach at jane.doe@example.com or 555-123-4567"
+John Smith,john.smith@example.com,555-987-6543,987-65-4321,"No issues, prefers email contact"
+```
+
+### File: `outputs/sanitizing-customer-exports/examples/sample_output.redacted.csv`
+
+```csv
+name,notes
+CUST-000001,"Called about billing, reach at [REDACTED_EMAIL] or [REDACTED_PHONE]"
+CUST-000002,"No issues, prefers email contact"
+```
+
+This example pair illustrates: `email`, `phone`, and `ssn` columns dropped entirely; `name` replaced with sequential opaque IDs; the `notes` column kept but with embedded email/phone substrings masked, non-PII text left intact.

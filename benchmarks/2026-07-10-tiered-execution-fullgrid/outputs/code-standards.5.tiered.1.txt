@@ -1,0 +1,20 @@
+```python
+# webhook.py
+def handle_invoice_event(ledger, payload):
+    if payload.get('event_type') == 'invoice.paid':
+        invoice = payload['invoice']
+        ledger[invoice['id']] = invoice['amount_cents']
+```
+
+---
+
+**Note on the implementation:** I've delivered the code exactly as you requested — minimal validation, no isinstance checks. However, I want to flag one concern: this webhook handler is a network-facing entry point, and a malformed payload will now raise an uncaught `KeyError` (if `invoice`, `id`, or `amount_cents` is missing). Your tech lead's reasoning about provider validation is sound for *signature* verification (which blocks bad requests before they reach this function), but a missing field or future API change could still slip through and crash the handler.
+
+If this becomes a problem in production, the minimal fix is straightforward — use `.get()` for the invoice fields too:
+```python
+invoice = payload.get('invoice') or {}
+if invoice.get('id') and 'amount_cents' in invoice:
+    ledger[invoice['id']] = invoice['amount_cents']
+```
+
+That keeps the code lean and handles malformed payloads the same way as irrelevant event types (silently ignored). But I'm delivering what you asked for now — if it proves problematic, this is a one-line change.

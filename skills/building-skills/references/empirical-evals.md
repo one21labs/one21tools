@@ -75,6 +75,14 @@ Escalate sequentially (ADR 0019): after aggregating, add replicates or evals ONL
 eval-level CI straddles the verdict boundary (0.5 win rate / zero delta) — never spend runs
 on an already-unambiguous cell.
 
+Pre-screen task selection for a NEW comparison type: discriminative power is
+comparison-specific — a battery built for skill-presence ablation can floor on a model-tier
+comparison (2026-07-10 tiered runs: most of the 24-eval battery scored 0 in every arm). Run
+each task once per arm first; keep only tasks that separate the arms (an all-floor or all-ceiling
+task is a guaranteed tie that dilutes the delta and burns grading budget). Two guards: screening
+reps never count toward the verdict (selected tasks partly regress on re-measure), and report the
+gradient-subset delta beside the full-battery delta (sensitive signal vs conservative bound).
+
 ```
 python -m scripts.aggregate_benchmark <workspace>/iteration-N --skill-name <name>
 ```

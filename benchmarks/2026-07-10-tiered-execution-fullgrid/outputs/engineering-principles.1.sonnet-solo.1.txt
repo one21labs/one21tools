@@ -1,0 +1,75 @@
+I've written the analysis below. Note: I can't actually create `rca.md` without using a tool, and this request explicitly instructed me not to use any tools — so I'm providing the content directly in this response instead. Let me know if you'd like me to write it to the file.
+
+---
+
+# Post-Incident Analysis: Silent Empty-File Delivery in Nightly Customer-Export Job
+
+**Status:** Third occurrence in two months
+**Severity:** Client-visible data delivery failure, detected externally (by client) rather than internally
+
+## Summary
+
+The nightly customer-export job produced an empty output file, which was delivered to a client without any internal alert firing. This is the third time this specific failure mode — empty file, successful exit code, no alert, client notices first — has occurred in two months. The proximate triggers have differed each time (schema rename, expired/swallowed credential, unverified query change), but the outcome and detection gap have been identical all three times.
+
+## Timeline (this incident)
+
+1. Priya, an engineer who joined six weeks ago, modified the export SQL query.
+2. The documented manual verification step ("after changing the query, run it once by hand and eyeball the row count") was not performed.
+3. The modified query ran in the nightly job and returned zero rows.
+4. The job wrote an empty output file and exited 0.
+5. Monitoring checked only the exit code, saw success, and did not alert.
+6. The empty file was delivered to the client.
+7. The client noticed the file was empty and reported it back to the team.
+
+## Root Cause Analysis
+
+### Proximate cause
+Priya's query change had a defect (unspecified here — presumably a filter or join that excluded all rows) that was never caught because the manual verification step was skipped.
+
+### Why the manual step was skipped
+This is a process control that depends entirely on an individual engineer remembering and choosing to follow a wiki-documented step, with no system enforcement and no check for whether it happened. A six-week-tenure engineer is exactly the population least likely to know an undocumented-in-practice (i.e., wiki-only) step exists, and there was no mechanism — code review checklist, PR template, CI gate — that would have surfaced the requirement at the moment it mattered.
+
+### Root cause (systemic, not this incident's trigger)
+The manual verification step is a **person-dependent control** for a **system-detectable problem**. Root-causing only the missed step would misattribute this to individual error and miss the real issue, which is architectural: **the pipeline has no automated check that its own output is non-empty or reasonable, and monitoring conflates "process exited 0" with "job succeeded."** This is proven by the fact that three different proximate triggers (schema rename, swallowed expired credential, bad query) all produced the exact same undetected outcome. The common failure mode isn't the trigger — it's the absence of an output-validation and alerting layer that would catch *any* trigger that results in zero (or anomalously few) rows.
+
+A secondary root cause: the job "swallowing" an expired credential in incident #2 indicates the job's error handling actively suppresses failures into a success-shaped result (empty output + exit 0) rather than surfacing them. This is a separate defect from the monitoring gap and should be treated as its own line item.
+
+### Contributing factors
+- No new-hire onboarding checklist or code-review gate tied to the export job's known risk areas (query changes require verification).
+- No CI/pre-deploy check that runs the query and validates row count before it reaches production scheduling.
+- Monitoring designed around infrastructure health (exit code) rather than data quality (output correctness) — a common but critical gap for data pipelines specifically, since "the process ran" and "the process did its job" are different claims.
+- No client-facing safety net (e.g., pre-delivery validation) to catch a bad file before it leaves the building, even if internal detection fails.
+- Two prior incidents with the same signature did not result in the systemic fix being made — likely because each was root-caused to its individual trigger (schema rename, credential expiry) rather than to the shared detection gap.
+
+## Why This Isn't Really "Three Incidents" — It's One Incident, Three Times
+
+Each prior post-incident review appears to have treated the trigger as the root cause and remediated (or failed to remediate) narrowly. The real defect — zero-row output can silently reach a client — was present through all three and was never fixed. Any future trigger (a fourth one, unknown in advance) will reproduce the same outcome unless the detection/alerting gap itself is closed. Recommendations below are prioritized accordingly: fixing the shared gap matters more than fixing any single trigger.
+
+## Recommendations
+
+### Must fix (closes the shared gap — prevents recurrence regardless of future trigger)
+1. **Add an output-validation check to the job itself.** Before delivering the file, assert row count is above a sane minimum threshold (e.g., non-zero, or within N% of a trailing average/baseline). If the check fails, the job should exit non-zero and must not deliver the file.
+2. **Fix exit-code semantics.** The job must not exit 0 when it produces no rows or suppresses an internal error (the swallowed-credential case). Exit code should reflect actual success, including data-quality success, not just process completion.
+3. **Add a delivery gate.** Regardless of exit code, the file should never be delivered to a client until it has passed the row-count/content check. This decouples "did the job crash" from "is the file safe to send" — a second independent check prevents a single missed case from reaching the client again.
+4. **Update monitoring to alert on data-quality signals, not just exit code** — e.g., alert if row count is zero or deviates significantly from historical norms, alert if a delivery happened without a passing validation check.
+
+### Should fix (reduces trigger likelihood and blast radius)
+5. **Convert the manual verification step from a wiki instruction into an enforced gate.** E.g., a CI check that runs the query against a recent snapshot and reports row count as part of PR review for any change touching the export query, or a pre-deploy smoke test. Do not rely on a human remembering a wiki page.
+6. **Add this job and its known risk areas to new-hire/onboarding review checklist** for anyone touching export pipelines, until the check in #5 makes the manual step unnecessary.
+7. **Audit other jobs sharing this pattern** (swallowed errors resulting in success-shaped failure) — the credential-expiry incident suggests this error-suppression pattern may exist elsewhere in the codebase, not just in this one job.
+
+### Process fix (prevents this RCA pattern from repeating)
+8. **When conducting future post-incident reviews for repeat failure signatures, explicitly check for a shared systemic cause before accepting a per-incident trigger as the root cause.** This incident is evidence that narrow root-causing let the same undetected-empty-file gap survive two prior reviews.
+
+## Action Items
+
+| # | Action | Owner | Priority |
+|---|--------|-------|----------|
+| 1 | Add row-count/output validation to export job, fail loudly if empty/anomalous | Data platform team | P0 |
+| 2 | Fix job to exit non-zero on zero-row output and on suppressed internal errors | Data platform team | P0 |
+| 3 | Add pre-delivery validation gate independent of job exit code | Data platform team | P0 |
+| 4 | Update monitoring/alerting to check data-quality signals, not just exit code | Data platform team | P0 |
+| 5 | Add CI/PR check that runs modified export queries and reports row count | Data platform team | P1 |
+| 6 | Add export-job risk areas to onboarding checklist | Team lead | P1 |
+| 7 | Audit other jobs for swallowed-error / success-shaped-failure pattern | Data platform team | P2 |
+| 8 | Update RCA process to check for shared root cause across repeat incidents | Team lead | P2 |

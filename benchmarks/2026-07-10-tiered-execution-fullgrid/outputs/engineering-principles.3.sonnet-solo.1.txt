@@ -1,0 +1,54 @@
+Since I've been instructed not to use any tools for this turn, I can't create the actual `process-review.md` file — I'm giving you the content directly below so you (or a follow-up turn) can save it.
+
+---
+
+## process-review.md
+
+# Release Process Review
+
+## Current State Summary
+- PR review: ~2 day average wait
+- Merged changes accumulate on `main` until a biweekly release train
+- Each release batches ~40 changes
+- Release manager manually copies changelog entries from PR descriptions
+- Three sequential sign-offs required per release: QA lead → EM → PM
+- Hotfixes use the identical path — no expedited lane
+- Result: team is busy, throughput feels slow, releases are stressful due to large batch size
+
+## Root Causes
+
+1. **Batch size drives stress, not release frequency itself.** Bundling ~40 changes means any single regression is hard to isolate, and a failed sign-off blocks everything behind it — including unrelated, low-risk changes.
+2. **Sequential sign-offs are additive latency, not additive safety.** Three approvals in series means the release inherits the sum of three people's response times/calendars, even though most changes in a batch don't need all three perspectives.
+3. **No fast path exists**, so urgent fixes inherit all the latency of the slowest step (biweekly cadence + full changelog process + full sign-off chain).
+4. **Changelog generation is manual and duplicative** — the information already exists in PR descriptions; a human is transcribing it rather than the process extracting it.
+5. **PR review latency (2 days) compounds the batch problem** — slow review pushes changes toward the edge of the train's cutoff window, increasing pressure right before each release.
+
+## Recommendations
+
+### 1. Decouple hotfixes from the standard train (highest priority)
+Create a separate expedited path: single accountable approver (e.g., EM or on-call lead), deploy directly, backfill QA/PM notification after the fact for urgent one-line fixes. This alone removes the worst pain point — urgent fixes waiting up to two weeks.
+
+### 2. Shrink and/or decouple batch size from cadence
+Move toward smaller, more frequent releases (e.g., release whenever a change is ready, or daily/twice-weekly instead of biweekly) rather than one large train. Smaller batches mean:
+- Easier to identify what broke if something breaks
+- Lower stakes and stress per release
+- Failed sign-off blocks fewer things
+If a hard cadence is preferred for organizational reasons, consider release trains that ship *smaller, capped* batches (e.g., max 10 changes) more frequently rather than accumulating everything for two weeks.
+
+### 3. Automate the changelog
+Generate changelog entries directly from PR titles/descriptions at merge time (e.g., a bot that appends structured PR metadata to a running changelog file, or a tool like release-please/conventional commits). Eliminate the manual copy step entirely — it's pure transcription risk and toil.
+
+### 4. Replace strict sequential sign-off with risk-based, parallelized approval
+- Run QA, EM, and PM review **in parallel**, not sequence, for the default case — cuts latency roughly 3x.
+- Reserve full three-way sign-off for high-risk releases (schema changes, security-sensitive, customer-facing breaking changes). Low-risk batches (docs, config, minor fixes) can ship with a single owner's approval or automated checks (tests + lint + smoke test passing).
+- Consider whether PM sign-off is needed for every release or only ones with user-facing behavior changes.
+
+### 5. Address PR review latency directly
+- Set an explicit SLA (e.g., first review within 4 business hours) and make it visible.
+- Encourage smaller PRs — large PRs are slower to review and riskier in batch releases.
+- Consider a rotating "review buddy" or bot-based reminder/nudge for PRs waiting > SLA.
+
+## Suggested Sequencing
+If you can only do one thing now: **build the hotfix fast-path (#1)** — it's the lowest-effort, highest-relief change and doesn't require renegotiating the whole release cadence.
+Next: **automate the changelog (#3)** — mechanical, low-risk, immediately removes manual toil.
+Then tackle **cadence/batch size (#2)** and **sign-off parallelization (#4)** together, since they're the changes most likely to require process buy-in from QA/EM/PM.

@@ -1,0 +1,136 @@
+Here are the two modules with structured, correlatable logging added. Design choices, then the code.
+
+**Correlation strategy:** a `record_id` (uses the record's own `"id"` field if present, else falls back to `line-<n>`) and a `run_id` (short UUID per invocation) are carried via `contextvars` and injected into every log line by a `logging.Filter`. This means `enrich.py` doesn't need its function signatures changed to carry an ID parameter — any log statement in either module during that record's processing automatically tags itself, so `grep record=<id>` across stdout gives you that record's full trace across both modules.
+
+**Failure handling:** parsing, enrichment, and save are each wrapped so one bad record can't kill the run — the record is counted and skipped, and the real exception is logged with `logger.exception` (full stack trace) rather than swallowed. A per-run summary line at the end gives on-call the aggregate picture (`total/success/dropped/failed`) without reading every line.
+
+```python
+# enrich.py
+import contextvars
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Carries the current record/run identity across module boundaries without
+# threading it through every function signature.
+record_id_var = contextvars.ContextVar("record_id", default="-")
+run_id_var = contextvars.ContextVar("run_id", default="-")
+
+
+class ContextFilter(logging.Filter):
+    def filter(self, record):
+        record.record_id = record_id_var.get()
+        record.run_id = run_id_var.get()
+        return True
+
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+
+def enrich_record(rec):
+    region_key = rec.get("region")
+    region = GEO.get(region_key)
+    if region is None:
+        logger.warning("dropping record: unknown or missing region %r", region_key)
+        return None
+    rec["zone"] = region
+    logger.debug("enriched record with zone=%s", region)
+    return rec
+```
+
+```python
+# ingest.py
+import json
+import logging
+import os
+import sys
+import uuid
+
+from enrich import ContextFilter, enrich_record, record_id_var, run_id_var
+
+LOG_FORMAT = (
+    "%(asctime)s %(levelname)s [run=%(run_id)s record=%(record_id)s] "
+    "%(name)s: %(message)s"
+)
+
+logger = logging.getLogger(__name__)
+
+
+def configure_logging():
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    handler.addFilter(ContextFilter())
+
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO))
+
+
+def run(path):
+    configure_logging()
+    run_id_var.set(uuid.uuid4().hex[:8])
+    logger.info("run started path=%s", path)
+
+    total = success = dropped = failed = 0
+
+    with open(path) as f:
+        for line_num, raw_line in enumerate(f, start=1):
+            line = raw_line.strip()
+            if not line:
+                continue
+            total += 1
+
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError as e:
+                failed += 1
+                record_id_var.set(f"line-{line_num}")
+                logger.error("failed to parse JSON at line %d: %s | raw=%r", line_num, e, line)
+                continue
+
+            record_id_var.set(str(rec.get("id", f"line-{line_num}")))
+
+            try:
+                out = enrich_record(rec)
+            except Exception:
+                failed += 1
+                logger.exception("enrichment raised an unhandled exception")
+                continue
+
+            if out is None:
+                dropped += 1
+                continue
+
+            try:
+                save(out)
+            except Exception:
+                failed += 1
+                logger.exception("failed to save enriched record")
+                continue
+
+            success += 1
+            logger.info("record processed successfully")
+
+    record_id_var.set("-")
+    logger.info(
+        "run complete path=%s total=%d success=%d dropped=%d failed=%d",
+        path, total, success, dropped, failed,
+    )
+
+
+def save(rec):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("usage: python ingest.py <path>", file=sys.stderr)
+        sys.exit(1)
+    run(sys.argv[1])
+```
+
+Notes:
+- Logs go to stdout via `StreamHandler`, matching the common production pattern of letting the log aggregator (Docker/k8s/journald) capture stdout rather than managing file rotation in-process. Swap in a `RotatingFileHandler` if this doesn't run containerized.
+- `LOG_LEVEL` env var lets on-call bump to `DEBUG` for a rerun without a code change, surfacing the per-record enrichment details.
+- A record with a malformed `region` still gets a `record_id` before enrichment logs its warning, since `record_id_var` is set right after successful JSON parsing.

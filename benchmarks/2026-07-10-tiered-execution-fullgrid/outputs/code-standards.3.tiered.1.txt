@@ -1,0 +1,92 @@
+```python
+# ingest.py
+import json
+import logging
+from uuid import uuid4
+from enrich import enrich_record
+
+logger = logging.getLogger(__name__)
+
+def run(path):
+    run_id = str(uuid4())
+    counts = {"read": 0, "succeeded": 0, "dropped": 0, "errored": 0}
+    
+    logger.info("Run start path=%s run_id=%s", path, run_id)
+    
+    try:
+        with open(path) as f:
+            for line_num, line in enumerate(f, start=1):
+                counts["read"] += 1
+                record_id = "%s:%d" % (run_id, line_num)
+                
+                try:
+                    rec = json.loads(line)
+                    logger.debug("Record read record_id=%s", record_id)
+                except json.JSONDecodeError as e:
+                    logger.error("JSON parse error record_id=%s error=%s", record_id, str(e), exc_info=True)
+                    counts["errored"] += 1
+                    continue
+                
+                try:
+                    out = enrich_record(rec, record_id)
+                except Exception as e:
+                    logger.error("Enrichment failed record_id=%s error=%s", record_id, str(e), exc_info=True)
+                    counts["errored"] += 1
+                    continue
+                
+                if out is None:
+                    counts["dropped"] += 1
+                else:
+                    try:
+                        save(out, record_id)
+                        counts["succeeded"] += 1
+                        logger.debug("Record saved record_id=%s", record_id)
+                    except (IOError, OSError) as e:
+                        logger.error("Save failed record_id=%s error=%s", record_id, str(e), exc_info=True)
+                        counts["errored"] += 1
+    
+    except (FileNotFoundError, IOError) as e:
+        logger.error("Run failed run_id=%s path=%s error=%s", run_id, path, str(e), exc_info=True)
+    except Exception as e:
+        logger.error("Run failed with exception run_id=%s error=%s", run_id, str(e), exc_info=True)
+    
+    logger.info("Run complete run_id=%s read=%d succeeded=%d dropped=%d errored=%d", 
+                run_id, counts["read"], counts["succeeded"], counts["dropped"], counts["errored"])
+
+def save(rec, record_id):
+    with open("out.jsonl", "a") as f:
+        f.write(json.dumps(rec) + "\n")
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    run("input.jsonl")
+```
+
+```python
+# enrich.py
+import logging
+
+logger = logging.getLogger(__name__)
+
+GEO = {"us": "US-EAST", "eu": "EU-WEST"}
+
+def enrich_record(rec, record_id):
+    logger.debug("Enriching record_id=%s", record_id)
+    
+    region = rec.get("region")
+    if region is None:
+        logger.error("Enrichment failed record_id=%s reason=missing region key", record_id)
+        raise ValueError("region key required")
+    
+    zone = GEO.get(region)
+    if zone is None:
+        logger.warning("Record dropped record_id=%s reason=unknown region: %s", record_id, region)
+        return None
+    
+    rec["zone"] = zone
+    logger.info("Record enriched record_id=%s region=%s zone=%s", record_id, region, zone)
+    return rec
+```
