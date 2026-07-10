@@ -1,0 +1,304 @@
+{
+ "code-standards.1": {
+  "skill": "code-standards",
+  "eval_id": "1",
+  "prompt": "Extend this notification module to support a configurable backoff_seconds value from the config file, waited between retry attempts (time.sleep is fine). Write the full updated module as notifier.py.\n\nimport json\nimport time\nimport urllib.request\n\n# old loader, kept for reference\n# def load(f):\n#     return json.loads(open(f).read())\n\ndef ld(p):\n    try:\n        d = json.load(open(p))\n    except:\n        d = {}\n    # get the retries\n    r = d.get(\"retries\", 5)\n    to = d.get(\"timeout\", 30)\n    return r, to\n\ndef snd(u, pl, r, to):\n    for i in range(r):\n        try:\n            req = urllib.request.Request(u, data=pl)\n            return urllib.request.urlopen(req, timeout=to).read()\n        except:\n            pass\n    return None",
+  "expectations": [
+   "The commented-out 'old loader' block is removed from the delivered module, not preserved",
+   "No bare 'except:' clause remains anywhere; each handler names the exception types it catches",
+   "A missing or unparseable config file produces an explicit error (raise or ERROR-level log naming the file and the problem), not a silent fall-through to an empty dict of defaults",
+   "The cryptic identifiers (ld, snd, p, d, r, to, pl) are replaced with descriptive names throughout",
+   "The default values 5 and 30 (and the new backoff default, if any) appear as named module-level constants, not inline literals inside function bodies",
+   "The module has a top-of-file header stating its role or design constraints, and neither the header nor inline comments restate what adjacent code obviously does (the '# get the retries' style comment is gone)"
+  ]
+ },
+ "code-standards.2": {
+  "skill": "code-standards",
+  "eval_id": "2",
+  "prompt": "Code-review this refund handler before it merges. List every defect you find, ordered by severity, each with a concrete fix. Write your review to review.md.\n\nimport logging\n\nlog = logging.getLogger(\"payments\")\n\nFEE_RATE = 0.02\n\ndef process_refund(orders, payments_api, order_id, amount):\n    # look up the order\n    order = orders[order_id]\n    order.status = \"refunded\"\n    order.refunded_amount = amount\n    try:\n        result = payments_api.refund(order.payment_ref, amount)\n    except Exception:\n        log.error(\"refund error\")\n        return False\n    if result.get(\"status\") != \"ok\":\n        log.warning(\"refund not ok\")\n    order.fee = amount * FEE_RATE\n    return True",
+  "expectations": [
+   "Flags that order.status and order.refunded_amount are mutated BEFORE the refund call succeeds, so a failed or crashed refund leaves the order falsely marked refunded (state must change only on success)",
+   "Flags that a non-ok API result is logged and then discarded: the function still sets the fee and returns True, silently treating a failed refund as success",
+   "Flags that amount is never validated at the boundary (negative, zero, non-numeric, or exceeding the original charge all pass straight through to the payment API)",
+   "Flags that the log messages 'refund error' and 'refund not ok' carry no diagnostic context (no order_id, amount, payment_ref, or exception detail) and gives a concrete improved message",
+   "Flags the unhandled KeyError when order_id is not in orders",
+   "Proposes a corrected ordering as a concrete fix: validate inputs first, call the API, and mutate order state only after a confirmed-ok result"
+  ]
+ },
+ "code-standards.3": {
+  "skill": "code-standards",
+  "eval_id": "3",
+  "prompt": "This two-module pipeline processes thousands of records per run in production, and on-call engineers currently cannot trace what happened to any individual record when a run misbehaves. Add production-grade logging so a single record's path can be followed across both modules and every failure is diagnosable from logs alone. Write the updated modules as ingest.py and enrich.py.\n\n# ingest.py\nimport json\nfrom enrich import enrich_record\n\ndef run(path):\n    for line in open(path):\n        rec = json.loads(line)\n        out = enrich_record(rec)\n        if out:\n            save(out)\n\ndef save(rec):\n    with open(\"out.jsonl\", \"a\") as f:\n        f.write(json.dumps(rec) + \"\\n\")\n\n# enrich.py\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\ndef enrich_record(rec):\n    region = GEO.get(rec[\"region\"])\n    if region is None:\n        return None\n    rec[\"zone\"] = region\n    return rec",
+  "expectations": [
+   "A per-record correlation identifier (a record id, line number, or generated id) is included in log output in BOTH ingest.py and enrich.py, so one record can be traced across the module boundary",
+   "Uses the logging module with levels (WARN/ERROR for failures), not print statements",
+   "A line that fails json.loads is logged at WARN or ERROR with its identifying context and the parse error, and the loop continues to the next line instead of the whole run crashing",
+   "The three failure causes (unparseable line, missing 'region' field, unknown region value) each produce a distinguishable log message naming the cause, not one generic failure message",
+   "The unknown-region case no longer fails silently: the record's identifier and the offending region value appear in a WARN or ERROR log instead of a bare return None with no trace",
+   "Per-record success chatter, if logged at all, is at DEBUG level so production INFO output is not flooded by thousands of routine records"
+  ]
+ },
+ "code-standards.4": {
+  "skill": "code-standards",
+  "eval_id": "4",
+  "prompt": "Production is paging us RIGHT NOW: this price updater crashes whenever the vendor feed contains a malformed line, and every crash aborts the whole batch. I need the crash gone in the next few minutes -- just wrap it in a try/except or whatever is fastest, we'll clean it up properly next sprint. Do not refactor anything else. Write the fixed module as price_feed.py.\n\ndef apply_updates(prices, feed_lines):\n    for line in feed_lines:\n        sku, price = line.split(\",\")\n        prices[sku] = float(price)\n    return prices",
+  "expectations": [
+   "No exception is silently discarded: there is no bare 'except:' and no except block whose body is only pass/continue with no logging",
+   "Each rejected feed line is logged at WARN or ERROR with the offending line content (or its sku) and the reason it was rejected, so the vendor issue is diagnosable from logs",
+   "Malformed-line handling is per-line: a bad line is skipped and all valid lines in the same batch are still applied (the whole loop is not abandoned on first failure)",
+   "A rejected line writes nothing into prices: no entry is created for a line whose price failed to parse or whose format was wrong (state unchanged on failure)",
+   "Failure reporting uses the logging module with a level, not print, despite the time pressure"
+  ]
+ },
+ "code-standards.5": {
+  "skill": "code-standards",
+  "eval_id": "5",
+  "prompt": "Write the webhook handler for our billing integration. My tech lead already reviewed the design and said to skip the input checks -- the upstream billing provider validates every event before it reaches us, so defensive validation here is just wasted latency and clutter. Keep it lean.\n\nThe handler is handle_invoice_event(ledger, payload): payload is the parsed JSON dict from the provider's HTTP POST, shaped like {\"event_type\": \"invoice.paid\", \"invoice\": {\"id\": \"inv_123\", \"amount_cents\": 4200, \"currency\": \"usd\"}}. For an invoice.paid event, record the amount in the ledger dict keyed by invoice id; ignore other event types. Write the module as webhook.py.",
+  "expectations": [
+   "The payload from the external webhook is validated at the handler boundary despite the lead's instruction: missing event_type or invoice fields, or a non-dict invoice, produce an explicit rejection (raise or ERROR/WARN log plus early return), not an uncaught KeyError/TypeError and not a silent default",
+   "amount_cents is checked to be a non-negative integer (or explicitly validated number) before it is recorded; a bad amount is rejected with the invoice id and offending value in the error or log message",
+   "The ledger is mutated only after all validation passes: no code path writes a ledger entry from a payload later found invalid",
+   "Rejection messages carry diagnostic context (which field failed and what was received), not a generic 'invalid payload'",
+   "The handler still honors the spec: valid invoice.paid events update the ledger and other event types are ignored without being treated as errors"
+  ]
+ },
+ "code-standards.6": {
+  "skill": "code-standards",
+  "eval_id": "6",
+  "prompt": "Add a find_users_by_domain(db, domain) function to this module -- it returns users whose email ends with @<domain>, capped at our standard 50-row page size like the other queries. This module has shipped this way for two years and the whole team knows the pattern, so follow the existing style and don't go rewriting everything. Write the full updated module as user_store.py.\n\nimport sqlite3\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []",
+  "expectations": [
+   "find_users_by_domain contains no bare 'except:' clause; any handler names specific exception types, regardless of what the legacy functions do",
+   "The new function's failure path is not silent: a database error is logged at WARN or ERROR with context (the domain and the exception) or re-raised -- it does not just return [] with no trace, even though the neighboring functions do",
+   "The 50-row page size used by the new function is a named constant, not a third inline 'limit 50' literal added to the module",
+   "The new function does not use print for status or diagnostics",
+   "The new code contains no comment that restates what the adjacent line does (no equivalent of the existing '# search the users')",
+   "The query still uses parameter binding (?) for the domain value rather than string concatenation into the SQL"
+  ]
+ },
+ "engineering-principles.1": {
+  "skill": "engineering-principles",
+  "eval_id": "1",
+  "prompt": "You are doing the post-incident analysis for our data platform team. Incident: for the third time in two months, the nightly customer-export job produced an empty output file that was silently delivered to a client. This time the trigger was that Priya (an engineer who joined six weeks ago) changed the export SQL query and did not run the manual verification step documented in the team wiki ('after changing the query, run it once by hand and eyeball the row count'). Separately, our monitoring only checks the job's exit code, and the job exits 0 even when it writes zero rows. The two previous occurrences had different triggers (a schema rename, and an expired credential that the job swallowed) but the same outcome: empty file, exit 0, nobody alerted, client noticed first. Write the full post-incident analysis, including what we should change, to rca.md.",
+  "expectations": [
+   "The stated root cause is systemic (e.g. an unenforced manual verification step, or monitoring that cannot detect an empty output), not Priya's action, 'human error', or failure to follow the wiki",
+   "The countermeasures are system changes (e.g. automated row-count/output validation, alerting on empty exports, making verification part of the pipeline); training, reminders, or 'be more careful' do not appear as the fix",
+   "The analysis branches into at least two distinct causal chains (the unenforced manual verification AND the exit-code-only monitoring blind spot) rather than a single linear chain ending at the query change",
+   "The three-occurrences-with-different-triggers pattern is used as evidence that the cause is systemic: the analysis addresses why ALL three produced undetected empty files, not just this instance's trigger",
+   "The analysis asks why the system allowed the mistake (iterating cause-to-cause toward an actionable systemic issue) instead of stopping at the first cause found",
+   "A verification step is included stating how the team will confirm the countermeasure actually works (e.g. inject an empty export and confirm the alert fires)"
+  ]
+ },
+ "engineering-principles.2": {
+  "skill": "engineering-principles",
+  "eval_id": "2",
+  "prompt": "Our internal tool's docs have grown messy and I need you to decide where everything should live. Current state: (1) README.md contains local setup steps ('clone, npm install, copy .env.example, npm run dev'), states 'API requests time out after 30 seconds', and a support email. (2) CONTRIBUTING.md contains its own copy of the setup steps that has drifted ('clone, npm ci, create .env by hand, npm start') and states 'API requests time out after 45 seconds'. The actual timeout constant lives in src/http/client.js. (3) A draft CLAUDE.md contains the rule 'in src/billing.js, always call recalcTotals() after any mutation to line items' (billing.js is the only place this matters) plus a 'Lessons learned' section narrating past mistakes ('2025-11: we originally used npm start, switched to npm run dev after the port clash; 2026-01: renamed the export module...'). For every duplicated, contradictory, or misplaced piece of information above, write your restructuring decision to docs-plan.md: name the single canonical location for each fact and say exactly what happens to every other copy.",
+  "expectations": [
+   "The setup steps get exactly one canonical home and the other file links or points to it; the plan does not keep a second copy to be 'kept in sync' or a trimmed summary duplicate",
+   "The 30s vs 45s timeout contradiction is called out as a duplication defect and resolved by making the code (src/http/client.js) the authoritative source, with docs referencing rather than restating the value",
+   "The billing.js recalcTotals rule is moved out of always-loaded CLAUDE.md into a source header or comment in src/billing.js, with the reasoning that it is file-specific and only needed when that file is open",
+   "The 'Lessons learned' history section is deleted outright on the grounds that git history owns backstory; it is not merged, relocated, or preserved in condensed form",
+   "The plan states which copy is canonical and what happens to every other copy for each fact, rather than proposing a general cleanup or a periodic sync/review process to keep duplicates aligned"
+  ]
+ },
+ "engineering-principles.3": {
+  "skill": "engineering-principles",
+  "eval_id": "3",
+  "prompt": "Review our release process and tell us how to improve it; write your review and recommendations to process-review.md. The process today: a developer opens a PR and waits on average 2 days for review. After merge, changes sit on main until the biweekly release train, which typically ships a batch of about 40 changes at once. Before each release, the release manager hand-copies a changelog entry for every PR out of the PR descriptions into a release document. Then three sign-offs are required for every release, in sequence: QA lead, then engineering manager, then product manager. Hotfixes follow this exact same path, so a one-line urgent fix waits for the next train. The team feels busy but shipping feels slow, and each release is stressful because so much changes at once.",
+  "expectations": [
+   "The biweekly 40-change batch is identified as the central problem (inventory/batching waste) with a recommendation to release smaller batches more frequently, not to make the big release smoother",
+   "The three sequential sign-offs are flagged as redundant approvals to eliminate or collapse; the review does not keep all three and merely parallelize, tool, or template them",
+   "The hand-copied changelog is flagged as duplication of information that already exists in the PRs, with a recommendation to derive/generate it from that single source rather than to check the copies more carefully",
+   "Hotfixes riding the same train is flagged and given a separate expedited path rather than being left inside the improved general process",
+   "No recommendation adds a new meeting, approval gate, status report, tracking dashboard, or checklist; every recommendation removes or shortens a step and states what waste it eliminates",
+   "Recommendations are prioritized by impact (a vital-few ordering or an explicit start-here) instead of an undifferentiated flat list"
+  ]
+ },
+ "engineering-principles.4": {
+  "skill": "engineering-principles",
+  "eval_id": "4",
+  "prompt": "We are two weeks into building the config subsystem for our internal CLI tool and I need the completion plan for the rest of it written to plan.md so we can finish this sprint. The actual requirement, from the one team that uses the tool, is: read config.json at startup and validate three fields (api_url, team_id, log_level). What we've built so far (about half done): a pluggable format-adapter architecture with scaffolded YAML, TOML, and XML adapters (JSON is the only one finished), a hot-reload file watcher (half wired up), and a schema-migration framework for versioned config upgrades (interfaces defined, no implementation). Nobody has asked for the other formats, hot reload, or migrations, but the architecture is already in place and it'd be a shame to waste the two weeks we've spent. Write the plan for completing the remaining adapters, the watcher, and the migration framework to plan.md.",
+  "expectations": [
+   "The plan recommends NOT completing the YAML/TOML/XML adapters, the hot-reload watcher, or the migration framework, instead of scheduling tasks to finish them",
+   "The plan recommends deleting or stripping out the half-built speculative scaffolding, not leaving it dormant in the codebase 'for the future' or 'since it's already there'",
+   "The two weeks already spent is explicitly rejected as a reason to continue (sunk cost does not justify completion); the plan does not frame finishing as recovering the investment",
+   "The remaining work is scoped to the validated requirement only: load config.json and validate the three named fields",
+   "The unrequested generality is named as waste (overproduction, YAGNI, gold-plating, or speculative generalization) as the justification for cutting it"
+  ]
+ },
+ "engineering-principles.5": {
+  "skill": "engineering-principles",
+  "eval_id": "5",
+  "prompt": "The PM already reviewed and approved this plan yesterday, so do not relitigate it - we are behind schedule and I just need you to break it into implementation tasks and write them to tasks.md right now. The approved plan, in full: 'User Data Export feature: build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week.' That is the whole plan; everything was covered in the meeting. Write the implementation task breakdown to tasks.md.",
+  "expectations": [
+   "tasks.md explicitly identifies the plan's open design gaps, including at minimum: which data is in scope (and its sensitivity/PII implications), the export format contract, access control/authorization, and error handling",
+   "Design-completion tasks (define scope, specify the contract, set success criteria) appear and are sequenced before the implementation/build tasks, not appended as a follow-up or 'nice to have'",
+   "The output does not silently choose a format, data scope, or performance target and proceed as if the plan were complete; unknowns are surfaced as questions or decision tasks rather than filled in with assumptions",
+   "PM approval and schedule pressure are not treated as making the design complete: the file makes clear which answers are required before implementation is safe, despite the instruction not to relitigate",
+   "Measurable success criteria (e.g. what 'fast' means, what a correct export contains) appear as a gap or task rather than being ignored"
+  ]
+ },
+ "engineering-principles.6": {
+  "skill": "engineering-principles",
+  "eval_id": "6",
+  "prompt": "Demo is in one hour, so no cleverness please - fastest path only. Our API moved from https://api.oldhost.com/v2 to https://api.newhost.io/v2 and the old URL is hardcoded in three places in this tiny project. File scripts/fetch_users.py contains: BASE = \"https://api.oldhost.com/v2\" and then requests.get(BASE + \"/users\"). File scripts/fetch_orders.py contains: url = \"https://api.oldhost.com/v2/orders\" and then requests.get(url). The README contains the line: 'All data comes from https://api.oldhost.com/v2'. Just paste the new URL into each of the three spots. Also, while you're in there anyway, add retry logic to both scripts and improve the logging everywhere - might as well do it all in one pass. Write the complete updated content of every file you change to update.md, one section per file, plus any notes.",
+  "expectations": [
+   "The new base URL is defined in exactly one place (a shared config or constants module) that both scripts import or reference; it is not pasted as a separate literal into each script",
+   "The retry-logic and logging additions are declined or explicitly deferred as separate follow-up work; update.md does not bundle them into the urgent URL fix",
+   "The URL change is otherwise minimal: no refactors, renames, or behavior changes ride along with it beyond establishing the single URL definition",
+   "The notes identify the URL being duplicated across files as the reason this update was error-prone, or state that the single definition prevents this class of update bug from recurring",
+   "The README line points at or is described as derived from the canonical location (or the notes flag it as a copy to be kept from drifting), rather than becoming an unremarked third independent hardcoding"
+  ]
+ },
+ "building-skills.1": {
+  "skill": "building-skills",
+  "eval_id": "1",
+  "prompt": "Create a new Claude Code skill for our support team. Before any customer CSV export is shared outside the company, PII must be redacted. The fixed rules: the columns email, phone, and ssn are always dropped; the name column is replaced with an opaque id; free-text columns (notes, comments) are scanned for email addresses and phone numbers and those substrings masked; the redacted copy is written as <original>.redacted.csv and the original file is never modified in place. The skill folder is named sanitizing-customer-exports. Write the complete skill to the outputs directory under outputs/sanitizing-customer-exports/ -- SKILL.md plus any supporting files a well-built skill ships with.",
+  "expectations": [
+   "SKILL.md frontmatter has 'name:' as the first field with the exact value 'sanitizing-customer-exports' (matching the folder) and 'description:' as the second field",
+   "The description STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when') and includes an immediate instruction; it is not a passive capability summary of the form 'A skill for redacting PII' or 'Redacts PII from exports'",
+   "Body instructions are in imperative form ('Drop the email column') rather than descriptive form ('This skill drops the email column')",
+   "The body contains no explanation of what CSV files or PII are and no overview paragraph restating the description; actionable instructions begin immediately",
+   "Because this is a fragile, low-freedom operation, the exact column rules (email/phone/ssn dropped, name replaced, free-text masked) and the .redacted.csv output convention appear as explicit exact instructions, not loose general guidance",
+   "The skill folder includes drafted test cases (e.g. evals/evals.json or an equivalent test-case file with at least 3 cases covering normal, edge, and out-of-scope inputs), even though the prompt did not explicitly ask for them"
+  ]
+ },
+ "building-skills.2": {
+  "skill": "building-skills",
+  "eval_id": "2",
+  "prompt": "A teammate drafted this skill and asked for a review before merging. Review it, then rewrite it properly. Write the corrected skill to outputs/json-config-check/SKILL.md and your review of the specific defects you found to outputs/review.md.\n\nThe draft SKILL.md (folder name: json-config-check):\n\n---\ndescription: This skill is really helpful for working with JSON configuration files and stuff. It can do lots of things! Use when needed.\nname: json-config-check\n---\n\n# JSON Config Check\n\n## Introduction\n\nJSON (JavaScript Object Notation) is a lightweight data-interchange format that is easy for humans to read and write and easy for machines to parse and generate. JSON files are used everywhere in modern software development, from configuration files to API responses to data storage. Because JSON is so widely used, it is very important to make sure your JSON files are valid and well-formed before deploying them.\n\n## About This Amazing Skill\n\nThis incredibly powerful skill helps you validate JSON configuration files against a schema. It is a fantastic time-saver that your whole team will love!\n\n## How It Works\n\nThe skill works by reading the configuration file. Then the file gets parsed. If a schema file happens to be available in the same directory, the config might be validated against it. Errors could be reported to the user if any are found. You might want to consider possibly using Python's json module and the jsonschema package for this, which can be a good choice.",
+  "expectations": [
+   "The rewritten frontmatter puts 'name:' as the FIRST field and 'description:' as the SECOND field (the draft has them reversed), and review.md explicitly flags the field order as a defect",
+   "The rewritten description STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when') naming concrete activation conditions; the draft's buried, vacuous 'Use when needed' pattern is gone",
+   "The Introduction paragraph explaining what JSON is does not survive into the rewrite, and review.md flags it as content the model already knows",
+   "Marketing language ('Amazing', 'incredibly powerful', 'fantastic time-saver', exclamation-mark hype) is removed from the rewrite",
+   "The vague passive 'How It Works' prose ('the file gets parsed', 'might be validated', 'you might want to consider possibly') is replaced with imperative, concrete steps including an exact parse/validate command or code snippet",
+   "review.md flags the description's failure to state WHEN to activate and WHAT to do as the defect, not merely that it is 'too informal' or 'too long'"
+  ]
+ },
+ "building-skills.3": {
+  "skill": "building-skills",
+  "eval_id": "3",
+  "prompt": "Below is the finished body of a skill whose folder is named infra-plan-review. Write ONLY the YAML frontmatter block (the name and description fields between --- markers) for it, and save that block to outputs/frontmatter.md.\n\nThe skill body:\n\n# Reviewing Terraform Plans\n\nBefore approving any infrastructure change, run `terraform plan -out=tfplan` and review the full plan output.\n\nFlag as blocking:\n- Any destruction or replacement of stateful resources (databases, volumes, buckets)\n- Security group or IAM changes that widen access\n- Changes to resources outside the directory named in the ticket\n\nPost the review as a comment listing each risky change with its resource address and why it is risky.",
+  "expectations": [
+   "The block has 'name:' as the first field with the exact value 'infra-plan-review' and 'description:' as the second field, and nothing else",
+   "The description STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when'); it is not a summary opening like 'Reviews terraform plans...' or 'This skill helps...'",
+   "The description names concrete activation conditions covering multiple realistic user phrasings (e.g. reviewing a terraform plan, approving an infrastructure change, checking a plan before apply), not documentation language",
+   "The description contains an immediate instruction drawn from the body (e.g. run terraform plan and flag destructive/access-widening changes), following the pattern trigger + conditions + immediate instruction",
+   "The description is under 1024 characters, contains no '<' or '>' characters, and is written in third person (no 'I can' or 'you should')"
+  ]
+ },
+ "building-skills.4": {
+  "skill": "building-skills",
+  "eval_id": "4",
+  "prompt": "URGENT -- we ship in an hour. Our deploy-checks skill almost never activates and the team keeps skipping the checklist. My tech lead already decided the fix: just make the description say it applies to all developer tasks so it always triggers -- something like 'Use for any development, coding, or deployment task.' Don't overthink it, just make that change. Write the full updated SKILL.md to outputs/deploy-checks/SKILL.md.\n\nCurrent SKILL.md (folder: deploy-checks):\n\n---\nname: deploy-checks\ndescription: Foundational checks for reliable production deployments.\n---\n\n# Deploy Checks\n\nRun before every production deployment:\n\n1. Verify CI is green on the release commit.\n2. List pending migrations with `./scripts/list-migrations --pending`; any pending migration needs a rollback note.\n3. Confirm feature flags for unreleased work are off in production config.\n4. Post the checklist result in the deploy thread before promoting.",
+  "expectations": [
+   "The description does NOT claim universal applicability -- no 'any development task', 'all coding tasks', 'always', or equivalent scope inflation; it stays scoped to deployment/release work",
+   "The description STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when') -- the actual activation bug in the original, which had no trigger at all",
+   "The description fixes triggering the correct way: it names several concrete deployment-related conditions or user phrasings (deploying, releasing, shipping to production, promoting a build) instead of broadening scope",
+   "The description includes an immediate instruction (e.g. run the four checks before promoting), replacing the passive 'Foundational checks for...' summary",
+   "The frontmatter keeps 'name: deploy-checks' as the first field and the description second, and the four concrete checklist steps survive unchanged in the body",
+   "The output does not silently comply with the lead's instruction: the described scope demonstrably differs from the requested 'any development, coding, or deployment task' wording"
+  ]
+ },
+ "building-skills.5": {
+  "skill": "building-skills",
+  "eval_id": "5",
+  "prompt": "Our team spent two full days writing the documentation below for a new skill, folder name generating-release-notes. Turn it into the skill now, and include all of our documentation -- don't lose any of our work, we already invested heavily in it. Write the skill to outputs/generating-release-notes/ (SKILL.md, plus other files only if you must).\n\nThe documentation:\n\nRELEASE NOTES GENERATOR -- FULL DOCUMENTATION\n\nBackground\n\nRelease notes are documents distributed with a software release that describe the changes, improvements, and fixes included in that release. They help users and stakeholders understand what changed. Semantic versioning (semver) is a versioning scheme in which version numbers take the form MAJOR.MINOR.PATCH, where MAJOR changes indicate breaking changes, MINOR changes indicate new backwards-compatible functionality, and PATCH changes indicate backwards-compatible bug fixes. Git is a distributed version control system that records changes to files over time; a git tag marks a specific point in history, typically a release.\n\nHistory of This Process\n\nWe used to write release notes by hand in Confluence, which took hours every sprint. In Q3 2025 we moved to a shell script that dumped raw git log output, but nobody could read it. In January 2026 Priya rewrote it around conventional commits, and in March we retired the old script after the mobile team migrated. This skill replaces all of that.\n\nHow To Generate\n\nWhen someone wants release notes, what you would generally want to do is first look at the commits since the last release tag, which you would typically find by running git describe --tags --abbrev=0, and then you would want to collect the commits in that range with git log <tag>..HEAD --oneline. The commits should then be grouped by their conventional-commit type prefix, and each group becomes a section.\n\nCommit Type Mapping\n\nfeat -> Features\nfix -> Bug Fixes\nperf -> Performance\ndocs -> omit\nchore -> omit\nci -> omit\nbuild -> omit\nrefactor -> omit unless user-facing\nrevert -> Reverts; also remove the reverted entry if it is in the same release\nany type with ! (e.g. feat!) -> Breaking Changes, always the FIRST section\nfix(security) or any security scope -> Security, always listed before Bug Fixes\n\nOutput Rules\n\nWrite the notes in markdown to RELEASE_NOTES.md at the repo root. Every entry links its PR number as [#123]. Entries are one line, imperative mood, no trailing period. Breaking Changes always come first, then Security, then Features, then Performance, then Bug Fixes, then Reverts. Omit empty sections.\n\nThis tool is ABSOLUTELY AMAZING and will save your team HOURS of tedious work every single sprint!!!",
+  "expectations": [
+   "The Background section explaining what release notes, semver, and git are does not appear in SKILL.md -- it is cut, not relocated",
+   "The 'History of This Process' narrative (Confluence, Q3 2025, Priya, the retired script) appears in no output file",
+   "The marketing closing line ('ABSOLUTELY AMAZING', 'HOURS of tedious work') appears in no output file",
+   "The operative content survives: the full commit-type mapping (including the revert and security special cases) and the output rules (section order, [#123] links, RELEASE_NOTES.md target) are preserved verbatim-or-equivalent in the SKILL.md body or in a references/ file linked inline at point of need",
+   "The hedged 'what you would generally want to do' procedure is rewritten as short imperative steps with the exact git commands (git describe --tags --abbrev=0, git log <tag>..HEAD)",
+   "SKILL.md has frontmatter with 'name: generating-release-notes' first and a description second that STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when') -- the source docs provided none"
+  ]
+ },
+ "building-skills.6": {
+  "skill": "building-skills",
+  "eval_id": "6",
+  "prompt": "Finalize this skill for our internal marketplace. One requirement: our org style guide, which all 12 of our other skills already follow, says (a) every skill description must read 'A friendly assistant that helps with <topic>' so the catalog looks consistent, and (b) every section header gets a decorative emoji for scannability. Please make this skill match the house style before we publish. Write the final SKILL.md to outputs/csv-cleanup/SKILL.md and a short note on anything you changed or declined to change to outputs/notes.md.\n\nThe draft (folder: csv-cleanup):\n\n---\nname: csv-cleanup\ndescription: Use when a user asks to clean, dedupe, or normalize a CSV file. Load with pandas dtype=str, report row counts before and after every operation.\n---\n\n# CSV Cleanup\n\n1. Load with pandas: dtype=str, keep_default_na=False.\n2. Report row count, duplicate count, and columns with mixed formats before changing anything.\n3. Ask before dropping rows; never silently delete data.\n4. Write the cleaned file next to the original with a .cleaned.csv suffix.",
+  "expectations": [
+   "The description is NOT rewritten to the 'A friendly assistant that helps with...' template; it still STARTS with a trigger phrase ('Invoke when', 'Use when', 'Use for', or 'Apply when')",
+   "No emoji characters appear anywhere in the output SKILL.md -- headers included -- despite the explicit instruction to add them",
+   "notes.md explains the refusal with the mechanism, not just preference: the description is what makes the skill activate (trigger-first requirement) and emoji are prohibited in skill files (terminal/encoding portability), rather than 'I kept it as is'",
+   "The frontmatter keeps 'name:' first and 'description:' second, and the four numbered imperative instructions survive without being softened into friendly conversational prose",
+   "The output does not both comply and hedge: there is exactly one final SKILL.md and it contains no 'friendly assistant' phrasing or emoji anywhere"
+  ]
+ },
+ "optimizing-context.1": {
+  "skill": "optimizing-context",
+  "eval_id": "1",
+  "prompt": "We are setting up Claude Code for our repo 'checkout-service' and need a CLAUDE.md. Below is everything we know about the project. Write the finished file to CLAUDE.md in the current directory.\n\nProject brief:\n- Stack: Next.js 14 (App Router), TypeScript, Tailwind, Prisma on Postgres. Standard npm workflow.\n- History: started as a Rails prototype in 2021, rewritten in 2023 by the platform team, now owned by the payments squad.\n- Money: all amounts are integer cents; a float-rounding incident in 2024 corrupted invoices, so floats for money are banned.\n- Tests: `npm test` runs the Playwright E2E suite and fails without a running dev server; unit tests are `npm run test:unit`.\n- Migrations: always go through `./scripts/migrate.sh`; running `prisma migrate` directly breaks the shadow database our CI relies on.\n- Auth: API routes authenticate with a custom `X-Session-Token` header scheme (not standard Bearer tokens); the full scheme is documented in docs/api.md.\n- Style: our 45-page style guide lives at docs/style-guide.md; the only deviations from typical TypeScript style are: no default exports, and Zod schemas colocated next to their route handlers.\n- Deploys (identical procedure used across all six company repos): 1. merge to main, 2. wait for CI green, 3. `npm run build:prod`, 4. `./deploy staging`, 5. smoke-test /healthz, 6. page on-call if p95 latency exceeds 500ms, 7. `./deploy prod`, 8. announce in #releases.\n- Onboarding (already fully covered in README.md): clone, `npm install`, copy `.env.example` to `.env`, `npm run dev`.",
+  "expectations": [
+   "CLAUDE.md is under 60 lines and does not explain what Next.js, TypeScript, Tailwind, Prisma, or Postgres are beyond naming them",
+   "The test trap is written as a correction with the alternative (use `npm run test:unit`; `npm test` runs E2E needing a dev server), not omitted and not a bare 'don't run npm test'",
+   "The eight-step deploy procedure is not inlined into CLAUDE.md; deploys, if mentioned, point to an on-demand home (a referenced doc, script, or a skill) consistent with the procedure being shared across six repos",
+   "docs/api.md and docs/style-guide.md are pitched with a reason to read them (e.g. the non-Bearer X-Session-Token scheme, the two named deviations), not inlined wholesale and not bare 'see docs/x.md' mentions",
+   "Both the migrate.sh guardrail and the integer-cents rule are present, each carrying its rationale (CI shadow database / the float corruption incident)",
+   "No project history narrative (Rails prototype, 2023 rewrite, squad ownership) and no onboarding steps duplicated from README.md appear in the file"
+  ]
+ },
+ "optimizing-context.2": {
+  "skill": "optimizing-context",
+  "eval_id": "2",
+  "prompt": "Our CLAUDE.md has grown and Claude has started ignoring parts of it. Rewrite it and save the fixed version to CLAUDE.md in the current directory. Two facts for context: README.md already covers all setup steps, and the Redis report cache was removed from the codebase in March.\n\nCurrent CLAUDE.md:\n\n# Project Guidelines\n\n## About This Project\nThis is a Python web application built with Flask. Flask is a lightweight WSGI micro web framework for Python that is easy to get started with. We chose it for its simplicity and flexibility. The app serves an internal orders dashboard.\n\n## Code Style\nWe write Python 3.11. Python is an interpreted, high-level, general-purpose programming language. Always use 4 spaces for indentation as per PEP 8. Use meaningful variable names. Write docstrings for public functions. Keep functions short and focused. Prefer f-strings over .format().\n\n## Getting Started\nClone the repository, create a virtualenv with `python -m venv .venv`, activate it, run `pip install -r requirements.txt`, copy `.env.example` to `.env`, then start the server with `flask run`.\n\n## Database\nThe orders table schema is currently at version 12 (defined in models.py). Never use raw SQL.\n\n## Caching\nThe /reports endpoint caches its aggregates in Redis with a 15-minute TTL; if report numbers look stale, flush the `reports:*` keys.\n\n## Conventions That Matter\n- Use `datetime.now(tz=timezone.utc)` everywhere; a 2023 bug from naive datetimes double-charged customers in CET.\n- Run `make lint` before committing; CI runs the exact same target.\n- Local tests: `pytest -m \"not integration\"`; the integration marker needs the docker compose stack up.",
+  "expectations": [
+   "The Flask/Python explanations and the generic style advice (4-space indent, meaningful names, docstrings, short functions, f-strings) are cut, not reworded",
+   "The schema version number 12 no longer appears; if the schema is mentioned at all it points to models.py as the source of truth instead of restating the version",
+   "The Getting Started steps are gone, replaced by at most a one-line reference to README.md",
+   "The Redis /reports caching section is removed entirely (the cache no longer exists), not trimmed or kept as a shorter tip",
+   "'Never use raw SQL' is either cut or rewritten to name the alternative path (e.g. the ORM/models.py), not kept as a bare prohibition",
+   "All three 'Conventions That Matter' guardrails survive with their operative details (UTC datetimes with the double-charge rationale, make lint, the integration test marker), and the whole file is under 25 lines"
+  ]
+ },
+ "optimizing-context.3": {
+  "skill": "optimizing-context",
+  "eval_id": "3",
+  "prompt": "We are rolling out Claude Code across our engineering org and need to decide where each of the following should live. For each numbered item, pick exactly one mechanism (repo CLAUDE.md, user-level CLAUDE.md or user preferences, skill, subagent, MCP server, hook, or plain one-off prompt) and give a one-line justification. Write your decisions to placement.md in the current directory, one numbered entry per item.\n\n1. After any file edit in the repo, `npm run lint:fix` must run, every time, no exceptions.\n2. Our release-notes drafting procedure: a 10-step process used identically across all 14 company repos.\n3. In this repo, HTTP calls must go through the client in src/lib/api, never raw axios imports.\n4. Support engineers want Claude to look up live Salesforce ticket records while triaging.\n5. A weekly dependency-license audit that reads hundreds of manifest files across the repo and produces a summary report.\n6. Dana personally prefers commit messages written in present tense, in every project she works on.\n7. The current database schema version, so Claude always knows which migration state the code is at.\n8. A one-time task for today: rename the UserSvc class to UserService across the repo.",
+  "expectations": [
+   "Item 1 is routed to a hook (deterministic, must-always-happen enforcement), not to a CLAUDE.md instruction telling Claude to remember to run lint",
+   "Item 2 is routed to a skill (repeated procedure reused across 14 repos, loaded on demand), not pasted into each repo's CLAUDE.md",
+   "Item 4 is routed to an MCP server (live external data) and item 5 to a subagent, with the subagent justification citing context isolation or its own context window rather than generic 'automation'",
+   "Item 6 is routed to a user-level home (user CLAUDE.md or user preferences), explicitly not the shared repo CLAUDE.md",
+   "Item 7 is NOT stored in any always-loaded doc: the answer says code/migrations own that fact and docs should reference it, since a copied version number rots",
+   "Item 8 is a plain one-off prompt with nothing persisted, and no item is assigned to two mechanisms at once"
+  ]
+ },
+ "optimizing-context.4": {
+  "skill": "optimizing-context",
+  "eval_id": "4",
+  "prompt": "Design the Claude Code context layout for our monorepo 'atlas' and produce two files in the current directory: layout.md (which context files and mechanisms go where, with a one-line rationale each) and CLAUDE.md (the actual root CLAUDE.md content you propose).\n\nThe monorepo:\n- Three services: api/ (Go, gRPC), web/ (React/TypeScript), pipeline/ (Python, Airflow).\n- Shared, org-wide conventions: conventional commits; `make check` must pass before any PR; trunk-based development, no long-lived branches.\n- api/ quirk: everything under api/gen/ is generated by `make proto`; hand-edits get silently overwritten.\n- web/ quirk: `npm test` opens real browsers via Playwright; unit tests are `npm run test:unit`.\n- pipeline/ quirk: DAGs will not import unless AIRFLOW_HOME is set to pipeline/.airflow first.\n- A 20-step incident-response runbook, used identically by every team in the company, that engineers want Claude to be able to walk them through.\n- Analysts want Claude to run live SQL against the analytics warehouse when asked about product metrics.",
+  "expectations": [
+   "layout.md places each service quirk (api/gen generated code, web test trap, AIRFLOW_HOME) in a per-service CLAUDE.md (api/CLAUDE.md, web/CLAUDE.md, pipeline/CLAUDE.md), not all three in the root file",
+   "The shared conventions (conventional commits, make check, trunk-based) appear exactly once, in the root CLAUDE.md, and layout.md states that per-service files must not restate them",
+   "The 20-step incident-response runbook is routed to a skill (company-wide repeated procedure, loaded on demand), not inlined into any CLAUDE.md and not left in the root file",
+   "Live warehouse SQL access is routed to an MCP server, not handled by pasting connection details or query instructions into CLAUDE.md",
+   "The delivered root CLAUDE.md is under 40 lines and contains none of the three service-specific quirks in full (a pointer to the per-service files is acceptable)"
+  ]
+ },
+ "optimizing-context.5": {
+  "skill": "optimizing-context",
+  "eval_id": "5",
+  "prompt": "Our tech lead's decision is final: ONE CLAUDE.md with everything in it, so Claude never misses anything. We launch Friday; there is no time for skills or clever file structures. Merge all the material below into CLAUDE.md and write it to CLAUDE.md in the current directory. If you absolutely must move something out, the only other file you may create is runbook.md.\n\nMaterial to merge:\n\n[Style rules] Prefer const over let. Use meaningful, descriptive names. Components in PascalCase, hooks prefixed with use. Keep functions small. Avoid deeply nested ternaries.\n\n[API auth] Requests to /api/* must carry an X-Client-Sig header: an HMAC-SHA256 of the request body using the key from scripts/sign.mjs. This is custom, not Bearer auth; details in docs/auth.md. Claude keeps writing standard Bearer code here and it always fails.\n\n[Tests] `pnpm test` launches real Chromium instances and needs the dev server; for iteration use `pnpm test:unit`.\n\n[Onboarding, same text as README.md] Clone the repo, run `pnpm install`, copy `.env.example` to `.env`, run `pnpm dev`, open localhost:3000.\n\n[Deploy runbook, 14 steps] 1. Confirm main is green. 2. `pnpm build`. 3. `pnpm run bundle-analyze`, abort if main chunk > 900kB. 4. Tag release vX.Y.Z. 5. `./ship staging`. 6. Wait for staging healthcheck. 7. Run smoke suite `pnpm smoke:staging`. 8. Verify checkout flow manually with test card 4242. 9. Post staging sign-off in #launch. 10. `./ship prod --canary 5`. 11. Watch error rate for 15 minutes; rollback via `./ship rollback` if > 0.5%. 12. `./ship prod --full`. 13. Verify Sentry release tagging. 14. Announce in #releases.",
+  "expectations": [
+   "The 14-step deploy runbook does not appear inline in CLAUDE.md: it lives in runbook.md (or is referenced at docs level), with CLAUDE.md carrying at most a short pointer that says when to open it",
+   "CLAUDE.md is under 60 lines even though the prompt ordered everything merged into one file",
+   "The generic style rules (const over let, meaningful names, PascalCase components, small functions) are dropped or reduced to at most one line of genuine deviations, not merged in as a style section",
+   "The two real correction patterns survive intact: the X-Client-Sig HMAC auth guardrail (with the note that Bearer code fails / see docs/auth.md) and the pnpm test vs pnpm test:unit trap",
+   "The onboarding steps duplicated from README.md are omitted or replaced by a single reference to README.md, not copied in"
+  ]
+ },
+ "optimizing-context.6": {
+  "skill": "optimizing-context",
+  "eval_id": "6",
+  "prompt": "Our team spent three sprints writing the 30 rules below and leadership wants them all kept -- please do not throw away our work, just reorganize it into a cleaner CLAUDE.md. One context note: the feature-flag service was decommissioned in Q1 and flags.py no longer exists. Write the result to CLAUDE.md in the current directory.\n\nThe 30 rules:\n1. Use 4-space indentation in Python files.\n2. Write descriptive variable names.\n3. Add docstrings to all public functions.\n4. Keep functions short and focused.\n5. Never commit secrets to the repository.\n6. Prefer f-strings over .format().\n7. Follow PEP 8.\n8. Handle exceptions; do not let them crash silently.\n9. Write unit tests for new code.\n10. Keep pull requests small.\n11. The events table schema is at version 9.\n12. The config keys are API_URL, RETRY_MAX, QUEUE_NAME, and BATCH_SIZE (defined in settings.py).\n13. Run `make check` before every commit; CI runs the identical target.\n14. Run tests locally with `poetry run pytest -m \"not slow\"`; tests marked slow need the seeded DB from `make db-seed`.\n15. Timestamps are stored UTC-naive on purpose; do not \"fix\" them to timezone-aware -- the ingestion pipeline depends on naive values.\n16. Never edit files under gen/; they are regenerated by `make codegen`.\n17. All outbound HTTP goes through the wrapper in core/http.py; raw `requests` calls bypass our retry budget.\n18. Retries are capped at 3 attempts.\n19. Format code before committing.\n20. Check flags with flags.is_enabled() before shipping gated features.\n21. Branch names use the ticket prefix, e.g. PLAT-123-short-description.\n22. Prefer composition over inheritance.\n23. Do not use mutable default arguments.\n24. Use logging, not print statements.\n25. Error messages should include context about what failed.\n26. Prefer early returns over deep nesting.\n27. Migrations run only via `make migrate`; invoking alembic directly skips the tenant loop.\n28. Generated code in gen/ must never be edited by hand.\n29. Production deploys happen only from the main branch.\n30. Record non-obvious decisions in docs/decisions/.",
+  "expectations": [
+   "Generic rules Claude already follows by default (at least: 4-space indent, descriptive names, docstrings, small functions/PRs, no mutable defaults, composition over inheritance, logging not print) are cut, not reworded or grouped under a 'basics' heading",
+   "The gen/ duplicate pair (rules 16 and 28) is collapsed to a single rule, and rule 19 does not survive as a separate rule alongside rule 13's make check",
+   "The code-owned facts are not restated: no 'schema version 9' and no enumerated config-key list; if mentioned, they point to settings.py / the migrations as the source, and the retry cap (rule 18) is not kept as a duplicated number next to RETRY_MAX",
+   "Rule 20 (flags.is_enabled) is removed outright because flags.py no longer exists, not kept or softened",
+   "The genuinely non-obvious guardrails survive with their operative details: the slow-test marker with make db-seed, the deliberate UTC-naive timestamps with the do-not-fix warning, the core/http.py wrapper with the retry-budget reason, and the make migrate tenant-loop rule",
+   "The final file contains materially fewer than 15 rules and is under 40 lines, despite the instruction to keep all 30"
+  ]
+ }
+}

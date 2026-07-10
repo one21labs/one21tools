@@ -1,0 +1,34 @@
+```python
+import json
+import time
+import urllib.request
+
+# old loader, kept for reference
+# def load(f):
+#     return json.loads(open(f).read())
+
+def ld(p):
+    try:
+        d = json.load(open(p))
+    except:
+        d = {}
+    # get the retries
+    r = d.get("retries", 5)
+    to = d.get("timeout", 30)
+    bo = d.get("backoff_seconds", 0)
+    return r, to, bo
+
+def snd(u, pl, r, to, bo=0):
+    for i in range(r):
+        try:
+            req = urllib.request.Request(u, data=pl)
+            return urllib.request.urlopen(req, timeout=to).read()
+        except:
+            if i < r - 1 and bo:
+                time.sleep(bo)
+    return None
+```
+
+Changes: `ld()` now also reads `backoff_seconds` from the config (default `0`) and returns it alongside `r`/`to`. `snd()` takes a new `bo` param and sleeps between retry attempts (skipped after the final attempt, and skipped entirely if `bo` is falsy) using `time.sleep`.
+
+Note: since `ld()`'s return signature changed from a 2-tuple to a 3-tuple, any existing callers unpacking `r, to = ld(p)` will break and need updating to `r, to, bo = ld(p)`.

@@ -1,0 +1,118 @@
+```markdown
+# Release Process Review
+
+## Current State Summary
+
+The release process consists of:
+- **PR to merge**: developers open a PR and wait ~2 days for review before merging to main
+- **Release cadence**: changes accumulate on main until a biweekly release train ships a batch of ~40 changes
+- **Changelog**: release manager manually copies a changelog entry from each PR description into a release document
+- **Sign-offs**: three sequential approvals required before any release: QA lead → engineering manager → product manager
+- **Hotfixes**: follow the exact same path as regular releases (no expedited track)
+
+## Problem Diagnosis
+
+### Batching 40 Changes Increases Risk and Stress
+
+Large batches make failure diagnosis harder and rollbacks more expensive. When 40 changes ship together, a production incident requires bisecting across all 40 PRs to identify the culprit — the blast radius is high, correlated failures are more likely (a shared dependency bug affects multiple PRs at once), and rolling back one fix may require rolling back 10 unrelated changes. This concentration of risk makes each release stressful and explains why the team feels busy despite shipping only biweekly.
+
+### Sequential Sign-offs Create Unnecessary Delay
+
+The three sign-offs (QA → EM → PM) are ordered sequentially, but the dependencies between them are unclear. QA validates product correctness, EM ensures engineering quality, and PM confirms product fit — these are largely independent concerns. A PM reviewing for product fit does not require waiting for QA to finish; QA does not need to complete before EM assesses code quality. Sequential ordering creates artificial wait time (if QA takes 8 hours and EM 4 hours, the process takes 12 hours; parallelized, it takes 8). This is a major contributor to the "shipping feels slow" perception.
+
+### Manual Changelog Transcription is Error-Prone and Wasteful
+
+The release manager hand-copying PR descriptions into a release document is manual toil that:
+- Drifts from the source of truth (if a PR description is updated post-merge, the copied changelog is stale)
+- Introduces transcription errors (missing details, typos, formatting inconsistency)
+- Requires 30+ minutes per release with no value-add (pure copying, no analysis)
+- Creates a bottleneck: the release can't be documented until the RM is available
+
+### Hotfixes Blocked by Full Batch Ceremony (Highest-Severity Issue)
+
+A one-line urgent fix that needs to ship immediately is forced to:
+1. Wait for the next biweekly train (up to 14 days latency)
+2. Wait for QA to validate it alongside 39 other changes
+3. Wait for sequential EM and PM sign-offs
+4. Roll back or push a patch if something unrelated in the batch breaks
+
+This is the most damaging inefficiency. A critical production bug cannot be deployed faster than a routine feature, turning an easy fix into a crisis.
+
+## Recommendations
+
+### 1. **Create a Separate Expedited Hotfix Path** (High Impact, High Priority)
+
+**Action**: Define a fast-track release process for hotfixes that:
+- Bypass the full batch queue; deploy independently when the fix is ready
+- Reduce sign-offs to one (QA lead only, or EM + PM in parallel after QA passes)
+- Target deployment within 2–4 hours of PR merge for critical production issues
+- Use the same code quality bar (PR review still required; sign-off rigor doesn't drop), but skip the batch coordination
+
+**Tradeoff**: Increases release frequency (more deployments per week) and requires operational discipline to distinguish true hotfixes from regular work. Risk of over-classifying routine changes as hotfixes to bypass ceremony. Mitigate by defining hotfix criteria explicitly (production incident impact, customer-facing outage, security issue).
+
+---
+
+### 2. **Parallelize QA, EM, and PM Sign-Offs** (Medium-High Impact, Quick Win)
+
+**Action**: Run QA, EM, and PM reviews concurrently instead of sequentially.
+- All three reviewers receive the release bundle at the same time
+- Each signs off independently once their gate is met (no waiting for others to start)
+- Release proceeds once all three have approved (not sequentially)
+
+**Tradeoff**: Requires coordination to ensure all three reviewers are aware of the release window. May necessitate documenting why each approval is required so reviewers don't feel they're waiting on others' conclusions. Minimal risk if you already have the sign-off criteria clear.
+
+---
+
+### 3. **Automate Changelog Generation from PR Metadata** (Medium Impact, Medium Effort)
+
+**Action**: Replace hand-copying with automation:
+- PR title/description and labels (e.g., `type:bugfix`, `type:feature`) feed a changelog generator
+- Tool outputs a pre-formatted changelog that the RM reviews for accuracy (not hand-writes)
+- Integrates with your existing PR/merge workflow (no new tools required, just a script or CI step)
+
+**Tradeoff**: Requires standardizing PR titles/descriptions (if they're inconsistent today, output is garbage). Upfront work to define what data goes into the changelog and validation logic. Payoff is 20+ minutes saved per release and a single source of truth.
+
+---
+
+### 4. **Move Toward Smaller, More Frequent Releases** (High Impact, Structural)
+
+**Action**: Transition from biweekly 40-change batches to weekly or twice-weekly 15–20 change batches.
+- Smaller batch size reduces blast radius and makes bisection faster
+- More frequent releases mean changes ship sooner (reduces "shipping feels slow" perception)
+- Hotfix sign-off burden is proportionally smaller when batch size drops
+- Sustainable only if you automate (changelog, redundant manual checks)
+
+**Tradeoff**: Increases release cadence (e.g., 2 releases per week instead of 1), which requires:
+- Automated testing and CI gate-keeping (else more releases = more firefighting)
+- Release coordination overhead (twice as many coordination meetings/decisions per month)
+- Smaller capacity per release, so large features must land incrementally
+
+If you can't automate thoroughly, more frequent releases risk more instability. Start with weekly (vs. twice-weekly) to balance frequency against overhead.
+
+---
+
+### 5. **Reduce PR Review Latency** (Medium Impact, Longer Term)
+
+**Action**: Address the 2-day average review wait by:
+- Defining SLA for PR review (e.g., 12–24 hours for standard PRs, 2 hours for hotfixes)
+- Rotating review duty or assigning a "on-call reviewer" to reduce queueing
+- Identifying if review bottlenecks on specific reviewers (skill concentration, availability)
+
+**Note**: This contributes to "shipping feels slow" perception, but is secondary to batching and sign-off delays; fix hotfix and parallelization first, then revisit if PRs are still the bottleneck.
+
+**Tradeoff**: Requires reviewer availability and may conflict with individual contributor delivery goals. If reviewers are overloaded, adding SLA pressure without addressing underlying capacity doesn't help.
+
+---
+
+## Summary of Implementation Sequence
+
+| Priority | Recommendation | Effort | Impact |
+|----------|---|--------|--------|
+| 1 | Create expedited hotfix path | Low | Very High (unblocks urgent fixes) |
+| 2 | Parallelize sign-offs | Low | High (immediate 3x speed-up for sequential bottleneck) |
+| 3 | Automate changelog | Medium | Medium (saves toil, improves quality) |
+| 4 | Smaller release batches | Medium-High | High (structural improvement to risk/stress) |
+| 5 | Reduce PR review latency | Medium | Medium (secondary to release batching) |
+
+Start with items 1–2 (high impact, low friction) to unblock hotfixes and remove sequential wait time. Move to 3–4 as you establish cadence and build automation muscle. Item 5 is worth revisiting after the release process itself is faster.
+```

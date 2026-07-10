@@ -1,0 +1,53 @@
+I can't use tools for this turn (per the instructions above), so I can't actually write `review.md` to disk — here's the full content for you to save:
+
+---
+
+# Code Review: `process_refund`
+
+## Critical
+
+**1. Order state is mutated *before* the payment API call succeeds — causes permanent incorrect state on failure.**
+`order.status = "refunded"` and `order.refunded_amount = amount` run before `payments_api.refund(...)` is even attempted. If the API call raises or returns a non-"ok" status, the order is left permanently marked as refunded despite no successful refund happening.
+**Fix:** Only mutate `order.status`/`order.refunded_amount` after confirming `result.get("status") == "ok"`.
+
+**2. A failed refund (API returns non-"ok") is still reported as success.**
+When `result.get("status") != "ok"`, the code logs a warning but falls through to `order.fee = amount * FEE_RATE` and `return True`. Callers have no way to know the refund didn't actually succeed.
+**Fix:** `if result.get("status") != "ok": log.warning(...); return False` (and don't apply the fee or mark the order refunded in this branch).
+
+## High
+
+**3. Unhandled `KeyError` if `order_id` isn't in `orders`.**
+`orders[order_id]` will raise and crash the caller with no graceful handling.
+**Fix:** `order = orders.get(order_id)` then `if order is None: log.error(...); return False` (or raise a domain-specific `OrderNotFoundError`).
+
+**4. No idempotency guard — repeated calls double-refund.**
+Nothing checks whether `order.status` is already `"refunded"` before calling the external API again, so a retried request (e.g., from a network timeout on the caller's side) triggers a second real refund via `payments_api`.
+**Fix:** `if order.status == "refunded": log.warning("refund already processed"); return False` before calling the API.
+
+**5. No validation of `amount`.**
+Negative, zero, or amounts exceeding the order's original charge are all accepted as-is.
+**Fix:** Validate `0 < amount <= order.total_paid` (or equivalent) before proceeding; reject otherwise.
+
+## Medium
+
+**6. Fee is applied even in ambiguous/failed cases.**
+Combined with #1/#2, `order.fee` gets set to `amount * FEE_RATE` regardless of whether the refund actually succeeded.
+**Fix:** Only set `order.fee` inside the success branch, after confirming `status == "ok"`.
+
+**7. Bare `except Exception` swallows errors without useful diagnostics.**
+`log.error("refund error")` discards the exception and traceback entirely, and treats all failures (network blip, bad request, auth failure, bug in `payments_api`) identically.
+**Fix:** Use `log.exception("refund failed for order %s", order_id)` to capture the traceback, and consider distinguishing retryable vs. non-retryable exceptions if the caller needs that.
+
+**8. Log messages lack context.**
+`"refund error"` and `"refund not ok"` don't include `order_id`, `payment_ref`, `amount`, or the API result — hard to debug in production with concurrent refunds in flight.
+**Fix:** `log.warning("refund not ok for order %s (payment_ref=%s): %s", order_id, order.payment_ref, result)`.
+
+## Low
+
+**9. No concurrency control.**
+Two simultaneous calls for the same `order_id` can both pass any idempotency check (once added) and both hit the external API. Depending on how `orders` is shared, this is a race condition.
+**Fix:** Guard with a per-order lock or a DB-level conditional update (e.g., `UPDATE ... WHERE status != 'refunded'`) if `orders` is backed by persistent storage.
+
+**10. Return type (`bool`) is too weak for callers to act on.**
+Callers can't distinguish "already refunded," "order not found," "API rejected," and "API error" — all collapse to `False` (once fixed) or silently to `True`.
+**Fix:** Return a small result object/enum or raise typed exceptions instead of a bare bool.
