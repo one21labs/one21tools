@@ -32,6 +32,8 @@ run_case "allow: check-workflow.mjs || no pipe"         'node scripts/check-work
 run_case "deny: check-workflow.mjs piped into tee"      'node scripts/check-workflow.mjs | tee log.txt'                                            deny
 run_case "deny: run_eval.py piped"                      'python3 skills/building-skills/scripts/run_eval.py x | head'                              deny
 run_case "deny: check-pr-body.mjs piped into grep"      'node scripts/check-pr-body.mjs | grep foo'                                                deny
+run_case "deny: check-gate-tests.mjs piped"             'node scripts/check-gate-tests.mjs | tail'                                                 deny
+run_case "allow: check-gate-tests.mjs bare invocation"  'node scripts/check-gate-tests.mjs'                                                        allow
 run_case "allow: pipe in a later unrelated && segment" 'node scripts/check-restatement.mjs && echo done | wc -l'                                    allow
 run_case "allow: empty command string"                  ''                                                                                          allow
 

@@ -29,7 +29,7 @@ cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*
 
 # Repo-local gate scripts NOT shipped by any plugin (ADR 0046 "instance tooling"), plus the
 # dev-skills-adjacent scripts that ship no gate-pipe guard of their own.
-GATES="validate.py check-restatement.mjs check-workflow.mjs check-pr-body.mjs run_eval.py"
+GATES="validate.py check-restatement.mjs check-workflow.mjs check-pr-body.mjs check-gate-tests.mjs run_eval.py"
 
 for gate in $GATES; do
   esc_gate=$(printf '%s' "$gate" | sed 's/\./\\./g')
