@@ -69,7 +69,7 @@ Hooks run on every matching operation. If a hook is slow, it slows everything. C
 
 Once you've decided a hook is needed, see:
 - Claude Code documentation for hook configuration
-- `product-self-knowledge` for settings file locations
+- Claude Code Settings documentation for settings file locations (see Sources below)
 
 
 ## Sources

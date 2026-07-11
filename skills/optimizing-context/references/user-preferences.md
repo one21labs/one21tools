@@ -6,7 +6,7 @@ User Preferences are account-wide settings that shape Claude's behavior across a
 
 Free text describing your preferences, applied to every conversation unless overridden by more specific context.
 
-For current UI location and configuration, see `product-self-knowledge` or https://support.claude.com.
+For current UI location and configuration, see the Personalization features documentation (Sources below).
 
 ## When to Use User Preferences
 
@@ -25,7 +25,7 @@ More specific context overrides more general:
 - Project Instructions override User Preferences
 - User Preferences are the baseline default
 
-For exact precedence rules and interaction with Styles, see `product-self-knowledge`.
+For exact precedence rules and interaction with Styles, see the Personalization features documentation (Sources below).
 
 ## Effective Preferences
 
