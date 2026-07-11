@@ -44,7 +44,7 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
 context isolation is automatic — pass each only the files it needs.
 
 ## The loop
-1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs (Allocate rule). Read
+1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs. Read
    `docs/decisions/` so settled calls aren't re-litigated. Scan open ADRs' revisit
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift — an
    ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an accepted ADR
@@ -55,7 +55,7 @@ context isolation is automatic — pass each only the files it needs.
    min-sample discipline; thresholds are project config). No metrics command = skip.
 2. **Frame.** Clarify scope FIRST — resolve an ambiguous or multi-item ask into a stated scope
    before any advisor runs (a fuzzy ask wastes spend + anchors wrong). List the open
-   calls. One decision register.
+   calls. One register. Multiple calls: pre-allocate parallel `pm`s' IDs here, one each.
 3. **Check output.** Grade the real produced output, not the source — for any claim about what the
    product renders/prints/exports/writes, run the project's render/verify step (per CLAUDE.md) and
    read the output; never confirm from source alone. No output layer = skip.

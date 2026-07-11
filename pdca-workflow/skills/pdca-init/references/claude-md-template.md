@@ -32,6 +32,9 @@ File headers own each file's role + constraints. Start at <the core module> (the
   the mirror, don't guard it; derive, don't duplicate; compute the verdict, don't assert it. A
   guard/test is the fallback when prevention can't be designed in.
 - One module per concern; inline until reused in 2+ places. Reuse existing helpers; don't duplicate.
+- Do work that can be done while you wait — when a background agent/decision is running, scan for
+  non-blocked work (prep valid under any outcome, independent items) and run it in parallel rather
+  than idling.
 - <project-specific conventions — naming, error handling, units, layering, etc.>
 
 ## Docs — one home per fact

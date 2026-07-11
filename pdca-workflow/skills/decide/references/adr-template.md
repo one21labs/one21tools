@@ -42,7 +42,8 @@ Rules:
 - **Allocate a number** only after confirming it's a *new* decision (an amend/re-sequence edits the
   existing ADR in place, per Rationalize): `git fetch`, then `max(local, origin/main, every origin/*
   branch's docs/decisions/) + 1` — a parallel or never-PR'd branch's ADR collides otherwise. Below
-  origin/main's highest = stale: rebase first.
+  origin/main's highest = stale: rebase first. This is the single-call rule; deciding several calls
+  in parallel uses pre-assigned IDs instead — see `/decide`'s Frame step.
 - **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
   frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, an
   unfalsifiable decision (no stated criterion), or an over-budget record. `/decide` scans open ADRs'

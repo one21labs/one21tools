@@ -17,7 +17,8 @@ Ground every decision in the evidence a call needs; infer nothing. Read first, e
 
 Per call, write an ADR to `docs/decisions/` from the template, making the weakest assumption
 the most visible line in it. Draft to the template's stated margin and measure the char count
-once before finalizing — don't write long and trim in passes. On a split panel, find the reframe that captures the value both
+once before finalizing — don't write long and trim in passes; if the Decision prescribes literal
+wording for a shipped home (CLAUDE.md, an agent, another doc), check THAT file's headroom too. On a split panel, find the reframe that captures the value both
 sides want before you tally — most ties are false either/ors (split by population/segment;
 separate cheap-now from full-later). On a design call the tie-break is poka-yoke — prefer making
 the error impossible over merely detecting it; before endorsing a sync/generator/guard for a
