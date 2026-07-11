@@ -46,7 +46,7 @@ deterministic logic; a doc that restates them rots).
 
 ## Shipping — PR
 - **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
-  plugin). A version bump is scoped to the artifact changed (a plugin's `plugin.json`).
+  plugin). Version bumps get their own PR per plugin via `set-version.mjs` (ADR 0048).
 - **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion.
