@@ -47,7 +47,26 @@ Manufacturing-origin mapping and per-domain breakdown: [waste-identification.md]
 | **Common vs special cause** | Recurring issues → fix system; One-offs → investigate root cause |
 | **DMAIC** | Define → Measure → Analyze → Improve → Control (for major projects) |
 | **Taguchi/DOE** | Orthogonal arrays reduce test explosion while maintaining coverage |
-| **Poka-yoke** | Error-proofing. Make the error impossible by design (delete the mirror, derive don't duplicate, compute don't assert) over merely detecting it; detection (a guard/test) is the fallback when prevention can't be designed in. Validate at source. |
+| **Poka-yoke** | Error-proofing. Make the error impossible by design (delete the mirror, derive don't duplicate, compute don't assert) over merely detecting it; detection (a guard/test) is the fallback when prevention can't be designed in. Validate at source. Rank the enforcement surface on the detection-latency ladder below. |
+
+### Detection-Latency Ladder (Poka-yoke, Ranked)
+
+Enforcement surfaces ranked by how early they catch a defect — earlier is stronger:
+
+| Rung | Stage | Surface |
+|------|-------|---------|
+| 1 | Prevent | Blocking pre-action check (e.g. a deny hook) — the error cannot happen |
+| 2 | Detect at creation | Post-edit check, immediately after the change is made |
+| 3 | Detect at commit | Pre-commit check |
+| 4 | Detect at PR | CI gate |
+| 5 | Prose / human review | Guidance and reviewer judgment — the fallback, never the home for a decidable rule |
+
+**Executable-home rule.** A machine-decidable requirement is never homed in prose where an executable surface exists — a tool-call moment at which a check can fire. Prose holds judgment calls, and serves only as an interim home until a surface is available.
+
+- **Choosing the rung**: default to the cheapest rung that catches the defect; promoting a rule to an earlier rung requires scar tissue (a cited recurring miss) plus favorable economics — earlier rungs cost more to build and keep honest.
+- **Full coverage deletes the mirror**: once a mechanism fully enforces a rule, its prose restatement is waste — cut it (a later-rung backstop such as CI may remain).
+- **Faithful predicate**: the mechanism must test the rule it claims to enforce; a partial predicate ships with its residue recorded.
+- **Undecidable intent warns, never denies**: when a check cannot separate violation from legitimate use, it warns — false blocks train users to bypass the guard.
 
 ## Root Cause Analysis (5 Whys)
 
