@@ -28,9 +28,7 @@ don't restate. Operationalized, not a slogan:
   `plugin.json`. A broken or duplicate entry breaks `/plugin install`. Keep the JSON valid.
 - **SKILL.md frontmatter:** `name` FIRST (must match the folder), description-as-trigger;
   `disable-model-invocation` for explicit-invoke skills. Run `validate.py` after any SKILL.md edit.
-- `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge,
-  and RE-RUN it after any edit made after the last pass — a post-lint touch-up is how budget breaks ship.
-  Never pipe a gate through a filter that hides its exit code.
+- `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge.
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
