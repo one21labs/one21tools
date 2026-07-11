@@ -24,6 +24,15 @@ Test: `cd benchmarks/lib && python -m unittest bench_io_test`
   0024): CI excludes 0 and positive -> KEEP, excludes 0 and negative -> HARMFUL, straddles 0 with
   |mean| < 0.05 -> CUT-CANDIDATE, else INCONCLUSIVE. One home instead of copy-pasted into each
   harness's `aggregate.py`.
+- `merge_verdict(mean_diff, ci_lo, ci_hi, n, chars_delta)` — the shared with-new-vs-with-old MERGE
+  rule (ADR 0027, amended, both prongs: issue #142): PRIMARY `mean_diff > 0` -> MERGE, else NO
+  MERGE. CI excludes 0 -> "strong" confidence, merges regardless of cost. CI straddles 0 -> "weak"
+  confidence, contingent on the cost prong (ADR 0024 step 2d): `chars_delta` (always-loaded/body
+  chars only) `> 0` reverts a weak merge to NO MERGE. Returns `(merge: bool, confidence: "strong" |
+  "weak" | None)`. A new `aggregate.py` computing a merge verdict imports this instead of
+  restating the bar — the bs-iter2 discrepancy (`aggregate.py` printed "MERGE (weak)" where the
+  cost prong says NO MERGE, `benchmarks/2026-07-09-bs-iter2-remeasure/README.md`) was exactly this
+  class of drift.
 
 Test: `cd benchmarks/lib && python -m unittest verdict_test`
 
