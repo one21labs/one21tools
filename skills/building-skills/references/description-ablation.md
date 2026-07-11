@@ -1,8 +1,7 @@
 # Description Ablation — measuring whether a description triggers
 
-Read this when testing whether a skill's DESCRIPTION activates Claude to load it — the question
-[empirical-evals.md](empirical-evals.md)'s Scope explicitly excludes (the paired benchmark
-injects the skill, so it cannot measure whether the description ACTIVATES).
+Read this when testing whether a skill's DESCRIPTION activates Claude to load it — out of scope
+for [empirical-evals.md](empirical-evals.md) (see its "Scope and limits").
 
 ## The two surfaces
 

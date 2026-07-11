@@ -18,9 +18,8 @@ local `main`).
 Run this loop:
 
 1. **Scope.** Resolve the range. `git log --oneline <range>` for the commit set.
-2. **Git signal.** Surface the rework/waste signals for the `retrospect` agent: fix-of-a-fix
-   commits, reverts, a file touched repeatedly, a Sacred file (named in CLAUDE.md) touched
-   without its paired test, ADR/tracker drift. (`git log -p <range>` as needed.)
+2. **Git signal.** Run `git log -p <range>` as needed so the material is ready for the agent; its
+   Method owns the specific signal list to look for — don't restate it here.
 3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
    stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
    analysis and the routing rules — don't restate them.

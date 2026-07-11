@@ -33,10 +33,9 @@ A char count can't be gamed by long lines and captures the real intent (high sig
 efficiency) with no API call in CI — see the 0006 evidence above. **Rewrite under budget, don't
 grandfather**: only **two** ADRs are over the cap, so rewriting them is cheaper than a shrink-only
 allowlist and carries no exemption debt; an allowlist earns its keep only when many settled records
-are over budget at once. **Source headers are not budgeted** because a header's failure mode is *drift* (it
-describes what the file *was*, names an absent construct, or lists imports), not length — a char cap
-would gate the wrong thing, and a flat cap misfits headers of legitimately varying complexity. The
-existing "update the header same change / stale = drift" rule already targets that failure.
+are over budget at once. **Source headers are not budgeted**: their failure mode is drift, not
+length, so a char cap would gate the wrong thing — full rationale in `doc-budgets.md` (Extending
+the budget).
 
 ## Assumptions
 - [verified] the line cap is gamed — `0006` passes the <=70-line cap at 8,813 chars (its lines run
