@@ -8,8 +8,10 @@ frontmatter, id collisions across parallel branches, release-version coupling, d
 unfalsifiable decisions, and budget rot. Per "no process-gating script without a test of its
 decision logic," it ships with one (`scripts/adr-lint.test.mjs`).
 
-This file is the **spec**. A runnable node reference ships at `scripts/adr-lint.mjs`
-(zero-dependency, cross-platform); a consumer on another stack reimplements the checks against it.
+This file is the **spec** — the authoritative, numbered guard list. A runnable node reference
+ships at `scripts/adr-lint.mjs` (zero-dependency, cross-platform; its header points back here
+rather than re-listing the guards); a consumer on another stack reimplements the checks against
+this list.
 
 ## Frontmatter schema (every ADR starts with this)
 ```
@@ -27,18 +29,37 @@ summary: "<one line for the skim catalog>"
 2. **Ids unique** — no two files share an `id` (parallel branches grabbing the same int).
 3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
    the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
-4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to a file on
-   disk (the renumber/fold catcher; a self-cite is fine).
-5. **Falsifiability (Plan-phase criterion-minting gate)** — every ADR states at least one criterion
-   the Check can later test: a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]` assumption
-   bullet, OR a `- [unverifiable]` paired with a REOPEN-IF (revisitable on a signal). An ADR with
-   none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not a prose mention);
-   whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic call, not lint's.
-6. **Budget** — no new/edited ADR exceeds the char budget (default 6,000 — the norm from
-   `adr-template.md`; cap + predicate SSoT in `char-budget.mjs`;
-   configurable via `--budget`). A char count can't be gamed by long lines (see ADR 0008). No
-   exemptions — an over-budget ADR is rewritten under the cap, not grandfathered. Over budget = bloat or a missed
-   lower home. `main()` also char-checks the named docs (`CLAUDE.md`) via `oversizeDocs()`.
+4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited inside an ADR
+   resolves to a file on disk (the renumber/fold catcher; a self-cite is fine).
+5. **Falsifiability (Plan-phase criterion-minting gate)** — every FULL ADR states at least one
+   criterion the Check can later test: a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]`
+   assumption bullet, OR a `- [unverifiable]` paired with a same-bullet REOPEN-IF (revisitable on a
+   signal). An ADR with none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not
+   a prose mention); whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic
+   call, not lint's.
+6. **Lite tier** (`tier: lite` frontmatter — settled decisions, ADR 0020) — exempt from the
+   falsifiability gate (settled = nothing left to test), but REJECTED if it carries a revisit
+   trigger or open assumption (`REOPEN-IF`, a `## Revisit triggers` section, or an `[unverifiable]`
+   bullet): that means the decision isn't actually settled, so it must graduate to a full ADR.
+7. **Budget** — no ADR exceeds its char budget: full ADRs default to 6,000 (the norm from
+   `adr-template.md`; configurable via `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`).
+   Cap + predicate SSoT in `char-budget.mjs`. A char count can't be gamed by long lines (see ADR
+   0008). No exemptions — an over-budget ADR is rewritten under the cap, not grandfathered. Over
+   budget = bloat or a missed lower home.
+8. **Amendment backlink** (ADR 0040) — an ADR that ACTIVELY amends another ("amends ADR NNNN") must
+   be cited back from the amended ADR's own text; an unpointed amendment is invisible from the
+   record it changes (adr-template.md "Rationalize in place"). A passive "amended by NNNN" already
+   carries its own cite, so only the active voice is checked.
+
+`main()` also runs guards outside the ADR corpus proper, sharing the same `lint`/`char-budget`
+machinery:
+9. **manifestDrift** — a field present in BOTH a marketplace plugin entry and that plugin's own
+   `plugin.json` must be identical (`plugin.json` is the lower home; an entry-side omission is not
+   drift).
+10. **Agent checks** (`agentProblems`) — every agent prompt under `pdca-workflow/agents` and
+    `.claude/agents` stays under `AGENT_CHAR_BUDGET`, and its frontmatter `name:` matches its
+    filename.
+11. **Named-doc budget** (`oversizeDocs`) — char-checks `CLAUDE.md` against `DOC_BUDGETS`.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 

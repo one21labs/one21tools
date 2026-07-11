@@ -15,6 +15,5 @@ summary: "Work-state (deferred items, handoffs, pending tasks) tracks as GitHub 
 - Why: a to-do list in a file has no lifecycle and can only drift — an issue is open-or-closed
   and dies when done; a fresh session reads the open issues instead of hunting for a handoff.
 - Enforced: CLAUDE.md Shipping rule + owner review of PR Deferred sections; adopted with the
-  migration to issues #30-#34 and the handoff file's removal from the benchmark snapshot.
-- [checkable] no tracked handoff/TODO doc remains in the repo — owner: review-time grep; result:
-  clean at adoption.
+  migration to issues #30-#34 and the handoff file's removal from the benchmark snapshot; no
+  tracked handoff/TODO doc remains in the repo.
