@@ -7,7 +7,7 @@ summary: "Name the always-applicable built-ins as defaults at their seams (/simp
 
 # 0005 — Wire built-in skills into the execution seams
 
-- Date: 2026-06-29
+- Date: 2026-06-28
 - Owner: PM
 - Panel: 3 advisors (reuse / portability-muda / placement lenses) + `verifier` + `red-team` — dogfooded `/decide` BY HAND (the plugin's `/decide` command is not installed this session).
 - Context: the plugin leaves generic execution seams — "run the project's render/verify step (per
