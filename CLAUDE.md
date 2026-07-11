@@ -7,7 +7,8 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
-Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
+Lint the decision log + every char budget (CLAUDE.md, agent prompts, manifest drift):
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions` — run it on a near-cap file, don't hand-count.
 Check benchmark workflows: `node scripts/check-workflow.mjs`.
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>` — writes the
 version's one home (plugin.json when the plugin has one, else the marketplace entry).
