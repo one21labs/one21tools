@@ -100,7 +100,7 @@ When Project Files exceed direct context loading, Claude uses retrieval (RAG):
 - Front-load important context in document beginnings
 - Use clear headings and structure for better retrieval
 
-For current context limits and RAG behavior, see `product-self-knowledge` skill or https://support.claude.com.
+For current context limits and RAG behavior, see the Projects documentation (Sources below).
 
 ## Project Instructions Best Practices
 

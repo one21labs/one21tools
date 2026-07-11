@@ -55,7 +55,7 @@ Let Claude script against raw data rather than managing low-level API navigation
 
 Once you've decided MCP is the right mechanism, see:
 - `mcp-builder` skill for server development workflow
-- `product-self-knowledge` for MCP configuration in Claude Code
+- Claude Code MCP Documentation for MCP configuration (see Sources below)
 
 
 ## Sources
