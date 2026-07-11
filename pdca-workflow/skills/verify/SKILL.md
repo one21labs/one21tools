@@ -15,13 +15,13 @@ without the full ceremony. `/decide` composes it over every ADR.
    command, output). Include any `[checkable]` assumptions to check.
 2. **Spawn the `verifier` agent fresh** — pass the claims and the paths, never the desired
    verdict or the reasoning that produced them (uncontaminated is the point).
-3. It reproduces every claim against the real code and grades the real produced output where
-   one exists (run the project's render/verify step per CLAUDE.md; never confirm from source
-   alone).
+3. It reproduces every claim against the real code and produced output — the method and grading
+   rules live in the `verifier` agent's own prompt, not here.
 
 ## Return
 
-PASS, or BLOCK with findings. A verified correctness/safety finding stands — fix the artifact,
+PASS, or BLOCK with findings. The agent reports per-claim verdicts plus a BLOCKERS list; YOU
+synthesize the label — no BLOCKERS = PASS. A verified correctness/safety finding stands — fix the artifact,
 don't argue the catch; priority overrules don't apply to verified findings (`/decide`'s rule).
 When a fresh finding supersedes a shared handoff note (a verdict, an assumption result),
 overwrite it before the next agent reads it — a stale verdict a sibling consumes is drift.

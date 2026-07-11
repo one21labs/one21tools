@@ -46,11 +46,8 @@ Run this loop:
    (`../decide/references/adr-lint.md`).
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
-   `references/panel-generation.md`. Infer the 4-8 advisors THIS project's decisions actually
-   need (a correctness lens for each distinct way the product can be wrong, plus the value / cost
-   / risk / differentiation axes the correctness experts don't own), write each into
-   `.claude/agents/` from `references/advisor-template.md`, and record the roster + why each was
-   chosen (a short `docs/decisions/panel.md`) so the user can edit it.
+   `references/panel-generation.md`; its Method owns the inference, roster size, target dir,
+   version-control guard, and `panel.md` record — don't restate them here.
 
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
    review/edit the panel, then run `/decide` for their first decision. Offer (don't
