@@ -25,6 +25,7 @@ breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A cop
 | ROADMAP | `ROADMAP.md` | none (legitimately variable) | — | — |
 | README | `README.md` | none | — | — |
 | CLAUDE.md | `CLAUDE.md` | **6,000** (~2 pp) | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
+| CLAUDE.md | pdca-init's `claude-md-template.md` (the scaffold it copies) | **6,000** | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | docs | `docs/decisions/NNNN-*.md` (ADR) | **6,000** (~2 pp) norm | ~1,500 | `char-budget.mjs` (`ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/NNNN-*.md` (lite ADR, `tier: lite`) | **1,500** (~0.5 pp) | ~375 | `char-budget.mjs` (`LITE_ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/README.md` (ADR guide) | none | — | — |
@@ -41,8 +42,8 @@ Lower a cap when a doc is leaned; never pad it.
 
 **A consumer with a designated detail-home doc** (one other docs reference, so a larger cap is the
 correct altitude) adds its own entry to `DOC_BUDGETS` with a bigger number — e.g. a
-`docs/review-system.md` at ~12,000 (~4 pp). This repo has no such doc, so `DOC_BUDGETS` holds
-`CLAUDE.md` only; the table above is the pattern, not a fixed list.
+`docs/review-system.md` at ~12,000 (~4 pp). The table above is the pattern, not a fixed list;
+`DOC_BUDGETS` in `char-budget.mjs` is the fixed list.
 
 ## Method — chars <-> tokens
 
