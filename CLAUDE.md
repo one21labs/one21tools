@@ -8,7 +8,7 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
-Check benchmark workflows: `node scripts/check-workflow.mjs` (syntax + `model:` on every agent() call).
+Check benchmark workflows: `node scripts/check-workflow.mjs`.
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>` — writes the
 version's one home (plugin.json when the plugin has one, else the marketplace entry).
 
@@ -21,7 +21,7 @@ don't restate. Operationalized, not a slogan:
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke (prevent > detect):** delete the mirror, don't guard or resync it; derive, don't duplicate.
 - **Forcing functions:** `/retrospect` before every PR; `adr-lint` guards the decision log; the
-  advisory muda-review CI (`pdca-workflow/templates/claude-review.yml`) when wired.
+  advisory muda-review CI (`.github/workflows/claude-review.yml`) posts inline findings, never blocks.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's

@@ -56,7 +56,7 @@ depends on skill-creator (ADR 0033).
 | `eval_verdict.py` | `skills/building-skills/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
 | `run_eval.py` | `skills/building-skills/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033). |
 | `benchmarks/lib/` | repo root | Shared benchmark IO + verdict math (`bench_io.py`, `verdict.py`), unit-tested. |
-| `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity: frontmatter, ids, cites, char budgets. |
+| `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity (frontmatter, ids, cites, char budgets) plus agent char budgets and marketplace/plugin.json manifest drift. |
 | `check-workflow.mjs` | `scripts/` | Benchmark workflow files: syntax + explicit `model:` on every agent call (ADR 0029). |
 | `check-pr-body.mjs` | `scripts/` | Required `Retrospective:` line on every PR (ADR 0030). |
 | `gates.yml` | `.github/workflows/` | Runs all of the above as the required CI check (ADR 0012). |
@@ -66,24 +66,11 @@ record, linted, version-agnostic). The repo dogfoods its own `pdca-workflow` plu
 
 ## PDCA workflow plugin
 
-`pdca-workflow` packages a PM-led feedback loop you can drop into any project — a Deming
-Plan-Do-Check-Act cycle run by Claude agents. It is the general form of the system built for
-LTconfig.
-
-| Component | What it is |
-|-----------|------------|
-| `/decide` skill | The decision panel: advisors argue, one PM decides and writes an ADR, an independent gate verifies, red-team breaks it. Triggered by any user feedback or open judgment call. |
-| `/advise`, `/verify`, `/red-team` skills | The panel primitives standalone: situational advice, independent verification, adversarial break — right-sized checks without the ADR ceremony. `/decide` composes them. |
-| `/retrospect` skill | Automates the Act loop: reads git history + session friction, emits routed process improvements. Run before opening a PR. |
-| `/pdca-init` skill | Scaffolds the workflow into a project: a themed CLAUDE.md, the ADR decision log, and a **project-tailored advisor panel** generated from the project's domain. |
-| Agents | The domain-agnostic meta-roles: `pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`. The advisor panel itself is generated per project by `/pdca-init`. |
-| ADR system + linter | A version-agnostic, frontmatter-cataloged decision-record template (one-ADR-per-PR, fetch-then-max numbering, rationalize-in-place) and `adr-lint.mjs` — a zero-dependency node guard against bad frontmatter, duplicate IDs, dangling cites, and over-budget docs (char budgets on the ADR corpus and CLAUDE.md). |
-| Metrics engine spec | `metrics-engine.md` — a language-neutral `analyze()` contract mapping usage thresholds to PDCA triggers; each project implements it in its own stack. |
-| Hook | A non-blocking reminder to run `/retrospect` when you create a PR. |
-
-After installing, run `/pdca-init` once per project to generate its CLAUDE.md and advisor panel,
-then `/decide` to decide your first judgment call. See
-[pdca-workflow/README.md](pdca-workflow/README.md).
+`pdca-workflow` packages a PM-led Plan-Do-Check-Act feedback loop — `/decide`, `/advise`,
+`/verify`, `/red-team`, `/retrospect`, `/pdca-init` — that you can drop into any project. After
+installing, run `/pdca-init` once per project to generate its CLAUDE.md and advisor panel, then
+`/decide` to decide your first judgment call. See
+[pdca-workflow/README.md](pdca-workflow/README.md) for the cycle, the agents, and the ADR system.
 
 ## Install
 
