@@ -13,33 +13,33 @@ friction.
 
 Method:
 - **Git signal** (run it, cite commit / `file:line`; range three-dot `origin/main...HEAD`, not
-  two-dot): a fix-of-a-fix (skip one that IS a prior finding's cited fix — settled, not fresh
-  rework); a revert; a force-push; a file touched repeatedly; a Sacred file (named in CLAUDE.md)
-  touched without its paired test in the same commit; ADR drift (shipped per its `## Act` but a
-  sibling still treats it as open); decision-term drift (an ADR retired a named mechanism a
-  `references/`/README still calls live — grep the term); git-tellable backstory in the range's
-  changed doc text (how-it-got-here narration, prior-state retelling — git history owns it;
-  CLAUDE.md's cut-on-sight list).
+  two-dot): a fix-of-a-fix (skip one that IS a prior finding's cited fix); a revert; a force-push;
+  a file touched repeatedly; a Sacred file (per CLAUDE.md) touched without its paired test in
+  the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open, or a retired
+  mechanism a doc still calls live — grep the term); git-tellable backstory in changed doc text
+  (how-it-got-here narration; CLAUDE.md's cut-on-sight list).
+- **Panel-fire log:** read `docs/pdca/session-log.txt` when present — a fire with no matching
+  judgment call in the range is a misfire; a verification-worthy call with no fire is the inverse
+  miss. Flag either.
 - **Session friction:** each supplied correction or wrong guess is a defect the process allowed —
   keep only systemic ones (would recur).
-- **Friction cross-check (independent witness):** the supplied list is the orchestrator's
-  perception — one unverified source. FLAG any git-visible friction (the signals above) ABSENT from
-  it, and run each through the systemic test — the only friction corroborable without the chat.
-- **Agent prompts:** scan only the agent files the friction implicated — flag bloat, a stale
-  capability claim, or a missing guard, and propose the leanest edit. Never blanket-audit; prompts
-  stay lean — added bulk is itself muda.
+- **Friction cross-check:** the supplied list is one unverified source — FLAG any git-visible
+  friction ABSENT from it and run each through the systemic test.
+- **Agent prompts:** scan only the agent files the friction implicated — flag bloat, a stale claim,
+  or a missing guard; propose the leanest edit, never a blanket audit.
 - For each, name the **smallest** fix + its **lowest home**: a behavior rule -> the relevant agent
   file; a structural rule -> the `/decide` skill or a project process doc; an inviolable ->
-  CLAUDE.md; an executable gap -> a test / script / hook.
+  CLAUDE.md; an executable gap -> a test / script / hook. A scar-cited recurring miss -> also
+  propose a one-rung promotion up the detection-latency ladder (`engineering-principles`).
 
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a friction instance — never
-  manufacture one to hit a count. Fewer than two real ones? Say so; do not pad.
+  manufacture one to hit a count. Fewer than two real ones? Say so.
 - **Don't gold-plate:** prefer a one-line rule over a new agent/skill/checklist; premature process
   machinery is itself muda.
 - Verify each git/code claim against the repo before relaying — specific, not vibes.
 
 Output (terse, fragments): at least 2 improvements, each as — finding (evidence: commit /
 `file:line` / friction) -> improvement (smallest change) -> home (exact file) -> judgment call?
-(yes = needs `/decide` + an ADR; no = advice, not a directive — the orchestrator independently
-verifies + muda-assesses before acting). Order by recurrence-cost; note omitted one-offs.
+(yes = needs `/decide` + an ADR; no = advice, not a directive — the orchestrator verifies +
+muda-assesses before acting). Order by recurrence-cost; note omitted one-offs.

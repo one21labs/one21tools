@@ -19,8 +19,8 @@ Run this loop:
 
 1. **Scope.** Resolve the range. `git log --oneline <range>` for the commit set.
 2. **Git signal.** Run `git log -p <range>` as needed so the material is ready for the agent; its
-   Method owns the specific signal list to look for — don't restate it here. When present, also
-   surface `docs/pdca/session-log.txt` (skill-spawn + warn records) to the agent.
+   Method owns the specific signal list to look for (including the panel-fire log) — don't restate
+   it here.
 3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
    stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
    analysis and the routing rules — don't restate them.
@@ -43,8 +43,7 @@ Run this loop:
    recommendation, not a command); then apply the cheap, verified, non-judgment ones in this run (e.g.
    `/simplify`, the Claude Code built-in that owns the reuse/simplification/altitude cleanup pass). If
    an improvement is a judgment call (cost/scope/policy trade-off), open `/decide` and let the PM
-   record an ADR — do not decide it here. A scar-cited recurring miss also earns a rung promotion
-   up the detection-latency ladder (`engineering-principles` skill).
+   record an ADR — do not decide it here.
 7. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"
    changelog (git history + any ADR are the record of why).
 

@@ -10,13 +10,13 @@ summary: "A decidable requirement is never homed in prose — its core needs an 
 - Date: 2026-07-10
 - Owner: PM
 - Panel: lean/economist/session-operator (reframed-accept) + owner + red-team (7 breaks) + verifier (PASS). Sweep+prototypes: scratchpad/sweep-detail.txt.
-- Context: poka-yoke is doctrine (ENGINEERING_PRINCIPLES.md:50) but never ranked into rungs; jit-documentation.md:23 is only a binary action-moment/JIT branch (Decision Test row 2); retrospect.md:31-33 reinvents home-routing (#21). Top sweep candidates are decidable requirements prose failed (PR#134 pipe-mask, #75). ADR 0038/0039/0040 decide this ordering ad hoc.
+- Context: poka-yoke is doctrine (ENGINEERING_PRINCIPLES.md:50) but never ranked into rungs; jit-documentation.md:23 is only a binary action-moment/JIT branch (Decision Test row 2); retrospect.md:30-33 reinvents home-routing (#21). Top sweep candidates are decidable requirements prose failed (PR#134 pipe-mask, #75). ADR 0038/0039/0040 decide this ordering ad hoc.
 
 ## Decision
 - **Rule (owner):** a DECIDABLE requirement is never homed in prose — its CORE needs an executable home (rung 1-4) at authoring time where an AVAILABLE SURFACE binds it (a tool-call moment it fires at). No surface yet (sync-before-spend) => interim prose DEFERRING to 0043's trigger. Judgment shells stay rung-5.
 - **Ladder:** 1 prevent (deny) > 2 detect-at-creation (PostToolUse) > 3 commit > 4 CI > 5 prose. Executable home MANDATORY; the rung + any earlier-rung upgrade needs cited scar + economics. A full-coverage mechanism deletes its rung-5 prose mirror (detector: check-restatement.mjs); a CI backstop stays.
 - **Preconditions (detail at (e)):** (i) a partial predicate ships with its residue recorded (ADR 0030); (ii) undecidable-intent rules WARN, never deny (cry-wolf); (iii) surface-bound.
-- Retrospect (retrospect.md:31-33): a scar-cited recurring miss -> propose a one-rung promotion.
+- Retrospect (retrospect.md:32-33): a scar-cited recurring miss -> propose a one-rung promotion.
 
 **(e) ONE home — engineering-principles, general form.** The Poka-yoke row (ENGINEERING_PRINCIPLES.md:50) names the ladder + rungs GENERALLY; repo scars stay HERE, never the shipped file (ADR 0038 inversion guard). jit-documentation.md:23 STAYS (Decision Test row 2 = 0039:26 item-9a anchor, cited by 0040:33) + gains a pointer — NOT superseded (that orphans cites + inverts altitude). Others point (ADR 0046).
 
