@@ -13,7 +13,11 @@ summary: "Add one signal to the retrospect agent's git-signal list: git-tellable
 - Context: CLAUDE.md names git-tellable backstory cut-on-sight muda, but no retrospect step operationalized it — the agent's signals covered git EVENTS (fix-of-a-fix, reverts, repeat-touch, drift) and session friction, never the diff's own doc TEXT. A pre-PR retrospect passed an ADR amendment whose Context narrated fork history and restated a claim homed elsewhere; the owner caught it in review. The author-orchestrator is structurally blind here (it wrote the narration); the fresh-eyes analyst is the right net.
 
 ## Decision
-1. **One signal clause in the retrospect agent's git-signal list** (`pdca-workflow/agents/retrospect.md`): git-tellable backstory in the range's changed doc text — how-it-got-here narration, prior-state retelling — citing CLAUDE.md's cut-on-sight list. The agent's Method is the analysis home; the `/retrospect` skill's step-2 orchestrator list is NOT extended (it pre-surfaces git-log signals; the text sweep needs no pre-surfacing, and a second list entry would extend an existing near-mirror).
+1. **One signal clause in the retrospect agent's git-signal list** (`pdca-workflow/agents/retrospect.md`
+   Method — full clause text there): the diff's own changed doc text now gets swept for backstory,
+   citing CLAUDE.md's cut-on-sight list. The agent's Method is the analysis home; the `/retrospect`
+   skill's step-2 orchestrator list is NOT extended (it pre-surfaces git-log signals; the text sweep
+   needs no pre-surfacing, and a second list entry would extend an existing near-mirror).
 2. **Budget-neutral edit.** The agent sat at 2989/3000 (0009 cap), so the clause was paid for by compressing restatement and flourish (friction examples restated from the skill; a redundant identity line; verbose tails). Compress-don't-grandfather is 0009's intent.
 3. **Not a lint rule.** Backstory is SUBSTANCE, not shape (0003's presence-vs-substance split): a regex over "was/previously" would false-positive legitimate prose and miss real narration. The judgment sweep belongs to the analyst agent.
 

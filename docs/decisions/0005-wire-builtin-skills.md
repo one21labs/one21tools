@@ -22,12 +22,11 @@ summary: "Name the always-applicable built-ins as defaults at their seams (/simp
 Split by applicability:
 - Always-applicable, app-agnostic built-ins -> named as the default at their one home, matching the
   `/code-review` precedent: `/simplify` at `retrospect/SKILL.md` step 6 (the muda-apply step).
-- Run-coupled built-ins (`/verify`, `/run`, `/run-skill-generator`) -> mentioned ONLY as scoped "if
-  the project has a **runnable surface** (app, service, CLI, or testable library)" examples beside the
-  EXISTING conditional at `verifier.md:26` ("a product with no output layer skips this"); never
+- Run-coupled built-ins (`/verify`, `/run`, `/run-skill-generator`) -> mentioned ONLY as scoped
+  examples beside the EXISTING conditional at `verifier.md:26` (full predicate text there); never
   unconditional. The predicate is "runnable surface," NOT "has a GUI" — a CLI/library (this repo's own
   scripts: `adr-lint`, `validate.py`, `node --test`) is runnable and in-scope; only a truly
-  output-less artifact skips. `/run-skill-generator` scaffolds the run-harness `/verify` and `/run` then drive.
+  output-less artifact skips.
 One home each (no duplication across decide/verifier/retrospect/claude-md-template); `/code-review` stays at `verifier.md:18`.
 
 ## Justification

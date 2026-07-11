@@ -41,11 +41,10 @@ summary: "<one line for the skim catalog>"
    falsifiability gate (settled = nothing left to test), but REJECTED if it carries a revisit
    trigger or open assumption (`REOPEN-IF`, a `## Revisit triggers` section, or an `[unverifiable]`
    bullet): that means the decision isn't actually settled, so it must graduate to a full ADR.
-7. **Budget** — no ADR exceeds its char budget: full ADRs default to 6,000 (the norm from
-   `adr-template.md`; configurable via `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`).
-   Cap + predicate SSoT in `char-budget.mjs`. A char count can't be gamed by long lines (see ADR
-   0008). No exemptions — an over-budget ADR is rewritten under the cap, not grandfathered. Over
-   budget = bloat or a missed lower home.
+7. **Budget** — no ADR exceeds its char budget: full ADRs default to 6,000 (configurable via
+   `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
+   `char-budget.mjs`; full budget rationale (why chars not lines, no-exemptions rule) in
+   `adr-template.md`'s Template section — canonical, not restated here.
 8. **Amendment backlink** (ADR 0040) — an ADR that ACTIVELY amends another ("amends ADR NNNN") must
    be cited back from the amended ADR's own text; an unpointed amendment is invisible from the
    record it changes (adr-template.md "Rationalize in place"). A passive "amended by NNNN" already

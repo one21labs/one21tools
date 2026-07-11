@@ -14,7 +14,10 @@ summary: "Small settled decisions record as `tier: lite` ADRs in docs/decisions/
 
 ## Decision
 1. **`tier: lite` frontmatter in docs/decisions/** — same directory, id sequence, and skim catalog (one home preserved). Shape: Decision / Why / Enforced-at, <=1,500 chars (`LITE_ADR_CHAR_BUDGET`, char-budget.mjs).
-2. **Mechanical boundary, lint-enforced** (adr-lint.mjs; cases in adr-lint.test.mjs): a lite record containing `REOPEN-IF`, an `[unverifiable]` bullet, or a `## Revisit triggers` section FAILS ("graduate it to a full ADR") — a live trigger means not settled. Lite records are exempt from the falsifiability gate (settled = nothing left to test) but still subject to id/frontmatter, version-agnostic, dangling-cite, and duplicate-id guards.
+2. **Mechanical boundary, lint-enforced** (adr-lint.mjs; cases in adr-lint.test.mjs): full boundary
+   rule in `adr-template.md`'s "Lite tier" section — a live trigger means not settled, so the record
+   must graduate. Lite records are exempt from the falsifiability gate (settled = nothing left to
+   test) but still subject to id/frontmatter, version-agnostic, dangling-cite, and duplicate-id guards.
 3. **Graduation is in-place**: a lite record that gains a trigger is rewritten as a full ADR, same id — tier is state, not history.
 4. Authoring rules live once in adr-template.md's "Lite tier" section; the caps live once in char-budget.mjs.
 

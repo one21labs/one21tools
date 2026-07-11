@@ -8,10 +8,8 @@ summary: "Work-state (deferred items, handoffs, pending tasks) tracks as GitHub 
 
 # 0021 — deferred work lives in GitHub issues
 
-- Decision: a deferred item someone must act on gets a GitHub issue; the PR body's Deferred
-  section links it ("None" stays "None"). No handoff/TODO files in the repo. Boundary: issues =
-  work-state; ADRs = decision-state (a revisit trigger never moves to an issue); repo docs =
-  method/protocol.
+- Decision: deferred work tracks as GitHub issues, not repo files. Full rule + the issues/ADRs/
+  repo-docs boundary: `CLAUDE.md` "Shipping — PR" ("Deferred = issues").
 - Why: a to-do list in a file has no lifecycle and can only drift — an issue is open-or-closed
   and dies when done; a fresh session reads the open issues instead of hunting for a handoff.
 - Enforced: CLAUDE.md Shipping rule + owner review of PR Deferred sections; adopted with the

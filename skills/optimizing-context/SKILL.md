@@ -53,17 +53,10 @@ CLAUDE.md, MCP vs. Skill, plugin marketplace structure), see
 
 ## Documentation Altitude and SSoT (in brief)
 
-Two orthogonal rules decide where a fact lives:
-- **Altitude routing**: a fact belongs at the altitude matching its abstraction and time-horizon
-  (STRATEGY > ROADMAP > README / CLAUDE.md > file headers > code).
-- **SSoT uniqueness**: one home per fact, at the lowest altitude where it is fully determined;
-  every higher mention is a reference, not a copy. A fact copied above its home is drift.
-
-Executable facts invert the axis: code sits lowest in altitude but highest in authority. Schema
-versions, function signatures, and filenames are owned by code; any doc that restates them rots —
-naming the source file does not license also keeping the value ("schema v12, see models.py" rots
-exactly like "schema v12" alone). Full altitude table and common drift patterns:
-[mechanism-selection.md](references/mechanism-selection.md).
+Two orthogonal rules decide where a fact lives — altitude routing and SSoT uniqueness, including
+the executable-facts inversion (code sits lowest in altitude but highest in authority) and common
+drift patterns. Full treatment: [mechanism-selection.md](references/mechanism-selection.md)
+("Documentation Altitude and SSoT").
 
 ## Measuring Success
 

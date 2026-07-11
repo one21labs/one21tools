@@ -14,26 +14,27 @@ Read this when organizing skills with multiple domains or conditional loading.
 ## Pattern 1: High-Level Guide with References
 
 ```markdown
-# PDF Processing
+# Image Processing
 
 ## Quick start
 
-Extract text with pdfplumber:
+Resize an image with Pillow:
 
 ```python
-import pdfplumber
-with pdfplumber.open("file.pdf") as pdf:
-    text = pdf.pages[0].extract_text()
+from PIL import Image
+Image.open("photo.jpg").resize((800, 600)).save("out.jpg")
 ```
 
 ## Advanced features
 
-- **Form filling**: See [FORMS.md](FORMS.md)
+- **Batch conversion**: See [BATCH.md](BATCH.md)
 - **API reference**: See [REFERENCE.md](REFERENCE.md)
 - **Examples**: See [EXAMPLES.md](EXAMPLES.md)
 ```
 
-Claude loads FORMS.md, REFERENCE.md, or EXAMPLES.md only when needed.
+Claude loads BATCH.md, REFERENCE.md, or EXAMPLES.md only when needed. (For the
+Good-vs-Bad conciseness worked example, see [SKILL.md](../SKILL.md)'s Conciseness section —
+same shape, not restated here.)
 
 ---
 
