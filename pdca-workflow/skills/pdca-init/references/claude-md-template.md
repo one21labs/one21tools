@@ -57,13 +57,21 @@ header/frontmatter in the same change.
 - <if a push deploys or releases: git push to <branch> without intent — it ships to production>
 
 ## Shipping — version, release, PR
-- Version tracks the shipped artifact (app / library / CLI). Background/meta work (tooling, process
-  docs) does NOT bump it.
-- A shipped change bumps the version (patch = fix/UX, minor = a roadmap feature) via the project's
-  version tool — don't hand-edit if a tool owns it.
-- One concern per PR; a cross-cutting cleanup gets its own branch, not bundled into a feature PR.
-- PR: title = the change in one line; body = Purpose / Changes / Testing / Deferred.
-- Run `/retrospect` on the branch before opening the PR (process improvements land in it).
+- Version tracks the shipped artifact, not background/meta work; a bump is its own PR, not
+  bundled into a feature PR, via the project's version tool.
+- One concern per PR. Sync before spend: `git fetch` + re-read the issue/citing PRs before
+  executing and before the final push (guards duplicate spend across sessions); claim-comment if
+  issue-write is available, clear it on completion.
+- Three-dot (`main...branch`) for previews, never two-dot — post-squash, a stale local `main`
+  re-adds merged commits as a phantom range under two-dot.
+- PR: title = the change; body = Purpose / Changes / Testing / Deferred. Read review comments
+  (human or automated) before merging — address each or say why not. Run `/retrospect` first;
+  record: `Retrospective: run | unavailable | skipped-<reason>` (no size floor). End with a
+  Claude disclosure line on every issue/PR Claude writes (a commit trailer alone isn't
+  disclosure).
+- Never file/edit outside this project's own org/namespace without the owner's per-item approval
+  of the exact text — "file upstream" authorizes drafting, not posting.
+- Deferred work gets an issue, not a handoff/TODO file — work-state in issues, decisions in ADRs.
 
 ## Feedback = PDCA trigger
 User feedback (bug report, feature ask, behavioral observation) triggers `/decide`
