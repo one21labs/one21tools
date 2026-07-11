@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /*
- * check-workflow.mjs — advisory pre-PR checks for benchmarks/**\/*.workflow.js (issue #61):
+ * check-workflow.mjs — required CI checks for benchmarks/**\/*.workflow.js (issue #61, wired as a
+ * gate by ADR 0029):
  *   1. model-key lint: every agent() call's options object must carry a `model:` key, else the
  *      agent silently inherits the session model (Opus — the defect #53 had to backfill across
  *      5 merged files). The tiering rule's prose home is optimizing-context's subagents.md.
@@ -9,8 +10,7 @@
  *      under-validates (.js). Emulate the wrapper, then syntax-check.
  *
  * Decision logic (findMissingModel, wrapForCheck) is pure and unit-tested
- * (check-workflow.test.mjs); main() is the thin IO wrapper. Advisory today (run manually before
- * a PR touching workflow files); the exit code is gate-ready if #54 later decides to wire it.
+ * (check-workflow.test.mjs); main() is the thin IO wrapper. Runs in gates.yml on every PR.
  *
  * Usage: node scripts/check-workflow.mjs [dir]   (dir default: benchmarks)
  */

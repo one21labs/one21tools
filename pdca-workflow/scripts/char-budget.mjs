@@ -88,8 +88,9 @@ export function oversizeAgents(dir = "pdca-workflow/agents") {
 
 // Guard: each agent prompt's frontmatter `name:` matches its filename (mirrors adr-lint's
 // id-matches-filename check — so a renamed or malformed advisor a Panel: line refers to cannot
-// silently drift). Injectable dir, ENOENT-tolerant like oversizeAgents. One message per mismatch.
-export function agentNameMismatches(dir = ".claude/agents") {
+// silently drift). Every caller passes dir explicitly (no default), ENOENT-tolerant like
+// oversizeAgents. One message per mismatch.
+export function agentNameMismatches(dir) {
   const out = [];
   let names;
   try { names = readdirSync(dir); }

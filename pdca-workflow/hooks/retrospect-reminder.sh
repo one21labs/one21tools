@@ -14,7 +14,7 @@ input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 case "$cmd" in
   *'gh pr create'*)
-    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"A PR was just created. Run /retrospect on this branch (git range main..HEAD) before it merges so process improvements land in the PR. Skip only if you already ran it on this branch."}}'
+    printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"A PR was just created. Run /retrospect on this branch (git range origin/main...HEAD) before it merges so process improvements land in the PR. Skip only if you already ran it on this branch."}}'
     ;;
 esac
 exit 0

@@ -11,8 +11,9 @@ half is `/decide` on user feedback). Explicit-invoke only: it spends an agent an
 process docs, so it must never auto-fire. Run it on this branch before opening the PR, so
 improvements land in the still-open PR.
 
-Arguments (optional): $ARGUMENTS = the git range or scope (e.g. `main..HEAD`, a PR number).
-Default: `main..HEAD` (this branch's work).
+Arguments (optional): $ARGUMENTS = the git range or scope (e.g. `origin/main...HEAD`, a PR number).
+Default: `origin/main...HEAD` (this branch's work; three-dot against the remote tip, not stale
+local `main`).
 
 Run this loop:
 
@@ -20,8 +21,8 @@ Run this loop:
 2. **Git signal.** Surface the rework/waste signals for the `retrospect` agent: fix-of-a-fix
    commits, reverts, a file touched repeatedly, a Sacred file (named in CLAUDE.md) touched
    without its paired test, ADR/tracker drift. (`git log -p <range>` as needed.)
-3. **Analyze.** Fetch, then spawn the `retrospect` agent on the range derived against `origin/main`
-   (not stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
+3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
+   stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
    analysis and the routing rules — don't restate them.
 4. **Add session friction.** YOU (in the main conversation, which the isolated agent cannot see)
    list this session's friction — every DISTINCT user correction, wrong guess, or rework — and hand

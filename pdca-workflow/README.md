@@ -1,9 +1,8 @@
 # pdca-workflow
 
-A PM-led PDCA (Plan-Do-Check-Act) feedback loop for AI-assisted projects, run by Claude agents.
-The general form of the review system built for LTconfig: turn every piece of user feedback into
-a deliberate decision, build it, verify it against the real product, then improve the process
-that produced it.
+A PM-led PDCA (Plan-Do-Check-Act) feedback loop for AI-assisted projects, run by Claude agents:
+turn every piece of user feedback into a deliberate decision, build it, verify it against the real
+product, then improve the process that produced it.
 
 The goal is **not to remove the human from the loop** — it is to raise the AI's decision quality
 (recorded, independently verified, self-improving) so the human can delegate more and intervene
@@ -29,12 +28,13 @@ need one right-sized check, not the ceremony; `/decide` composes them and adds t
 agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
 skills/
   decide/   the decision panel + the process system-of-record
-  advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
     references/       adr-template, adr-lint, metrics-engine, doc-budgets
+  advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-scripts/       adr-lint.mjs (+ .test.mjs)   the ADR-corpus poka-yoke (node, zero-dep)
+scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each), retrospect-reminder.test.mjs
+                 the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
 hooks/         hooks.json + retrospect-reminder.sh   (PR-create -> /retrospect reminder)
 ```
