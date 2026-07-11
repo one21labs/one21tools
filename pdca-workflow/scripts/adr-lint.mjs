@@ -4,21 +4,9 @@
  * materialized index — poka-yoke: a mirror you don't keep can't drift, so the ADR files ARE
  * the catalog (skim them via their `summary`/`status` frontmatter). This module only CHECKS.
  *
- * Guards (decision logic in the pure lint() below; exercised by adr-lint.test.mjs):
- *   - every ADR has valid frontmatter (id/title/summary); ids are unique and match the filename;
- *   - no ADR names a release version (version-agnostic — name the cut/feature, not the release);
- *   - every `ADR NNNN` / `[NNNN]` cited inside an ADR resolves to an ADR on disk (the
- *     renumber/fold catcher — a stale cite would pass review otherwise);
- *   - every FULL ADR states a falsifiable criterion (a `[checkable]`/`[checkable-doc]`/`[contradiction]`
- *     assumption bullet, or an `[unverifiable]` paired with a REOPEN-IF) — else UNFALSIFIABLE: the
- *     Plan-phase criterion-minting gate (lint checks PRESENCE/shape; the PM + gate judge substance);
- *   - `tier: lite` records (settled decisions — ADR 0020) are exempt from the criterion gate but
- *     capped at LITE_ADR_CHAR_BUDGET and REJECTED if they carry a revisit trigger (must graduate);
- *   - no ADR exceeds the char budget (char budgets are ungameable by long lines — see ADR 0008 +
- *     char-budget.mjs; no exemptions — every ADR is held to the cap);
- *   - a marketplace plugin entry's metadata matches its plugin's own plugin.json where both state
- *     a field (manifestDrift — the marketplace copy may not silently diverge from the lower home).
- *   main() also char-checks CLAUDE.md (oversizeDocs) + agent prompts (oversizeAgents) and prints each ADR's char count (compute, don't assert).
+ * Reference implementation of the spec at ../skills/decide/references/adr-lint.md — that file
+ * carries the authoritative, numbered guard list; this header stays a pointer, not a second copy,
+ * so the two can't drift apart guard-by-guard.
  *
  * DESIGN CONSTRAINTS:
  * - Zero dependencies. Node is the one runtime every consumer provably has (Claude Code runs on
@@ -31,7 +19,7 @@
  * - Project-specific guards a project may add (a ROADMAP-strike check vs the package version, or
  *   `ADR NNNN` cites in source) are intentionally omitted: a generic consumer may have neither.
  *
- * SEE ALSO: ../skills/decide/references/adr-lint.md (spec), adr-template.md (the rules).
+ * SEE ALSO: ../skills/decide/references/adr-lint.md (spec — the guard list), adr-template.md (the rules).
  * TESTING: adr-lint.test.mjs (`node --test pdca-workflow/scripts/*.test.mjs` from the repo root).
  *
  * Usage:

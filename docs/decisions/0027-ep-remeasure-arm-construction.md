@@ -25,7 +25,7 @@ Body-only repeats, on the benefit side, the confound ADR 0019 fixed on the cost 
 
 ## Assumptions
 - [verified] edit surface splits 3 body / 6 references — `git show 675033c --stat -- skills/engineering-principles/`.
-- [verified, was mis-scoped] cost arithmetic reproduces exactly (`treatments/costs.json`, verifier-confirmed). "Reuses `blind.py`/`aggregate.py` unchanged" was WRONG: old scripts hardcode 2 arms (`blind.py:25`, `aggregate.py:54`); harness builder wrote adapted 3-arm versions, trivially.
+- [verified] cost arithmetic reproduces exactly (`treatments/costs.json`, verifier-confirmed); the harness runs adapted 3-arm versions of `blind.py`/`aggregate.py` (the originals hardcode 2 arms, `blind.py:25`, `aggregate.py:54`).
 - [checkable] all 3 arms stay hermetic per ADR 0023 — gate; result: verified (run metadata: hermetic true).
 - [unverifiable] WEAKEST: the 3 touched refs approximate in-production benefit enough for a KEEP/CUT call — REOPEN-IF `d_new<=1e-9` on ANY of evals 1/2/5/6; escalate to Option E, not a clean cut.
 

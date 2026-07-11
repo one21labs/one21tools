@@ -54,17 +54,6 @@ existing "update the header same change / stale = drift" rule already targets th
 - Token budgets — need `count_tokens` (no API in CI) and are model-specific (drift); chars are the
   ungameable, CI-checkable proxy, with a token column documented for reference only.
 
-## Prior art
-The combination is novel, its parts not (2026-07-01 multi-source review). Anthropic's official
-guidance caps SKILL.md by **lines** (`<=500`) and **tokens** (`<5k`) — advisory, unenforced; the
-Agent Skills spec char-caps only frontmatter fields, never the body. Community CI linters use other
-units: `skill-validator` gates on **tokens** (o200k_base, tokenizer required), `claudelint` on
-**bytes** (40KB), `cclint` measures CLAUDE.md **chars** but only WARNS. Claude Code itself silently
-char-budgets the `available_skills` listing (~16k chars). No found tool enforces a HARD, CI-failing
-CHAR cap on the doc **body** across SKILL.md/CLAUDE.md/ADRs, nor states the lines-gameable /
-tokens-need-an-API rationale — that synthesis is what's novel. The token-based tools confirm the
-exact cost this ADR cites (a shipped tokenizer, per-model counts).
-
 ## Revisit triggers
 - A legitimate `CLAUDE.md` addition can't fit <=6,000 without cutting a crux — revisit the cap or
   the always-loaded set.
