@@ -54,17 +54,18 @@ header/frontmatter in the same change.
 - <if a push deploys or releases: git push to <branch> without intent — it ships to production>
 
 ## Shipping — version, release, PR
-- Version tracks the shipped artifact, not background/meta work; bump via the project's version
-  tool, its own PR if a shared manifest collision-prones bumps.
+- Version tracks the shipped artifact, not background/meta work; a bump is its own PR, not
+  bundled into a feature PR, via the project's version tool.
 - One concern per PR. Sync before spend: `git fetch` + re-read the issue/citing PRs before
   executing and before the final push (guards duplicate spend across sessions); claim-comment if
-  issue-write is available.
+  issue-write is available, clear it on completion.
 - Three-dot (`main...branch`) for previews, never two-dot — post-squash, a stale local `main`
   re-adds merged commits as a phantom range under two-dot.
-- PR: title = the change; body = Purpose / Changes / Testing / Deferred. Read automated review
-  findings before merging. Run `/retrospect` first; record: `Retrospective: run | unavailable |
-  skipped-<reason>` (no size floor). End with a Claude disclosure line on every issue/PR Claude
-  writes (a commit trailer alone isn't disclosure).
+- PR: title = the change; body = Purpose / Changes / Testing / Deferred. Read review comments
+  (human or automated) before merging — address each or say why not. Run `/retrospect` first;
+  record: `Retrospective: run | unavailable | skipped-<reason>` (no size floor). End with a
+  Claude disclosure line on every issue/PR Claude writes (a commit trailer alone isn't
+  disclosure).
 - Never file/edit outside this project's own org/namespace without the owner's per-item approval
   of the exact text — "file upstream" authorizes drafting, not posting.
 - Deferred work gets an issue, not a handoff/TODO file — work-state in issues, decisions in ADRs.
