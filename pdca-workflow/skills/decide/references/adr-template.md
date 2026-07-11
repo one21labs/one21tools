@@ -22,11 +22,10 @@ Rules:
   current decision, cut the story.
 - Every record carries justification AND tagged assumptions + revisit triggers.
 - **Mint a falsifiable criterion (Plan-phase gate).** Every decision states at least one criterion
-  its Check can later test — a `[checkable]`/`[checkable-doc]`/`[contradiction]` assumption, or an
-  `[unverifiable]` paired with a REOPEN-IF (revisitable on a signal). A decision for which none can
-  be stated is **UNFALSIFIABLE** — a quality signal the PM must address (reframe the call until it
-  is testable, or accept it as explicitly unfalsifiable), not wave through. `adr-lint` enforces
-  PRESENCE of a criterion; whether it is *genuinely* falsifiable is the PM's + gate's call.
+  its Check can later test — a decision for which none can be stated is **UNFALSIFIABLE**, a
+  quality signal the PM must address (reframe the call until it is testable, or accept it as
+  explicitly unfalsifiable), not wave through. The precise predicate (the tags; the same-bullet
+  REOPEN-IF pairing) is adr-lint.md check 5 — canonical there, not restated here.
 - **One ADR per PR (max).** A PR captures one decision in one ADR. If it must change before the PR
   merges, **revise it in place** — never add a second ADR to amend or overrule a still-unmerged
   sibling (proliferation; the draft history is squashed away anyway). Separate decisions = separate PRs.
@@ -136,8 +135,8 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 For SETTLED decisions only — the boundary is mechanical, not judgment: **a decision that carries a
 live revisit trigger or an open assumption needs a full ADR; one that is settled (no trigger,
 enforced by a test/script/commit) records as `tier: lite`.** Same directory, same catalog, same id
-sequence; `adr-lint` enforces the tier: a lite record containing `REOPEN-IF`, an `[unverifiable]`
-bullet, or a `## Revisit triggers` section fails with "graduate it to a full ADR". **Budget:
+sequence; `adr-lint` enforces the tier (the rejection predicate is adr-lint.md check 6 — canonical
+there, not restated here; a failing record graduates to a full ADR). **Budget:
 ≤1,500 chars** (`LITE_ADR_CHAR_BUDGET`); the criterion gate does not apply (settled = nothing left
 to test). Shape — three parts, no panel/assumptions/alternatives machinery:
 
