@@ -17,6 +17,7 @@ from validate import (
     BODY_MAX_CHARS,
     REFERENCE_MAX_CHARS,
     REFERENCE_TOC_THRESHOLD,
+    EVALS_MIN_CASES,
 )
 
 # A minimal valid frontmatter opening (name FIRST, description SECOND starting with a trigger
@@ -268,7 +269,9 @@ class SelfReferentialPathLint(unittest.TestCase):
 
 
 class EvalsJsonGate(unittest.TestCase):
-    """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema."""
+    """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema, including
+    the README's "3+ cases" floor (issue #144) -- below EVALS_MIN_CASES the eval-clustered CI
+    (ADR 0025) is statistically meaningless."""
 
     EVAL = {"id": 1, "prompt": "Do the thing", "expected_output": "The thing, done",
             "expectations": ["Output includes X"]}
@@ -278,33 +281,59 @@ class EvalsJsonGate(unittest.TestCase):
         import json
         (d / "evals" / "evals.json").write_text(json.dumps(data), encoding="utf-8")
 
+    def make_evals(self, n):
+        """n valid, distinctly-id'd EVAL dicts -- enough on their own to clear the cases floor,
+        so a caller can mutate one entry to isolate a single other rule."""
+        return [{**self.EVAL, "id": i} for i in range(1, n + 1)]
+
     def test_valid_evals_pass(self):
         with tempfile.TemporaryDirectory() as t:
             d = make_skill(Path(t), "with-evals")
-            self.write_evals(d, {"skill_name": "with-evals", "evals": [self.EVAL]})
+            self.write_evals(d, {"skill_name": "with-evals", "evals": self.make_evals(EVALS_MIN_CASES)})
             self.assertTrue(validate_skill(d).valid)
 
     def test_skill_name_mismatch_fails(self):
         with tempfile.TemporaryDirectory() as t:
             d = make_skill(Path(t), "with-evals")
-            self.write_evals(d, {"skill_name": "other", "evals": [self.EVAL]})
+            self.write_evals(d, {"skill_name": "other", "evals": self.make_evals(EVALS_MIN_CASES)})
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("skill_name", r.error)
 
-    def test_duplicate_ids_fail(self):
+    def test_below_cases_floor_fails(self):
+        # EVALS_MIN_CASES - 1 distinct, otherwise-valid cases must still fail the floor.
         with tempfile.TemporaryDirectory() as t:
             d = make_skill(Path(t), "with-evals")
-            self.write_evals(d, {"skill_name": "with-evals", "evals": [self.EVAL, self.EVAL]})
+            self.write_evals(d, {"skill_name": "with-evals",
+                                 "evals": self.make_evals(EVALS_MIN_CASES - 1)})
+            r = validate_skill(d)
+            self.assertFalse(r.valid)
+            self.assertIn(f"at least {EVALS_MIN_CASES} cases", r.error)
+
+    def test_at_cases_floor_passes(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            self.write_evals(d, {"skill_name": "with-evals", "evals": self.make_evals(EVALS_MIN_CASES)})
+            self.assertTrue(validate_skill(d).valid)
+
+    def test_duplicate_ids_fail(self):
+        # At the cases floor so the duplicate-id rule is isolated from the floor check.
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "with-evals")
+            evals = self.make_evals(EVALS_MIN_CASES)
+            evals[-1]["id"] = evals[0]["id"]
+            self.write_evals(d, {"skill_name": "with-evals", "evals": evals})
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("duplicate id", r.error)
 
     def test_empty_expectations_fail(self):
+        # At the cases floor so the expectations rule is isolated from the floor check.
         with tempfile.TemporaryDirectory() as t:
             d = make_skill(Path(t), "with-evals")
-            self.write_evals(d, {"skill_name": "with-evals",
-                                 "evals": [{**self.EVAL, "expectations": []}]})
+            evals = self.make_evals(EVALS_MIN_CASES)
+            evals[-1]["expectations"] = []
+            self.write_evals(d, {"skill_name": "with-evals", "evals": evals})
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("expectations", r.error)
@@ -317,6 +346,12 @@ class EvalsJsonGate(unittest.TestCase):
             r = validate_skill(d)
             self.assertFalse(r.valid)
             self.assertIn("not valid JSON", r.error)
+
+    def test_absent_evals_file_passes(self):
+        # Evals stay optional overall (settled position, unchanged by the floor).
+        with tempfile.TemporaryDirectory() as t:
+            d = make_skill(Path(t), "no-evals")
+            self.assertTrue(validate_skill(d).valid)
 
 
 if __name__ == "__main__":

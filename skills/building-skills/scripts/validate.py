@@ -31,6 +31,8 @@ BODY_MAX_CHARS = 6000           # SKILL.md body char cap (ADR 0009; ungameable b
 TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LINES (a sub-cap readability aid)
 REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)
 REFERENCE_TOC_THRESHOLD = 6000  # a reference past this many CHARS must carry a TOC
+EVALS_MIN_CASES = 3             # README's "3+ cases" floor (issue #144); below this an
+                                 # eval-clustered CI (ADR 0025) is statistically meaningless
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 VALID_TRIGGERS = ["invoke when", "use when", "use for", "apply when"]
@@ -186,6 +188,9 @@ def validate_evals_json(skill_path: Path, folder_name: str) -> str:
     evals = data.get("evals")
     if not isinstance(evals, list) or not evals:
         return "evals/evals.json 'evals' must be a non-empty array"
+    if len(evals) < EVALS_MIN_CASES:
+        return (f"evals/evals.json 'evals' must have at least {EVALS_MIN_CASES} cases "
+                f"({len(evals)} present)")
     seen_ids = set()
     for i, ev in enumerate(evals):
         where = f"evals[{i}]"
@@ -386,7 +391,8 @@ References (references/*.md):
 
 Evals (evals/evals.json, optional):
   - skill-creator schema: skill_name matches folder; unique integer ids;
-    non-empty prompt/expected_output; non-empty expectations array
+    non-empty prompt/expected_output; non-empty expectations array;
+    at least {EVALS_MIN_CASES} cases
 
 NEXT STEP
 =========
