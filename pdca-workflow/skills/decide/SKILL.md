@@ -82,5 +82,5 @@ context isolation is automatic — pass each only the files it needs.
 If behavior/code changed, run the project's test + build (per CLAUDE.md) and bump the version per
 CLAUDE.md's Shipping rule (exempts meta/tooling) before committing.
 
-A panel returning unanimous consensus either way is a mis-scope signal — re-confirm the ask with
-the user before acting.
+A panel returning unanimous consensus either way is a mis-scope signal (see `../advise/SKILL.md`
+Return step) — re-confirm the ask with the user before acting.
