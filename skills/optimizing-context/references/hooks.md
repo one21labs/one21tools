@@ -23,6 +23,9 @@ Ask these before implementing a hook:
 
 ## Hook Types and When to Use Each
 
+Hooks occupy the top rungs of the detection-latency ladder (see the engineering-principles skill,
+[ENGINEERING_PRINCIPLES.md](../../engineering-principles/references/ENGINEERING_PRINCIPLES.md)).
+
 | Hook | Fires When | Decision Criteria |
 |------|------------|-------------------|
 | **PreToolUse** | Before any tool runs | Need to validate, block, or modify before execution? |
