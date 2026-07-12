@@ -59,6 +59,11 @@ machinery:
     `.claude/agents` stays under `AGENT_CHAR_BUDGET`, and its frontmatter `name:` matches its
     filename.
 11. **Named-doc budget** (`oversizeDocs`) — char-checks `CLAUDE.md` against `DOC_BUDGETS`.
+12. **Decision-set connectivity** (`decisionSetProblems`, ADR 0051; opt-in via
+    `--new-adrs=<ids-or-paths>`) — when a change adds MORE THAN ONE new ADR, they must be one
+    connected component of the undirected cite graph (an edge = either record cites the other):
+    entangled records ship together, unrelated decisions ship separately. Flag absent or a single
+    new ADR = skipped, so only the PR-context CI step (which passes the diff-added files) can fire it.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 
