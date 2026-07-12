@@ -133,6 +133,21 @@ compute-matched prior art (structure ~ budget) in the previously unpublished ope
 regime (`prior-art.md`) and, per ADR 0052's pre-registered trigger, routes to its own
 `/decide` — no KEEP claim. Cost texture: arm C cells averaged ~4x arm A for ~0 rubric delta.
 
+Per-expectation met rates (the aggregate's hidden structure; see issue #179 for the routing):
+
+| expectation | A | B | C |
+|---|---|---|---|
+| backtest: options + rejected alt | 0.92 | 0.92 | 0.92 |
+| backtest: falsifiable criterion | 0.92 | 0.92 | 0.92 |
+| backtest: load-bearing assumption | 0.33 | 0.17 | 0.33 |
+| backtest: anticipate the real failure | 0.25 | **0.08** | **0.42** |
+| synthetic: all four expectations | ~0.94 | ~0.94 | ~0.83 |
+
+Reading: expectations 1-2 are ceilinged for every arm (dilution — a #178-class lesson);
+failure-anticipation is the panel's one real edge and collapses under solo self-argument;
+assumption-surfacing is the shared headroom; the panel uniformly underperforms on
+thin-context synthetics.
+
 Validity notes: three contaminated run attempts were deleted pre-verdict (see
 `DELETED-CONTAMINATED.md`); the counted run used the third, twice-audited substrate design
 and passed its behavioral checks; the arm-C artifact sweep defect was caught mid-grading by
