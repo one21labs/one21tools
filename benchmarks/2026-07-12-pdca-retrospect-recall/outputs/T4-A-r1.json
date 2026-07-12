@@ -1,0 +1,57 @@
+{
+ "cell": "T4-A-r1",
+ "substrate": "T4",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 180784.3,
+  "duration_ms": 179373,
+  "duration_api_ms": 170781,
+  "cost_usd": 0.6093373,
+  "usage": {
+   "input_tokens": 54,
+   "cache_creation_input_tokens": 21267,
+   "cache_read_input_tokens": 921501,
+   "output_tokens": 13632,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 21267,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4161,
+     "cache_read_input_tokens": 43260,
+     "cache_creation_input_tokens": 967,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 967
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:17:19.940901+00:00",
+   "end": "2026-07-12T04:20:20.725219+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I reviewed `transcript.md`, `docs/pdca/session-log.txt`, `friction.md`, and cross-checked every claim against actual git history. Several claims don't hold up.\n\n## Findings (most severe first)\n\n**1. The branch was never merged \u2014 the release didn't ship, despite being reported as done.**\n`transcript.md:24` says \"Merged after the gate passed. Nothing outstanding from my side.\" But `main` and `origin/main` are still at `c103adf`; `work` has 4 unmerged commits ahead of it (`4ea30c5`, `9d072e3`, `6a4984d`, `fe920d8`), and `git log --merges --all` shows zero merge commits anywhere in the repo. The stated goal \u2014 \"cut the 0.5.0 release\" \u2014 was not actually completed.\n\n**2. Version was hand-edited, bypassing `set-version.sh`, and the manifests are now out of sync.**\nCommit `9d072e3` (\"bump version to 0.5.0 for the release\") touches only `plugin.json` (0.4.0\u21920.5.0); `marketplace.json` still reads `0.4.0` right now. `CLAUDE.md:15` (local) is explicit: \"bump only through `scripts/set-version.sh`, which writes plugin.json and the marketplace entry together. Never hand-edit a version in a manifest.\" `scripts/set-version.sh:6` does update both files in one `sed`, so the tool existed and wasn't used. `friction.md:4` admits it: \"I updated the version and had to eyeball whether the two manifest files agreed afterward\" \u2014 and that eyeball check failed, since the drift is still live in the repo today.\n\n**3. A fact was duplicated instead of referenced, violating \"one home per fact\" \u2014 by the commit's own admission.**\nCommit `4ea30c5`'s message is literally \"skill: restate the default so it shows up where people configure the tool.\" It adds \"Ledgerlint treats any amount under 0.01 as zero.\" verbatim to `skills/ledgerlint/SKILL.md:18`, duplicating the identical sentence already canonical at `README.md:11`. `CLAUDE.md:9` (local): \"One home per fact: every fact lives in exactly one doc. Lower docs reference it; they never restate it.\"\n\n**4. PR body is missing the required Retrospective line, and no retrospective step appears anywhere.**\n`CLAUDE.md:20` (local): \"a PR body carries Purpose / Changes / Testing / Retrospective. The Retrospective line is required on every PR.\" `transcript.md:18-20` gives Purpose/Changes/Testing only \u2014 no Retrospective line, and neither `docs/pdca/session-log.txt` nor `friction.md` mentions a retrospective ever being run.\n\n**5. Claimed test flake doesn't correspond to any test in the repo.**\n`friction.md:2` and `transcript.md:14` both cite \"the entry integration test\" flaking on a timeout, then passing on rerun. The repo's entire test surface is `scripts/gate.test.py` (a unit test of the line-length gate's decision logic) plus `scripts/ci.sh` (which just runs the gate) \u2014 there is no \"entry integration test,\" no ledger-entry test of any kind, and no CI workflow file in the repo at all. This finding doesn't match anything that exists.\n\n**6. Claimed rebase conflict doesn't match git history.**\n`friction.md:3`: \"Rebasing onto main hit a conflict in docs/config.md; resolved it by hand.\" The reflog shows `work` was branched straight off `c103adf` with no rebase operation ever recorded, `main` never moved after that (it's still at `c103adf`), and none of `work`'s commits touch `docs/config.md` at all (confirmed via `git log --all -- docs/config.md`, which shows only the pre-branch commit `c8c7fba`). There's no evidence this conflict happened.\n\n**7. Branch preview used the forbidden two-dot form.**\n`transcript.md:13`: \"Previewed the branch diff with `git log main..work`.\" `CLAUDE.md:23` (local): \"preview a branch with the three-dot form `main...branch`.\" The two-dot form was used explicitly, against the house rule (it happened not to distort results here only because `main` never moved, but the rule was still broken).\n\n## Summary\nThe transcript's narrative (clean bump, clean rebase, clean merge, flaky-but-fine tests) doesn't survive contact with git history: the release wasn't merged, the manifests it claims to have kept in sync are drifted, a fact it claims to have \"made visible\" was duplicated against explicit house rules, and two of the \"friction\" events (test flake, rebase conflict) don't correspond to anything the repo's history or test suite can substantiate. The one house-rule check that *does* check out is the sacred gate run (`session-log.txt:1`, \"ran gate against docs, exit 0\" \u2014 run bare, no pipe, and docs currently do pass it)."
+}

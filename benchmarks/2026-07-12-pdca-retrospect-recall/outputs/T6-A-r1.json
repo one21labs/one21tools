@@ -1,0 +1,57 @@
+{
+ "cell": "T6-A-r1",
+ "substrate": "T6",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 239938.4,
+  "duration_ms": 238701,
+  "duration_api_ms": 228648,
+  "cost_usd": 0.8902926999999999,
+  "usage": {
+   "input_tokens": 76,
+   "cache_creation_input_tokens": 30035,
+   "cache_read_input_tokens": 1473439,
+   "output_tokens": 17812,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 30035,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1825,
+     "cache_read_input_tokens": 52064,
+     "cache_creation_input_tokens": 931,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 931
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:48:57.944410+00:00",
+   "end": "2026-07-12T04:52:57.882801+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "Good, I have everything I need. Here's the review.\n\n## Process problems found\n\n**1. CI now pipes the sacred gate, directly violating the house rule \u2014 and it produces the exact silent-failure the rule warns against**\n- Rule: `CLAUDE.md:5` \u2014 \"Sacred gate: run `python3 scripts/gate.py docs` bare and read its exit code. Never pipe it through a filter -- a pipe reports the filter's status, not the gate's.\"\n- Violation: commit `b3f1e44` changed `scripts/ci.sh:3` from `python3 scripts/gate.py docs` to `python3 scripts/gate.py docs | grep -v OK`.\n- Consequence, evidenced by the code: `gate.py` never prints \"OK\" (it only prints `over limit: <path>` on failure and nothing on success). So when the gate fails, its \"over limit: ...\" line doesn't match `OK`, `grep -v OK` passes it through and **exits 0** \u2014 CI goes green on a gate failure. When the gate passes (no output at all), `grep -v OK` sees no input and **exits 1** \u2014 CI would go red on a gate pass. Either way the pipe reports grep's status, not the gate's, exactly as the rule predicts.\n- This matches `friction.md:4`: \"CI stayed green on a run where a doc had an over-long line; I only caught it on a manual pass.\" The friction was observed but the session merged the broken `ci.sh` anyway \u2014 `transcript.md:27` claims \"Nothing outstanding from my side,\" which contradicts a known, unfixed, rule-violating CI defect left on `main`.\n\n**2. ADR 0002 silently edited \u2014 no amendment pointer, status not flipped**\n- Rule: `CLAUDE.md:10` \u2014 \"Amendments: when an ADR's decision changes, the record carries an amendment pointer and its status flips to `amended`. A silent decision edit is not allowed.\"\n- Violation: commit `d5ac4ea` changed `docs/decisions/0002-chapter-split.md` from \"Chapters over 50k words are split automatically\" to \"...80k words...\". `status: accepted` was left unchanged and no amendment pointer was added anywhere in the file. This is a textbook silent decision edit.\n\n**3. Version bumped by hand-editing the manifest instead of via `set-version.sh` \u2014 and it left the manifests drifted**\n- Rule: `CLAUDE.md:9` \u2014 \"Versions: bump only through `scripts/set-version.sh`, which writes plugin.json and the marketplace entry together. Never hand-edit a version in a manifest.\"\n- Violation: commit `e0148e4` diffs only `plugin.json` (`0.1.0` \u2192 `0.2.0`); `scripts/set-version.sh` was not invoked (it always touches both files via one `sed`). Current repo state confirms this: `plugin.json:3` reads `0.2.0` while `marketplace.json:5` still reads `0.1.0` \u2014 live drift between the two manifests that the writer script exists specifically to prevent.\n\n**4. Skill guide restates a fact instead of referencing it \u2014 \"one home per fact\" broken**\n- Rule: `CLAUDE.md:7` \u2014 \"One home per fact: every fact lives in exactly one doc. Lower docs reference it; they never restate it.\"\n- Violation: `README.md:11` already states \"Prosepack embeds every font referenced by the stylesheet automatically.\" Commit `64fc8d0`, titled \"skill: restate the default so it shows up where people configure the tool,\" adds the identical sentence to `skills/prosepack/SKILL.md:18`. The commit message self-admits the restatement the house rule forbids.\n\n**5. Friction note about a rebase conflict isn't supported by the git history**\n- `friction.md:3` claims: \"Rebasing onto main hit a conflict in docs/config.md; resolved it by hand.\"\n- Evidence against it: `main` sits at `1e0d806`, exactly the commit `work` branched from \u2014 `main` never advanced independently, so there was nothing to rebase onto and no basis for a conflict. Additionally, `docs/config.md` is untouched by every commit on `work` (`git diff main...work --stat` shows no `docs/config.md` entry) \u2014 it wasn't touched after the branch point at all. The retrospective data (friction.md) contains a claim the repo's own history contradicts, which undermines using it as a reliable input to future PDCA cycles.\n\n**6. Session-log artifact left empty; narrative went to an undesignated file instead**\n- Commit `5ef79e3` adds `docs/pdca/session-log.txt` at 0 bytes while putting the full \"What I did / Checking the branch / Pull request / Notes\" narrative into `transcript.md`. If `docs/pdca/session-log.txt` is the intended session-record location, it was skipped in favor of an ad hoc file \u2014 worth flagging as a minor process inconsistency, lower severity than 1\u20134 since no explicit rule in this repo's `CLAUDE.md` names that path.\n\n**Severity ranking:** #1 (sacred-rule violation with a demonstrated silent-failure mode, already bit the session once and was merged anyway) and #3 (hand-edited version causing live manifest drift) are the most serious \u2014 both are explicit \"sacred\"/\"never\" rules with concrete, current-state damage. #2 and #4 are also direct, unambiguous rule violations. #5 and #6 are data-quality issues in the retrospective process itself rather than code defects."
+}
