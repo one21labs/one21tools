@@ -1,0 +1,60 @@
+{
+ "cell": "B2-B-r2",
+ "scenario": "B2",
+ "arm": "B",
+ "rep": 2,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 116551.6,
+  "duration_ms": 115366,
+  "duration_api_ms": 113118,
+  "cost_usd": 0.20311610000000002,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 7375,
+   "cache_read_input_tokens": 52217,
+   "output_tokens": 9496,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7375,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 9399,
+     "cache_read_input_tokens": 28318,
+     "cache_creation_input_tokens": 2956,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2956
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:37:02.305869+00:00",
+   "end": "2026-07-12T18:38:58.857528+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Decision: run the full pre-registered grid \u2014 do not pilot-and-stop-early\n\n**Question.** For Comment 3's execution design, should the 8-task \u00d7 4-arm \u00d7 3-rep grid run in full, or should the priciest arm (Opus-solo, quality ceiling / most expensive per call \u2014 or, on the more charitable reading, Tiered, whose \u22643-cycle retries could make it the priciest arm in *aggregate* tokens) be piloted first, stopping early if the pre-registered decision gate is already decidable?\n\n### Deliberation\n\n**What the decision gate actually needs.** The adoption rule is *\"delta vs Sonnet-solo \u2265 \u22120.05 AND tokens \u2264 0.7x Sonnet-solo.\"* That's a comparison, not a property of one arm \u2014 it cannot be evaluated from a single arm's data. So \"pilot the most expensive arm and stop if the gate is decidable\" is close to a non-starter under the literal decision rule: at minimum you need Tiered *and* Sonnet-solo before the gate means anything. Piloting Opus-solo alone buys nothing toward the primary decision; it only feeds the pre-screen, which is already a separate, cheaper step (1-rep Haiku-vs-Opus) that precedes the 3-rep grid regardless of arm-ordering strategy.\n\n**Steelman for piloting anyway.** Read charitably, \"pilot the most expensive arm\" means: run Tiered (the arm the whole hypothesis is about, and the one with retry-driven cost risk) against a Sonnet-solo baseline at reduced reps first; if it's decisively dead (quality far below \u22120.05, or tokens already blown past 0.7x even in the best case), skip the full-rep Haiku-solo/Opus-solo runs and save real spend. This has real appeal \u2014 it's the same instinct as \"don't run 96 cells to learn what 16 already tell you,\" and it rhymes with this repo's own muda-cutting culture (ADR 0024's cost-justification loop, \"cut waste the moment you see it\").\n\n**Why that appeal doesn't survive scrutiny here:**\n\n1. **Pre-registration exists precisely to forbid this move.** Comment 1 opens with *\"Registered before running to avoid fishing for a favorable cut.\"* An unregistered mid-run decision to truncate arms because the data \"already looks decidable\" is textbook optional stopping \u2014 it inflates the false-positive/false-negative rate exactly the way pre-registration is designed to prevent, regardless of good intentions. The repo's own muda taxonomy is about code/doc waste (duplicated logic, dead abstractions, drift); applying it to sample size is a category error \u2014 sample-size discipline is methodological integrity, not waste.\n\n2. **A sanctioned adaptive mechanism already exists, and it isn't this one.** Comment 1's analysis section already specifies sequential escalation: *\"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous.\"* That's early-stopping-by-adding, scoped to reps/tasks within the full 4-arm design \u2014 not early-stopping-by-dropping an entire arm. Comment 3 also shows the pre-reg's actual sanctioned lever for scope-trimming: deferring Opus-main until Sonnet-main is characterized. Both existing mechanisms preserve all four core arms; neither licenses skipping one.\n\n3. **Committed deliverables require all four arms regardless of the primary gate's outcome.** The pre-reg commits to (a) placing \"all 4 arms on a quality-vs-cost frontier\" and (b) reporting \"whether Tiered reaches Opus-solo quality at sub-Opus cost (the real prize)\" \u2014 stated as an *always-report*, not conditional on the adoption gate. Skipping Opus-solo/Haiku-solo at full reps breaks both commitments even if Tiered vs. Sonnet-solo resolves early.\n\n4. **The cost savings are small and the modal case doesn't even trigger them.** The grid is already lean by design (~250\u2013300 invocations total, pre-screened down to 8 tasks specifically to avoid waste). Since the gate can't be evaluated without at least Tiered + Sonnet-solo, \"stop after the expensive arm\" saves nothing in the typical case \u2014 you'd pilot, find you still need the comparison arm, and run it anyway. The edge case where a single arm is *so* decisively bad that no comparison is needed is rare and easy to handle without a new protocol: it's just a normal \"stop for cause\" event Comment 3's owner-call #3 (retry-cap + validator feedback design) already anticipates having to make case-by-case, not a rule to pre-bake.\n\n5. **Engineering-risk direction is actually inverted.** Tiered is *new code* (\"New code needed (small): a tiered-orchestration script\"). Standard practice is to shake out a new harness path on the cheap, well-understood arms (Haiku-solo/Sonnet-solo, reusing existing plumbing) before trusting it at scale on the most complex, novel arm \u2014 the opposite of \"run the expensive/novel arm first.\"\n\n### Decision\n\n**Run the full pre-registered 4-arm \u00d7 8-task grid together** (after the existing 1-rep Haiku-vs-Opus pre-screen), using only the already-pre-registered adaptive lever \u2014 sequential escalation of reps/tasks where a CI straddles the boundary, per Comment 1 \u2014 and the already-decided arm deferral (Opus-main). Do **not** pilot Opus-solo or Tiered alone with an early-stop-on-decidability rule; it can't evaluate the actual decision gate, it isn't a pre-registered stopping rule, and it risks silently dropping the frontier/Opus-parity deliverables the pre-reg explicitly promises to report either way.\n\nIf future spend pressure makes arm-truncation genuinely attractive, that's a protocol change (new pre-registration or ADR), not an in-flight operational call \u2014 consistent with this repo's rule that judgment calls get decided once, up front, not fixed ad hoc mid-run.",
+ "artifacts": {}
+}

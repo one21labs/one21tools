@@ -1,0 +1,60 @@
+{
+ "cell": "B3-B-r3",
+ "scenario": "B3",
+ "arm": "B",
+ "rep": 3,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 223156.1,
+  "duration_ms": 221937,
+  "duration_api_ms": 214358,
+  "cost_usd": 0.7721091999999999,
+  "usage": {
+   "input_tokens": 50,
+   "cache_creation_input_tokens": 34223,
+   "cache_read_input_tokens": 1085894,
+   "output_tokens": 16007,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 34223,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 826,
+     "cache_read_input_tokens": 57631,
+     "cache_creation_input_tokens": 491,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 491
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:53:55.548453+00:00",
+   "end": "2026-07-12T18:57:38.704591+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "ADR 0021 exists on disk, so no dangling citation. Falsifiable criterion is present (`[checkable]` + `[unverifiable]` with same-bullet REOPEN-IF). The ADR is within budget (5,744/6,000 chars) and matches the template. The decision is recorded at `docs/decisions/0045-mechanize-sync-before-spend.md`.\n\n## Decision (summary)\n\n**Mechanize the sync half now; defer the claim half.**\n\n- The incident's actual cause was **staleness**, not a true simultaneous-start collision \u2014 the session's read was fresh at dispatch but stale by the time it spent. A sync taken immediately before spend (not just at dispatch) would have surfaced PR #97 and aborted the duplicate run. That's fully deterministic (git + issue/PR state), and this repo already converts exactly that kind of checkable prose into scripts (`adr-lint.mjs`, `check-workflow.mjs`, `validate.py`) rather than trusting an agent to remember a step under a long task \u2014 so a prose-only CLAUDE.md bullet is a missed poka-yoke, and the issue itself names prose's enforcement weakness.\n- The **claim protocol is not symmetric** with the sync fix: it needs issue-write permission that dispatch instructions sometimes withhold, and it adds real lifecycle cost (clearing on completion, orphaned claims on a crashed session). Mandating it now, for a single incident that cost $5-8 and self-corrected by luck, would be gold-plating ahead of a real collision \u2014 I decided against building lock infrastructure for a problem the cheaper fix already solves.\n- Concretely: a new advisory script `scripts/check-issue-fresh.mjs <N>` (reusing `check-workflow.mjs`'s \"advisory today, gate-ready later\" shape) does `git fetch` + re-reads the issue + searches for a PR already closing it; CLAUDE.md gets one pointer line to it, not restated logic. The session-ops sub-lesson (mandate foreground waits on long child runs) rides along as a usage note in that same script rather than getting its own home. Script authorship is deferred to a follow-up issue (ADR 0021: decision-state stays in the ADR, work-state goes to issues).\n- Revisit trigger: if a duplicate spend recurs where *both* sessions synced fresh immediately before spending and still collided (a true race, not staleness), that's the signal to mechanize the claim protocol.",
+ "artifacts": {}
+}

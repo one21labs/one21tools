@@ -1,0 +1,60 @@
+{
+ "cell": "B2-A-r3",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 3,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 74046.8,
+  "duration_ms": 72772,
+  "duration_api_ms": 70878,
+  "cost_usd": 0.1609033,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 7485,
+   "cache_read_input_tokens": 80601,
+   "output_tokens": 6072,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7485,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5842,
+     "cache_read_input_tokens": 28445,
+     "cache_creation_input_tokens": 2939,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2939
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:38:58.941551+00:00",
+   "end": "2026-07-12T18:40:12.988430+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Decision: Run the full pre-registered grid \u2014 do not pilot the priciest arm and stop early\n\n**Question.** Should the tiered-agent experiment execute the full 4-arm \u00d7 8-task \u00d7 3-rep grid as pre-registered, or pilot the most expensive arm first and stop early if the decision gate is already decidable?\n\n**Decision.** Run the full pre-registered grid (Haiku-solo / Sonnet-solo / Opus-solo / Tiered, 8 tasks, 3 reps, per the pre-screen in ISSUE-41.md:42-43), using only the sequential-escalation mechanism the pre-reg already specifies (ISSUE-41.md:49) \u2014 add reps/tasks where a CI straddles the boundary, never drop arms.\n\n**Rationale.**\n1. **The decision gate is irreducibly comparative \u2014 no single arm can decide it.** The pre-registered rule is \"Adopt Tiered if delta vs Sonnet-solo >= -0.05 AND tokens <= 0.7x Sonnet-solo\" (ISSUE-41.md:51), plus a bonus check against Opus-solo quality (ISSUE-41.md:51). Whichever arm is \"most expensive\" (Opus-solo per-call, or Tiered by invocation count \u2014 ISSUE-41.md:71 puts the whole grid at ~250-300 invocations), piloting it alone produces no delta and no ratio. \"Decidable from the pilot\" is not a coherent state under this gate; at minimum Tiered and Sonnet-solo results are required together.\n2. **This is exactly the failure mode pre-registration exists to prevent.** ISSUE-41.md:25-27 states the plan is \"registered before running to avoid fishing for a favorable cut.\" Choosing mid-run to stop after one arm looks favorable (or unfavorable) is a textbook interim-look bias \u2014 it inflates false-positive/false-negative rates on the adoption call the org will actually act on.\n3. **The pre-reg already contains the sanctioned cost-control valve, and it's additive, not subtractive.** ISSUE-41.md:49: \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous.\" That's escalation from a shared baseline across all arms, not truncation of the arm set. Use that lever for cost control instead of inventing an unregistered one.\n4. **The legitimate \"pilot cheap first\" step already exists and serves a different purpose.** The 1-rep Haiku-vs-Opus pre-screen (ISSUE-41.md:42) exists to drop *saturated tasks* (where no arm-quality gradient exists), not to shortcut the *arm* comparison. That mechanism should be kept as-is; it's not the same move as the one being rejected here.\n5. **The grid is already lean.** ~250-300 invocations (ISSUE-41.md:71) across 8 pre-screened tasks is a deliberately small design (\"lean, empirical\" \u2014 ISSUE-41.md:25). The marginal cost saved by skipping arms is small relative to the risk of an invalid or inconclusive result that has to be rerun from scratch \u2014 a worse cost outcome than just running it once, correctly.\n\n**Rejected alternative.** Pilot the most expensive arm first, stop early if the gate is decidable \u2014 rejected because the gate as pre-registered cannot be evaluated from one arm, and ad hoc early stopping contradicts the pre-registration's own stated purpose.\n\n**Consequence.** Execution proceeds: pre-screen tasks (drop saturated) \u2192 run all 4 arms \u00d7 3 reps on the surviving task set \u2192 evaluate the decision rule \u2192 escalate reps/tasks only where a CI straddles the boundary \u2192 record the result either way (append-only snapshot per ADR 0024), including the validator-fidelity and grader-independence caveats already flagged as owner calls in Comment 3 (ISSUE-41.md:73).",
+ "artifacts": {}
+}

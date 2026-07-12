@@ -1,0 +1,60 @@
+{
+ "cell": "B2-B-r3",
+ "scenario": "B2",
+ "arm": "B",
+ "rep": 3,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 94160.9,
+  "duration_ms": 92808,
+  "duration_api_ms": 87071,
+  "cost_usd": 0.1753511,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 7375,
+   "cache_read_input_tokens": 52217,
+   "output_tokens": 7645,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7375,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7548,
+     "cache_read_input_tokens": 28318,
+     "cache_creation_input_tokens": 2956,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2956
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:40:13.127036+00:00",
+   "end": "2026-07-12T18:41:47.287981+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "# Decision: Execute-Design Call for ISSUE-41's Pre-Registered Test Plan\n\n## Decision\n\n**Run the full pre-registered grid (4 arms \u00d7 8 tasks \u00d7 3 reps) as specified in Comment 1/3. Do not pilot the most expensive arm first with early stopping before the base grid completes.**\n\n## Deliberation\n\n**The case for piloting-first (stop early if decidable):**\n\n- ADR 0024 is a *cost-justification loop* \u2014 the whole point of this issue is to save tokens/time, so it would be self-undermining to spend the full ~250\u2013300 invocation budget if the answer is already obvious from a subset.\n- The pre-registration's own \"sequential escalation\" clause (\"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\") shows the design already embraces adaptive execution \u2014 piloting first just seems like the same instinct applied earlier.\n- If the Tiered arm (the most orchestration-heavy, most expensive-per-task arm, given \u22643 cycles of Sonnet+Haiku+Sonnet) fails badly on the first few tasks, that's cheap, early evidence against adoption without touching the rest of the grid.\n- Muda-consciousness (CLAUDE.md) treats unnecessary spend as waste on sight.\n\n**Why this doesn't survive scrutiny:**\n\n1. **The decision rule is structurally comparative \u2014 a single arm cannot decide it.** The pre-registered gate is \"delta vs Sonnet-solo \u2265 \u22120.05 AND tokens \u2264 0.7\u00d7 Sonnet-solo,\" computed as an eval-clustered mean delta across the *same* 8 tasks. That requires matched Tiered **and** Sonnet-solo data. Piloting \"the most expensive arm\" alone \u2014 whether that's read as Tiered or Opus-solo \u2014 can never make the gate decidable in isolation, because there is nothing to take a delta against. The premise of the alternative doesn't actually execute as stated; it would silently have to become \"pilot two arms,\" which is a different, unregistered plan.\n\n2. **Pre-registration exists specifically to forbid this kind of optional stopping.** Comment 1 opens with \"Registered before running to avoid fishing for a favorable cut.\" Stopping after an early, favorable-looking partial result \u2014 before the full comparative dataset exists \u2014 is the textbook failure mode pre-registration is designed to prevent (peeking + stopping inflates false positives and lets a desired conclusion drive when you stop looking). This isn't a hypothetical risk here: the outcome of this exact test determines whether pdca-workflow's execution architecture gets redesigned around cheaper models, so the evidentiary bar matters.\n\n3. **The already-specified sequential-escalation clause is a different (and sound) mechanism, and it argues against, not for, skipping the base grid.** Read closely, it only *adds* reps/tasks on top of a *completed* base grid when a CI is ambiguous \u2014 it never authorizes skipping arms before the base grid finishes. It's a one-directional, pre-specified escalation boundary (like a group-sequential trial), not a license for ad hoc \"looks decided, stop now\" judgment calls mid-run. Conflating the two would import a much weaker stopping rule under cover of a stronger, already-approved one.\n\n4. **The method's own sequencing puts pre-screening \u2014 not the Tiered arm \u2014 first, and that pre-screening needs Haiku-solo and Opus-solo data regardless.** \"Pre-screen with a 1-rep Haiku-solo vs Opus-solo pass; drop saturated tasks\" happens before the 3-rep main grid even starts. So \"pilot the most expensive arm first\" doesn't match the plan's actual critical path \u2014 Haiku/Opus solo data is required up front just to select the 8 tasks, independent of any cost-early-stop logic.\n\n5. **Haiku-solo and Opus-solo aren't optional context \u2014 Opus-solo answers the \"real prize\" question the issue explicitly flags** (\"whether Tiered reaches Opus-solo quality at sub-Opus cost\"). Skipping or truncating that arm because the primary gate looked decidable from Tiered alone would throw away the second most important output of this experiment.\n\n6. **The savings are small and the design is already lean.** The pre-reg was deliberately scoped down to 8 tasks / 3 reps / ~250\u2013300 invocations specifically to keep this affordable. Cutting further via early-arm-stopping buys a modest additional token savings at the cost of a materially weaker evidentiary basis for a decision that reshapes core plugin architecture \u2014 a bad trade given ADR 0024's \"measure, don't adopt on assertion\" mandate. A cheap, biased answer partially defeats the reason to run the experiment at all.\n\n## Rationale summary\n\nThe full grid is required because the pre-registered decision rule is inherently a *between-arm* comparison (Tiered vs. Sonnet-solo, eval-clustered), so no single-arm pilot can ever satisfy it \u2014 the alternative isn't a leaner version of the same plan, it's a different, unregistered plan that happens to look cheaper. The adaptive-stopping instinct behind \"pilot first\" is legitimate and is already captured, correctly bounded, in the pre-registration's sequential-escalation clause (escalate up from a completed base grid, never skip below it). Run all 4 arms \u00d7 8 tasks \u00d7 3 reps as pre-registered; apply sequential escalation only afterward, per task/arm, where a CI straddles the decision boundary.",
+ "artifacts": {}
+}

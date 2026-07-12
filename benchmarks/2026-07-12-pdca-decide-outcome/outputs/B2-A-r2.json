@@ -1,0 +1,60 @@
+{
+ "cell": "B2-A-r2",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 2,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 70292.5,
+  "duration_ms": 68974,
+  "duration_api_ms": 65639,
+  "cost_usd": 0.2180498,
+  "usage": {
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 13559,
+   "cache_read_input_tokens": 181766,
+   "output_tokens": 5428,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 13559,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1578,
+     "cache_read_input_tokens": 35008,
+     "cache_creation_input_tokens": 2450,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2450
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:36:57.128070+00:00",
+   "end": "2026-07-12T18:38:07.420608+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Decision record \u2014 ISSUE-41 execution design: full grid vs. pilot-most-expensive-arm-first\n\n**Decision: Execute the full pre-registered grid** (4 arms \u00d7 8 pre-screened tasks \u00d7 3 reps). Do **not** pilot the most expensive arm first and stop early on a single-arm result. The only sanctioned early-stopping mechanism is the one already pre-registered: escalate reps/tasks (not arms) when a CI straddles the decision boundary (ISSUE-41.md:49).\n\n### Rationale\n\n1. **The decision gate is inherently comparative \u2014 one arm can never satisfy it.** The pre-registered rule is \"adopt Tiered if delta vs Sonnet-solo \u2265 \u22120.05 AND tokens \u2264 0.7\u00d7 Sonnet-solo\" (ISSUE-41.md:51), plus the secondary check of Tiered-vs-Opus-solo quality (ISSUE-41.md:51). Both are differences between arms. Running only the single most expensive arm \u2014 under either reading of \"most expensive\" (Opus-solo by per-token cost, or Tiered by build/agent-call cost) \u2014 produces a number with no baseline to subtract from. \"Stop early because the gate is already decidable\" is not a state a one-arm pilot can reach; at minimum Tiered + Sonnet-solo must both complete to evaluate the primary rule, and Opus-solo must complete too for the secondary check. Piloting one arm in isolation is a category error against the rule as written, not a cheaper path to the same answer.\n\n2. **Pre-registration exists specifically to block this kind of after-the-fact escalation choice.** Comment 1 states the plan was \"registered before running to avoid fishing for a favorable cut\" (ISSUE-41.md:27). It already specifies exactly one adaptive-stopping axis \u2014 reps/tasks, triggered by a straddling CI (ISSUE-41.md:49) \u2014 and is silent on arm-level early stopping. Adding a new stopping rule at execution time, chosen after seeing how expensive an arm looks, reopens the researcher-degrees-of-freedom problem the pre-reg exists to close. If arm-level piloting were wanted, it belonged in the pre-registration itself.\n\n3. **The pre-reg already has a cheap pilot mechanism, and it's at the task level, not the arm level.** \"Pre-screen with a 1-rep Haiku-solo vs Opus-solo pass; drop saturated tasks\" (ISSUE-41.md:42) is the designed cost-saving pilot \u2014 it filters uninformative tasks before the real grid runs. Layering a second, unregistered pilot on top (this time at the arm level) duplicates a control that's already been designed in, with looser statistical grounding.\n\n4. **Grader-independence is already a known, accepted residual risk (Comment 3, owner call #1, ISSUE-41.md:73) \u2014 an early stop compounds it.** Since arms exhaust Haiku/Sonnet/Opus and the grader must be one of them, a partial run based on a single arm removes the cross-arm signal that lets the analysis contextualize that residual, rather than resting a conclusion on it alone.\n\n5. **Cost doesn't justify the shortcut.** The full pre-registered plan is already lean by design: 8 pre-screened tasks, 3 reps, ~250\u2013300 total agent invocations (ISSUE-41.md:71). This isn't a scale where skipping arms for cost reasons has meaningful marginal value \u2014 the design was already built to be minimal.\n\n### Rejected alternative\nPilot the most expensive arm first, stop early if \"already decidable.\" Rejected per (1)\u2013(4) above: the decision rule cannot be evaluated from a single arm, and introducing this as a new stopping condition mid-execution \u2014 rather than in the pre-registration \u2014 is the exact fishing-for-a-cut failure mode the pre-reg was written to prevent.\n\n### Consequence\nRun all 4 arms \u00d7 8 tasks \u00d7 3 reps as pre-registered. The sole adaptive-cost lever remains \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (ISSUE-41.md:49) \u2014 applied per-task/per-rep, never per-arm.",
+ "artifacts": {}
+}
