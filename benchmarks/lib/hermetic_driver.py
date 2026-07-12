@@ -67,10 +67,20 @@ def safe_get(d, *keys, default=None):
     return cur
 
 
-def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run):
-    """One `claude -p` subprocess call. `run` is injectable for tests."""
+def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(), extra_args=()):
+    """One `claude -p` subprocess call. `run` is injectable for tests.
+
+    `allow` is the ADR 0052 carve-out: tools REMOVED from the deny list for a skill/agent arm
+    (e.g. Read/Grep/Glob/Bash for a retrospect cell). Every name must exist in the deny list —
+    allowing an unknown name is a harness spec error, not a silent no-op. `extra_args` appends
+    raw CLI args (e.g. --append-system-prompt, --plugin-dir) after the deny flags.
+    """
+    unknown = set(allow) - set(CLAUDE_DENY_TOOLS)
+    if unknown:
+        raise ValueError(f"allow names not in deny list: {sorted(unknown)}")
+    deny = [t for t in CLAUDE_DENY_TOOLS if t not in set(allow)]
     cmd = ["claude", "-p", "--model", model, "--output-format", "json",
-           "--disallowedTools", *CLAUDE_DENY_TOOLS]
+           "--disallowedTools", *deny, *extra_args]
     started = datetime.now(timezone.utc)
     start = time.monotonic()
 
@@ -97,13 +107,16 @@ def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run):
     return result(text or "", envelope, None)
 
 
-def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.run):
+def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.run,
+            allow=(), extra_args=()):
     """One claude -p call; retries ONCE on timeout or nonzero exit, then gives up."""
-    attempt = _invoke_claude(prompt, model, env, cwd, timeout, run=run)
+    attempt = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
+                             extra_args=extra_args)
     attempt["retried"] = False
     if attempt["error"] is None:
         return attempt
-    retry = _invoke_claude(prompt, model, env, cwd, timeout, run=run)
+    retry = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
+                           extra_args=extra_args)
     retry["retried"] = True
     return retry
 

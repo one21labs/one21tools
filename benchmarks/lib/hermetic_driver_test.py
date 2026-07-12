@@ -140,3 +140,37 @@ class NeutralCwd(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CarveOut(unittest.TestCase):
+    """ADR 0052 carve-out: allow= removes named tools from the deny flags; unknown names error."""
+
+    def captured_cmd(self, **kwargs):
+        seen = {}
+
+        def run(cmd, **rkw):
+            seen["cmd"] = cmd
+            return SimpleNamespace(returncode=0, stdout=json.dumps(ENVELOPE), stderr="")
+
+        do_call("p", "sonnet", {}, ".", run=run, **kwargs)
+        return seen["cmd"]
+
+    def test_default_denies_everything(self):
+        cmd = self.captured_cmd()
+        denied = cmd[cmd.index("--disallowedTools") + 1:]
+        self.assertEqual(denied, list(CLAUDE_DENY_TOOLS))
+
+    def test_allow_removes_exactly_those_tools(self):
+        cmd = self.captured_cmd(allow=("Read", "Grep", "Glob", "Bash"))
+        denied = set(cmd[cmd.index("--disallowedTools") + 1:])
+        self.assertEqual(denied, set(CLAUDE_DENY_TOOLS) - {"Read", "Grep", "Glob", "Bash"})
+        self.assertIn("Task", denied)
+
+    def test_unknown_allow_name_raises(self):
+        with self.assertRaises(ValueError):
+            do_call("p", "sonnet", {}, ".", run=fake_run(), allow=("NotATool",))
+
+    def test_extra_args_appended_after_deny(self):
+        cmd = self.captured_cmd(extra_args=("--append-system-prompt", "SP"))
+        self.assertEqual(cmd[-2:], ["--append-system-prompt", "SP"])
+        self.assertLess(cmd.index("--disallowedTools"), cmd.index("--append-system-prompt"))
