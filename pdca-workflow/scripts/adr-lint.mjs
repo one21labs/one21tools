@@ -23,8 +23,9 @@
  * TESTING: adr-lint.test.mjs (`node --test pdca-workflow/scripts/*.test.mjs` from the repo root).
  *
  * Usage:
- *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N]
+ *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N] [--new-adrs=<ids-or-paths,comma-sep>]
  *   decisionsDir default: docs/decisions   ·   --budget default: ADR_CHAR_BUDGET (char-budget.mjs)
+ *   --new-adrs: the change's ADDED ADR files (CI passes the PR diff) — decision-set check, ADR 0051
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -131,6 +132,37 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
 }
 
 /**
+ * Pure decision logic for one-decision-set-per-PR (ADR 0051): when a change introduces more
+ * than one new ADR, they must form ONE connected component of the undirected cite graph — an
+ * edge exists when either record cites the other (`ADR NNNN` or `[NNNN]`). Entangled records
+ * are exactly those the dangling-cite guard would fail if shipped apart; unrelated decisions
+ * belong in separate PRs. `newEntries` are 4-digit ids or `NNNN-*.md` paths; `files` is the
+ * corpus [{ name, text }]. Fewer than two new ADRs = nothing to check (fail open).
+ */
+export function decisionSetProblems(newEntries, files) {
+  const ids = [...new Set(newEntries
+    .map(e => e.match(/(\d{4})[^/\\]*\.md$/)?.[1] ?? e.match(/^(\d{4})$/)?.[1])
+    .filter(Boolean))];
+  if (ids.length < 2) return [];
+  const byId = new Map(files.map(({ name, text }) => [name.slice(0, 4), text]));
+  const inSet = new Set(ids);
+  const adj = new Map(ids.map(id => [id, new Set()]));
+  for (const id of ids) {
+    for (const m of (byId.get(id) ?? "").matchAll(/ADR ?(\d{4})|\[(\d{4})\]/g)) {
+      const cited = m[1] ?? m[2];
+      if (cited !== id && inSet.has(cited)) { adj.get(id).add(cited); adj.get(cited).add(id); }
+    }
+  }
+  const seen = new Set([ids[0]]);
+  const queue = [ids[0]];
+  while (queue.length) for (const next of adj.get(queue.shift())) if (!seen.has(next)) { seen.add(next); queue.push(next); }
+  const stranded = ids.filter(id => !seen.has(id));
+  return stranded.length
+    ? [`new ADRs ${ids.join(", ")} are not one connected decision set (unconnected: ${stranded.join(", ")}) — one decision-set per PR (ADR 0051)`]
+    : [];
+}
+
+/**
  * Pure decision logic for the marketplace<->plugin.json metadata mirror (ADR 0011): a field
  * present in BOTH a marketplace plugin entry and that plugin's own plugin.json must be identical —
  * plugin.json is the lower home; the marketplace copy exists only for the pre-install listing.
@@ -198,6 +230,10 @@ function main(argv) {
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));
+
+  // One-decision-set-per-PR (ADR 0051): CI's PR-only step passes the diff-added ADR files.
+  const newArg = args.find(a => a.startsWith("--new-adrs="));
+  if (newArg) problems.push(...decisionSetProblems(newArg.slice("--new-adrs=".length).split(",").map(s => s.trim()).filter(Boolean), files));
 
   if (problems.length) {
     console.error(`adr-lint: ${problems.length} problem(s) in ${dir}/`);
