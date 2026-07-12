@@ -26,9 +26,11 @@ Rules:
   quality signal the PM must address (reframe the call until it is testable, or accept it as
   explicitly unfalsifiable), not wave through. The precise predicate (the tags; the same-bullet
   REOPEN-IF pairing) is adr-lint.md check 5 — canonical there, not restated here.
-- **One ADR per PR (max).** A PR captures one decision in one ADR. If it must change before the PR
-  merges, **revise it in place** — never add a second ADR to amend or overrule a still-unmerged
-  sibling (proliferation; the draft history is squashed away anyway). Separate decisions = separate PRs.
+- **One decision-set per PR** (ADR 0051). A PR captures one decision in one ADR — or several new
+  ADRs whose cites entangle them into a single deliberation (the connectivity predicate is
+  adr-lint.md check 12, gated in CI). Unrelated decisions = separate PRs. If a decision must
+  change before its PR merges, **revise it in place** — never add a second ADR to amend or
+  overrule a still-unmerged sibling (proliferation; the draft history is squashed away anyway).
 - **Rationalize in place.** Correct, re-sequence, or fold an amendment into the ADR it touches — on
   the next PR that works that area. Don't spawn a new ADR to amend / correct / re-sequence an
   existing one (an "amends NNNN" ADR folds into NNNN). Reserve `status: superseded by NNNN` for a

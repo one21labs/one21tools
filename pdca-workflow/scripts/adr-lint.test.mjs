@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift, agentProblems } from "./adr-lint.mjs";
+import { lint, manifestDrift, agentProblems, decisionSetProblems } from "./adr-lint.mjs";
 import { ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { basename } from "node:path";
@@ -250,6 +250,51 @@ test("lite: still subject to version-agnostic and dangling-cite guards", () => {
   const { problems } = lint({ files });
   assert.ok(problems.some(p => /release version/.test(p)));
   assert.ok(problems.some(p => /dangling ADR cite/.test(p)));
+});
+
+// Decision-set connectivity (ADR 0051): multiple new ADRs in one change must form one connected
+// undirected cite graph; fewer than two new ADRs = nothing to check.
+test("decision-set: absent, empty, or singleton new-ADR list reports nothing (fail open)", () => {
+  const files = clean();
+  assert.deepEqual(decisionSetProblems([], files), []);
+  assert.deepEqual(decisionSetProblems(["0001"], files), []);
+  assert.deepEqual(decisionSetProblems(["docs/decisions/0001-first.md"], files), []);
+});
+
+test("decision-set: the real 0047-0050 corpus set passes (the precedent that pinned the connectivity bar)", () => {
+  assert.deepEqual(decisionSetProblems(["0047", "0048", "0049", "0050"], corpus()), []);
+});
+
+test("decision-set: two new ADRs sharing no cite fail, naming the stranded id", () => {
+  const problems = decisionSetProblems(["0001", "0002"], clean());
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /not one connected decision set/);
+  assert.match(problems[0], /unconnected: 0002/);
+});
+
+test("decision-set: a one-directional cite connects (the bar is undirected, not mutual)", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n- Date: 2026-06-27\n\nExtends ADR 0002.\n" }),
+    adr("0002-b.md"),
+  ];
+  assert.deepEqual(decisionSetProblems(["0001", "0002"], files), []);
+});
+
+test("decision-set: two internally-linked pairs with no bridge are two sets and fail; self-cites don't count", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\nSee ADR 0002.\n" }),
+    adr("0002-b.md", { body: "\n# 0002\n\nSee ADR 0001.\n" }),
+    adr("0003-c.md", { body: "\n# 0003\n\nSee ADR 0004.\n" }),
+    adr("0004-d.md", { body: "\n# 0004\n\nSee ADR 0004.\n" }),
+  ];
+  const problems = decisionSetProblems(["0001", "0002", "0003", "0004"], files);
+  assert.equal(problems.length, 1);
+});
+
+test("decision-set: file paths from a CI diff resolve to ids (posix or windows separators)", () => {
+  const problems = decisionSetProblems(
+    ["docs/decisions/0001-first.md", "docs\\decisions\\0002-second.md"], clean());
+  assert.equal(problems.length, 1); // parsed as 0001 + 0002, which share no cite
 });
 
 // Agent homes (ADR 0028): both agent dirs get the budget + name-matches-filename checks, and a
