@@ -26,16 +26,33 @@ const RETRO_LINE = /^Retrospective:[ \t]*(run|unavailable|skipped-\S+)(?=\s|$)/m
 
 export const hasRetroLine = (body) => RETRO_LINE.test(body ?? "");
 
-// GitHub's closing-keyword grammar (ADR 0054): `fix #12`, `Closes #34`, ... in the PR title.
-const CLOSING_REF = /\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)/gi;
-// Anchored to its own body line: `Partial: #NNN` = this PR does NOT fully close issue NNN.
-const PARTIAL_LINE = /^Partial:[ \t]*#(\d+)(?=\s|$)/gm;
+// GitHub's closing-keyword grammar (ADR 0054): keyword, optional colon, then #NNN —
+// `fix #12`, `Fixes: #34`, `Closes:#10` all close; no separator at all (`Fixes#164`) does not.
+const CLOSING_REF = /\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)(?:\s*:\s*|\s+)#(\d+)/gi;
+
+// Strip fenced code + HTML comments so a `Partial:` inside an example never denies (ADR 0054).
+const stripFences = (s) =>
+  (s ?? "")
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/~~~[\s\S]*?~~~/g, "")
+    .replace(/<!--[\s\S]*?-->/g, "");
+
+// A body line beginning `Partial:` (case-insensitive) declares every #NNN in its remainder —
+// `Partial: #NNN` = this PR does NOT fully close issue NNN. Tolerant of comma lists, trailing
+// punctuation, and case.
+const PARTIAL_LINE = /^partial:(.*)$/gim;
+const partialsFrom = (body) => {
+  const nums = new Set();
+  for (const line of stripFences(body).matchAll(PARTIAL_LINE))
+    for (const r of line[1].matchAll(/#(\d+)/g)) nums.add(r[1]);
+  return nums;
+};
 
 // Issue numbers the title claims to close that the body declares partial — the decidable
 // contradiction ADR 0054 denies. Everything else (silent body, consistent declarations) passes.
 export const titleClosesDeclaredPartial = (title, body) => {
   const titleCloses = new Set([...(title ?? "").matchAll(CLOSING_REF)].map((m) => m[2]));
-  const bodyPartials = new Set([...(body ?? "").matchAll(PARTIAL_LINE)].map((m) => m[1]));
+  const bodyPartials = partialsFrom(body);
   return [...titleCloses].filter((n) => bodyPartials.has(n));
 };
 

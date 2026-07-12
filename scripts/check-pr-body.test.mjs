@@ -43,3 +43,23 @@ test("ignores a prose Partial mention not on its own line, and empty/undefined i
   assert.deepEqual(titleClosesDeclaredPartial(undefined, undefined), []);
   assert.deepEqual(titleClosesDeclaredPartial("Fix #8", ""), []);
 });
+
+test("accepts GitHub's optional-colon closing forms; no separator does not close (ADR 0054 B1)", () => {
+  assert.deepEqual(titleClosesDeclaredPartial("Fixes: #164", "Partial: #164"), ["164"]);
+  assert.deepEqual(titleClosesDeclaredPartial("Closes:#10", "Partial: #10"), ["10"]);
+  assert.deepEqual(titleClosesDeclaredPartial("Fixes#164", "Partial: #164"), []);
+});
+
+test("Partial parsing tolerates comma lists, lowercase, and trailing punctuation (ADR 0054 B3)", () => {
+  assert.deepEqual(
+    titleClosesDeclaredPartial("Fixes #164, closes #165", "Partial: #164, #165"),
+    ["164", "165"],
+  );
+  assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "partial: #164"), ["164"]);
+  assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "Partial: #164."), ["164"]);
+});
+
+test("a Partial line inside a code fence or HTML comment does not declare (ADR 0054 B4)", () => {
+  assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "```\nPartial: #164\n```"), []);
+  assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "<!-- Partial: #164 -->"), []);
+});

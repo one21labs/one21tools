@@ -9,32 +9,34 @@ summary: "A closing-keyword PR title becomes the squash subject and silently aut
 
 - Date: 2026-07-12
 - Owner: PM
-- Panel: lean-process-engineer / session-operator / process-economist (plugin-adopter omitted — no consumer surface); options argued on issue #168; PM accepted. Ships with ADR 0053 as one ADR-0051 decision-set (both merge-time integrity failures from the 2026-07-11 incident cluster).
-- Context: issue #168. PR #166's body deliberately carried NO closing keyword ("findings 2-3 keep #164 open"), but its title `Fix #164 finding 1: ...` became the squash-commit subject on main and auto-closed #164 with 2 findings unresolved — silent, no red CI. GitHub scans the squash message (PR title by default, absent a merger edit) for closing keywords and closes the referenced issue on merge.
+- Panel: lean-process-engineer / session-operator / process-economist (plugin-adopter omitted — no consumer surface); options argued on issue #168. Ships with ADR 0053 as one ADR-0051 decision-set (2026-07-11 incident cluster).
+- Context: issue #168. PR #166's body deliberately carried NO closing keyword ("findings 2-3 keep #164 open"), but its title `Fix #164 finding 1: ...` became the squash-commit subject on main and auto-closed #164 with 2 findings unresolved — silent, no red CI. GitHub scans the squash message for closing keywords, closing the issue on merge.
 
 ## Decision
-Rung-4 CI guard (ADR 0047 ladder — decidable requirement, surface exists): extend the check-pr-body.mjs family. gates.yml:57-61 already injects `PR_BODY`; add `PR_TITLE: ${{ github.event.pull_request.title }}` the same way. Adopt a structured body line **`Partial: #NNN`** = "this PR does NOT fully close issue #NNN" (mirrors the RETRO_LINE anchor, check-pr-body.mjs:18).
+Rung-4 CI guard (ADR 0047 ladder — decidable requirement, surface exists): extend the check-pr-body.mjs family. gates.yml:57-62 injects `PR_BODY` + `PR_TITLE`, run on `pull_request` with **`types: [opened, edited, synchronize, reopened]`** — bare `pull_request` fires only on opened/synchronize/reopened, so a title EDITED to a closing form post-run merges stale-green, and the "reword the title" remedy fires no event to clear a stale red (B2; per ADR 0053's no-stale-merge thesis). Adopt a structured body line **`Partial: #NNN`** = "this PR does NOT fully close issue #NNN" (mirrors the RETRO_LINE anchor, check-pr-body.mjs:25).
 
-**Predicate** (pure, unit-tested — mirrors hasRetroLine + its test):
-- Closing-keyword grammar (GitHub): `/\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)/gi` — extract the set `titleCloses` of issue numbers a title closes.
-- Partial line: `/^Partial:[ \t]*#(\d+)(?=\s|$)/m` (also `/gm` for multiple) — extract `bodyPartials`.
+**Predicate** (pure, unit-tested — mirrors hasRetroLine):
+- **Closing grammar** (GitHub, colon OPTIONAL): `/\b(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)(?:\s*:\s*|\s+)#(\d+)/gi` — GitHub's docs accept an optional colon (`Fixes: #164` and `Closes:#10` both close); a `\s+`-only grammar false-PASSes that scar class. Extract the set `titleCloses`.
+- **Partial parse** (case/punctuation tolerant): for each body line matching `/^partial:(.*)$/gim`, pull every `#(\d+)` from the remainder -> `bodyPartials`. A strict `^Partial:[ \t]*#(\d+)` dropped comma-lists, trailing punctuation, and lowercase — declaring nothing (B3).
+- **Fence-strip FIRST**: strip fenced code (```/~~~) and HTML comments (`<!-- -->`) before the Partial scan — a `Partial: #NNN` in a fenced example must not DENY a legitimate closing title (owner: never over-block; B4).
 - **DENY** iff `intersection(titleCloses, bodyPartials)` is non-empty: the title claims closure of an issue the body declares partial — a decidable contradiction. Fail naming each NNN.
-- **PASS** otherwise. Title closes #NNN with the body SILENT on NNN (no `Partial:` line) = undecidable intent (a genuine full-fix is legitimate) -> PASS, never deny (ADR 0047 precondition ii; owner ruling below). Title without a closing keyword, or `Partial:` with no matching title-closure = consistent -> PASS.
+- **PASS** otherwise. Title closes #NNN with the body SILENT on NNN = undecidable intent (a genuine full-fix is legitimate) -> never deny (ADR 0047 precondition ii; owner ruling below). A non-closing title, or `Partial:` with no matching closure = consistent.
 
 ## Justification
-The failure is silent (no red CI) and lands unresolved-issue closures on main — high value to gate. The guard fires only on a decidable contradiction, so it never cries wolf on the legitimate `Fix #NNN` that truly completes an issue. Pure predicate + test is the cheapest rung-4 mechanism and reuses the check-pr-body architecture wholesale.
+Silent failure (no red CI) landing unresolved-issue closures on main — high value to gate. Firing only on a decidable contradiction, it never cries wolf on a legitimate `Fix #NNN`. Pure predicate + test is the cheapest rung-4 mechanism, reusing check-pr-body.
 
 ## Assumptions
-- [checkable] `titleClosesDeclaredPartial(title, body)` returns the intersection; cases: (`Fix #164`, `Partial: #164`)->[164] deny; (`Fix #164`, silent)->[] pass; (`Add feature`, `Partial: #164`)->[] pass; (`Fixes #164`, `Partial: #165`)->[] pass — owner: build's *.test.mjs.
-- [checkable] gates.yml can inject `PR_TITLE` alongside `PR_BODY` at :57-61 via `github.event.pull_request.title` — the PR_BODY pattern already proves the env-injection works.
-- [verified] Closing grammar is close/closes/closed | fix/fixes/fixed | resolve/resolves/resolved + `#NNN`; a squash-merge uses the PR title as the commit subject absent a merger edit.
-- [unverifiable] Authors adopt `Partial: #NNN` on partial PRs — REOPEN-IF a partial-fix mis-close recurs with a prose-only "stays open" signal -> add a stronger nudge (PR-template scaffolding of the line).
+- [checkable] `titleClosesDeclaredPartial(title, body)` returns the title∩partial intersection: (`Fix #164`,`Partial: #164`)->[164] deny; (`Add feature`,`Partial: #164`)->[] pass — result: verified (scripts/check-pr-body.test.mjs, 6 tests pass).
+- [checkable] gates.yml injects `PR_TITLE` alongside `PR_BODY` via `github.event.pull_request.title` — result: verified (gates.yml:61).
+- [checkable] grammar breadth — colon `Fixes: #164`/`Closes:#10` deny; comma `Partial: #164, #165`->both; fenced `Partial:` example does NOT deny — owner: build's *.test.mjs (this PR).
+- [verified, doc] Closing grammar is close/closes/closed | fix/fixes/fixed | resolve/resolves/resolved, an OPTIONAL colon, then `#NNN` (github/docs linking-a-pull-request-to-an-issue.md: "keywords can be followed by colons"). Squash subject = PR title only for a MULTI-commit squash under this repo's `squash_merge_commit_title: COMMIT_OR_PR_TITLE`; a single-commit PR's squash subject is its lone commit message (Residue).
+- [unverifiable] Authors adopt `Partial: #NNN` on partial PRs — REOPEN-IF a partial-fix mis-close recurs with a prose-only "stays open" signal -> stronger nudge (PR-template scaffolding).
 
 ## Rejected alternatives
-- **Blanket deny on any closing-keyword+issue-ref title** — REJECTED by binding owner ruling: "Banning is too strict. Sometimes that pattern is legit." A `Fix #NNN` title is correct when the PR completes the issue; a blanket deny cries wolf on the legitimate majority (violates ADR 0047 precondition ii — undecidable intent must never deny). The guard targets only the decidable mismatch.
-- **Rung-5 prose title convention** — rejected per 0047:16: a decidable requirement with an available surface is never homed in prose (the gates.yml surface exists).
+- **Blanket deny on any closing-keyword title** — REJECTED by binding owner ruling ("Banning is too strict. Sometimes that pattern is legit."): a `Fix #NNN` title is correct when the PR completes the issue; blanket deny cries wolf on the legitimate majority (violates ADR 0047 precondition ii). The guard targets only the decidable mismatch.
+- **Rung-5 prose title convention** — rejected per 0047:16: a decidable requirement with an available surface (gates.yml) is never homed in prose.
 - **Accept risk** — the mis-close is silent and lands unresolved work on main; unacceptable.
 
 ## Revisit triggers
 - A partial-fix mis-close recurs -> per the [unverifiable] assumption, strengthen adoption of the `Partial:` line.
-- Residue (ADR 0047 precondition i): a merger hand-editing the squash title in the merge dialog is invisible to PR-time CI — the gate checks the PR title, not the final squash subject the merger can override. An author who signals partial only in prose (no `Partial:` line) also slips; the guard covers the decidable case only. The guard REDUCES, not eliminates, the risk (ADR 0053 sibling covers the other merge-time integrity class).
+- Residue (ADR 0047 precondition i) — the guard REDUCES, not eliminates: (a) a merger hand-editing the squash title is invisible to PR-time CI; (b) a **single-commit PR** whose lone commit message carries a closing keyword — under `squash_merge_commit_title: COMMIT_OR_PR_TITLE` its squash subject is the commit message, not the PR title, so a title guard never sees it (finding 2); (c) partial signalled only in prose (no `Partial:` line); (d) a cross-repo `owner/repo#NNN` title ref — far-fetched same-repo, deliberately NOT folded in. ADR 0053 sibling covers the other integrity class.
