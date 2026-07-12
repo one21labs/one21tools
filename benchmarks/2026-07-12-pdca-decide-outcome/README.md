@@ -5,8 +5,8 @@ token budget WITHOUT structure? Pre-registered per ADR 0042 / `pre-registration.
 methodology inherited: ADR 0019 (eval-clustered CI), 0023 (hermetic control + recorded
 nulls), 0025 (fraction-met, `met_final = min(grader, prosecutor)`), 0026 (artifact formats),
 0041 (scaffold from `benchmarks/lib`; dated dirs append-only, `empirical-evals.md:159`).
-**This directory is a pre-registration only — no run executed.** Order per ADR 0052
-decision 2: plumbing pilot -> Instrument 1 grid -> this cost-pilot -> this grid.
+Order per ADR 0052 decision 2: plumbing pilot -> Instrument 1 grid -> cost-pilot -> grid.
+**Run complete — verdict in Results below.**
 
 ## Prior art (ADR 0042 prior-art rule; survey: `prior-art.md`)
 
@@ -120,6 +120,33 @@ unknowable until it completes; the runner stops the NEXT cell, recorded honestly
   fresh `/decide`; at ~6x the ceiling this is an owner spend/scope call, not a parameter
   fix. Options recorded on issue #172. No grid cell has run; the pre-registered design
   stays frozen pending that decision.
+
+## Results (run 2026-07-12 — grid 72/72 cells $95.50; grading 225/225 opus-judged; `results.json`)
+
+**Verdict: NULL — C ~ B ~ A (pre-registered reading: the panel buys tokens, not structure).**
+Primary C-B mean_delta = **+0.010**, 95% cluster-t CI [-0.177, +0.198] (weak; `verdict_of`:
+CUT-CANDIDATE). Context C-A = -0.031 [-0.238, +0.176]. Arm means (fraction-met): A 0.771,
+B 0.729, C 0.740. **Guess-the-arm audit: 3/9 = chance — blinding held.** Per-scenario C-B:
+backtests +0.08..+0.25 (B1/B2/B3), B4 0; synthetics S2/S3 ~+0.1, S1/S4 **-0.33** (the panel
+handled two planted traps worse than the plain deliberation prompt). This REPLICATES the
+compute-matched prior art (structure ~ budget) in the previously unpublished open-ended
+regime (`prior-art.md`) and, per ADR 0052's pre-registered trigger, routes to its own
+`/decide` — no KEEP claim. Cost texture: arm C cells averaged ~4x arm A for ~0 rubric delta.
+
+Validity notes: three contaminated run attempts were deleted pre-verdict (see
+`DELETED-CONTAMINATED.md`); the counted run used the third, twice-audited substrate design
+and passed its behavioral checks; the arm-C artifact sweep defect was caught mid-grading by
+an item-size symmetry check and fixed before any counted grade. n=3 reps / 8 clusters: CI
+wide, confidence language pre-committed. Raw: 1 cell per (scenario, arm) kept in `outputs/`,
+rest in `outputs/all.tar.gz` (ADR 0026).
+
+## Cost ledger (owner directive: cost-per-information)
+
+Executor cells (CLI-metered): clean grid $95.50; pilots $12.71; three discarded
+contamination rounds ~$71.5 (deleted, tombstoned). Grading (token-metered subagents):
+~5.9M tokens counted run + ~2.5M stopped polluted run + audits/panel ~0.9M — est. ~$45-60
+at list prices. **I2 all-in ≈ $230-245.** (I1 for comparison: ~$28 executor + ~$15 grading
+est.) Cost of the information: two decision-grade nulls + a hardened reusable harness.
 
 ## Threats to validity (pre-registered)
 
