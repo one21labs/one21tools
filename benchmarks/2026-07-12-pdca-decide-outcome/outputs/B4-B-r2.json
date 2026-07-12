@@ -1,0 +1,60 @@
+{
+ "cell": "B4-B-r2",
+ "scenario": "B4",
+ "arm": "B",
+ "rep": 2,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 378986.0,
+  "duration_ms": 377623,
+  "duration_api_ms": 366403,
+  "cost_usd": 1.8903008,
+  "usage": {
+   "input_tokens": 100,
+   "cache_creation_input_tokens": 66238,
+   "cache_read_input_tokens": 3366986,
+   "output_tokens": 32117,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 66238,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1501,
+     "cache_read_input_tokens": 89972,
+     "cache_creation_input_tokens": 165,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 165
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:59:44.581619+00:00",
+   "end": "2026-07-12T19:06:03.567673+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Decision: Proceed, gated\n\nI read `ISSUE-109.md` and the relevant chain of prior decisions (ADR 0035's verdict on issue #41's tiered config, plus the eval-validity/cost-justification ADRs 0019/0023/0024/0025 the issue itself invokes) before deciding. I've recorded the decision as `docs/decisions/0036-routing-cascade-experiment-gate.md`.\n\n**Deliberation, briefly:**\n\n*For declining outright:* ADR 0035 already delivered a decisive, well-powered verdict against tiered execution generally (2.94x\u20138.8x tokens, quality -0.057 to -0.160 vs sonnet-solo across two independent runs). One could argue the tiered-execution question is closed and any new arm is just re-litigating a settled call \u2014 CLAUDE.md explicitly warns against re-litigating settled ADRs.\n\n*Against declining:* that argument proves too much. ADR 0035's own mechanism finding \u2014 iterating a weak implementer against a strong critic converges to the implementer's ceiling \u2014 doesn't apply to routing, because routing has no iteration: the checker gates a single attempt, and on reject the *whole task* moves to sonnet. That's a genuinely different failure surface (checker fidelity, not coaching convergence), and ADR 0035's own revisit triggers keep the door open to new configurations that measure differently. Declining on \"we already tested tiering\" would conflate two distinct mechanisms.\n\n*The real risk:* ADR 0035 already measured the specific thing that could sink routing \u2014 a sonnet validator false-accepted 6/24 (25%) final artifacts in the #41 replication. Under routing there's no correction step, so a false-accept ships a haiku-floor artifact as final. Running the full 8-task\u00d73-arm\u00d73-rep grid before checking whether *any* checker beats a workable false-accept rate would repeat exactly the mistake ADR 0024 warns against \u2014 paying for a result on a variable likely to sink it before it's even measured.\n\n*The resolution:* that check is nearly free. The haiku-solo outputs and their blind-graded ground truth (`met`/`total` per cell) from `benchmarks/2026-07-10-tiered-execution-fullgrid/graded/verdicts.jsonl` are already committed \u2014 a checker-fidelity pilot can run against that data with zero new haiku/sonnet executor spend, only checker calls. So the right call isn't accept-or-decline, it's **gate the expensive part behind the cheap part**.\n\n**What I decided and recorded (ADR 0036):**\n1. **Stage 1** (near-zero cost): run \u22652 checker variants (sonnet-judge + deterministic checklist) against the already-committed blind-graded haiku-solo data; measure false-accept rate.\n2. **Gate:** best checker must clear \u226415% false-accept (the issue's own ceiling) or the experiment stops \u2014 null recorded, issue closed, no full-grid spend.\n3. **Stage 2** (only if Stage 1 clears): full grid, reusing the existing benchmark harness, hermetic executor (ADR 0023), blind grading (ADR 0019).\n4. **Pre-registered adopt bar**, finalizing the sketch the issue itself left open: frac-met non-inferior to sonnet-solo (margin \u22120.05, clustered CI) **and** measured median cost \u22640.6x sonnet-solo (kept at ADR 0035's bar for comparability).\n\nThis is the finalized decision rule issue #109 asked for (\"to be finalized per ADR 0024 before spend\").\n\nOne caveat: I authored and checked the ADR against the char budget (5,945/6,000) and the template's structural rules by hand, but couldn't get `adr-lint` to execute in this sandbox (repeated approval friction, not a lint failure) \u2014 worth a quick `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` run before this merges, per CLAUDE.md's pre-merge rule.",
+ "artifacts": {}
+}

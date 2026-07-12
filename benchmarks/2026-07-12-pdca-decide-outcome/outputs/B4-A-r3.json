@@ -1,0 +1,60 @@
+{
+ "cell": "B4-A-r3",
+ "scenario": "B4",
+ "arm": "A",
+ "rep": 3,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 353814.8,
+  "duration_ms": 352559,
+  "duration_api_ms": 341273,
+  "cost_usd": 1.8403947,
+  "usage": {
+   "input_tokens": 84,
+   "cache_creation_input_tokens": 76132,
+   "cache_read_input_tokens": 3128809,
+   "output_tokens": 29603,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 76132,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2066,
+     "cache_read_input_tokens": 95934,
+     "cache_creation_input_tokens": 4097,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4097
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T19:03:26.143260+00:00",
+   "end": "2026-07-12T19:09:19.958043+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I read `ISSUE-109.md`, the settled context in ADR 0035 (issue #41's rejection) and the underlying benchmark data (`benchmarks/2026-07-10-tiered-execution-fullgrid/`), and recorded the decision as **ADR 0036** (`docs/decisions/0036-routing-cascade-checker-gated-pilot.md`, 5,970/6,000 chars, passes `adr-lint`'s rules by manual inspection \u2014 I wasn't able to get shell approval to run it live in this turn, so re-run it before merge).\n\n**Decision: proceed, but staged \u2014 not a flat yes.**\n\n- **Not a re-litigation of #41.** ADR 0035 killed *coach-and-retry* (haiku implements, iterates against a sonnet critic, same worker redispatched) \u2014 it converges to the implementer's ceiling. Issue #109's *routing* (haiku attempts once, checker accepts/escalates, escalate = a different model redoes the whole task, no coaching) fails a different way: checker false-accepts. That's a genuinely untested hypothesis, so declining outright would be assuming, not measuring \u2014 the posture ADR 0024 forbids.\n- **But the issue's own pre-registered threat is already partly measured, and it's bad news.** The closest analog \u2014 the #41 parallel run's sonnet validator \u2014 already false-accepted 6/24 (25%) final artifacts, against a haiku-vs-sonnet quality gap of 0.16\u20130.28 frac-met. At 25% false-accept, roughly 1 in 4 escalations ships a haiku-floor artifact \u2014 plausibly enough by itself to sink non-inferiority. Running the full new grid before knowing whether *any* checker beats that is spending real generation money to test a bar that's already suspect.\n- **So: gate spend in two phases.**\n  - **Phase 0 (authorized now, near-zero cost):** score candidate checkers against the haiku-solo outputs/grades *already committed* from the #41 study \u2014 zero new haiku or sonnet generation spend, only checker calls. Must clear \u226415% false-accept (the issue's own ceiling) to unlock Phase 1.\n  - **Phase 1 (conditional):** only if Phase 0 clears, run the new routing grid and apply the issue's own pre-registered adoption bar (frac-met non-inferior within \u22120.05, clustered CI, cost materially below sonnet-solo) verbatim.\n  - If Phase 0 fails: record DO-NOT-ADOPT now, no Phase 1 spend \u2014 exactly the \"null without a full grid\" the issue itself proposes.\n- This ADR is also the finalized decision rule the issue deferred (\"to be finalized per ADR 0024 before spend\") \u2014 Phase 0 can start without another `/decide`.\n\nFull rationale, citations, assumptions, and revisit triggers are in the ADR file.",
+ "artifacts": {}
+}
