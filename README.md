@@ -24,12 +24,17 @@ The differentiating idea: manufacturing quality principles translate directly to
 
 ## The skill-improvement loop
 
-Skills here are not shipped on faith — each one carries an eval set and gets measured, and the
-measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
+Skills here are not shipped on faith — the dev/engineering skills carry eval sets and paired
+benchmarks, and pdca-workflow's flagship skills (`/decide`, `/retrospect`) carry outcome-level
+instruments (`benchmarks/2026-07-12-pdca-*`: both returned nulls vs cost-matched baselines at
+n=3 — recorded, not spun; ADR 0052 routes the follow-up). Measurements exist to **improve**
+the skills (raise benefit-per-token), not just gatekeep them.
 The loop (method home: `skills/building-skills/references/empirical-evals.md`; decision records:
 ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 
-1. **Evals** — every skill has `evals/evals.json` (3+ cases, schema-gated by `validate.py`).
+1. **Evals** — each measured dev/engineering skill has `evals/evals.json` (3+ cases,
+   schema-gated by `validate.py`); pdca-workflow skills are measured by the outcome
+   instruments above instead.
 2. **Hermetic paired benchmark** — each eval runs with and without the skill under a hermetic
    executor (no installed plugins, no repo file access; ADR 0023 — a non-hermetic run is a
    recorded confounded null, never a verdict).

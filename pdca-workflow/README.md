@@ -22,6 +22,12 @@ finds problems but can't decide trade-offs, and averaging hides the one accounta
 The panel pieces also ship standalone — `/advise`, `/verify`, `/red-team` — for calls that
 need one right-sized check, not the ceremony; `/decide` composes them and adds the record.
 
+**Measured (2026-07):** two outcome-level instruments (`benchmarks/2026-07-12-pdca-*` in the
+source repo) found no rubric-quality edge for `/retrospect` over a bare reviewer on seeded
+defects, or for `/decide` over a token-matched deliberation prompt (blinding audit clean,
+n=3, wide CIs). The structure's measured value so far is process guarantees (records,
+falsifiable criteria, spend gates), not per-decision quality — follow-up per ADR 0052.
+
 ## What's in the box
 
 ```
