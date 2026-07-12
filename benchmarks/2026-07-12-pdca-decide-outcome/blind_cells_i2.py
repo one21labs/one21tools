@@ -18,10 +18,35 @@ import bench_io  # noqa: E402
 from blind import write_blinded  # noqa: E402
 
 
+SCENARIO_SRC = {
+    "B1": "scenario-b1/snapshot", "B2": "scenario-b1/snapshot",
+    "B3": "scenario-b3/snapshot", "B4": "scenario-b4/snapshot",
+    "S1": "scenario-s1/workdir", "S2": "scenario-s2/workdir",
+    "S3": "scenario-s3/workdir", "S4": "scenario-s4/workdir",
+}
+_preexisting = {}
+
+
+def preexisting(scenario):
+    """Rel-paths of decision files already in the scenario source bundle — with the corpus
+    restored (third substrate design), capture_artifacts sweeps pre-existing ADRs into arm-C
+    records; only files the CELL created are its decision artifacts (caught mid-grading:
+    C items were ~180KB of unrelated corpus vs ~2.4KB for A/B)."""
+    if scenario not in _preexisting:
+        src = HERE / SCENARIO_SRC[scenario]
+        _preexisting[scenario] = {str(p.relative_to(src))
+                                  for p in src.rglob("*.md")
+                                  if str(p.relative_to(src)).startswith(("docs/decisions/",
+                                                                         "decisions/"))}
+    return _preexisting[scenario]
+
+
 def merged_response(r):
     text = r["response"] or ""
+    old = preexisting(r["scenario"])
     for rel, body in (r.get("artifacts") or {}).items():
-        text += f"\n\n--- recorded decision file {rel} ---\n{body}"
+        if rel not in old:
+            text += f"\n\n--- recorded decision file {rel} ---\n{body}"
     return text
 
 

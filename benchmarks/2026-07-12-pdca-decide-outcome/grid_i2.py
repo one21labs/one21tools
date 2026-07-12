@@ -57,11 +57,15 @@ C_SUFFIX = (" Run /decide on this call: follow the skill's full process and reco
             "in your reply." + AUTHORITY)
 
 
-def capture_artifacts(workdir):
+def capture_artifacts(workdir, src):
+    """Only files the CELL created (absent from the source bundle) are its artifacts —
+    with the decision corpus restored, an unfiltered sweep drags 37 pre-existing ADRs
+    into every arm-C record (caught 2026-07-12 mid-grading)."""
     out = {}
     for p in Path(workdir).rglob("*.md"):
         rel = str(p.relative_to(workdir))
-        if rel.startswith("docs/decisions/") or rel.startswith("decisions/"):
+        if (rel.startswith("docs/decisions/") or rel.startswith("decisions/")) \
+                and not (Path(src) / rel).exists():
             out[rel] = p.read_text(encoding="utf-8", errors="replace")[:20000]
     return out
 
@@ -105,7 +109,7 @@ def main():
         record = {"cell": cell, "scenario": sub, "arm": arm, "rep": rep,
                   "allow": list(allow), "model": MODEL,
                   "summary": summarize_call(call), "response": call["response"],
-                  "artifacts": capture_artifacts(workdir) if arm == "C" else {}}
+                  "artifacts": capture_artifacts(workdir, src) if arm == "C" else {}}
         path.write_text(json.dumps(record, indent=1), encoding="utf-8")
         shutil.rmtree(workdir, ignore_errors=True)
         cost = record["summary"].get("cost_usd") or 0.0
