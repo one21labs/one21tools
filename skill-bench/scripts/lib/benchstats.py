@@ -11,7 +11,9 @@ EXP_IDS = (1, 2, 3, 4)
 
 
 def fraction_met(met):
-    return sum(1 for i in EXP_IDS if met[i]) / len(EXP_IDS)
+    """Arity-generic: fraction of this cell's expectations met. Works for the fixed 4-expectation
+    decision rubric AND variable-length skill-eval rubrics (/bench-skill)."""
+    return (sum(1 for v in met.values() if v) / len(met)) if met else 0.0
 
 
 def arm_mean(cells, arm):

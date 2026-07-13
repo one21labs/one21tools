@@ -40,6 +40,16 @@ def rubric_for(key):
         'KEY: ' + json.dumps({"shape": key["shape"], "trap": key["trap"], "expectations": key["expectations"]}))
 
 
+def skill_grade_prompt(task, output, expectations):
+    """Generic skill-output rubric: judge each pre-registered expectation against the produced output
+    only. Used by /bench-skill's with/without value benchmark (not the decision-outcome rubric)."""
+    exps = "\n".join(f"{i}. {e}" for i, e in enumerate(expectations, 1))
+    return ('You are grading whether a produced OUTPUT meets pre-registered expectations for a task. '
+            'Judge each expectation strictly from the OUTPUT only; vague gestures are NOT met.\n\n'
+            'TASK: ' + task + '\n\nOUTPUT: ' + json.dumps(output) + '\n\nEXPECTATIONS:\n' + exps + '\n\n'
+            'Return expectations: [{id, met, why}] with one entry per expectation above.')
+
+
 def grade_prompt(norm, key):
     return ('You are grading a blinded decision artifact (normalized to a neutral schema) against pre-registered '
             'expectations. Judge each expectation strictly and literally from the normalized content ONLY.\n\n'

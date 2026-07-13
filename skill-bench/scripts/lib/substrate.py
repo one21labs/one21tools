@@ -76,11 +76,18 @@ class NativeSubstrate:
         self.timeout = timeout
 
     def _one(self, pid, prompt, arm):
-        r = subprocess.run(arm["cmd"], input=prompt, capture_output=True, text=True, timeout=self.timeout)
+        # prompt passed as final argv element (universal for grok -p / claude -p), unless the arm
+        # opts into stdin. Keeps long prompts off the shell (argv, not a shell string).
+        if arm.get("stdin"):
+            r = subprocess.run(arm["cmd"], input=prompt, capture_output=True, text=True, timeout=self.timeout)
+        else:
+            r = subprocess.run(arm["cmd"] + [prompt], capture_output=True, text=True, timeout=self.timeout)
         out = r.stdout.strip()
-        try:  # grok/claude --output-format json envelopes; else raw text
+        try:  # unwrap CLI --output-format json envelopes: claude=result, grok=text, schema=structuredOutput
             j = json.loads(out)
-            out = j.get("result") or j.get("structuredOutput") or out
+            unwrapped = j.get("result") or j.get("text") or j.get("structuredOutput")
+            if unwrapped is not None:
+                out = unwrapped if isinstance(unwrapped, str) else json.dumps(unwrapped)
         except Exception:
             pass
         return {"prompt_id": pid, "arm": arm["name"], "output": out}
