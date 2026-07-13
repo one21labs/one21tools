@@ -60,7 +60,7 @@ depends on skill-creator (ADR 0033).
 | `validate.py` | `skills/building-skills/scripts/` | Skill shape: frontmatter, char budgets, emoji ban, eval schema. Run on every skill in CI. |
 | `eval_verdict.py` | `skills/building-skills/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
 | `run_eval.py` | `skills/building-skills/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033). |
-| `benchmarks/lib/` | repo root | Shared benchmark IO + verdict math (`bench_io.py`, `verdict.py`), unit-tested. |
+| `skill-bench/scripts/lib/` | `skill-bench` plugin | Shared benchmark harness: IO + verdict math + hermetic driver + blind grading + cost gate + cross-family judge (`bench_io.py`, `verdict.py`, `judge.py`, ...), unit-tested. |
 | `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity (frontmatter, ids, cites, char budgets) plus agent char budgets and marketplace/plugin.json manifest drift. |
 | `check-workflow.mjs` | `scripts/` | Benchmark workflow files: syntax + explicit `model:` on every agent call (ADR 0029). |
 | `check-pr-body.mjs` | `scripts/` | Required `Retrospective:` line on every PR (ADR 0030). |

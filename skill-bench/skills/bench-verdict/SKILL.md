@@ -1,6 +1,6 @@
 ---
 name: bench-verdict
-description: Re-run the verdict math on an existing graded skill-bench benchmark dir with a pluggable judge, and NO new generation spend. Use to (a) recompute KEEP/CUT with a cross-family judge (grok default), or (b) run --judge both to get the judge-divergence diagnostic (agreement, kappa, verdict flip) that quantifies same-family judge bias. Invoke explicitly; never model-invoked.
+description: Use when re-running the verdict math on an existing graded skill-bench benchmark dir with a pluggable judge and no new generation spend: (a) recompute KEEP/CUT with a cross-family judge (grok default), or (b) run --judge both for the judge-divergence diagnostic (agreement, kappa, verdict flip) that quantifies same-family judge bias. Invoke explicitly; never model-invoked.
 disable-model-invocation: true
 ---
 
