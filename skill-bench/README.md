@@ -81,7 +81,12 @@ Remaining genericization (eval-schema/config layer, consumer-layout test) is #17
 yet complete; treat cross-repo use as beta until M2 lands.
 
 ## Status
-Runnable slice: `/bench-verdict` + `/bench-skill` (native substrate + cross-family judge +
-deterministic cost accounting), harness lib moved in (M1), registered in the marketplace.
-Not yet done: M2 genericization, promptfoo generation wired into `/bench-skill`, M6 external proof.
-See `docs/decisions/0055-*` for the decision draft.
+Runnable: `/bench-verdict` + `/bench-skill` (native substrate + availability-aware cross-family
+judge with grok->claude fallback + deterministic cost accounting), harness lib moved in (M1),
+config layer + consumer-layout test (M2), registered in the marketplace.
+
+Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces a verdict from a
+copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
+manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
+CI-runnable, needs authenticated grok). Not yet done: promptfoo generation wired into `/bench-skill`,
+the `/plugin install` marketplace round-trip (#170 M4/M6 tail). See `docs/decisions/0055-*`.

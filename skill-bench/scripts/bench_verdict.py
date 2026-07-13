@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
-from judge import make_judge, met_map, JudgeError  # noqa: E402
+from judge import make_judge, met_map, JudgeError, cli_available, CachedJudge  # noqa: E402
 
 
 def load_dir(d):
@@ -81,7 +81,8 @@ def summarize(cells, x, y):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", required=True)
-    ap.add_argument("--judge", choices=["grok", "claude", "both"], default="grok")
+    ap.add_argument("--judge", choices=["auto", "grok", "claude", "both"], default="auto",
+                    help="auto = grok if available else claude (cross-family preferred)")
     ap.add_argument("--out", default="-")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0)
@@ -98,8 +99,24 @@ def main():
                   "met": {int(k): v for k, v in ({e["id"]: e["met"] for e in j["expectations"]}).items()}}
                  for j in map(json.loads, open(a.cache)) if "error" not in j and j["bid"] in {c["bid"] for c in cells}]
 
-    live = "grok" if a.judge in ("grok", "both") else "claude"
-    judge = make_judge(live)
+    # 'both' needs grok AND claude for the divergence diagnostic; degrade gracefully if only one exists.
+    want_both = a.judge == "both"
+    degrade_note = None
+    if want_both and not (cli_available("grok") and cli_available("claude")):
+        want_both = False
+        degrade_note = ("--judge both needs grok AND claude for the divergence diagnostic; only one "
+                        "CLI is available — reporting a single-judge verdict instead")
+    primary = "auto" if a.judge in ("auto", "both") else a.judge
+    try:
+        judge = make_judge(primary)  # may fall back grok->claude; raises with remedy if none
+    except JudgeError:
+        if not cache:
+            raise  # a live re-grade genuinely needs a judge CLI
+        judge = CachedJudge("cached")  # offline --cache re-analysis needs no CLI
+    if judge.fallback_note:
+        print("NOTE: " + judge.fallback_note, file=sys.stderr)
+    if degrade_note:
+        print("NOTE: " + degrade_note, file=sys.stderr)
     print(f"re-grading {len(cells)} cells with judge={judge.name}"
           + (" (cached)" if cache else ""), file=sys.stderr)
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
@@ -110,7 +127,11 @@ def main():
                   "note": "shadow cost at published API rates (deterministic: tokens x rate); "
                           "$0 marginal under subscription; 0 here when --cache (no live calls)"},
               "regraded": summarize(regraded, "C", "B")}
-    if a.judge == "both":
+    if judge.fallback_note:
+        report["judge_fallback"] = judge.fallback_note
+    if degrade_note:
+        report["degraded"] = degrade_note
+    if want_both:
         report["baseline_judge"] = "committed (opus)"
         report["baseline"] = summarize(baseline, "C", "B")
         report["divergence"] = benchstats.divergence(baseline, regraded, "baseline", judge.name)

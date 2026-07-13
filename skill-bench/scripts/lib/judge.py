@@ -109,8 +109,58 @@ class ClaudeJudge(_CostTracking):
         return json.loads(strip_json_fence(env.get("result", "")))
 
 
-def make_judge(name):
-    return {"grok": GrokJudge, "claude": ClaudeJudge}[name]()
+class CachedJudge(_CostTracking):
+    """Placeholder for offline --cache re-analysis: no live CLI needed, 0 calls, $0 cost. Lets
+    bench-verdict recompute a verdict from a prior judge run on a machine with no grok/claude."""
+    def __init__(self, name="cached"):
+        self.name = name if name in costing.PRICES else "grok-4.5"
+        self.display_name = name
+        self._init_usage()
+        self.fallback_note = None
+
+    def grade(self, prompt, schema):
+        raise JudgeError("CachedJudge cannot grade live — use only with --cache")
+
+
+def cli_available(name, which=None):
+    """Is a judge backend's CLI usable on this machine? Pure given `which` (inject for tests)."""
+    which = which or shutil.which
+    if name == "grok":
+        return bool(os.environ.get("GROK_BIN")) or which("grok") is not None
+    if name == "claude":
+        return which("claude") is not None
+    return False
+
+
+SAME_FAMILY_NOTE = ("grok CLI not found — falling back to the claude judge. This is SAME-FAMILY "
+                    "grading, so the self-preference caveat applies (absolute rates inflate, the "
+                    "verdict can shift). Install grok or set $GROK_BIN to restore the cross-family judge.")
+
+
+def resolve_judge(name, which=None):
+    """Return (resolved_backend_name, fallback_note). 'auto' prefers grok (cross-family) and falls
+    back to claude when grok is absent — not everyone has the grok CLI. An EXPLICIT judge that is
+    unavailable raises with a remedy (respect the explicit choice; don't silently substitute)."""
+    if name == "auto":
+        if cli_available("grok", which):
+            return "grok", None
+        if cli_available("claude", which):
+            return "claude", SAME_FAMILY_NOTE
+        raise JudgeError("no judge CLI available: install grok or claude (or set $GROK_BIN)")
+    if name in ("grok", "claude"):
+        if cli_available(name, which):
+            return name, None
+        remedy = "set $GROK_BIN or install grok" if name == "grok" else "install the claude CLI"
+        raise JudgeError(f"--judge {name} requested but its CLI is not available ({remedy}); "
+                         f"use --judge auto to fall back gracefully")
+    raise JudgeError(f"unknown judge {name!r} (use auto|grok|claude)")
+
+
+def make_judge(name, which=None):
+    resolved, note = resolve_judge(name, which)
+    j = {"grok": GrokJudge, "claude": ClaudeJudge}[resolved]()
+    j.fallback_note = note
+    return j
 
 
 def met_map(verdict):

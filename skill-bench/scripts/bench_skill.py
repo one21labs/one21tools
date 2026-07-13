@@ -50,7 +50,8 @@ def main():
     ap.add_argument("--evals", required=True, help="JSON list of {id, task, expectations[]}")
     ap.add_argument("--with-cmd", required=True, help="argv (JSON list) for the skill-loaded arm")
     ap.add_argument("--without-cmd", required=True, help="argv (JSON list) for the bare arm")
-    ap.add_argument("--judge", choices=["grok", "claude"], default="grok")
+    ap.add_argument("--judge", choices=["auto", "grok", "claude"], default="auto",
+                    help="auto = grok if available else claude (cross-family preferred)")
     ap.add_argument("--substrate", choices=["native", "promptfoo"], default="native")
     ap.add_argument("--out", default="-")
     ap.add_argument("--yes", action="store_true", help="confirm paid generation (spend guard)")
@@ -68,7 +69,9 @@ def main():
         sys.exit(2)
 
     sub = make_substrate(a.substrate)
-    judge = make_judge(a.judge)
+    judge = make_judge(a.judge)  # 'auto' falls back grok->claude; raises with remedy if none
+    if judge.fallback_note:
+        print("NOTE: " + judge.fallback_note, file=sys.stderr)
     tasks = [e["task"] for e in evals]
     # map prompt_id (index) back to eval id for grading
     gen = sub.run(tasks, arms)
