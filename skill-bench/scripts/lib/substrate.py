@@ -56,8 +56,8 @@ def parse_promptfoo_output(obj):
         meta = (r.get("testCase", {}) or {}).get("metadata", {}) or r.get("metadata", {}) or {}
         pid = vars_.get("prompt_id", meta.get("prompt_id"))
         resp = r.get("response", {})
-        output = resp.get("output") if isinstance(resp, dict) else resp
-        out.append({"prompt_id": pid, "arm": label, "output": output})
+        raw = resp.get("output") if isinstance(resp, dict) else resp
+        out.append({"prompt_id": pid, "arm": label, "output": unwrap_cli_output(raw)})
     return out
 
 
@@ -108,15 +108,7 @@ class NativeSubstrate:
             r = subprocess.run(arm["cmd"], input=prompt, capture_output=True, text=True, timeout=self.timeout)
         else:
             r = subprocess.run(arm["cmd"] + [prompt], capture_output=True, text=True, timeout=self.timeout)
-        out = r.stdout.strip()
-        try:  # unwrap CLI --output-format json envelopes: claude=result, grok=text, schema=structuredOutput
-            j = json.loads(out)
-            unwrapped = j.get("result") or j.get("text") or j.get("structuredOutput")
-            if unwrapped is not None:
-                out = unwrapped if isinstance(unwrapped, str) else json.dumps(unwrapped)
-        except Exception:
-            pass
-        return {"prompt_id": pid, "arm": arm["name"], "output": out}
+        return {"prompt_id": pid, "arm": arm["name"], "output": unwrap_cli_output(r.stdout)}
 
     def run(self, prompts, arms, workdir=None):
         jobs = [(i, p, a) for i, p in enumerate(prompts) for a in arms]

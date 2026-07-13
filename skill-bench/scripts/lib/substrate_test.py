@@ -34,6 +34,20 @@ class TestSubstrate(unittest.TestCase):
         self.assertEqual(rows[0]["arm"], "A")
         self.assertEqual(rows[0]["output"], "plain")
 
+    def test_unwrap_cli_output(self):
+        self.assertEqual(sub.unwrap_cli_output('{"text": "hello"}'), "hello")      # grok envelope
+        self.assertEqual(sub.unwrap_cli_output('{"result": "hi"}'), "hi")          # claude envelope
+        self.assertEqual(sub.unwrap_cli_output("plain text"), "plain text")        # not JSON -> raw
+        self.assertEqual(sub.unwrap_cli_output(""), "")                            # empty
+        self.assertEqual(sub.unwrap_cli_output(None), "")                          # None -> ""
+        self.assertEqual(sub.unwrap_cli_output('{"other": 1}'), '{"other": 1}')    # no text field -> raw
+
+    def test_parse_unwraps_envelope_output(self):
+        obj = {"results": {"results": [
+            {"provider": {"label": "with"}, "vars": {"prompt_id": 0},
+             "response": {"output": '{"text": "the answer"}'}}]}}
+        self.assertEqual(sub.parse_promptfoo_output(obj)[0]["output"], "the answer")
+
     def test_make_substrate_dispatch(self):
         self.assertEqual(sub.make_substrate("native").name, "native")
         self.assertEqual(sub.make_substrate("promptfoo").name, "promptfoo")

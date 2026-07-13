@@ -73,10 +73,15 @@ def main():
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     tasks = [e["task"] for e in evals]
-    # map prompt_id (index) back to eval id for grading
     gen = sub.run(tasks, arms)
-    for g in gen:  # substrate returns prompt_id as the task index; resolve to eval id
-        g["prompt_id"] = evals[g["prompt_id"]]["id"] if isinstance(g["prompt_id"], int) else g["prompt_id"]
+    # resolve prompt_id (task index from the substrate) back to the eval id; promptfoo may echo it as
+    # a string, native as an int. A non-numeric value is assumed to already be an eval id.
+    for g in gen:
+        pid = g["prompt_id"]
+        if isinstance(pid, int):
+            g["prompt_id"] = evals[pid]["id"]
+        elif isinstance(pid, str) and pid.isdigit():
+            g["prompt_id"] = evals[int(pid)]["id"]
     cells = grade_all(gen, evals_by_id, judge)
     report = {"skill_evals": a.evals, "judge": judge.name, "n_tasks": len(evals),
               **aggregate(cells)}
