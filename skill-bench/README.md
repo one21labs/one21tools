@@ -15,7 +15,7 @@ target design from ADR 0055. Nothing here is on the marketplace or moved out of 
 ## Architecture: bespoke layer on a rented substrate
 
 ```
-  /bench (verdict | skill | trigger)                  <- one explicit-invoke skill, subcommands
+  /bench (verdict | skill)  [trigger: planned]        <- one explicit-invoke skill, subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
   cross-family judge (grok default) | verdict.py         keep in-repo; no vendor sells this
@@ -56,7 +56,7 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - **M0** `/decide` ADR 0055 (scope, judge default, substrate). Resolve #150/ADR 0050 dependency shape.
 - **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; update `gates.yml` + nav; gates stay green.
 - **M2** Genericize: config layer + consumer-layout test.
-- **M3** Skill surface: one `/bench` skill (verdict | skill | trigger subcommands) + on-demand references.
+- **M3** Skill surface: one `/bench` skill (verdict + skill subcommands shipped; trigger planned) + on-demand references.
 - **M4** Substrate adapter: promptfoo behind `hermetic_driver`; inspect-ai option; native fallback.
 - **M5** Cross-family judge wired into the grading template + `judge-divergence` diagnostic.
 - **M6** Dogfood: reproduce one committed benchmark via the installed plugin; then one third-party skill.
