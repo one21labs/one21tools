@@ -2,7 +2,7 @@
 id: 0045
 title: "Keep the upstream trigger-runner filing open, narrowed to the one uncovered fix"
 status: accepted
-summary: "Disposition of #94: keep it OPEN, narrowed. Fixes 1+3 and the #104 fallback are already covered by open upstream PR #1323 (corroborating comment may be DRAFTED); stdin-DEVNULL is covered by NO open PR and is independent of #1323 — the one fix worth an upstream PR, drafted now, posting gated only on owner approval (no artificial hold); timeout-as-null is contested (#1298 chose differently), not filed. No new PR without approval; ADR 0033's triggers already watch upstream."
+summary: "Disposition of #94: narrowed to the one uncovered fix, both drafts posted in-issue. Superseded 2026-07-11 — owner declined the upstream posting; #94 closed not-planned. ADR 0033's revisit trigger (upstream lands the fixes → re-diff, consider un-vendoring) still watches independently."
 ---
 
 # 0045 — Keep the upstream trigger-runner filing open, narrowed to the one uncovered fix
@@ -13,6 +13,8 @@ summary: "Disposition of #94: keep it OPEN, narrowed. Fixes 1+3 and the #104 fal
 - Context: ADR 0033 vendored skill-creator's run_eval.py with 4 fixes. Verified 2026-07-10: upstream anthropics/skills run_eval.py is unchanged since 2026-02-25 (all 4 defects present); ~10 open community PRs in the area, none merged; open PR #1323 covers vendored fixes 1+3 and the #104 fallback; open PR #1298 covers detection+Windows+workers but chose timeout-as-False-with-warning; NO open PR covers stdin-DEVNULL. All external posting stays owner-gated (CLAUDE.md external-publication rule).
 
 ## Decision
+**Superseded 2026-07-11** — owner declined the upstream posting; #94 closed as not-planned (drafts remain in the issue for reference). ADR 0033's revisit trigger continues to watch upstream independently. Original decision, kept for context:
+
 Keep #94 OPEN, narrowed. The split is not file-everything vs close — it is covered vs uncovered:
 - Fixes 1+3 + the #104 fallback are covered by open PR #1323 → no new filing; a corroborating comment on #1323 may be DRAFTED (owner-gated posting) as low-cost engagement.
 - stdin-DEVNULL is covered by NO open PR (a process-hang risk the community hasn't surfaced) and is technically INDEPENDENT of #1323 → it is the one fix worth an upstream PR, DRAFTED now; the only gate on posting is owner approval (no artificial hold-until-#1323 — that coupling controlled nothing).
