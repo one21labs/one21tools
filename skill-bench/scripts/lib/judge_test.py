@@ -26,7 +26,7 @@ class TestJudge(unittest.TestCase):
 
     def test_make_judge_dispatch_and_names(self):
         self.assertEqual(judge.make_judge("grok").name, "grok-4.5")
-        self.assertEqual(judge.make_judge("claude").name, "claude-opus")
+        self.assertEqual(judge.make_judge("claude").name, "claude-opus-4-8")
 
 
 if __name__ == "__main__":

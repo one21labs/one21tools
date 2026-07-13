@@ -25,7 +25,7 @@ summary: "Extract the hermetic skill-measurement harness into a standalone `skil
    - `/bench-verdict <results> [--judge ...]` — re-run verdict math (incl. cross-family re-grade) on existing results with NO new generation spend — the exact prototype flow, generalized.
 
 ## Justification
-The extraction was already planned (#170); this ADR adds the two capabilities the new evidence demands. Cross-family judging is default-on because same-family judging is now a MEASURED confound here, not theoretical — and grok is subscription-billed (zero marginal cost). Renting the substrate stops the repo maintaining hand-rolled matrix plumbing while keeping the parts no vendor sells; wrapping (not replacing) keeps M1's move behavior-neutral.
+The extraction was already planned (#170); this ADR adds the two capabilities the new evidence demands. Cross-family judging is default-on because same-family judging is now a MEASURED confound — its value is bias-reduction, NOT cost (grok and Claude are both marginally free here; runs are priced notionally at published rates by deterministic `costing.py`). Renting the substrate keeps the parts no vendor sells while dropping hand-rolled matrix plumbing; wrapping (not replacing) keeps M1's move behavior-neutral.
 
 ## Assumptions
 - **[checkable] WEAKEST: the grok CLI is a viable programmatic judge.** Verified 2026-07-13 by the 72-cell prototype (0 errors, schema-constrained structured output, grade+prosecute). CAVEAT: normalization was held on Claude (a residual same-family surface) — a fuller version cross-families the normalizer too. TEST before shipping the judge default: re-run one dated benchmark's grading through the grok judge and confirm the divergence diagnostic reproduces.

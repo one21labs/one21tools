@@ -11,6 +11,7 @@ Backends:
   ClaudeJudge -> claude -p --output-format json (same-family baseline / A-B judge comparison)
 """
 import json, os, subprocess, tempfile
+import costing
 
 # Known-good pure-text sandbox. NOTE (grok 0.2.99): longer deny lists or --disable-web-search trip a
 # run_terminal_cmd tool-config validation bug — keep this exact set.
@@ -37,13 +38,30 @@ def strip_json_fence(s):
     return s
 
 
-class GrokJudge:
+class _CostTracking:
+    """Mixin: accumulate token usage across grade() calls and price it notionally."""
+    def _init_usage(self):
+        self.usage = {}
+        self.calls = 0
+
+    def _record(self, envelope):
+        self.calls += 1
+        costing.add_usage(self.usage, costing.extract_usage(envelope))
+
+    def cost_usd(self):
+        """Notional (shadow) cost of all grade() calls at published API rates — real usage priced
+        even though the subscription made it marginally free."""
+        return round(costing.notional_cost(self.name, self.usage), 4) if self.usage else 0.0
+
+
+class GrokJudge(_CostTracking):
     name = "grok-4.5"
 
     def __init__(self, bin=None, model="grok-4.5", timeout=300):
         self.bin = bin or os.path.expanduser("~/.grok/bin/grok")
         self.model = model
         self.timeout = timeout
+        self._init_usage()
 
     def grade(self, prompt, schema):
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
@@ -55,7 +73,9 @@ class GrokJudge:
                 capture_output=True, text=True, timeout=self.timeout)
             if r.returncode != 0:
                 raise JudgeError(f"grok exit {r.returncode}: {r.stderr[-300:]}")
-            so = json.loads(r.stdout).get("structuredOutput")
+            env = json.loads(r.stdout)
+            self._record(env)
+            so = env.get("structuredOutput")
             if not so:
                 raise JudgeError("grok returned no structuredOutput")
             return so
@@ -63,13 +83,14 @@ class GrokJudge:
             os.unlink(pf)
 
 
-class ClaudeJudge:
-    name = "claude-opus"
+class ClaudeJudge(_CostTracking):
+    name = "claude-opus-4-8"
 
     def __init__(self, bin="claude", model="opus", timeout=300):
         self.bin = bin
         self.model = model
         self.timeout = timeout
+        self._init_usage()
 
     def grade(self, prompt, schema):
         # claude -p has no --json-schema; ask for JSON-only and parse, retrying tolerant of fences.
@@ -80,8 +101,9 @@ class ClaudeJudge:
             capture_output=True, text=True, timeout=self.timeout)
         if r.returncode != 0:
             raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
-        result = json.loads(r.stdout).get("result", "")
-        return json.loads(strip_json_fence(result))
+        env = json.loads(r.stdout)
+        self._record(env)
+        return json.loads(strip_json_fence(env.get("result", "")))
 
 
 def make_judge(name):

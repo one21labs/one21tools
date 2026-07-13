@@ -105,6 +105,10 @@ def main():
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
 
     report = {"dir": a.dir, "judge": judge.name, "n_cells": len(regraded), "errors": len(errs),
+              "notional_cost_usd": {
+                  "judge_calls": judge.calls, "usd": judge.cost_usd(),
+                  "note": "shadow cost at published API rates (deterministic: tokens x rate); "
+                          "$0 marginal under subscription; 0 here when --cache (no live calls)"},
               "regraded": summarize(regraded, "C", "B")}
     if a.judge == "both":
         report["baseline_judge"] = "committed (opus)"
