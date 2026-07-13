@@ -22,6 +22,21 @@ class JudgeError(RuntimeError):
     pass
 
 
+def strip_json_fence(s):
+    """Pure: strip ```json fences / prose around a JSON blob (claude -p has no schema mode)."""
+    s = s.strip()
+    if "```" in s:
+        # take the content of the first fenced block if present
+        parts = s.split("```")
+        for seg in parts:
+            seg = seg.strip()
+            if seg.startswith("json"):
+                seg = seg[4:].strip()
+            if seg.startswith("{") or seg.startswith("["):
+                return seg
+    return s
+
+
 class GrokJudge:
     name = "grok-4.5"
 
@@ -66,8 +81,7 @@ class ClaudeJudge:
         if r.returncode != 0:
             raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
         result = json.loads(r.stdout).get("result", "")
-        s = result.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-        return json.loads(s)
+        return json.loads(strip_json_fence(result))
 
 
 def make_judge(name):
