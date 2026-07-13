@@ -13,12 +13,14 @@ pre-registered expectations with a cross-family judge, and reports the value del
 ## Usage
 
 ```
-python3 scripts/bench_skill.py \
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" \
   --evals <evals.json> \
   --with-cmd '<json argv, skill loaded>' \
   --without-cmd '<json argv, bare>' \
   --judge grok|claude --substrate native|promptfoo --yes
 ```
+
+(Invoke via `${CLAUDE_PLUGIN_ROOT}` so the script resolves regardless of the working directory when installed as a plugin.)
 
 - `--evals`: JSON list of `{id, task, expectations:[...]}` — the task text is the prompt; expectations
   are the binary checks the output must meet.

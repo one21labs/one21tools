@@ -20,8 +20,10 @@ reported, and `--judge both` surfaces the divergence instead of hiding it.
 ## Usage
 
 ```
-python3 scripts/bench_verdict.py --dir <benchmark-dir> --judge grok|claude|both [--out report.json]
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> --judge grok|claude|both [--out report.json]
 ```
+
+(Invoke via `${CLAUDE_PLUGIN_ROOT}` so the script resolves no matter the working directory when installed as a plugin.)
 
 - `--dir` must contain `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
 - `--judge grok` (default): re-grade with grok-4.5 (grade + prosecute), emit arm means, clustered

@@ -10,7 +10,7 @@ Backends:
   GrokJudge   -> grok -p --json-schema        (default; grok.com subscription = zero marginal cost)
   ClaudeJudge -> claude -p --output-format json (same-family baseline / A-B judge comparison)
 """
-import json, os, subprocess, tempfile
+import json, os, shutil, subprocess, tempfile
 import costing
 
 # Known-good pure-text sandbox. NOTE (grok 0.2.99): longer deny lists or --disable-web-search trip a
@@ -58,7 +58,10 @@ class GrokJudge(_CostTracking):
     name = "grok-4.5"
 
     def __init__(self, bin=None, model="grok-4.5", timeout=300):
-        self.bin = bin or os.path.expanduser("~/.grok/bin/grok")
+        # Portable resolution: explicit arg, then $GROK_BIN, then PATH, then the default installer
+        # location. Works when skill-bench is installed as a plugin on any machine.
+        self.bin = (bin or os.environ.get("GROK_BIN") or shutil.which("grok")
+                    or os.path.expanduser("~/.grok/bin/grok"))
         self.model = model
         self.timeout = timeout
         self._init_usage()

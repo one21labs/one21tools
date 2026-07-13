@@ -61,6 +61,27 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - **M5** Cross-family judge wired into the grading template + `judge-divergence` diagnostic.
 - **M6** Dogfood: reproduce one committed benchmark via the installed plugin; then one third-party skill.
 
+## Portability (installed elsewhere)
+
+The pure layer (`costing`, `benchstats`, `rubric`, judge dispatch, the promptfoo config
+gen/parse) is machine-independent — stdlib only, relative imports, `npx --yes promptfoo@latest`
+fetches on demand. What a consumer must provide / knows:
+
+- **CLIs on PATH, authenticated:** `grok` (grok judge/gen — resolved via `$GROK_BIN`, then PATH,
+  then `~/.grok/bin/grok`), `claude` (claude judge/gen), `node`/`npx` (promptfoo substrate). Not
+  bundled — documented requirements.
+- **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench-*` commands call
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/..."` so they resolve from any working directory.
+- **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode —
+  NOT by `/bench-verdict` or the native `/bench-skill`): set `$SKILL_BENCH_CONFIG_DIR` to a clean
+  credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
+- **Platform:** the hermetic CLAUDE.md-discovery behavior is Linux/WSL-only (#170 hard-problem 4).
+
+Remaining genericization (eval-schema/config layer, consumer-layout test) is #170's **M2** — not
+yet complete; treat cross-repo use as beta until M2 lands.
+
 ## Status
-Skeleton only: `plugin.json` + this README + `scripts/lib/crossfamily_judge.py` (prototype seed).
-No marketplace entry, no code moved, no gates touched. See `docs/decisions/0055-*` for the decision draft.
+Runnable slice: `/bench-verdict` + `/bench-skill` (native substrate + cross-family judge +
+deterministic cost accounting), harness lib moved in (M1), registered in the marketplace.
+Not yet done: M2 genericization, promptfoo generation wired into `/bench-skill`, M6 external proof.
+See `docs/decisions/0055-*` for the decision draft.

@@ -43,7 +43,10 @@ def build_env(effort="medium"):
     env = dict(os.environ)
     home = os.path.expanduser("~")
     env["PATH"] = os.path.join(home, ".local", "bin") + os.pathsep + env.get("PATH", "")
-    env["CLAUDE_CONFIG_DIR"] = os.path.join(home, "issue30", "claude-config")
+    # Clean auth-only config dir. Override with $SKILL_BENCH_CONFIG_DIR when installed elsewhere;
+    # the default is this repo's fallback (a consumer must create their own credentials-only dir).
+    env["CLAUDE_CONFIG_DIR"] = os.environ.get(
+        "SKILL_BENCH_CONFIG_DIR", os.path.join(home, "issue30", "claude-config"))
     env.pop("CLAUDECODE", None)
     env["CLAUDE_EFFORT"] = effort
     return env
