@@ -10,56 +10,82 @@ A Substrate.run(prompts, arms) -> list of {"prompt_id","arm","output"}, where an
   {"name": "C", "cmd": [argv...]}  and the prompt text is fed on stdin.
 The bench layer then normalizes + grades those outputs with judge.py / benchstats.py.
 """
-import json, os, subprocess, sys, tempfile
+import json, os, shlex, stat, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def build_promptfoo_config(prompts, arms):
-    """Emit a promptfoo config (JSON; promptfoo reads .json configs). Each arm is an `exec` provider
-    so generation goes through our own hermetic CLI calls — promptfoo owns the matrix, not the model.
-    `exec` passes the rendered prompt to the command; stdout is the response."""
+def build_promptfoo_config(prompts, providers):
+    """Emit a promptfoo config (JSON; promptfoo reads .json configs). `providers` is
+    [{"name": label, "exec": <shell command>}] — each becomes an `exec` provider so generation goes
+    through our own CLI calls; promptfoo owns the matrix, not the model. prompt_id rides in vars so
+    it is echoed back per result row (robust across promptfoo versions). Pure (no fs)."""
     return {
         "description": "skill-bench generation matrix",
         "prompts": ["{{text}}"],
-        "providers": [
-            {"id": "exec: " + " ".join(a["cmd"]), "label": a["name"]} for a in arms
-        ],
-        "tests": [{"vars": {"text": p}, "metadata": {"prompt_id": i}}
-                  for i, p in enumerate(prompts)],
+        "providers": [{"id": "exec: " + p["exec"], "label": p["name"]} for p in providers],
+        "tests": [{"vars": {"text": t, "prompt_id": i}} for i, t in enumerate(prompts)],
     }
 
 
+def unwrap_cli_output(s):
+    """If a generation arm emitted a CLI --output-format json envelope, return the text field
+    (claude=result, grok=text, schema=structuredOutput); else return the string unchanged."""
+    s = (s or "").strip()
+    try:
+        j = json.loads(s)
+    except Exception:
+        return s
+    if not isinstance(j, dict):
+        return s
+    v = j.get("result") or j.get("text") or j.get("structuredOutput")
+    if v is None:
+        return s
+    return v if isinstance(v, str) else json.dumps(v)
+
+
 def parse_promptfoo_output(obj):
-    """Tolerant parse of `promptfoo eval -o out.json`. Schema varies across versions; walk to the
-    results list and pull provider label, prompt_id (from vars/metadata), and response output."""
+    """Tolerant parse of `promptfoo eval -o out.json` (rows nest at results.results[] in 0.121).
+    Pull provider label, prompt_id (echoed in vars), and response output."""
     res = obj.get("results", obj)
     rows = res.get("results", res) if isinstance(res, dict) else res
     out = []
     for r in rows:
         prov = r.get("provider", {})
-        label = prov.get("label") or prov.get("id") if isinstance(prov, dict) else str(prov)
-        meta = (r.get("testCase", {}) or {}).get("metadata", {}) or r.get("metadata", {}) or {}
+        label = (prov.get("label") or prov.get("id")) if isinstance(prov, dict) else str(prov)
         vars_ = r.get("vars", {}) or {}
-        pid = meta.get("prompt_id", vars_.get("prompt_id"))
+        meta = (r.get("testCase", {}) or {}).get("metadata", {}) or r.get("metadata", {}) or {}
+        pid = vars_.get("prompt_id", meta.get("prompt_id"))
         resp = r.get("response", {})
         output = resp.get("output") if isinstance(resp, dict) else resp
         out.append({"prompt_id": pid, "arm": label, "output": output})
     return out
 
 
+def _write_arm_wrapper(workdir, arm):
+    """A shim promptfoo's exec provider calls with (prompt, contextJSON) — forward ONLY the prompt
+    ($1) to the arm command, so a bare `grok/claude -p` doesn't choke on promptfoo's context arg."""
+    path = os.path.join(workdir, f"arm_{arm['name']}.sh")
+    with open(path, "w") as f:
+        f.write('#!/bin/bash\nexec ' + shlex.join(arm["cmd"]) + ' "$1"\n')
+    os.chmod(path, os.stat(path).st_mode | stat.S_IEXEC | stat.S_IRWXU)
+    return path
+
+
 class PromptfooSubstrate:
     name = "promptfoo"
 
     def __init__(self, bin=None):
-        # prefer a local install, else `npx promptfoo`
+        # explicit arg > $SKILL_BENCH_PROMPTFOO_BIN > `npx promptfoo` (fetched on demand, portable)
+        bin = bin or os.environ.get("SKILL_BENCH_PROMPTFOO_BIN")
         self.bin = bin
         self.argv = [bin] if bin else ["npx", "--yes", "promptfoo@latest"]
 
     def run(self, prompts, arms, workdir=None):
         workdir = workdir or tempfile.mkdtemp(prefix="skillbench-pf-")
+        providers = [{"name": a["name"], "exec": "bash " + _write_arm_wrapper(workdir, a)} for a in arms]
         cfg = os.path.join(workdir, "promptfooconfig.json")
         out = os.path.join(workdir, "results.json")
-        json.dump(build_promptfoo_config(prompts, arms), open(cfg, "w"), indent=1)
+        json.dump(build_promptfoo_config(prompts, providers), open(cfg, "w"), indent=1)
         r = subprocess.run(self.argv + ["eval", "-c", cfg, "-o", out, "--no-cache"],
                            capture_output=True, text=True, timeout=1800, cwd=workdir)
         if not os.path.exists(out):

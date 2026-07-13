@@ -19,10 +19,7 @@ summary: "Extract the hermetic skill-measurement harness into a standalone `skil
 
 3. **Adopt a rented execution substrate under the bespoke layer, not instead of it.** Wrap `promptfoo` (npx, cheap CI gating) as the default runner behind the `hermetic_driver` interface; keep an `inspect-ai` option and a `claude -p`/`grok -p` fallback. The causal layer (arms, blind.py, cost_gate, verdict.py, prosecutor, pre-registration) stays on top — the differentiator.
 
-4. **UX: explicit-invoke commands with an up-front cost gate and a two-judge default.**
-   - `/bench-skill <dir> [--judge grok|claude|both] [--substrate promptfoo|inspect|native]` — paired hermetic value benchmark; prints a cost estimate and asks for confirmation BEFORE any paid run (spend guard, #170 hard-problem 1).
-   - `/trigger-test <dir>` — description ablation (TP/FP).
-   - `/bench-verdict <results> [--judge ...]` — re-run verdict math (incl. cross-family re-grade) on existing results with NO new generation spend — the exact prototype flow, generalized.
+4. **UX: ONE explicit-invoke `/bench` skill with subcommands (context-efficient — one standing description) + on-demand references, not many skills.** `skill` = paired value benchmark (up-front cost gate, spend guard, #170 hard-problem 1); `verdict` = re-judge existing results with NO generation spend (the generalized prototype); `trigger` = description ablation. Method depth lives in references/, referenced not restated (SSoT). Rationale: explicit-invoke surfaces don't need per-skill trigger precision, so minimizing standing descriptions wins.
 
 ## Justification
 The extraction was already planned (#170); this ADR adds the two capabilities the new evidence demands. Cross-family judging is default-on because same-family judging is now a MEASURED confound — its value is bias-reduction, NOT cost (grok and Claude are both marginally free here; runs are priced notionally at published rates by deterministic `costing.py`). Renting the substrate keeps the parts no vendor sells while dropping hand-rolled matrix plumbing; wrapping (not replacing) keeps M1's move behavior-neutral.

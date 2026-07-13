@@ -15,7 +15,7 @@ target design from ADR 0055. Nothing here is on the marketplace or moved out of 
 ## Architecture: bespoke layer on a rented substrate
 
 ```
-  /bench-skill  /trigger-test  /bench-verdict        <- explicit-invoke UX (cost-gated)
+  /bench (verdict | skill | trigger)                  <- one explicit-invoke skill, subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
   cross-family judge (grok default) | verdict.py         keep in-repo; no vendor sells this
@@ -56,7 +56,7 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - **M0** `/decide` ADR 0055 (scope, judge default, substrate). Resolve #150/ADR 0050 dependency shape.
 - **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; update `gates.yml` + nav; gates stay green.
 - **M2** Genericize: config layer + consumer-layout test.
-- **M3** Skill surfaces: the three `/bench-*` wrappers, explicit-invoke, cost-gated.
+- **M3** Skill surface: one `/bench` skill (verdict | skill | trigger subcommands) + on-demand references.
 - **M4** Substrate adapter: promptfoo behind `hermetic_driver`; inspect-ai option; native fallback.
 - **M5** Cross-family judge wired into the grading template + `judge-divergence` diagnostic.
 - **M6** Dogfood: reproduce one committed benchmark via the installed plugin; then one third-party skill.
@@ -70,10 +70,10 @@ fetches on demand. What a consumer must provide / knows:
 - **CLIs on PATH, authenticated:** `grok` (grok judge/gen — resolved via `$GROK_BIN`, then PATH,
   then `~/.grok/bin/grok`), `claude` (claude judge/gen), `node`/`npx` (promptfoo substrate). Not
   bundled — documented requirements.
-- **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench-*` commands call
+- **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench` subcommands call
   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/..."` so they resolve from any working directory.
 - **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode —
-  NOT by `/bench-verdict` or the native `/bench-skill`): set `$SKILL_BENCH_CONFIG_DIR` to a clean
+  NOT by `/bench verdict` or the native `/bench skill`): set `$SKILL_BENCH_CONFIG_DIR` to a clean
   credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior is Linux/WSL-only (#170 hard-problem 4).
 
@@ -81,12 +81,12 @@ Remaining genericization (eval-schema/config layer, consumer-layout test) is #17
 yet complete; treat cross-repo use as beta until M2 lands.
 
 ## Status
-Runnable: `/bench-verdict` + `/bench-skill` (native substrate + availability-aware cross-family
+Runnable: `/bench` with `verdict` + `skill` subcommands (native substrate + availability-aware cross-family
 judge with grok->claude fallback + deterministic cost accounting), harness lib moved in (M1),
 config layer + consumer-layout test (M2), registered in the marketplace.
 
 Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces a verdict from a
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
-CI-runnable, needs authenticated grok). Not yet done: promptfoo generation wired into `/bench-skill`,
+CI-runnable, needs authenticated grok). Not yet done: promptfoo generation wired into `/bench skill`,
 the `/plugin install` marketplace round-trip (#170 M4/M6 tail). See `docs/decisions/0055-*`.

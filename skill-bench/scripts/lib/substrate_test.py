@@ -8,18 +8,19 @@ import substrate as sub  # noqa: E402
 
 
 class TestSubstrate(unittest.TestCase):
-    def test_config_one_provider_per_arm(self):
-        cfg = sub.build_promptfoo_config(["p0", "p1"], [{"name": "A", "cmd": ["grok", "-p"]},
-                                                        {"name": "C", "cmd": ["claude", "-p"]}])
+    def test_config_one_provider_per_spec(self):
+        cfg = sub.build_promptfoo_config(["p0", "p1"], [{"name": "A", "exec": "bash a.sh"},
+                                                        {"name": "C", "exec": "bash c.sh"}])
         self.assertEqual([p["label"] for p in cfg["providers"]], ["A", "C"])
-        self.assertTrue(cfg["providers"][0]["id"].startswith("exec: "))
+        self.assertEqual(cfg["providers"][0]["id"], "exec: bash a.sh")
         self.assertEqual(len(cfg["tests"]), 2)
         self.assertEqual(cfg["tests"][1]["vars"]["text"], "p1")
-        self.assertEqual(cfg["tests"][1]["metadata"]["prompt_id"], 1)
+        self.assertEqual(cfg["tests"][1]["vars"]["prompt_id"], 1)  # prompt_id rides in vars
 
     def test_parse_nested_results_schema(self):
+        # promptfoo 0.121 shape: rows at results.results[], prompt_id echoed in vars
         obj = {"results": {"results": [
-            {"provider": {"label": "C"}, "metadata": {"prompt_id": 0}, "response": {"output": "hi"}},
+            {"provider": {"label": "C"}, "vars": {"prompt_id": 0}, "response": {"output": "hi"}},
             {"provider": {"id": "exec: x"}, "vars": {"prompt_id": 1}, "response": {"output": "yo"}},
         ]}}
         rows = sub.parse_promptfoo_output(obj)
