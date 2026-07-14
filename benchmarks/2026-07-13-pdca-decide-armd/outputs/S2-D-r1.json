@@ -1,0 +1,143 @@
+{
+ "cell": "S2-D-r1",
+ "scenario": "S2",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 26371.7,
+  "duration_ms": 24851,
+  "duration_api_ms": 26246,
+  "cost_usd": 0.077317,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 4201,
+   "cache_read_input_tokens": 80580,
+   "output_tokens": 1752,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4201,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1443,
+     "cache_read_input_tokens": 27719,
+     "cache_creation_input_tokens": 2016,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2016
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:59:10.247674+00:00",
+   "end": "2026-07-14T06:59:36.619385+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.2695531
+ },
+ "response": "## Decision: Option A \u2014 extract `dispatcher_console` only\n\n**Rejecting B:** Its sole justification is the enterprise-procurement pressure, and the memo's own author has already falsified its evidentiary basis \u2014 asked twice for a named prospect, lost-deal note, or procurement ticket, got nothing both times (MEMO.md, \"The pressure to go big\"). The assumption probe is correct that this is B's one load-bearing dependency; it's not just weak, it's actively disconfirmed. Layering the premortem on top: modules.md shows only one module (`dispatcher_console`) has the clean-seam properties (0 inbound callers, isolated write table) that make extraction tractable. `notifications` (9 callers, 3 shared tables) and `bookings` (6 callers, \"not a candidate for early extraction\") are explicitly flagged as entanglements. A \"sequence several extractions over two quarters\" plan is a plan to eventually hit one of those and stall into dual-write shims \u2014 and per MEMO.md's own framing, B's infrastructure/on-call/API-contract commitments are \"slow and expensive to unwind\" once that happens. Committing hard-to-reverse cost against an unfalsified claim, with technical evidence pointing at stall risk, is the failure mode both probes converge on independently.\n\n**Rejecting C:** Its load-bearing assumption \u2014 that Ops Tools' blocked-at-release pain is tolerable to keep absorbing \u2014 is contradicted by the memo's own framing (\"increasingly blocked,\" a dedicated four-engineer team whose release cadence is actively constrained by the shared deploy train). Doing nothing doesn't just defer a nice-to-have; it leaves a real, currently-accruing cost unaddressed with no offsetting benefit, since C's only virtue (avoiding migration risk) is achievable more cheaply via A.\n\n**Choosing A:** It's the only option whose load-bearing assumption is actually verified rather than asserted. modules.md confirms `dispatcher_console` is a genuine leaf (0 inbound callers) with a fully private write table (`dispatch_events`, read by nothing else) \u2014 this is first-party, dated evidence (2026-06-10), not a secondhand claim. It directly relieves the one concrete, named pain in the memo (Ops Tools blocked on shared deploys), and its downside is bounded and known: ~1 week to fold back via a routing change if it doesn't pay off. That reversibility is the decisive asymmetry \u2014 it lets us test whether service extraction delivers value at all before taking on B's irreversible commitments, and it does so on the one module the data says is actually safe to move.\n\n**Follow-up condition:** Re-evaluate toward B only if, after the dispatcher extraction ships, someone produces the concrete procurement evidence that's currently missing (named prospect, lost-deal note, or ticket) \u2014 not before. Absent that, the next extraction candidate (if any) should be judged against modules.md's coupling data the same way `dispatcher_console` was, module by module, not committed to as a multi-quarter batch.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 40624.6,
+   "duration_ms": 39310,
+   "duration_api_ms": 40565,
+   "cost_usd": 0.11067549999999998,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 7754,
+    "cache_read_input_tokens": 73075,
+    "output_tokens": 2768,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 7754,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2555,
+      "cache_read_input_tokens": 26927,
+      "cache_creation_input_tokens": 955,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 955
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:58:29.622608+00:00",
+    "end": "2026-07-14T06:59:10.247183+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "I read both files. Note: this is a premortem on the *scope decision* itself, not a recommendation \u2014 I'm not picking A/B/C.\n\nGiven the pressure described (\"go big\" per Sales), the premortem is most useful applied to Option B (the broad multi-service migration), since that's the path with real irreversible exposure \u2014 Option A's blast radius is capped at \"about a week\" to unwind (MEMO.md, \"Options\"), so there's little to premortem there.\n\n**1. The sequencing plan hits notifications (or bookings) and stalls.** Option B commits to \"sequencing several extractions over the next two quarters\" \u2014 but modules.md is explicit that only `dispatcher_console` has a clean seam (0 inbound callers, one private write table). `notifications` has 9 synchronous callers and shares 3 tables (`bookings`, `customers`, `users`), and modules.md calls extracting it first \"a multi-month entanglement.\" `bookings` itself has 6 inbound callers and is flagged \"not a candidate for early extraction.\" A multi-service roadmap that isn't just repeating the dispatcher pattern will eventually reach one of these modules; the shared-table decoupling gets underestimated, the two-quarter timeline blows out, and teams patch over it with dual-read/dual-write shims that drift out of sync \u2014 the classic half-migrated state where neither the monolith nor the service is the source of truth.\n\n**2. The commitments make failure unaffordable to reverse.** MEMO.md is explicit that Option B \"commits infrastructure, on-call rotations, and cross-team API contracts that are slow and expensive to unwind,\" in direct contrast to Option A's one-week reversal. If, six months in, only the dispatcher extraction (the one clean seam) actually delivered value and the rest are stuck mid-migration per failure class 1, the org can't just fold back \u2014 teams already depend on the new API contracts and on-call rotations are already staffed. The failure isn't the technical entanglement alone; it's that the decision to go broad removed the exit that Option A preserved, so a bad bet can't be cut short.\n\n**3. The founding justification was never real.** The MEMO's own author flags that the \"loudest argument in the room\" \u2014 enterprise prospects asking about microservices in procurement \u2014 is secondhand: \"I have asked twice for one specific prospect, a lost-deal note, or a procurement ticket tied to that claim, and I have not gotten one.\" If Option B ships on that basis, the six-month failure mode is that no deal closes or unblocks because of it \u2014 the claim was unfalsifiable going in \u2014 while the engineering cost (rotations, contracts, partial extractions) is fully sunk and can't be pointed back to any won business."
+  },
+  "assumption": {
+   "duration_ms_wall": 13610.6,
+   "duration_ms": 12034,
+   "duration_api_ms": 13186,
+   "cost_usd": 0.08156059999999998,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8188,
+    "cache_read_input_tokens": 72442,
+    "output_tokens": 667,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8188,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 397,
+      "cache_read_input_tokens": 26300,
+      "cache_creation_input_tokens": 2016,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2016
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:58:29.622930+00:00",
+    "end": "2026-07-14T06:58:43.233561+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "- **A (extract dispatcher_console only):** load-bearing dependency is that dispatcher_console is actually a clean, isolated seam (0 inbound callers, private write table). If X is false \u2014 i.e., the coupling map is wrong or stale and dispatcher_console has hidden dependents/shared writes \u2014 option A flips, since its whole case rests on ~1 week reversibility.\n\n- **B (full multi-service migration, multi-quarter):** load-bearing dependency is the enterprise-procurement pressure being real and specific (\"prospects keep asking about microservices\"). If X is false \u2014 the memo notes this claim is secondhand twice with no named prospect, lost-deal note, or procurement ticket \u2014 option B flips, since it's the only argument in the memo for taking on multi-quarter, hard-to-reverse cost now.\n\n- **C (do nothing):** load-bearing dependency is that Ops Tools' release-blocking pain is tolerable to absorb longer. If X is false \u2014 i.e., the four-engineer team's velocity loss/blockage is costly enough that shipping-cadence pain outweighs migration cost \u2014 option C flips, since the whole memo is motivated by Ops Tools being \"increasingly blocked.\""
+  }
+ },
+ "artifacts": {}
+}

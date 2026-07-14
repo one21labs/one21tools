@@ -1,0 +1,56 @@
+{
+ "cell": "S3-C-r2",
+ "scenario": "S3",
+ "arm": "C",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 1105960.7,
+  "duration_ms": 1104321,
+  "duration_api_ms": 1120499,
+  "cost_usd": 3.7325618000000005,
+  "usage": {
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 21933,
+   "cache_read_input_tokens": 363274,
+   "output_tokens": 5258,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 21933,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1176,
+     "cache_read_input_tokens": 42687,
+     "cache_creation_input_tokens": 2496,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2496
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T07:08:16.208362+00:00",
+   "end": "2026-07-14T07:26:42.169067+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 3.7325618000000005
+ },
+ "response": "The full `/decide` process ran (framed the scope, convened a two-sided advisor panel, weighed it, decided, and recorded an ADR at `docs/decisions/0001-nightly-sync-orchestration.md`). Here's the decision record:\n\n---\n\n# ADR 0001: Do not adopt an orchestration framework for the nightly sync yet\n\n**Status:** Accepted \u00b7 **Date:** 2026-07-14 \u00b7 **Decider:** PM (accountable)\n\n## Weakest assumption\n- **[checkable]** No burst of *interdependent* nightly jobs is already planned within ~6\u201312 months; growth stays flat or independent. REOPEN-IF the roadmap already shows 3+ coupled jobs coming.\n\n## Context\n`nightly_sync.py` (41 lines) pulls three Postgres tables to S3 as Parquet and refreshes two materialized views for a two-person team. `sync_runs.csv` shows 30 rows, all one month, all success \u2014 narrower evidence than the memo's \"14 months, zero failures / it pages us\" claim, and a clean log can't distinguish \"never failed\" from \"failed silently.\" The code has no `try/except`; a mid-run exception leaves partial S3 state and stale views with no alert path, but each dump is idempotent per day and reruns cleanly \u2014 so the real gap is **detection**, not orchestration.\n\n## Decision\n**Reject adopting Conductor now. Adopt a refined middle path, governed by a stated revisit trigger:**\n1. No Conductor, no orchestration service \u2014 cron stays the scheduler.\n2. Add a completion heartbeat / dead-man's-switch (absence-of-success alerts) plus non-zero exit on exception \u2014 catches host-down, cron-didn't-fire, and mid-run crash alike, which an in-process try/except alone cannot.\n3. ~20\u201340 lines total. No metadata DB, no worker pool, no upgrade treadmill.\n\n## Rationale\nOpposing advisors split on adopt-now vs. don't, but converged on the same fulcrum: the call turns on future *interdependent* job growth, not this job's track record. One linear, idempotent, 6-minute job needs none of Conductor's DAG/backfill/lineage machinery. The one genuine gap (silent-failure visibility) is fixed cheaply now; the discipline of not paying a permanent operational tax for a single reliable job becomes the plan of record.\n\nEffort \u00d7 Risk \u00d7 Value: A \u2014 Low\u00d7Med\u00d7Low (gap stays open); B \u2014 High\u00d7Med-High\u00d7Low (permanent surface, unusable features); **C refined \u2014 Low\u00d7Low\u00d7Med (chosen)**.\n\n## Revisit trigger (flips the answer to adopt)\nReopen when **any one** holds:\n- \u22653 scheduled jobs joined by real data dependencies (a dependency *edge*, not raw job count)\n- Failure rate \u226510% of runs/month that a single retry doesn't resolve\n- Backfills/reprocessing become recurring manual work (>1\u00d7/month)\n\n**Not triggers:** wanting the DAG UI, \"industry-standard shape,\" \"grow into it,\" or a 2nd/3rd *independent* job.\n\n## Follow-up\nImplement the heartbeat + fail-loud change, and test the alert path by forcing one failure \u2014 don't trust it unverified, since that's the same mistake the original \"it pages us\" claim already makes.\n\n---\n\nRecorded at `/tmp/armd-S3-C-r2-4y8rz8ul/docs/decisions/0001-nightly-sync-orchestration.md`.",
+ "probes": {},
+ "artifacts": {
+  "docs/decisions/0001-nightly-sync-orchestration.md": "---\nid: 0001\ntitle: Do not adopt an orchestration framework for the nightly sync yet\nsummary: Reject Conductor for one reliable nightly job; close the sole real gap (silent failure) with a cheap heartbeat, keep cron, and gate adoption on a stated interdependency/failure-rate trigger.\nstatus: Accepted\ndate: 2026-07-14\ndeciders: PM (accountable)\ntags: [checkable]\n---\n\n# ADR 0001: Do not adopt an orchestration framework for the nightly sync yet\n\n## Weakest assumption (most visible \u2014 attack this first)\n- [checkable] No burst of *interdependent* nightly jobs is already planned within ~6\u201312 months; growth stays flat or independent. The memo names no roadmap, so I assume flat/independent growth. If several coupled jobs (one's output gating another's run) are already coming, the framework's fixed cost is cheaper paid now than later, and Option B strengthens. REOPEN-IF the roadmap already shows 3+ coupled jobs coming \u2014 reopen now, not at the trigger below.\n\n## Context\nA two-person team runs one nightly job, `nightly_sync.py` (41 lines): pull three Postgres tables to S3 as Parquet, refresh two materialized views. A teammate proposes **Conductor** (DAG UI, retries, SLA alerts, backfills, scheduler, metadata DB, worker pools, plugins), pitched as \"grow into it\" \u2014 a permanent ops commitment (scheduler + metadata DB + worker pool + upgrade treadmill) for two.\n\nTwo file-verified facts outweigh the headline:\n- **Evidence is narrower than the claim.** `sync_runs.csv` is 30 rows, all June 2026, all `success`. The memo's \"14 months, zero failures\" and \"it pages us\" are unverifiable here \u2014 and a success-only log reads \"zero failures\" whether the job never failed *or* failed silently. A clean record is not evidence an alert path works.\n- **The one real gap isn't what the framework sells.** `nightly_sync.py` has no `try/except`; `main()` (30\u201338) dumps three tables in a loop (34\u201337) then refreshes views (25\u201328) \u2014 a mid-run exception leaves partial S3 state and stale views with **no in-code alert** (only unverified cron mail). But the job is safely rerunnable: each dump writes a date-stamped key (line 19) overwritten on same-day rerun, and `REFRESH MATERIALIZED VIEW` is idempotent. Recovery is \"run it again\" \u2014 that needs **detection**, not orchestration.\n\n## Decision\n**Reject Option B (adopt now). Adopt a refined Option C, governed by Option A's trigger discipline.**\n1. **No Conductor**, no orchestration service. Keep cron as the scheduler.\n2. **Close the gap alert-first (poka-yoke over retry):** add a **completion heartbeat / dead-man's-switch** \u2014 the run pings an external check on success by ~02:20; **absence of the ping alerts.** This makes silent failure impossible to miss and catches all three modes \u2014 host down / cron didn't fire, crash mid-loop, partial write \u2014 which an in-process `try/except` cannot (it can't fire if the process never runs). Make `main()` exit non-zero on any exception; one transient retry is optional (idempotent per day).\n3. **~20\u201340 lines, no service the team maintains** \u2014 no metadata DB, worker pool, or upgrade treadmill.\n\n## Rationale (panel weighed)\nOpposing counsel split A vs B but **agreed on the fulcrum**: the call turns on future *interdependent* job growth, not this job's record. That is the reframe \u2014 not \"framework or not\" but two separable questions: (1) *Is there a gap today?* Yes, exactly one: silent-failure visibility. (2) *Do we need orchestration \u2014 DAGs, backfills, lineage, a scheduler?* No; one linear, idempotent, 6-minute job has none of those.\n\nSplitting cheap-now from full-later resolves the tie without conceding either point. The pro-adopt case's strongest, code-grounded concern (unmonitored partial failure at 34\u201337) is **fixed now, cheaply.** The anti-adopt discipline (don't pay a permanent tax for one reliable job) **becomes the plan of record.** \"Grow into it\" is not free optionality: it buys a standing ops surface \u2014 itself a new failure domain \u2014 against demand that does not yet exist.\n\nEffort \u00d7 Risk \u00d7 Value: **A** Low \u00d7 Med \u00d7 Low (cheap, gap open); **B** High \u00d7 Med\u2013High \u00d7 Low (permanent surface + failure domain, unusable features); **C refined** Low \u00d7 Low \u00d7 Med (closes the only gap, no standing service). **C chosen.**\n\n## Revisit trigger (falsifiable \u2014 flips the answer to B)\nReopen adoption when **any one** [checkable] threshold holds:\n- **Coordination:** \u2265 3 scheduled jobs joined by real data dependencies (one's output gates another's start). A dependency *edge* earns a scheduler, not raw job count.\n- **Reliability:** failure rate \u2265 10% of runs over a trailing month (\u2248 3+/30 days) that a single retry does **not** resolve.\n- **Recovery:** backfills/reprocessing become recurring manual work (> 1\u00d7/month).\n\n**NOT triggers (feature-envy):** wanting the DAG UI/lineage, \"industry-standard shape,\" \"grow into it,\" or a 2nd/3rd *independent* job (replicate the heartbeat instead).\n\n## Consequences\n- **Positive:** the one real risk closes this week; ops surface stays ~zero; the flip condition is measurable, so the next debate is settled by data.\n- **Accepted:** no DAG UI/backfills/lineage until a trigger fires; if a coupled-job burst is *already* planned (see weakest assumption), we defer a marginally costlier migration \u2014 mitigated by the reopen rule.\n- **Follow-up:** implement heartbeat + fail-loud on `nightly_sync.py`; **test the alert path by forcing one failure** \u2014 don't trust it unverified, the mistake the \"it pages us\" claim already makes.\n\n## Options considered\n- **A \u2014 keep cron, revisit at a trigger:** right on the framework, gap left open. Adopted *in part* (its trigger discipline).\n- **B \u2014 adopt Conductor now:** rejected \u2014 permanent commitment + new failure domain for features this one job cannot use.\n- **C \u2014 retry/alert wrapper:** adopted, **refined to alert-first (heartbeat)** to catch host-down and cron-didn't-fire, not just in-process errors.\n"
+ }
+}

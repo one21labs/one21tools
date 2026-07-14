@@ -1,0 +1,143 @@
+{
+ "cell": "B4-D-r1",
+ "scenario": "B4",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 279017.8,
+  "duration_ms": 277681,
+  "duration_api_ms": 278340,
+  "cost_usd": 1.2746681,
+  "usage": {
+   "input_tokens": 72,
+   "cache_creation_input_tokens": 51847,
+   "cache_read_input_tokens": 2121017,
+   "output_tokens": 21658,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 51847,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 845,
+     "cache_read_input_tokens": 74999,
+     "cache_creation_input_tokens": 2574,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2574
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:34:53.294603+00:00",
+   "end": "2026-07-14T06:39:32.312371+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.6720548
+ },
+ "response": "The record reads well. This is my decision.\n\n## Decision: Proceed, staged \u2014 recorded as ADR 0036\n\nI read ISSUE-109.md, ADR 0035, ADR 0024, and the fullgrid README, then weighed both probes. **Verdict: proceed with the routing experiment, but only the cheap checker-fidelity pre-screen runs now \u2014 the expensive full grid is gated on its result.** Full record: `docs/decisions/0036-routing-experiment-verdict.md`.\n\nWhy not the other three options:\n\n- **Not the full grid immediately** \u2014 that spends on the expensive arm before the cheap gate resolves whether it's worth running at all; the issue's own text already treats this as wasteful if the checker can't clear ~10-15% false-accept.\n- **Not decline outright** \u2014 that requires assuming the checker's task (single-shot accept/escalate on an unassisted attempt) is the same hard problem as the #41 validator's task (accept/reject after one coached redispatch). ADR 0035 only measured the latter. Both probes converged on this being the load-bearing gap; treating them as equivalent is an assertion, not a measurement \u2014 which cuts against ADR 0024's own ethos exactly as much when declining as when adopting.\n- **Not indefinite deferral** \u2014 the pre-screen is near-free (reuses the existing harness) and the open question is real; \"no urgency\" bears on the full grid's scheduling, not on whether to run something this cheap.\n\nThe binding conditions I attached, driven directly by the premortem's three failure classes:\n\n1. The pre-screen must measure the **new** checker's false-accept rate as its own arm \u2014 the 25% figure cited in the issue is borrowed from a structurally different, coached-iteration validator and can't be the adopt/reject input.\n2. Any pass is scoped to \"gradient-subset-like tasks\" only, since that subset was curated specifically for being tier-discriminating \u2014 not proven to generalize.\n3. If routing ships, an escalation-rate re-measurement trigger is bound to the adoption, since the cost case is a point estimate coupled to checker conservatism and could drift silently otherwise.\n\nOne caveat: `adr-lint.mjs` requires shell approval to run in this session, which wasn't available, so I couldn't execute it directly \u2014 I hand-verified its checks instead (frontmatter, ADR-cite resolution, no version strings, falsifiability bullet, char budget at 5992/6000). Worth a real `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` run before this merges.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 65093.3,
+   "duration_ms": 63698,
+   "duration_api_ms": 64513,
+   "cost_usd": 0.2384233,
+   "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 20883,
+    "cache_read_input_tokens": 141571,
+    "output_tokens": 4661,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 20883,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3258,
+      "cache_read_input_tokens": 32967,
+      "cache_creation_input_tokens": 8044,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 8044
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:33:48.200897+00:00",
+    "end": "2026-07-14T06:34:53.294181+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read `ISSUE-109.md`, ADR 0035, ADR 0024, and the `2026-07-10-tiered-execution-fullgrid/README.md` to ground this. Premortem only \u2014 three failure classes that plausibly kill this six months out:\n\n**1. The checker's false-accept rate is a borrowed statistic, not a measured one.** The \"25% false-accept\" cited as the known threat (ISSUE-109.md:13) comes from ADR 0035's tiered arm \u2014 a sonnet **validator** that redispatched a haiku worker with corrections after seeing its output (`fullgrid/README.md`: \"orchestrator... validates against the ORIGINAL request -> may redispatch the worker ONCE with corrections\"). Routing's checker is a structurally different component: a one-shot accept/escalate gate with no coaching loop. If the team anchors the adopt/reject decision rule (ISSUE-109.md:16) on that borrowed 25% number instead of re-measuring the new checker's actual false-accept rate as its own arm, the number driving the go/no-go isn't measuring the thing being adopted. Six months later: routing ships calibrated against the wrong statistic, and the real false-accept rate \u2014 discovered only in production \u2014 sits above the \"~10-15%\" ceiling ISSUE-109.md:14 itself says is required for routing to beat Sonnet-solo.\n\n**2. Checker tuned on the gradient subset doesn't generalize past it.** ADR 0035:13 graded quality only on \"the 8-task gradient subset,\" chosen specifically because \"most non-gradient tasks floor on model-tier comparisons\" (ADR 0035:32, the pre-screen rule) \u2014 i.e., those 8 tasks were selected *for* being where Haiku-vs-Sonnet differences are visible. ISSUE-109.md:9 proposes reusing \"the same 8 gradient tasks\" for the routing arm too. A checker whose accept/escalate boundary is validated against a set curated to be discriminating is exactly the kind of instrument that overfits to that set's difficulty profile. In production, task types outside the gradient subset (including the ones that \"floor\" in-benchmark, meaning tier differences are subtle or absent) are where a checker is most likely to false-accept undetected, because the benchmark that green-lit it never exercised that region.\n\n**3. The cost case degrades silently as escalation rate drifts, with no re-measurement trigger.** ISSUE-109.md:10 pins routing's cost advantage to a single point-estimate of escalation rate E (`0.016 + E \u00d7 (checker + 0.055)`), and E is coupled to checker conservatism \u2014 tighten the checker to cut false-accepts (failure class 1) and E rises toward Sonnet-solo cost; loosen it and false-accepts rise instead. ADR 0024's framework measures this once, at adoption, per its own pattern (ADR 0035's aggregate.py computing fixed ratios from a committed snapshot). Unlike ADR 0035, which carries explicit \"Revisit triggers,\" ISSUE-109's decision rule (line 16) has no stated re-measurement condition. If production task-mix skews harder than the benchmark's 8-24 tasks, E creeps up post-adoption undetected, and routing converges on Sonnet-solo's cost while still carrying the residual quality tax from false-accepts \u2014 strictly worse than never adopting it, and invisible until someone happens to re-audit."
+  },
+  "assumption": {
+   "duration_ms_wall": 48798.9,
+   "duration_ms": 47411,
+   "duration_api_ms": 48406,
+   "cost_usd": 0.15896339999999998,
+   "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 12487,
+    "cache_read_input_tokens": 108608,
+    "output_tokens": 3381,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 12487,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2920,
+      "cache_read_input_tokens": 30304,
+      "cache_creation_input_tokens": 2311,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2311
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:33:48.201646+00:00",
+    "end": "2026-07-14T06:34:37.000604+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read both `ISSUE-109.md` and the ADR 0035 verdict it stems from. Here are the realistic options and each one's single load-bearing premise \u2014 no recommendation, no decision.\n\n**Option A \u2014 Proceed with the full routing experiment now (grid across checker variants + escalation cost).**\nLoad-bearing premise: a checker can plausibly beat ~10-15% false-accept (ISSUE-109.md:14). ADR 0035 already measured this style of Sonnet-as-validator at 25% false-accept in the coached-iteration setting (docs/decisions/0035-tiered-execution-verdict.md, replication note \"validator false-accepted 6/24\"). If that premise is false \u2014 if judging a whole artifact accept/reject turns out to be the same hard task with the same ~25% ceiling \u2014 the full grid is spend chasing a result already on record, and option A flips to \"don't run it.\"\n\n**Option B \u2014 Run only the cheap checker-fidelity pre-screen first, gate the full grid on its result** (per the issue's own fallback, ISSUE-109.md:14: \"should be recorded without a full grid\").\nLoad-bearing premise: checker false-accept rate is measurable in isolation, independent of the escalate-to-Sonnet pipeline it feeds. If false \u2014 if false-accept behavior only shows up once wired into the real routing loop (e.g. interacts with escalation triggering) \u2014 the staged/cheap pre-screen doesn't actually predict the real number, so it buys nothing and the choice flips to either A (just run the full grid) or C (skip straight to decline).\n\n**Option C \u2014 Decline: treat ADR 0035 as already answering this, since the checker is functionally the same role as the rejected validator.**\nLoad-bearing premise: the routing checker's task (accept/reject Haiku's single unassisted attempt) is equivalent to the #41 validator's task (accept/reject after coached iteration). If false \u2014 if single-shot routing is meaningfully easier to judge, or a deterministic checklist checker (untested in #41, floated at ISSUE-109.md:14) sidesteps the judgment-heavy failure mode \u2014 then declining is premature, since the \"actually-validated shape\" (ISSUE-109.md:6) is precisely the untested case, and the choice flips to proceed.\n\n**Option D \u2014 Defer (no experiment now, revisit later); issue itself flags \"no urgency\" (ISSUE-109.md:16).**\nLoad-bearing premise: nothing currently makes Sonnet-solo's cost a live problem, so waiting costs nothing. If false \u2014 if there's actual cost/latency pressure to cut Sonnet-solo spend now \u2014 deferring is the wrong call and it flips to A or B."
+  }
+ },
+ "artifacts": {}
+}

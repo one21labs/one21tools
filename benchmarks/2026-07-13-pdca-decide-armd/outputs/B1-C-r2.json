@@ -1,0 +1,56 @@
+{
+ "cell": "B1-C-r2",
+ "scenario": "B1",
+ "arm": "C",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 1742166.0,
+  "duration_ms": 1739830,
+  "duration_api_ms": 2036701,
+  "cost_usd": 8.58745365,
+  "usage": {
+   "input_tokens": 60,
+   "cache_creation_input_tokens": 90513,
+   "cache_read_input_tokens": 2082308,
+   "output_tokens": 23251,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 90513,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 972,
+     "cache_read_input_tokens": 111018,
+     "cache_creation_input_tokens": 2745,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2745
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T05:55:06.251179+00:00",
+   "end": "2026-07-14T06:24:08.417259+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 8.58745365
+ },
+ "response": "The decision has been recorded \u2014 ADR 0035, revised in response to red-team, passing verification. Here's the final decision record:\n\n---\n\n**ADR 0035 \u2014 tiered-execution: build + run the pre-registered test (adoption stays gated)**\n\n`docs/decisions/0035-tiered-execution-empirical-test.md` \u00b7 status: accepted \u00b7 5,988/6,000 chars\n\n**Summary:** Build the net-new tiered-orchestration script + run issue #41's 4-arm pre-registered test under resolved owner-calls; does NOT adopt tiered execution (gated on the test's decision rule) \u2014 produces the signal ADR 0006:24 waits on.\n\n**Panel:** process-economist, lean-process-engineer, session-operator. Verified (no blockers); red-team found 5 breaks, all folded in.\n\n**Decision:**\n1. **Build + run, not adopt.** New net-new `<=3` re-dispatch loop (no in-repo precedent) around `agent()` with per-role `model:`. Adoption stays gated on Issue #41 Comment 1 as the sole rule-SSoT (delta \u2265 \u22120.05 AND tokens-OR-wall-clock \u2264 0.7\u00d7). A PASS authorizes tiered execution **only for text-generation subtasks**; tool-using Do-phase adoption stays barred until a deferred tool-using variant runs.\n2. **Grader independence:** accept the Sonnet-grades-Sonnet residual (ADR 0019 precedent); report validator false-accept/reject.\n3. **Hermetic scope:** scope to the existing text-only eval format \u2014 dissolves the \"tool-deny impossible\" fork structurally (poka-yoke), rather than by assertion. Tool-using variant deferred to its own issue.\n4. **Retry-cap + feedback:** cap \u22643 (settled); validator returns the grader's `{pass,met,total,evidence}` schema, feeding `evidence` verbatim to the next worker \u2014 never the withheld grading expectations.\n5. **Smoke test** folded into the pre-screen: assert each arm's *realized* per-role model (not just key-presence) and that the re-dispatch loop actually converges, before the ~250-300-invocation spend.\n6. **Model-pin run check** relabeled honestly as a manual step, not a poka-yoke \u2014 the real value-guard is item 5.\n\n**Not decided here:** whether to actually adopt tiered execution \u2014 that requires the test's data, per ADR 0024's \"do not adopt on assertion.\"\n\n**Deferred (flagged, not filed):** a phantom citation in `rerun-never.sh:8,13` to a nonexistent `2026-07-10-tiered-execution/harness.py` \u2014 needs a GitHub issue at the build PR, per ADR 0021.\n\nThe pre-existing `0026`\u2194`0023` unpointed-amendment lint finding is unrelated corpus drift, not a regression from this change.",
+ "probes": {},
+ "artifacts": {
+  "docs/decisions/0035-tiered-execution-empirical-test.md": "---\nid: 0035\ntitle: \"Build + run the pre-registered tiered-execution test (adoption stays gated)\"\nstatus: accepted\nsummary: \"Build the net-new tiered-orchestration script + run issue #41's 4-arm pre-registered test under resolved owner-calls; does NOT adopt tiered execution (gated on the test's decision rule) \u2014 produces the signal ADR 0006:24 waits on.\"\n---\n\n# 0035 \u2014 tiered-execution: build + run the pre-registered test (adoption stays gated)\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: process-economist, lean-process-engineer, session-operator (plugin-adopter skipped \u2014 internal tooling).\n- Context: issue #41 asks to adopt tiered execution (Sonnet plans+validates -> Haiku implements, <=3) for the Do phase. ADR 0024 bars adopt-on-assertion; no orchestration script exists. The decidable call is not adoption but build + run Comment 1's test, resolving Comment 3's 3 owner-calls.\n\n## Decision\n1. **Build + run, not adopt.** Build the net-new orchestration script (a <=3 re-dispatch loop around `agent()` with per-role `model:`) and run Comment 1's 4-arm test. The loop is net-new, NO in-repo precedent \u2014 `grade.workflow.js:41-51` is a fixed two-stage `pipeline`, not a retry loop; item 5 must prove it converges. Adoption stays gated on the pre-registered rule (Issue #41 Comment 1 is the SSoT: delta vs Sonnet-solo >= -0.05 AND tokens-OR-wall-clock <= 0.7x). A PASS authorizes tiered execution ONLY for text-generation subtasks; tool-using Do-phase adoption stays BARRED until the deferred variant runs. Recorded either way as a future adoption ADR + this ADR's `## Act` (ADR 0024).\n2. **Owner-call 1 \u2014 grader independence: ACCEPT the Sonnet-grades-Sonnet residual** (ADR 0019; 3 tiers exhaust Haiku/Sonnet/Opus). Reuse the blind grade + adversarial prosecutor verbatim (`grade.workflow.js:43,46`); report the validator's false-accept/false-reject (Comment 1 control). Don't defer.\n3. **Owner-call 2 \u2014 hermetic scope (the panel split): scope to the EXISTING text-only eval format** (skills/*/evals/evals.json, response-vs-expectations, `grade.workflow.js:30-34`). Reframe dissolves the fork: text tasks need no tools, so the deny-list carries UNCHANGED (`harness.sh:16` denies Edit/Write/Bash) and Comment 3's \"tool-deny impossible\" never arises (poka-yoke \u2014 structurally impossible, not detected). Controls incl. CLAUDE.md-relocation carry BECAUSE text-only scoping is adopted. The tool-using variant is deferred to its own issue.\n4. **Owner-call 3 \u2014 retry-cap + feedback.** Cap already <=3 (Comment 1). Feedback: the validator returns the grader schema `{pass,met,total,evidence}` (`grade.workflow.js:18-28`), its `evidence` fed verbatim into the next Haiku prompt \u2014 judged against the TASK only, never the withheld expectations (Comment 1 \"no teaching to the test\").\n5. **Smoke test: adopt, folded into the pre-screen.** Before the full matrix, exercise the Tiered path on >=1 gradient task and ASSERT two things `check-workflow` can't (it checks the `model:` key's presence, not value): (a) each arm's REALIZED per-role model matches spec (worker=Haiku, not a copy-pasted `model:'sonnet'` from the grader `:43,46`); (b) the re-dispatch-feedback loop converges, not just boots. Catches mis-pin + loop bugs before the ~250-300-invocation spend.\n6. **Run-time model-pin precondition (manual step, NOT a poka-yoke).** ADR 0029 gates `model:` at MERGE (`gates.yml:40-41`); the run precedes CI. The operator runs `check-workflow.mjs` by hand first, but it only presence-checks the key (`:11-13` advisory) \u2014 the value-guard this test needs is item 5's realized-model assertion.\n\n## Justification\nEffort low-medium x risk low (advisory; no adoption decided) x value high \u2014 produces the pending signal ADR 0006:24 / 0032 wait on. Reuses the harness + grade pipeline; only the loop is net-new; D3 + D5 bound the redo risk.\n\n## Assumptions\n- **[checkable] WEAKEST \u2014 informativeness: the 8 pre-screened tasks show a Haiku->Opus gradient** (tiering adds value only where solos diverge; a saturated task carries no signal). TEST (owner: the run): the 1-rep Haiku-vs-Opus pre-screen; drop saturated tasks. \u2014 result: pending the pre-screen run (a signal the gate cannot obtain in-session; named per ADR 0032).\n- [verified] `grade.workflow.js:18-28` schema, `:43,46` grade+prosecutor (model:'sonnet'), `:30-34` text response-vs-expectations; `harness.sh:16` denies Edit/Write/Bash; blind.py/aggregate.py exist; NO `benchmarks/*tiered*` or Haiku agent \u2014 loop is net-new.\n- [checkable-doc] this test's output is the signal ADR 0006:24 waits on \u2014 linkage recorded here, 0006 not resolved (no data yet).\n- [checkable-doc] `check-workflow.mjs:12-13` header stale vs ADR 0029 \u2014 fix in the build PR.\n- [unverifiable] cost ~250-300 invocations \u2014 REOPEN-IF actual spend materially exceeds while the CI still straddles the boundary (Comment 1 sequential escalation).\n\n## Rejected alternatives\n- Adopt now \u2014 barred by ADR 0024 (no benchmark).\n- Defer the whole issue \u2014 the pre-spend calls are decidable now; deferring stalls the signal.\n- Scope to tool-using implementation now \u2014 reopens hermetic design mid-test; own issue.\n- Re-decide #54 / model-pin gating \u2014 settled by ADR 0029 (`gates.yml:40`); this ADR only adds the run-time precondition the merge gate can't cover.\n\n## Revisit triggers\n- Test completes -> record adopt/reject per Comment 1's rule, for text-generation subtasks ONLY, in `## Act` + a future adoption ADR; resolve ADR 0006:24 if conclusive. Never certify tool-using adoption off this text-only run.\n- Pre-screen finds no gradient on any candidate -> uninformative; re-select tasks or record the null (never difficulty-raise, ADR 0024).\n- A tool-using variant is wanted -> its own new issue.\n- `rerun-never.sh:8,13` grounds a hermeticity claim on `benchmarks/2026-07-10-tiered-execution/harness.py`, absent (`git log --all` empty) \u2014 stale drift or forward-ref to THIS test's dir. This ADR only FLAGS it; the build PR files it as a Deferred issue (ADR 0021) and reconciles/deletes then.\n"
+ }
+}

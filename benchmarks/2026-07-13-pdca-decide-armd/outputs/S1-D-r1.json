@@ -1,0 +1,143 @@
+{
+ "cell": "S1-D-r1",
+ "scenario": "S1",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 114427.7,
+  "duration_ms": 113058,
+  "duration_api_ms": 115966,
+  "cost_usd": 0.17426950000000002,
+  "usage": {
+   "input_tokens": 14,
+   "cache_creation_input_tokens": 4695,
+   "cache_read_input_tokens": 200015,
+   "output_tokens": 5614,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4695,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4381,
+     "cache_read_input_tokens": 29991,
+     "cache_creation_input_tokens": 246,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 246
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T12:58:28.936128+00:00",
+   "end": "2026-07-14T13:00:23.363840+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.48451170000000005
+ },
+ "response": "## Decision: cap the free tier at 500 requests/key/day, degrade rather than hard-cut, revisit on a fixed schedule\n\n**Number:** 500/day per key, enforced as a step-down (429 + clear upgrade message, not a silent cutoff) rather than a hard wall.\n\n### Why not A (1,000) or B (150) as proposed\n\nThe assumption probe is right that A only makes sense if the cap isn't meant to be a lever \u2014 but the memo itself explicitly rejects that framing (\"the free cap is really a conversion lever\"). Shipping at 1,000 just because the rig already handles it optimizes for zero engineering work, not for the stated goal, and given the observed ~100/key average it would almost never bind under any usage shape.\n\nBut B (~150) is exactly what the premortem's first point warns against: the CSV gives me a mean, not a distribution. With ~40 active keys and ~4,000 requests/day, it's entirely possible a handful of keys are running real workloads at 400-900/day while the rest sit in single digits. I have no per-key percentiles to rule that out. A cap set near the *average* is a cap set with no visibility into the *tail* \u2014 and the tail is precisely the segment most likely to be real production usage worth converting, and most likely to be angered by getting walled off mid-workflow with no grace mechanism (premortem's second point, which the memo itself concedes rests on an untested conversion assumption).\n\n### Why 500, and why soft-degrade\n\n500 is ~5x the observed per-key average, so it doesn't touch anyone matching the CSV's \"typical\" pattern, and it's high enough to plausibly clear most single-key concentration scenarios that ~4,000 total requests could still produce. It's still meaningfully below the 1,000 the rig was sized for, so it retains some ability to bind as the product grows or if a key spikes \u2014 unlike 1,000, which the data suggests would essentially never engage. Pairing it with a soft-degrade response instead of a hard cutoff directly addresses the premortem's churn scenario: nobody gets cut off mid-request, they get a visible signal with a clear upgrade path, which is a materially different (and testable) event than \"it worked, then I got cut off.\"\n\nI'm treating this as a version of Option C, but the assumption probe correctly flags that C only holds up if there's an actual mechanism to revisit it rather than \"temporary\" quietly becoming permanent. So:\n\n### What would make me change this number, and by when\n\n- **Instrument per-key percentiles (p50/p90/p99), not just the daily aggregate, before the next review.** The aggregate-only CSV is the root gap both probes point at; I don't want the next decision made on the same blind average.\n- **Revisit at a fixed date: 90 days after Pro goes live**, using actual conversion data \u2014 does hitting 500 correlate with upgrades, or with cancellations? This is the guess the memo admits it's making; I want it replaced with data on a clock, not on inertia.\n- **Early trigger, whichever comes first:** if per-key p99 usage crosses ~350/day (70% of the cap) before that 90-day mark, that's a sign the cap is about to start binding organic (non-power) users the way the premortem's third point describes \u2014 I'd re-examine before it becomes a broken promise rather than after.\n- If percentile data shows usage is in fact concentrated in a few high-volume keys already near 500, that's a signal those specific accounts are Pro candidates worth a direct conversation, not a cap adjustment.\n\nNote the CSV's total-requests growth (3,300 \u2192 4,770 over 30 days) is mostly explained by more active keys (35 \u2192 45), not higher per-key usage \u2014 per-key averages stay roughly flat around 95-107 across the window. So the \"organic growth toward the ceiling\" risk from the premortem is currently about user-base growth, not individual usage climbing toward 500; that's worth re-checking at the 90-day mark rather than assuming today.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 50711.3,
+   "duration_ms": 47997,
+   "duration_api_ms": 49108,
+   "cost_usd": 0.229742,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 28031,
+    "cache_read_input_tokens": 52320,
+    "output_tokens": 3009,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 28031,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2760,
+      "cache_read_input_tokens": 26291,
+      "cache_creation_input_tokens": 1740,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1740
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T12:57:38.224444+00:00",
+    "end": "2026-07-14T12:58:28.935727+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read both files. Premortem below \u2014 three failure classes, each grounded in a specific gap or fact in the memo/CSV, not generic risk-listing.\n\n**1. The cap was set from aggregates that hide the tail, and it clipped (or missed) the wrong users.** The CSV only reports `active_keys` and `total_requests` per day \u2014 there's no per-key distribution, just a derived average (~100/key, \"busiest days... under 250,\" MEMO.md:23-24). A daily total of 4,000+ requests across ~40 keys is fully consistent with a power-law split \u2014 a handful of keys running real production workloads at 600-900/day and the rest at single digits. If the cap landed near the observed average (Option B, ~150), it would have throttled exactly the power users six months in \u2014 the ones most likely to become paying customers \u2014 right as they scaled up, producing angry support tickets and churn instead of conversions. If the cap landed high (Option A, 1,000), those same power users would have sailed under it indefinitely, so the \"lever\" never engaged for the one segment it was meant to catch. Either way, the failure traces to a decision made on an average with no visibility into shape.\n\n**2. The wall drove cancellations, not upgrades, because the conversion assumption was untested.** The memo says this outright: \"I have no conversion data yet \u2014 Pro is not live \u2014 so how strongly the cap drives upgrades is a guess, and it is the guess the entire decision rides on\" (MEMO.md:35-37). Quillmark is a five-month-old solo product (MEMO.md:8) with presumably low switching costs for its users (Markdown-to-PDF is not a hard thing to route elsewhere). A hard daily cutoff hitting mid-workflow is a plausible reason to leave rather than pull out a card for a $12/mo tool from an unproven small vendor \u2014 especially with no grace mechanism described (no soft-warn, no burst allowance, no grandfathering mentioned in the memo). Six months later this shows up as: free-tier churn and negative word-of-mouth (\"it worked great, then I got cut off with no warning\") outpacing new Pro signups, because the memo's own acknowledged guess turned out wrong in the churn direction rather than the convert direction.\n\n**3. A cap that looked generous at launch became a broken promise as usage grew.** The 30-day window in the CSV shows a mild upward drift \u2014 active keys 35\u219245, totals 3,300\u21924,770 (rows for 2026-06-07 through 2026-06-27) \u2014 meaning typical per-key usage was already trending up, not flat. Option C explicitly banks on being able to \"move it once Pro has run for a while\" (MEMO.md:41-43), treating the cap as costlessly adjustable. But caps are sticky in the other direction from how they're described: lowering a cap users already relied on reads as a bait-and-switch, and not adjusting it means organic growth in ordinary (non-power) usage eventually pushes normal users into a ceiling that was sized for a smaller version of the product. Six months out, the failure looks like: the number chosen in June was reasonable for June's usage curve, but by year-end ordinary users \u2014 not just outliers \u2014 are hitting it, and any fix (raising it) now reads as reactive damage control rather than a plan, while lowering it (if B was chosen too generously) reads as revoking something promised."
+  },
+  "assumption": {
+   "duration_ms_wall": 16401.4,
+   "duration_ms": 13491,
+   "duration_api_ms": 16786,
+   "cost_usd": 0.0805002,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 7925,
+    "cache_read_input_tokens": 72464,
+    "output_tokens": 700,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 7925,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 423,
+      "cache_read_input_tokens": 26313,
+      "cache_creation_input_tokens": 1740,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1740
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T12:57:38.224937+00:00",
+    "end": "2026-07-14T12:57:54.626345+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Options and their single load-bearing dependency:\n\n**A \u2014 cap at 1,000/day (matches build)**\nLoad-bearing premise: that engineering cost, not conversion behavior, should drive the number.\nIf X is false \u2014 i.e., if the cap *is* meant to be a conversion lever rather than just \"whatever the rig already handles\" \u2014 option A flips, since 1,000/day is ~10x the busiest observed per-key day and would almost never bind.\n\n**B \u2014 cap near observed usage (~150/day)**\nLoad-bearing premise: that a cap near typical usage actually drives free\u2192Pro conversion (the memo admits this is \"a guess, and it is the guess the entire decision rides on\").\nIf X is false \u2014 i.e., if hitting the cap instead causes churn/abandonment rather than upgrades \u2014 option B flips, since it would be cutting off real users for no conversion payoff.\n\n**C \u2014 middle cap, revisit after Pro has run**\nLoad-bearing premise: that the founder will actually collect and act on post-launch conversion data to move the number later (i.e., \"temporary\" doesn't become permanent by default/inertia).\nIf X is false \u2014 i.e., if there's no real plan/trigger to revisit it \u2014 option C flips into being just a worse, arbitrary version of A or B with the same guesswork but none of the clarity."
+  }
+ },
+ "artifacts": {}
+}

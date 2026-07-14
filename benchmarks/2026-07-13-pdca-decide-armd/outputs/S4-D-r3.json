@@ -1,0 +1,143 @@
+{
+ "cell": "S4-D-r3",
+ "scenario": "S4",
+ "arm": "D",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 54195.2,
+  "duration_ms": 52298,
+  "duration_api_ms": 54229,
+  "cost_usd": 0.1079402,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 3893,
+   "cache_read_input_tokens": 81714,
+   "output_tokens": 3881,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 3893,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3631,
+     "cache_read_input_tokens": 28487,
+     "cache_creation_input_tokens": 965,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 965
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T07:23:25.516557+00:00",
+   "end": "2026-07-14T07:24:19.711780+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.2707617
+ },
+ "response": "# Decision Record: v1 Geocoding API Sunset\n\n**Decision:** Option A (firm date, floor, staged notice, hands-on help) \u2014 with one addition that changes the economics: build and offer a **v1-compatibility shim** rather than requiring true migration to v2, and **proactively identify all v1 callers by API key**, not just the three who wrote in.\n\n## Why A, not B or C\n\n- **B is ruled out by the memo's own evidence.** The dual-codepath tax (\"every bugfix now has to be written and tested twice\") is the whole reason this decision exists. B doesn't bound that cost \u2014 it makes it permanent. The premortem/assumption probes agree: B's premise (\"maintenance cost is flat/absorbable\") is directly contradicted by the memo.\n- **C is ruled out because the 0.4% traffic number is the wrong proxy for disruption**, and both probes independently converge on this: traffic share tells you nothing about whether those specific requests are load-bearing (NorthRoute's live dispatcher maps, Ferrymark's nightly routing). 60 days sized off a traffic metric alone risks a production incident in a logistics dashboard \u2014 the worst-case failure both probes describe.\n- **A is right in shape, but the probes both correctly identify that A's date, as originally framed, is a guess sized against the loudest three, not against real migration cost** \u2014 which the memo admits it never measured. I'm not going to ship A as a bare date. I'm closing that gap directly instead of deciding blind.\n\n## The change that resolves both probes' core objections\n\nBoth probes converge on the same root cause: the real driver of migration pain isn't v2 semantics, it's the **response shape difference** (flat `lat`/`lng`/`label` vs. nested `location`). NorthRoute's \"rewrite the parsing layer\" and Tavo's \"no bandwidth\" are both, at root, a shape-translation problem, not a business-logic problem.\n\nSo: engineering builds a **thin v1-shape compatibility proxy** \u2014 same request path, translates v2 data back into the old flat shape at the edge. This is categorically cheaper for us to maintain than the current dual-codepath situation (it has no divergent business logic, only a stable field mapping, so it doesn't recreate the \"test every bugfix twice\" tax) and it converts \"rewrite your parsing layer\" into \"point at a new base URL, no code changes\" for affected customers. That directly defuses:\n- NorthRoute's actual blocker (structural rewrite + dispatcher QA) \u2192 becomes a URL swap.\n- Tavo's actual blocker (zero bandwidth) \u2192 near-zero engineering lift, well within reach of a 2-person team.\n- Ferrymark's blocker (load-bearing nightly workflow) \u2192 same, near-zero-touch migration.\n\nThis is the one input that could substitute for the missing \"per-customer migration cost\" number: instead of estimating it, I'm driving it down close to zero for the dominant failure mode (shape mismatch), which is what all three complaints and the premortem's #2/#3 mechanisms actually hinge on.\n\n## Commitments\n\n- **True v1 endpoint sunset date:** **2027-01-14** (6 months from this decision).\n- **Compatibility shim availability:** live within 30 days of this decision, offered to every current v1 caller as the default migration path; shim itself is sunset separately, no earlier than **2027-07-14** (12 months out), reviewed against real usage at that point rather than fixed today.\n- **Usage floor:** if true v1 traffic (excluding shim traffic) drops below 500 req/day sustained for 2 consecutive weeks before the January date, we may retire early with a minimum 30 days' notice to whatever accounts remain.\n- **Discovery, not just outreach:** before the first notice goes out, pull v1 traffic by API key to enumerate every distinct account on v1 \u2014 not just the three who wrote in. This directly targets the premortem's #1 failure mode (silent accounts blindsided by a decision calibrated on the loudest three). Every identified account gets direct email outreach; a `Sunset` HTTP header and changelog/dashboard banner catch anything the key-based query misses.\n- **Staged notice schedule:** now (decision + direct outreach), T-3mo, T-6wk, T-2wk, T-3d, via email + `Sunset` header + in-dashboard banner.\n- **Hands-on help for NorthRoute, Tavo, and Ferrymark specifically:** white-glove onboarding onto the shim within 2 weeks of this decision, so their \"no bandwidth\" and \"load-bearing workflow\" objections are resolved early, not at the deadline.\n- **No further date extensions.** The shim is the pressure release valve, not the date \u2014 this preserves the memo's own concern about training future complainants that \"firm\" isn't firm.\n\n## What I'm still deciding without full data, and why that's acceptable now\n\nI still don't have a hard per-customer migration-cost number, and I'm not going to get a reliable one before acting \u2014 the memo is right that it's the ideal input, but waiting for it is itself a cost (dual maintenance continues). Instead of estimating that number, this plan reduces its size for the dominant cost driver (shape mismatch) enough that the exact figure matters far less. If the account discovery step turns up an integration with a materially different failure mode than shape mismatch, that's a known risk I'm accepting and will handle case-by-case with the same hands-on-help track, not by moving the general date.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 43923.8,
+   "duration_ms": 42486,
+   "duration_api_ms": 44130,
+   "cost_usd": 0.0763735,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 2749,
+    "cache_read_input_tokens": 77935,
+    "output_tokens": 2386,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 2749,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2073,
+      "cache_read_input_tokens": 26331,
+      "cache_creation_input_tokens": 1977,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1977
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:22:41.592243+00:00",
+    "end": "2026-07-14T07:23:25.516109+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Premortem: assume Option A (or some variant) shipped, and six months later it's judged a failure. Three plausible mechanisms, grounded in what's actually in these three files:\n\n**1. The one number that mattered was never measured, and the failure lands on accounts nobody heard from.** The memo itself flags this: \"I do not have a good estimate of per-customer migration cost, and that is the number that should actually decide how much runway the affected accounts need... I am deciding partly in the dark\" (MEMO.md). The only signal on migration difficulty comes from three self-selected, vocal complainants (`complaints.md`) \u2014 but `version_traffic.csv` shows v1 at ~2,900/day across an unknown number of integrations, not three. A firm date sized to satisfy NorthRoute/Tavo/Ferrymark could still blindside some silent fourth or fifth integration with an equally hard migration and zero visibility into the sunset conversation \u2014 because the decision was calibrated against the loudest 41k/day, not the full 41k/day. The failure mode here is a scramble of *unannounced* breakage from accounts that never wrote in, discovered only after the cutover.\n\n**2. The date gets picked to \"feel generous\" rather than sized to the hardest real migration, and that migration is NorthRoute's.** NorthRoute's email is explicit that this isn't a config change: \"a rewrite of the parsing layer and a full QA pass on maps our dispatchers use live\" because v1's flat `lat`/`lng`/`label` shape differs structurally from v2's nested `location` object (`complaints.md`, Email 1). If \"six months out\" (MEMO.md, Option A) was chosen as a round number rather than derived from an actual estimate of that rewrite-plus-QA effort, it can land short for the one customer with the most structurally invasive migration and the highest safety/operational stakes (live dispatcher maps). The failure surfaces as a production incident in a logistics dashboard, not a mere complaint \u2014 the worst possible face for a decision that was supposed to be the \"responsible\" middle option.\n\n**3. The firm date is only firm on paper for customers with no slack to act on it.** Tavo's email states flatly: \"We have no engineering bandwidth this year \u2014 it is just the two of us\" (`complaints.md`, Email 2). A staged notice schedule assumes the recipient has capacity to *respond* to notices, not just receive them. For a two-person shop already heads-down on their own launch, six months of calendar time doesn't translate into six months of available engineering time \u2014 the deadline can pass with zero migration progress not because the runway was too short in the abstract, but because \"bandwidth this year\" was already fully spoken for. That produces a deadline that was technically well-communicated yet still functionally a surprise cutoff, and invites the political failure the memo already worries about: extending the date under pressure, which trains every future complainant that \"firm\" dates aren't."
+  },
+  "assumption": {
+   "duration_ms_wall": 17372.3,
+   "duration_ms": 16029,
+   "duration_api_ms": 17458,
+   "cost_usd": 0.086448,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8202,
+    "cache_read_input_tokens": 72520,
+    "output_tokens": 985,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8202,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 644,
+      "cache_read_input_tokens": 26353,
+      "cache_creation_input_tokens": 1977,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1977
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:22:41.592980+00:00",
+    "end": "2026-07-14T07:22:58.965264+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "**Options and their single load-bearing dependency:**\n\n- **A (firm date + floor + staged notice + hands-on help for the three):** Load-bearing premise \u2014 *migration cost per affected account is boundable within the offered runway.* If per-customer migration cost is actually large (e.g. NorthRoute's \"rewrite the parsing layer\" is really weeks/months of dispatcher-critical QA, not days), the fixed date forces a bad choice between blowing the deadline or shipping a broken migration for a live operational workflow. If false, A flips toward B (or a much longer/variable runway).\n\n- **B (keep v1 alive indefinitely until complaints stop):** Load-bearing premise \u2014 *the maintenance cost of dual code paths is low/flat enough to absorb indefinitely.* The memo states the opposite directly: \"every geocoding bugfix now has to be written and tested twice,\" and v1/v2 have \"drifted far enough apart.\" If that ongoing tax is significant (not flat), indefinite maintenance is the most expensive option per unit of traffic served (0.4%), and B flips toward A.\n\n- **C (60-day aggressive sunset on the 0.4% number alone):** Load-bearing premise \u2014 *the 0.4%/41k-requests metric is a good proxy for how disruptive cutoff will be.* The memo explicitly flags this as unmeasured \u2014 \"no good estimate of per-customer migration cost.\" Traffic share says nothing about how load-bearing those specific requests are (NorthRoute's dispatcher maps, Ferrymark's nightly routing workflow). If migration cost for these accounts is high, 60 days breaks real operational workflows regardless of how small the traffic share is, and C flips toward A (or is ruled out entirely).\n\n**Note:** the memo itself names the missing number \u2014 per-customer migration cost \u2014 as the one thing that should drive the decision, and no option here actually has it. That gap sits underneath all three load-bearing premises above."
+  }
+ },
+ "artifacts": {}
+}

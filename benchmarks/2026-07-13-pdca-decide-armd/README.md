@@ -111,4 +111,20 @@ revisit trigger governs the cut question), close honestly.
 
 ## Iteration log (append-only)
 
-- (none yet — iteration 1 is the pre-registered grid above)
+- **Iteration 1 (2026-07-13, grid $127.76 + $1.64 repair, 72/72 + 4 re-run):** bars a/b/c
+  FAIL, d PASS (cost D $0.72 vs C $4.05 = 0.18x). Hard-pair D−C −0.167 [−0.296, −0.038];
+  full D−C −0.135 [−0.234, −0.037]; D ~ A everywhere. Audit 3/9 — blinding held.
+  Harness defect found post-grading and repaired pre-verdict: 4 cells (2 A, 2 D) were graded
+  on a one-line stub pointing at a written decision file lost with the workdir (capture ran
+  only for arm C); capture widened to every cell-created .md for every arm, the 4 cells
+  re-run + re-graded + spliced, audit refreshed. Run-context note: this run's C aced all four
+  synthetics (1.0 across the board) — the same traps I2's C lost (−0.33) — C's per-run
+  variance is itself evidence for #179's caveats.
+  **Transcript diagnosis (per ADR 0024):** the D deciders on backtests deflect to PROCESS —
+  recorded assumptions are about blockers, validation scripts, and char budgets, never the
+  call's substantive assumption (probes often surface the right material; the decider does
+  not fold it into the record). exp-3 D 0.167 < A 0.333.
+  **Iteration-2 edit (ONE, decider-side integration text):** the decision record must state,
+  for the chosen option, THE single load-bearing subject-matter assumption and the accepted
+  failure class, grounded in the call's substance (never process/tooling/formatting),
+  drawing on the probe reports where they hold up. D cells re-run; C/A cached.

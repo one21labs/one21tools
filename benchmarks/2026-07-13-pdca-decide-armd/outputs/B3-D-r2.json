@@ -1,0 +1,143 @@
+{
+ "cell": "B3-D-r2",
+ "scenario": "B3",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 225616.8,
+  "duration_ms": 224307,
+  "duration_api_ms": 225041,
+  "cost_usd": 0.7580524999999999,
+  "usage": {
+   "input_tokens": 44,
+   "cache_creation_input_tokens": 37146,
+   "cache_read_input_tokens": 942405,
+   "output_tokens": 16696,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 37146,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1305,
+     "cache_read_input_tokens": 59277,
+     "cache_creation_input_tokens": 3604,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3604
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:25:29.162382+00:00",
+   "end": "2026-07-14T06:29:14.779193+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.0309517
+ },
+ "response": "Decision recorded: **`docs/decisions/0045-mechanized-presync-gate-claim-best-effort.md`**\n\n**Decision:** Split the two candidate rules by enforceability rather than adopting the issue's literal \"both.\"\n1. **Sync-before-spend becomes a required, tested gate script** (`scripts/presync-check.mjs`), not prose \u2014 run before spend and again before the final push, blocking on a closed issue or a merged PR referencing it.\n2. **Claim-comment protocol stays a documented norm, not a gate** \u2014 post/clear when write access is available, explicitly optional under dispatch instructions that withhold it. Its job is early-warning on long-running work, not enforcement.\n3. The foreground-wait subagent lesson stays out of scope, as the issue itself framed it.\n\n**Why this synthesis over the four assumption-probe options:** the premortem's strongest finding was that a mandatory-but-unenforceable rule gets silently skipped (same failure class as ADR 0042's #107 recurrence) \u2014 that only applies to the sync half, since nothing structurally blocks running a read-only check. The claim half's failure mode is a hard permission constraint the issue itself documents, so mandating it would fail-closed for legitimate dispatch modes. Making it best-effort also defuses the premortem's stale-claim-fatigue concern: once the claim is advisory, ignoring a stale one no longer means the actual safety net (the gate) was bypassed. The TOCTOU race the premortem flagged isn't fully closable without infrastructure GitHub doesn't offer \u2014 the two-checkpoint gate narrows the window as far as is achievable here, which is what the issue's own candidate rule already targeted.\n\nTwo things worth flagging:\n- This session had no `git fetch`/bash approval, so I allocated ADR id 0045 from local state only (highest on disk: 0044) and traced `adr-lint.mjs`'s logic against the file by hand rather than executing it \u2014 recommend running `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` before merge to confirm.\n- The ADR is `accepted` (decision is settled) but has no `## Act` \u2014 the gate script and the CLAUDE.md Shipping-section amendment are implementation, not yet done; per this repo's ADR-corpus-is-the-plan-of-record convention, that's the correct state until shipped.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 49103.5,
+   "duration_ms": 47745,
+   "duration_api_ms": 49225,
+   "cost_usd": 0.1567597,
+   "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 12269,
+    "cache_read_input_tokens": 108539,
+    "output_tokens": 3320,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 12269,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2918,
+      "cache_read_input_tokens": 30309,
+      "cache_creation_input_tokens": 2088,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2088
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:24:40.058459+00:00",
+    "end": "2026-07-14T06:25:29.161995+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "# Premortem: ISSUE-106 (sync-before-spend / claim protocol)\n\n**1. TOCTOU race survives even the sync rule.** The candidate prose rule (ISSUE-106:14) re-checks `origin/main` + the issue \"before executing\" and \"before the final push\" \u2014 but the original incident wasn't a stale-at-dispatch failure, it was stale-*during*-execution: \"the session's clone was fresh-at-start but stale-by-use\" (ISSUE-106:6). A periodic check-then-act pattern doesn't close that window \u2014 two sessions can each pass their pre-spend sync check (both see `open`) in the same overlapping interval and both proceed to spend before either pushes or closes the issue. Six months out, this reproduces as \"we followed the rule and it still duplicated,\" because the rule polls a race instead of atomically claiming the resource.\n\n**2. The claim protocol gets silently skipped under dispatch constraints, with nothing to notice.** ISSUE-106:15 itself flags that the claim option \"requires permission to touch issues, which dispatch instructions sometimes withhold ('don't change the issues').\" If this ships as a norm rather than a gate, sessions dispatched under such instructions will skip the claim-post step \u2014 not maliciously, just because their instructions say not to touch issues \u2014 and there's no forcing function to catch the omission. This is the same failure class the repo has already lived through: ADR 0042's #107 evidence shows a prose/ADR'd rule (pre-reg metric naming) was violated three separate times with no mechanism to catch it, only caught in hindsight. CLAUDE.md's own \"Never ship a process-gating script without a test of its decision logic\" line implies the inverse risk is understood but doesn't apply to a non-scripted, prose-only rule \u2014 there's nothing to test because there's no gate at all.\n\n**3. Claims go stale and train sessions to ignore them.** ISSUE-106:18 separately notes \"a detached-background subagent stalled twice until nudged\" \u2014 i.e., sessions crash or hang mid-run in this environment. If a claim (\"in progress (session X)\") is posted but the posting session dies or stalls before clearing it, the claim becomes a permanent false-positive. Once a few stale claims are discovered to be safely ignorable, sessions rationally stop trusting the claim signal and proceed anyway \u2014 the exact alarm-fatigue failure that turns a coordination mechanism into decoration. Six months out this shows up as \"the claim said in-progress but everyone just overrides it now.\""
+  },
+  "assumption": {
+   "duration_ms_wall": 40673.6,
+   "duration_ms": 39339,
+   "duration_api_ms": 40035,
+   "cost_usd": 0.11613949999999999,
+   "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 6647,
+    "cache_read_input_tokens": 114125,
+    "output_tokens": 2751,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 6647,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2187,
+      "cache_read_input_tokens": 30269,
+      "cache_creation_input_tokens": 2113,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2113
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:24:40.058793+00:00",
+    "end": "2026-07-14T06:25:20.732445+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Options and their single load-bearing dependency, grounded in ISSUE-106.md:\n\n1. **Do nothing (status quo \u2014 catch duplicates only at end-of-session `git fetch`)**\n   Dependency: a duplicate spend keeps \"paying for itself\" (corroborating evidence) or getting caught before merge, as it did with #30. If false \u2014 a future duplicate wastes spend with no offsetting value, or both duplicate PRs land before either session notices \u2014 this option flips (unacceptable to leave as-is).\n\n2. **Sync-before-spend prose rule only** (re-`fetch` + re-read issue/PRs before spending, and again before final push)\n   Dependency: sessions execute the prescribed discipline steps reliably without a forcing function. The issue itself flags this as \"the same enforcement weakness as any prose rule\" \u2014 and the #30 session's own clone was \"fresh-at-start but stale-by-use,\" i.e. a prose step was already implicitly expected and didn't prevent the incident. If false \u2014 sessions skip or rush the re-sync under normal dispatch pressure \u2014 this option flips to needing mechanization.\n\n3. **Claim protocol only** (post/clear an \"in progress (session X)\" issue comment)\n   Dependency: the dispatching session has permission to write to the issue tracker. The issue states plainly this \"requires permission to touch issues, which dispatch instructions sometimes withhold.\" If false \u2014 dispatch instructions say \"don't change the issues,\" which the issue notes already happens \u2014 the claim is never posted and the protocol can't function; this option flips to unusable for those dispatch modes.\n\n4. **Both (sync rule + claim protocol)**\n   Dependency: the two failure modes are independent \u2014 unclaimed short collisions (caught by sync) vs. long-running claimed work (caught by claim) \u2014 so combining adds coverage rather than stacking one shared weakness. If false \u2014 e.g. the permission-withholding constraint from option 3 is universal across dispatch modes, so the claim half never fires \u2014 \"both\" collapses to option 2's coverage only, and this option flips to redundant with (2).\n\nOut of scope for this call: the subagent-foreground-wait lesson (line 18) is a separate session-ops fix to house alongside whichever option wins, not itself a candidate."
+  }
+ },
+ "artifacts": {}
+}

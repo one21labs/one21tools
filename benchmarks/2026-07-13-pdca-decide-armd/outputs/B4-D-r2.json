@@ -1,0 +1,143 @@
+{
+ "cell": "B4-D-r2",
+ "scenario": "B4",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 210645.9,
+  "duration_ms": 209209,
+  "duration_api_ms": 210464,
+  "cost_usd": 0.6644358,
+  "usage": {
+   "input_tokens": 32,
+   "cache_creation_input_tokens": 36815,
+   "cache_read_input_tokens": 768886,
+   "output_tokens": 14015,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 36815,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 988,
+     "cache_read_input_tokens": 62179,
+     "cache_creation_input_tokens": 364,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 364
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:42:26.074643+00:00",
+   "end": "2026-07-14T06:45:56.720558+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.5787268
+ },
+ "response": "That command needs your explicit approval to run \u2014 I won't force it. The file is written; please run `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` before merging, per CLAUDE.md's own pre-merge gate.\n\n## Decision: Decline ISSUE-109's routing experiment as pre-registered (no spend authorized)\n\nI verified both probes' claims directly against the committed artifacts before deciding.\n\n**Verified independently:**\n- Hand-summing the 8 gradient rows in `benchmarks/2026-07-10-tiered-execution-fullgrid/results.jsonl` gives sonnet\u22480.510, haiku\u22480.350 \u2014 not ISSUE-109.md's claimed 0.597/0.315.\n- `0.597 \u2212 0.315 = 0.282`, which exactly matches ADR 0035's cited *parallel-branch* delta (`claude/issue-41-8awnsc`, `0035:27`) \u2014 a run **not committed in this checkout**. So the issue isn't just stale on a rename; it's citing numbers from an inaccessible branch while telling readers to reuse a different, committed directory that has different numbers.\n- The cost formula (`ISSUE-109.md:10`) charges checker cost only on the escalating fraction `E`, but the checker must run on every Haiku attempt to *produce* the accept/escalate decision \u2014 correct form is `0.016 + checker + E\u00d70.055`, which most understates cost in the low-`E` regime the experiment is chasing.\n- The checker-variant comparison (`ISSUE-109.md:14`) has no pre-registered selection rule \u2014 picking whichever variant clears the margin post-hoc is the multiple-comparisons form of the bar-move ADR 0024 D3 and ADR 0035 already forbid.\n\n**What this rules out:** proceeding as-is (broken bar), and declining outright on ADR 0035 precedent (routing's accept-whole/escalate-whole mechanism is genuinely distinct from the coach-and-retry design ADR 0035 tested \u2014 nothing in its revisit triggers forecloses it).\n\n**Decision:** decline this specific pre-registration; the hypothesis itself stays open. A corrected re-submission (real baseline from the committed fullgrid dir, corrected cost formula, a named checker variant + selection rule) can proceed without a new decision cycle \u2014 these are mechanical fixes, not fresh judgment calls. Whether an 8-task pilot has enough precision for the false-accept rate, or the full 24-eval grid is needed, is left as an open `[unverifiable]` resolved by the re-submission's own data.\n\nRecorded as `docs/decisions/0036-routing-experiment-pre-registration-declined.md` (full Decision/Justification/Assumptions/Rejected-alternatives/Revisit-triggers per this repo's ADR template). Next: run `adr-lint`, then decide whether to close/update ISSUE-109 to point at this ADR.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 49828.0,
+   "duration_ms": 48532,
+   "duration_api_ms": 49754,
+   "cost_usd": 0.1811874,
+   "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 14963,
+    "cache_read_input_tokens": 111338,
+    "output_tokens": 3817,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 14963,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3261,
+      "cache_read_input_tokens": 32601,
+      "cache_creation_input_tokens": 2490,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2490
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:39:32.457902+00:00",
+    "end": "2026-07-14T06:40:22.285955+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read ISSUE-109.md and cross-checked against ADR 0035 (the #41 tiered-execution verdict this issue explicitly builds on). Three plausible failure classes if a \"proceed\" decision on this shipped and failed six months later:\n\n**1. The cost formula misattributes checker cost, so the \"cheap to test\" premise is wrong from the start.** ISSUE-109.md:10 writes routing cost as `0.016 + E \u00d7 (checker + 0.055)` \u2014 bundling checker cost into the term scaled by escalation rate E. But the checker must run on *every* Haiku attempt to decide accept-or-escalate, not just on the E-fraction that escalate. The correct formula is `0.016 + checker + E \u00d7 0.055`. This understates true cost by `(1-E) \u00d7 checker_cost` \u2014 worst exactly in the regime the experiment is chasing (low E, i.e. Haiku succeeds most of the time and only occasionally escalates). If the checker turns out to need Sonnet-tier judgment (plausible, since #41 already found the Sonnet *validator* imperfect \u2014 see #2 below), the real cost could be close to double the projected figure, and a routing config adopted on the optimistic number turns out not to beat Sonnet-solo on cost at all.\n\n**2. The checker's false-accept rate ships Haiku-floor artifacts silently, and this has already happened twice on adjacent work.** ISSUE-109.md:14 names the mechanism directly: \"#41 measured the Sonnet validator at 25% false-accept on final artifacts \u2014 under routing, every false-accept ships a Haiku-floor artifact.\" ADR 0035's assumptions section independently replicates almost exactly that number: \"validator false-accepted 6/24\" (also 25%) in the parallel #41 run. Two independent measurements already cluster at ~25% for a Sonnet-as-checker design. If the new experiment's checker isn't demonstrably better than that precedent \u2014 and especially if it's evaluated only on the same 8-task gradient subset (ADR 0035's rejected-alternatives note that \"most non-gradient tasks floor on model-tier comparison,\" i.e. small-n, low-power measurement) \u2014 a checker that looks like it clears \"10-15% false-accept\" by CI noise on 8 tasks could sit at ~25% in production, quietly downgrading a quarter of \"escalated-when-needed\" work to Haiku's ceiling with no visible signal that anything went wrong.\n\n**3. Post-hoc checker-variant selection reintroduces the exact bar-moving failure ADR 0024/0035 were written to prevent.** ISSUE-109.md:14 directs \"the design should compare checker variants (e.g. Sonnet judge vs. checklist-scored deterministic checks) before any adopt decision,\" but doesn't pre-register which variant or how the pick is made. ADR 0024 D3 explicitly forbids adjusting an eval/bar after seeing results (\"a null under a confounded measurement doesn't count... never rewriting an eval harder to manufacture a delta\"), and ADR 0035's rejected alternatives independently rejects \"difficulty-adjust the bar post-hoc\" for the same reason. Comparing multiple checker variants and shipping whichever one clears the non-inferiority margin is the multiple-comparisons version of that same mistake \u2014 the winning variant may just be the best of N noisy draws rather than a genuinely low-false-accept checker, and it fails to replicate once deployed against the full task distribution rather than the gradient subset it was tuned on."
+  },
+  "assumption": {
+   "duration_ms_wall": 173615.3,
+   "duration_ms": 172190,
+   "duration_api_ms": 172406,
+   "cost_usd": 0.7331036,
+   "usage": {
+    "input_tokens": 60,
+    "cache_creation_input_tokens": 31945,
+    "cache_read_input_tokens": 1218762,
+    "output_tokens": 11662,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 31945,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 4998,
+      "cache_read_input_tokens": 51883,
+      "cache_creation_input_tokens": 190,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 190
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:39:32.458724+00:00",
+    "end": "2026-07-14T06:42:26.074067+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read ISSUE-109.md and cross-checked its cited numbers against the actual committed artifacts. One thing surfaced immediately: the issue's \"measured baselines\" (haiku 0.315, sonnet 0.597) don't match `benchmarks/2026-07-10-tiered-execution-fullgrid/results.jsonl` \u2014 recomputing the mean over the 8 eval records there gives sonnet\u22480.510, haiku\u22480.350, not 0.597/0.315. That mismatch is load-bearing for more than one option below.\n\n**Options and their single load-bearing dependency:**\n\n**1. Proceed as pre-registered (run the routing experiment per the issue's design/decision rule)**\nLoad-bearing premise: the cited baseline numbers are correct. They aren't \u2014 `ISSUE-109.md:10`'s haiku 0.315/sonnet 0.597 don't reconcile with the fullgrid `results.jsonl` (actual \u22480.350/\u22480.510, computed directly from the 8 eval rows), and the issue even points at the wrong directory name (`2026-07-10-tiered-execution/` vs the real `...-fullgrid/`).\n**If those baseline numbers are false (as they appear to be), option 1 flips** \u2014 you can't pre-register a cost/quality model (ADR 0024's \"bar written before any cell runs\") on arithmetic that doesn't match the committed artifact it claims to derive from.\n\n**2. Decline outright \u2014 ADR 0035 already answers this**\nLoad-bearing premise: routing's mechanism (accept-whole/escalate-whole, no coaching) is the same failure mode ADR 0035 tested. It isn't obviously so: ADR 0035 (`docs/decisions/0035-tiered-execution-verdict.md:16`) rejected *coach-and-retry against a weak implementer*; the issue's hypothesis (`ISSUE-109.md:6`) is explicitly that routing removes the coaching-convergence-to-floor mechanism.\n**If routing turns out to be mechanistically indistinguishable from the rejected tiered config, option 2 stands; if it's genuinely distinct (as argued), declining \"on precedent\" flips** \u2014 nothing in ADR 0035's revisit triggers (`0035:34-37`) forecloses a routing-shaped design.\n\n**3. Gate it \u2014 cheap checker-fidelity pilot first, full grid only if it clears ~10-15% false-accept**\nLoad-bearing premise: false-accept rate is estimable with usable precision at pilot scale. ADR 0035's only measured false-accept figure (6/24 = 25%, `0035:27`) comes from 24 cells, and the fullgrid README's own adoption-bar note says a directional margin isn't CI-excludable \"at n=24 clustered evals\" (`benchmarks/.../README.md:14-18`) \u2014 the routing pilot would run on the 8-task gradient subset, fewer cells still.\n**If a checker's false-accept rate can't be pinned down at n=8 with usable precision, the pilot buys nothing and option 3 collapses into option 1 (or 2)** \u2014 you'd need the full grid regardless to get a trustworthy escalation-rate estimate.\n\n**4. Decline now, log a revisit trigger for later**\nLoad-bearing premise: the checker's false-accept problem is fixable by a future checker variant (e.g., non-LLM deterministic checks), not structural. The fullgrid README states grader/checker independence is \"unsolvable across only 2 model tiers\" (`benchmarks/.../README.md:111-112`) for the same-family Claude-grades-Claude residual ADR 0019 already carries.\n**If the false-accept problem is structural to same-tier grading rather than checker-variant-fixable, there's no real trigger condition and option 4 is just option 2 wearing a \"deferred\" label** \u2014 it only earns its own slot if a genuinely independent checker (e.g., deterministic/checklist-scored, per the issue's own suggestion at `ISSUE-109.md:14`) is plausible."
+  }
+ },
+ "artifacts": {}
+}

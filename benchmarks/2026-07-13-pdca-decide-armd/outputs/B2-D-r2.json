@@ -1,0 +1,143 @@
+{
+ "cell": "B2-D-r2",
+ "scenario": "B2",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 38822.4,
+  "duration_ms": 37406,
+  "duration_api_ms": 39672,
+  "cost_usd": 0.1119001,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 7556,
+   "cache_read_input_tokens": 56017,
+   "output_tokens": 3187,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7556,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3079,
+     "cache_read_input_tokens": 30303,
+     "cache_creation_input_tokens": 2967,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2967
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:07:49.169058+00:00",
+   "end": "2026-07-14T06:08:27.991503+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.4111459
+ },
+ "response": "## Decision\n\n**Run the full pre-registered grid (Option A): 4 arms \u00d7 8 tasks \u00d7 3 reps.** Reject \"pilot the most expensive arm + stop early\" (Option B).\n\n## Rationale\n\n**1. Option B's load-bearing assumption is already false in the document.** The pre-screen (line 42) requires a **1-rep Haiku-solo vs Opus-solo pass before task selection even happens** \u2014 it's how the 8 tasks get chosen (drop saturated ones). That means Haiku-solo and Opus-solo data are prerequisites, not arms you can defer past a \"pilot the expensive one\" shortcut. Option B doesn't actually buy the savings it assumes; by the time you could \"pilot,\" the cheap-floor and ceiling data already exist.\n\n**2. The decision rule doesn't gate on \"the expensive arm.\"** Line 51's rule is Tiered vs Sonnet-solo specifically. \"Most expensive\" is ambiguous between Opus-solo (priciest per-token) and Tiered (most invocations) \u2014 the doc itself never resolves this. An early stop keyed to whichever arm gets called \"expensive\" risks declaring \"decidable\" on a comparison (e.g., Opus-solo alone) that isn't the primary gate, while the actual gated arm (Tiered) never runs its registered 3 reps.\n\n**3. Line 49 is additive, not subtractive.** \"Add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" is escalation language for growing the pre-registered grid when results are ambiguous \u2014 reading it as license to *skip* arms before running them inverts its purpose and would let a stopping rule retroactively rewrite what was pre-registered. That's exactly the fishing-for-a-favorable-cut failure mode line 15 exists to prevent (\"Do NOT adopt on assertion... Record the result either way\").\n\n**4. Stopping early collides with an explicitly open owner-call.** Comment 3's owner-call #1 (line 73) flags grader independence as unresolved (Sonnet-grades-Sonnet residual). Shipping an early-stop verdict before that's settled bakes an unexamined bias into the adopt/reject call instead of surfacing it in the recorded result.\n\n**5. The cost delta doesn't justify the risk.** The full grid is already lean by design (~250-300 invocations, line 71). What Option B saves is marginal against a design explicitly built to be cheap; what it costs is the falsifiability guarantee that's the entire point of pre-registering this empirically.\n\n## What this resolves going forward\n- Pre-screen still runs first (1-rep Haiku-solo vs Opus-solo) to select the 8 tasks \u2014 unchanged.\n- All 4 arms run their full 3 reps on the selected tasks. No arm is skipped or truncated based on an interim read of another arm.\n- Sequential escalation (line 49) applies only in the \"add more\" direction \u2014 additional reps/tasks where a CI straddles the boundary \u2014 never as a basis to stop before the registered grid completes.\n- The \"which arm is most expensive\" ambiguity is moot under this decision since no arm is being singled out for an early-stop pilot; it doesn't need separate resolution.\n- Grader-independence (owner-call #1, line 73) remains open and should be resolved before the run, not worked around via early stopping.\n\nThis is the kind of scope/policy judgment call that would normally route through `/decide` \u2192 ADR under this repo's PDCA process, but per your instruction I'm recording it directly here rather than deferring.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 43687.4,
+   "duration_ms": 42343,
+   "duration_api_ms": 44530,
+   "cost_usd": 0.13652530000000002,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11452,
+    "cache_read_input_tokens": 48751,
+    "output_tokens": 3496,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11452,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3398,
+      "cache_read_input_tokens": 28623,
+      "cache_creation_input_tokens": 2957,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2957
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:06:52.082132+00:00",
+    "end": "2026-07-14T06:07:35.769552+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Premortem: \"pilot the expensive arm + stop early\" execution-design call\n\n**1. The pilot arm doesn't test the actual decision rule, so \"decidable\" gets declared on the wrong comparison.**\nThe pre-registered decision rule (lines 51, 31) is about **Tiered vs Sonnet-solo**: adopt if delta \u2265 \u20110.05 AND tokens \u22640.7\u00d7 Sonnet-solo. Opus-solo is explicitly framed as the *secondary* \"real prize\" check (line 51: \"Also report whether Tiered reaches Opus-solo quality at sub-Opus cost\"), not the primary gate. If the expensive arm piloted first is Opus-solo (the natural reading of \"most expensive\"), an early stop after it says something about the ceiling, not about whether Tiered beats Sonnet-solo on cost/quality. Six months later this surfaces as: the adoption call shipped without ever running Tiered at the pre-registered 3 reps, because the early-stop condition was satisfied on a comparison the decision rule doesn't actually gate on.\n\n**2. Stopping early breaks the task-gradient precondition the whole design depends on.**\nComment 1's method (lines 42, 54) makes the pre-screen a hard prerequisite: \"without a Haiku<Opus gap the test is uninformative,\" verified via a **1-rep Haiku-solo vs Opus-solo** pass before any real reps run. Piloting only the expensive arm and stopping if \"decidable\" means the Haiku-solo baseline needed to confirm the gradient may never get collected for the tasks actually used in the stopping decision. The failure mode: someone later tries to reuse or extend this dataset, discovers several of the \"decided\" tasks were saturated (all arms would've passed), and the stop was declared unambiguous on tasks that carried no signal in the first place \u2014 undermining the eval-clustered CI the headline number (line 39, 48) rests on.\n\n**3. Early stopping collides with the unresolved grader-independence owner-call, laundering a known bias into a \"decidable\" verdict.**\nComment 3's \"Owner calls before spend\" #1 (line 73) flags that grader independence is *unsolved*: with only Haiku/Sonnet/Opus in play, some Sonnet-grades-Sonnet residual is unavoidable unless deferred. If the pilot-and-stop-early path ships before that call is made, the \"already decidable\" judgment on the expensive arm could be an artifact of Sonnet (main/validator/grader) favorably scoring Sonnet-authored plans or Sonnet-graded output rather than genuine quality signal \u2014 exactly the \"validator rubber-stamps bad work\" risk the pre-registration itself calls out (line 56). Six months out, a replication with a truly independent grader reverses the early verdict, and the postmortem traces it to stopping before the grader-independence question was resolved rather than after."
+  },
+  "assumption": {
+   "duration_ms_wall": 57085.7,
+   "duration_ms": 55778,
+   "duration_api_ms": 56898,
+   "cost_usd": 0.1627205,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11518,
+    "cache_read_input_tokens": 48745,
+    "output_tokens": 5216,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11518,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 5116,
+      "cache_read_input_tokens": 28617,
+      "cache_creation_input_tokens": 3029,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 3029
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:06:52.082424+00:00",
+    "end": "2026-07-14T06:07:49.168129+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Two realistic options for the execution-design call, each with its single load-bearing dependency:\n\n**Option A \u2014 Run the full pre-registered grid** (4 arms \u00d7 8 tasks \u00d7 3 reps, per Comment 1/Comment 3 line 68), only adding reps/tasks per the sequential-escalation clause (line 49: \"add reps/tasks only where a CI straddles the decision boundary\").\n- Load-bearing dependency: that line 49's sequential escalation is **additive-only** (start at the registered grid, add more if ambiguous), not license to subtract arms. If false \u2014 i.e., it's read as also permitting early *stopping* before all arms run \u2014 then \"run the full grid\" isn't actually what's pre-registered, and Option A collapses into Option B.\n\n**Option B \u2014 Pilot the most expensive arm against Sonnet-solo first, stop early if the decision rule is already decidable**, skipping remaining arms/reps.\n- Load-bearing dependency: that the decision rule (line 51: \"Adopt Tiered if delta vs Sonnet-solo >= -0.05 AND tokens <= 0.7x Sonnet-solo\") is computable and trustworthy from Tiered+Sonnet-solo data **alone**, without Haiku-solo/Opus-solo. If false \u2014 because the pre-screen (line 42) already requires a Haiku-solo-vs-Opus-solo 1-rep pass *before task selection even happens*, and because the \"real prize\" check (line 51: reaching Opus-solo quality at sub-Opus cost) is part of what's reported either way \u2014 then Haiku/Opus data is a prerequisite, not skippable overhead, and piloting Tiered-first doesn't actually buy the savings Option B assumes.\n\nNote: the doc itself doesn't specify which arm is \"most expensive\" \u2014 Opus-solo (priciest per-token) and Tiered (most invocations, up to 3 cycles, line 71's \"~250-300 agent invocations\" driver) are both candidates, and that ambiguity is itself unresolved by the pre-registration."
+  }
+ },
+ "artifacts": {}
+}

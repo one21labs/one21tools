@@ -1,0 +1,143 @@
+{
+ "cell": "S4-D-r2",
+ "scenario": "S4",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 76016.8,
+  "duration_ms": 74566,
+  "duration_api_ms": 77505,
+  "cost_usd": 0.1608555,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 8080,
+   "cache_read_input_tokens": 110665,
+   "output_tokens": 5160,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 8080,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 620,
+     "cache_read_input_tokens": 29282,
+     "cache_creation_input_tokens": 4359,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4359
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T07:20:11.990413+00:00",
+   "end": "2026-07-14T07:21:28.007205+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3646254
+ },
+ "response": "I read all three files and weighed both probes. Decision recorded in `DECISION.md`:\n\n**Sunset v1 \u2014 reject both B (no exit condition, rewards silence not readiness) and C (0.4% traffic share measures request count, not blast radius \u2014 Ferrymark's nightly workflow and NorthRoute's live dispatcher maps prove small volume and high criticality coexist).**\n\nInstead of picking A as literally written (which the assumption probe correctly flags as blind to the same missing number), I restructured it to close the gap both probes converged on \u2014 per-customer migration cost:\n\n- **30-day discovery window (now \u2192 2026-08-13)**: pull real integration owners from API-key/account records for the full 41k/day of v1 traffic, not just the three accounts that wrote in \u2014 this is the fix for \"the three complainers are the visible tail\" (premortem failure class 3).\n- **Published sunset date: 2027-04-14 (9 months)** \u2014 sized to NorthRoute's actual described scope (parser rewrite + live dispatcher-map QA), published immediately rather than after discovery, so no account gets less runway than the floor.\n- **Notice schedule**: T-9mo, T-6mo, T-3mo, T-6wk, T-2wk to technical contacts (not billing), hands-on migration help prioritized by confirmed dependency severity, not complaint volume.\n- **No usage-floor gating the timeline** \u2014 traffic share only justifies planning a sunset at all, never how fast a given account must move.\n- **Bounded exception process**: one extension per account, capped at +90 days, requires a committed migration plan.\n- **Hard backstop: 2027-07-14 (12 months)** \u2014 v1 is retired no matter what, so the exception process can't quietly become Option B.\n\nFull rationale mapping each choice to the premortem's three failure classes and the assumption probe's shared dependency is in the file.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 39743.0,
+   "duration_ms": 38350,
+   "duration_api_ms": 39207,
+   "cost_usd": 0.1090857,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8246,
+    "cache_read_input_tokens": 72569,
+    "output_tokens": 2475,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8246,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2098,
+      "cache_read_input_tokens": 26394,
+      "cache_creation_input_tokens": 1980,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1980
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:19:32.246853+00:00",
+    "end": "2026-07-14T07:20:11.989827+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read all three files. Premortem only \u2014 no recommendation on the sunset call itself.\n\n**Failure class 1: The deadline was picked without the one number that determines whether it's survivable.** The memo itself flags this: \"I do not have a good estimate of per-customer migration cost, and that is the number that should actually decide how much runway the affected accounts need\" (MEMO.md). If the shipped decision picked a fixed date (six months, or the 60-day option) without ever closing that gap, it was a guess dressed as a plan. NorthRoute's email describes their actual cost \u2014 \"a rewrite of the parsing layer and a full QA pass on maps our dispatchers use live\" (complaints.md, Email 1) \u2014 which sounds like weeks-to-months of real engineering work, not a config change. A calendar date chosen before that cost was known would either come due before NorthRoute is ready (forcing a live dispatcher-facing break) or get extended ad hoc, discrediting every future \"firm\" deadline the team sets.\n\n**Failure class 2: traffic share was used as a proxy for criticality, and it isn't one.** The whole case for aggressive action rests on \"v1 is 0.4% of geocoding requests... a long, thin tail\" (MEMO.md, \"The metric\"). But Ferrymark's complaint isn't about volume \u2014 it's that v1 \"would break a nightly routing workflow our whole team depends on\" and is \"load-bearing\" for them (complaints.md, Email 3). A workload can be a rounding error in aggregate traffic and still be the one job that, if broken, takes down a customer's ops for a day. If the decision leaned on the 0.4% number as evidence the risk was small, it measured the wrong thing \u2014 request count, not blast radius per account \u2014 and got surprised when a \"tiny\" cutover broke something operationally critical.\n\n**Failure class 3: the three complainers are the visible tail, not the whole tail.** The memo only has color on three customers \u2014 the ones who happened to write in (complaints.md). But v1 carries ~41k requests/day across presumably many more integrations than three (version_traffic.csv). Any staged-notice plan built around \"give the three loud accounts hands-on help\" (Option A) implicitly assumes silence from everyone else means safety. If notices went to a billing contact instead of the engineer who wired up the integration years ago, or to an account that's since changed owners, the actual cutover could break integrations nobody flagged \u2014 discovered only when they fail, well after the loud three were already handled."
+  },
+  "assumption": {
+   "duration_ms_wall": 24199.6,
+   "duration_ms": 22803,
+   "duration_api_ms": 24964,
+   "cost_usd": 0.0946842,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8207,
+    "cache_read_input_tokens": 72524,
+    "output_tokens": 1532,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8207,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1188,
+      "cache_read_input_tokens": 26355,
+      "cache_creation_input_tokens": 1980,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1980
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:19:32.247216+00:00",
+    "end": "2026-07-14T07:19:56.446831+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Three options from the memo, each resting on one premise the data here doesn't actually confirm:\n\n**A \u2014 Firm date (~6mo), usage floor, staged notice, hands-on help for the three loud accounts**\nLoad-bearing dependency: that per-customer migration effort (rewriting parsers, QA'ing live dispatch maps per NorthRoute's email) fits inside 6 months even with help.\n\u2192 If X is false (migration genuinely takes longer than 6 months for at least one loud account), option A flips \u2014 the date becomes another broken promise to exactly the accounts who complained loudest.\n\n**B \u2014 Keep v1 alive indefinitely until complaints stop**\nLoad-bearing dependency: that complaint volume is a valid proxy for migration readiness/cost \u2014 i.e., silence would mean \"migrated,\" not \"gave up asking\" or \"never noticed.\"\n\u2192 If X is false (complaints stop for reasons unrelated to readiness, e.g. customers churn or stop escalating), option B flips \u2014 \"indefinitely\" has no real exit condition and the dual-maintenance cost the memo opens with never gets paid down.\n\n**C \u2014 Aggressive 60-day sunset on the 0.4% figure alone**\nLoad-bearing dependency: that traffic share (0.4%) is a valid proxy for migration cost/impact.\n\u2192 If X is false (traffic share and migration cost are decoupled \u2014 a small-volume integration can still be load-bearing, per NorthRoute's live dispatcher maps and Ferrymark's nightly workflow), option C flips \u2014 60 days becomes reckless regardless of how small the number is.\n\nThe memo's own \"thing I keep coming back to\" names the shared gap directly: none of the three options are actually anchored to migration cost \u2014 they're anchored to traffic share (C), complaint pressure (B), or an assumed-sufficient buffer (A). That missing number is the single dependency all three really pivot on."
+  }
+ },
+ "artifacts": {}
+}

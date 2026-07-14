@@ -64,9 +64,16 @@ ASSUMPTION_SUFFIX = (
     "for EACH option name the single load-bearing dependency — the one premise that, if false, "
     "reverses the choice. State each as 'if X is false, option Y flips'. Ground each in the "
     "materials here; be terse.")
+# Iteration 2 (README iteration log): integration requirement added — iteration-1 deciders
+# deflected to process assumptions on backtests; the probes' substance never reached the record.
 PROBE_BLOCK = ("\n\nBefore deciding, two independent probes examined the same materials without "
                "seeing each other or any draft decision. Weigh their reports:\n\n"
-               "--- PREMORTEM PROBE ---\n{p1}\n\n--- ASSUMPTION PROBE ---\n{p2}\n\nNow:")
+               "--- PREMORTEM PROBE ---\n{p1}\n\n--- ASSUMPTION PROBE ---\n{p2}\n\n"
+               "Your decision record must state, for the option you choose: THE single "
+               "load-bearing assumption — the one premise about the call's subject matter that, "
+               "if false, reverses this decision — and the failure class you are accepting. "
+               "Ground both in the substance of the call (never in process, tooling, or "
+               "formatting concerns), drawing on the probe reports where they hold up. Now:")
 
 
 def capture_artifacts(workdir, src):

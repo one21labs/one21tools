@@ -1,0 +1,143 @@
+{
+ "cell": "S1-D-r3",
+ "scenario": "S1",
+ "arm": "D",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 107407.0,
+  "duration_ms": 105985,
+  "duration_api_ms": 108153,
+  "cost_usd": 0.2678253,
+  "usage": {
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 10853,
+   "cache_read_input_tokens": 298101,
+   "output_tokens": 7426,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 10853,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 679,
+     "cache_read_input_tokens": 34436,
+     "cache_creation_input_tokens": 1959,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1959
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:51:38.098556+00:00",
+   "end": "2026-07-14T06:53:25.505586+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.46001139999999996
+ },
+ "response": "## Decision: 300 requests/day per key\n\nI recomputed the per-key averages from the raw CSV rather than trusting the memo's rounded summary \u2014 the real range is 94\u2013106/day across all 30 days (tighter than the memo's \"under 250\" framing), with no upward trend.\n\n**Not 1,000 (Option A):** ~10x the observed ceiling, guaranteed to never bind. The memo's own logic says the cap only matters as a conversion lever, and a lever that never engages can't produce the conversion data the whole decision depends on \u2014 shipping it because the pipeline already supports it optimizes for zero extra work, not for answering the actual question.\n\n**Not 150 (Option B as proposed):** The CSV only has daily aggregates (`active_keys`, `total_requests`) \u2014 no per-key distribution. A cap that close to the mean risks clipping whatever tail is hidden in that aggregate, and the users most likely to be in that tail are your best upgrade candidates. Their first contact with the cap becoming a mid-workflow failure is worse for conversion than it is for revenue.\n\n**300** gives ~3x headroom over the highest single-day average actually observed, clearing plausible tail variance while still sitting an order of magnitude below the \"never binds\" zone.\n\n**Flagged gap, not blocking:** the cap is metered per-key in Redis, not per-account \u2014 a free user can trivially mint a second key to route around any binding cap. This caps the lever's effectiveness regardless of the number chosen; recommended as a fast-follow (per-account aggregation or rate-limited key issuance) before the interim usage data gets contaminated by workaround behavior.\n\n**Concrete revisit triggers** (not a vague \"check back later\"): revisit within 90 days of Pro launch, or sooner if (1) users hit 300 without upgrading \u2014 cap is punitive, raise it \u2014 or (2) post-launch data shows no upgrade-rate difference between users who bump the cap and those who don't \u2014 cap is toothless, lower it or fix the per-key bypass first.\n\nFull record written to `DECISION.md`.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 43536.3,
+   "duration_ms": 42107,
+   "duration_api_ms": 42997,
+   "cost_usd": 0.10881869999999999,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 7904,
+    "cache_read_input_tokens": 72449,
+    "output_tokens": 2596,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 7904,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2346,
+      "cache_read_input_tokens": 26292,
+      "cache_creation_input_tokens": 1740,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1740
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:50:54.561552+00:00",
+    "end": "2026-07-14T06:51:38.097842+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read both files. Premortem \u2014 three plausible ways a shipped cap decision blows up within six months:\n\n**1. The cap never binds, so it never converts anyone (grounded in the \"no conversion data\" admission, MEMO.md lines 33\u201337).** If the founder ships Option A (1,000/day, \"cost nothing more to build\"), the memo's own math shows typical active-key usage is ~100/day and even busiest days stay under 250 \u2014 so the cap sits 4\u201310x above any observed ceiling. The memo already names this exact risk (\"almost nobody would ever bump the wall\") but ships anyway because the pipeline is already sized for it. Six months out: Pro has been live the whole time, free users have never once seen a limit, and there's still zero data on whether a cap drives upgrades \u2014 because the chosen number guaranteed no one would ever test that hypothesis. The failure isn't \"wrong number,\" it's that the decision silently forecloses ever learning the thing the memo says the whole decision rides on.\n\n**2. The cap is set from an average that hides the tail, and it clips the wrong users (grounded in the CSV's structure \u2014 only `active_keys` and `total_requests` columns, no per-key percentile or max).** Option B's \"~100/key average\" and \"busiest days ~250 per-key average\" are both derived by dividing a daily total by a key count \u2014 they say nothing about distribution within a day. A cap picked to sit just above that average (e.g., 150) can still be well below what a handful of your most engaged individual keys are doing, since 40 keys averaging 100 is fully consistent with a few keys at 400+ and many at 20. Those heavy keys are plausibly your best conversion prospects, and they're also the ones most likely to hit a tight cap first \u2014 not with a graceful upgrade nudge, but mid-workflow, generating support tickets or silent churn before Pro even gets evaluated. Six months later the founder finds conversion is flat or negative and free-tier complaints are up, and the postmortem discovers the cap was tuned to a number that was never actually a per-key ceiling, because the data to compute one didn't exist.\n\n**3. The cap is enforced per key, not per user, so it's trivially bypassed (grounded in \"a per-key counter in Redis,\" MEMO.md line 15).** Whatever number ships, the metering unit is the API key, and nothing in the memo describes identity- or account-level aggregation. A free user who bumps against any cap tight enough to matter (Option B or a low-end Option C) can register a second free key rather than upgrade \u2014 cheaper than $12/mo if signup is self-serve and unverified. Six months later the dashboard shows the cap \"working\" (per-key numbers look capped, alerts fire as designed) while aggregate free-tier load and paying conversions both stay flat, because the lever was pulling on an axis (per-key volume) that users could trivially route around rather than the axis that actually costs the founder money or that Pro is priced against (per-user/per-account volume)."
+  },
+  "assumption": {
+   "duration_ms_wall": 16329.0,
+   "duration_ms": 14728,
+   "duration_api_ms": 15631,
+   "cost_usd": 0.0833674,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8019,
+    "cache_read_input_tokens": 72558,
+    "output_tokens": 852,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8019,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 549,
+      "cache_read_input_tokens": 26407,
+      "cache_creation_input_tokens": 1740,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1740
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T06:50:54.562029+00:00",
+    "end": "2026-07-14T06:51:10.891127+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "**Options and their single load-bearing dependency:**\n\n- **A \u2014 1,000/day (matches build):** Load-bearing premise: *that free users will never grow into meaningfully heavier usage.* The CSV only shows per-key averages (~100/day, busiest ~250/day) \u2014 it doesn't show the shape of the tail (whether any individual key spikes toward 1,000). If X is false \u2014 i.e., real usage does grow toward or past current averages over time, or a non-trivial tail already exists that the aggregate hides \u2014 option A flips, because a cap that never binds anyone can't function as a conversion lever.\n\n- **B \u2014 ~150/day (near observed usage, explicit conversion lever):** Load-bearing premise: *hitting the cap causes users to upgrade rather than churn or route around it.* The memo says outright there's no conversion data yet \u2014 Pro isn't live. If X is false \u2014 i.e., users who hit the wall mostly leave, complain, or find a workaround instead of paying $12/mo \u2014 option B flips, because you'd be actively frustrating your most-engaged free users for no revenue gain.\n\n- **C \u2014 middle ground, revisit after Pro has run:** Load-bearing premise: *the cost of running an interim/wrong number for a while is low enough to be worth deferring the real decision.* This depends on there being an actual mechanism and intent to revisit (not just a promise) and on near-term harm from a mis-set cap being small. If X is false \u2014 i.e., an early wrong cap either burns real conversion opportunity in the meantime or gets \"temporary\" values calcified into permanent ones (no one revisits) \u2014 option C flips, since it would just be A or B in disguise without owning the reasoning."
+  }
+ },
+ "artifacts": {}
+}

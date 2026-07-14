@@ -1,0 +1,54 @@
+{
+ "cell": "B2-A-r3",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 48559.5,
+  "duration_ms": 47208,
+  "duration_api_ms": 48386,
+  "cost_usd": 0.1440245,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 11406,
+   "cache_read_input_tokens": 48705,
+   "output_tokens": 4017,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 11406,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3919,
+     "cache_read_input_tokens": 28577,
+     "cache_creation_input_tokens": 2957,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2957
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:08:28.108308+00:00",
+   "end": "2026-07-14T06:09:16.667832+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1440245
+ },
+ "response": "## Decision Record \u2014 Execution design for ISSUE-41's tiered-agent test\n\n**Decision:** Run the full pre-registered grid (all 4 arms \u00d7 8 tasks, starting at the pre-registered rep count and using the already-specified sequential escalation \u2014 add reps/tasks only where a CI straddles the boundary). Do **not** pilot the single most expensive arm first and stop early.\n\n**Rationale:**\n\n1. **The decision gate is inherently comparative, not single-arm.** The pre-registered rule \u2014 *\"Adopt Tiered if delta vs Sonnet-solo \u2265 -0.05 AND tokens \u2264 0.7\u00d7 Sonnet-solo\"* \u2014 requires matched, concurrently-run Tiered and Sonnet-solo data (same tasks, same pre-screen, same timing). No single arm, however expensive, can make that gate decidable in isolation. Running \"the expensive arm\" alone and checking if the gate is \"already decidable\" is a category error: there is nothing to compare it against yet.\n\n2. **Ambiguity in \"most expensive arm\" is itself a red flag.** It's unclear whether that means Opus-solo (highest cost-per-token) or Tiered (highest invocation-count, given plan+implement+validate+redispatch \u00d7\u22643). That the proposal can't even name a single arm cleanly, while the pre-reg's sequential-escalation clause is unambiguous (escalate reps/tasks across all arms together, stop when CIs are unambiguous), is a sign the pilot-first framing is solving a problem the pre-registration already solved better.\n\n3. **A single-arm pilot is an unregistered stopping rule \u2014 exactly what pre-registration exists to prevent.** ADR 0024's rationale for pre-registering margins and the decision rule was to avoid fishing for a favorable cut. Substituting an ad hoc \"check if we can stop after the expensive arm\" tactic after the fact, for cost reasons, is a deviation from the registered method and reintroduces the same bias risk the pre-reg was built to close.\n\n4. **The pre-reg already has a cheaper, correct lever for cost control.** *\"Sequential escalation: add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous.\"* This gets the cost savings the pilot-first idea is chasing (don't spend on reps/tasks that don't matter) without breaking the matched-arms design \u2014 start all 4 arms at low reps, escalate only the arms/tasks whose CI is ambiguous, stop when the gate is decidable. This is strictly better than single-arm piloting because it preserves comparability.\n\n**Alternatives considered and rejected:**\n- *Pilot Opus-solo first, stop if it doesn't clear a quality bar over Sonnet-solo* \u2014 rejected: Opus-solo isn't part of the primary decision rule (Tiered vs Sonnet-solo); it only feeds the secondary \"Tiered reaches Opus-quality at sub-Opus cost\" report. Deciding *not* to run Tiered based on Opus-solo alone would abandon the actual hypothesis under test.\n- *Pilot Tiered first, stop if tokens already clear 0.7\u00d7 threshold against a rough/prior Sonnet-solo estimate* \u2014 rejected: \"rough estimate\" is not the eval-clustered, matched Sonnet-solo baseline the rule requires; deciding adoption against an unmatched baseline risks a false accept/reject that the whole blind-grading + clustered-CI apparatus was built to prevent.\n\n**Net effect on scope:** No change to the pre-registered arms, tasks, or decision rule (Comment 1/3 stand as written). The only operative cost control is the sequential-escalation clause already in the pre-reg \u2014 start at minimum reps across all 4 arms, escalate only where ambiguous, stop when unambiguous.",
+ "probes": {},
+ "artifacts": {}
+}

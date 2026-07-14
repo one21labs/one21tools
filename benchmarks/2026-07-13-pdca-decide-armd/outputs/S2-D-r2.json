@@ -1,0 +1,143 @@
+{
+ "cell": "S2-D-r2",
+ "scenario": "S2",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 22682.3,
+  "duration_ms": 21061,
+  "duration_api_ms": 22380,
+  "cost_usd": 0.06920589999999999,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 3965,
+   "cache_read_input_tokens": 81313,
+   "output_tokens": 1290,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 3965,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1072,
+     "cache_read_input_tokens": 28410,
+     "cache_creation_input_tokens": 1092,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1092
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T07:00:42.261185+00:00",
+   "end": "2026-07-14T07:01:04.943557+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.2659959
+ },
+ "response": "## Decision: Option A \u2014 extract dispatcher console only\n\n**Reject B (full multi-service migration):** Its sole justification \u2014 enterprise prospects asking about microservices \u2014 has no evidence after two direct requests (MEMO.md:14\u201319). Both probes independently flag this: the assumption probe identifies it as B's single load-bearing premise, and the premortem's top failure class is committing to slow-to-unwind infrastructure, on-call splits, and cross-team API contracts (MEMO.md:38\u201339) on a rumor. You don't spend two quarters and irreversible organizational cost hedging a claim nobody can produce a paper trail for. If real procurement pressure materializes later \u2014 a named prospect, a lost-deal note, a ticket \u2014 that changes the input and the decision can be revisited then.\n\n**Reject C (do nothing):** Ops Tools is a four-person team genuinely blocked at every release by a shared deploy train (MEMO.md:8\u201311). That's a real, ongoing cost, not a hypothetical one, and it's the whole reason this memo exists. The assumption probe's framing for C only holds \"while the status quo pain is judged acceptable\" \u2014 it isn't; it's the stated trigger for this decision.\n\n**Choose A** because it's the only option matched to what's actually verified rather than asserted: modules.md confirms dispatcher_console has 0 inbound synchronous callers and writes only to `dispatch_events`, which nothing else reads (modules.md:8\u201312) \u2014 the cleanest seam in the system, versus `notifications` at 9 callers/3 shared tables (modules.md:21\u201328) and `bookings` at 6 callers and explicitly \"not a candidate for early extraction\" (modules.md:19). A also has an actual reversal cost \u2014 about a week (MEMO.md:30\u201331, 37) \u2014 instead of B's slow-to-unwind commitments.\n\n**Guardrail, from the premortem's third failure class:** the reversibility of A depends entirely on `dispatch_events` staying in the shared database. Do not let a later \"while we're in there\" push move it to its own database to look more like a broader migration \u2014 that trades away the one thing that makes this bet cheap to reverse, for architectural optics. If dispatcher_console needs its own database, that's a distinct, explicit decision made on its own evidence, not a drift.\n\n**Sequencing note:** this decision covers the first extraction only. It does not pre-commit to `notifications` or any other module being next \u2014 modules.md is clear that's a materially different, more entangled cut, and momentum from a successful A should not be read as license to take it on without its own scoping.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 36814.4,
+   "duration_ms": 35437,
+   "duration_api_ms": 36403,
+   "cost_usd": 0.1119256,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8453,
+    "cache_read_input_tokens": 72712,
+    "output_tokens": 2579,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8453,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2281,
+      "cache_read_input_tokens": 26561,
+      "cache_creation_input_tokens": 2020,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2020
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:00:05.446052+00:00",
+    "end": "2026-07-14T07:00:42.260498+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Premortem: assume the org shipped a service-migration decision here, and six months from now it's judged a failure. Based on what's actually documented in MEMO.md and modules.md, here are the most plausible failure classes:\n\n**1. Scope inflation chasing an unverified signal.** MEMO.md is explicit that the \"enterprise prospects asking about microservices\" claim has been asked for evidence twice \u2014 a specific prospect, a lost-deal note, a procurement ticket \u2014 and none has surfaced; it's secondhand each time (MEMO.md lines 14\u201319). If the broad multi-service path (Option B) gets chosen on the strength of that claim, the failure mode six months out is straightforward: the org has stood up cross-team API contracts and split on-call rotations that MEMO.md itself flags as \"slow and expensive to unwind\" (line 39), and the sales justification for having done so still has no paper trail. The migration ends up optimized for a rumor rather than a demonstrated deal blocker.\n\n**2. Sequencing drifts onto the wrong seam under momentum.** modules.md is unambiguous that `notifications` is the trap: 9 synchronous inbound callers and 3 shared tables, called out twice as a \"multi-month entanglement\" (modules.md lines 27\u201328; MEMO.md line 26), versus `dispatcher_console`'s 0 inbound callers and single private write table. A multi-quarter sequencing plan (Option B) is exactly the kind of commitment where, after the \"easy\" first win, pressure to show the *next* extraction lands on a higher-visibility, more central module before the team internalizes how coupled it is \u2014 `bookings` has 6 inbound callers and is called \"not a candidate for early extraction\" (modules.md line 19) for the same underlying reason. Either move burns the two-quarter budget on unwinding a premature cut rather than delivering it.\n\n**3. The reversibility premise quietly gets eroded.** Option A's entire safety case rests on one condition: the dispatcher console's tables stay in the shared database, making rollback \"a routing change in about a week\" (MEMO.md lines 30\u201331, 37). That premise is fragile precisely because it's cheap to violate incrementally \u2014 a later \"while we're in there\" push to also split `dispatch_events` into its own database (to look more like the broad migration Sales keeps asking about) removes the one thing that made the bet reversible. Six months later, a failing extraction can't be folded back in a week because the safety net was traded away for architectural optics, not because the original seam was wrong."
+  },
+  "assumption": {
+   "duration_ms_wall": 16902.9,
+   "duration_ms": 15378,
+   "duration_api_ms": 16223,
+   "cost_usd": 0.0848644,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8445,
+    "cache_read_input_tokens": 72698,
+    "output_tokens": 779,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8445,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 483,
+      "cache_read_input_tokens": 26553,
+      "cache_creation_input_tokens": 2020,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2020
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:00:05.446434+00:00",
+    "end": "2026-07-14T07:00:22.349338+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Options and their single load-bearing dependency:\n\n- **A \u2014 extract dispatcher console only:** load-bearing premise is that dispatcher_console's write isolation (`dispatch_events`, 0 readers, 0 inbound sync callers) holds as described in modules.md. If X is false \u2014 i.e., something else turns out to read/depend on `dispatch_events` or call into dispatcher_console synchronously \u2014 option A flips, since its whole case rests on being \"the cleanest seam\" with a ~week reversal cost.\n\n- **B \u2014 full multi-service migration, sequenced over two quarters:** load-bearing premise is the sales/procurement pressure (\"prospects keep asking about microservices\") being a real, verifiable demand signal. If X is false \u2014 the memo itself notes this claim is secondhand with no prospect, lost-deal note, or procurement ticket ever produced despite two requests \u2014 option B flips, since that pressure is the only stated justification for taking on infrastructure, on-call, and cross-team contract costs that are slow to unwind.\n\n- **C \u2014 do nothing, keep shared deploy train:** load-bearing premise is that Ops Tools' release-blocking pain is tolerable to absorb indefinitely (four engineers blocked at release time). If X is false \u2014 i.e., the blocking is severe/costly enough that delay itself carries real cost (lost velocity, attrition risk, escalations) \u2014 option C flips, since \"do nothing\" only holds while the status quo pain is judged acceptable."
+  }
+ },
+ "artifacts": {}
+}

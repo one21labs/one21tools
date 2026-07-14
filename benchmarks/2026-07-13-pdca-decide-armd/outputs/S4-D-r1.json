@@ -1,0 +1,143 @@
+{
+ "cell": "S4-D-r1",
+ "scenario": "S4",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 75143.1,
+  "duration_ms": 73672,
+  "duration_api_ms": 74842,
+  "cost_usd": 0.17112739999999999,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 8618,
+   "cache_read_input_tokens": 110928,
+   "output_tokens": 5621,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 8618,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 630,
+     "cache_read_input_tokens": 29370,
+     "cache_creation_input_tokens": 4809,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4809
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T07:13:49.399827+00:00",
+   "end": "2026-07-14T07:15:04.542976+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3665914
+ },
+ "response": "Both probes converged on the same real flaw: none of the memo's three options are safe to commit to as literally written, because the missing per-customer migration-cost number is exactly what each one silently assumes away. I made the call and wrote it to `DECISION.md`:\n\n**Decision:** Sunset v1 on **2027-04-14 (9 months out)**, with a **0.05% usage floor** (cut early if the tail clears sooner) and a firm **9-month + max 60-day-grace outer bound** (no indefinite extensions off a complaint alone). This modifies Option A rather than picking C or B outright:\n\n1. **Close the data gap first** \u2014 pull account-level attribution from raw v1 logs within 30 days, since the CSV can't show whether the tail is 3 accounts or 30. Any account the audit surfaces gets the same treatment as the known complainants, not silence-as-safety.\n2. **Segment the remedy by blocker type**, since the three emails describe three different problems, not one:\n   - NorthRoute (parsing rewrite + live QA cost) \u2192 ship a v1-compatible response shim in v2, which collapses their cost from a rewrite to near-zero.\n   - Tavo (zero headcount, not a deadline objection) \u2192 Meridian does the migration for them.\n   - Ferrymark (critical, timing-sensitive) \u2192 named contact, self-picked supervised cutover window.\n3. **9 months, not 6**, sized against the worst known case (NorthRoute's) rather than the 0.4% aggregate, which the complaints show isn't a valid proxy for switching cost.\n4. Staged notice at T-9/6/3/1mo and T-0, with an explicit trigger to revisit the date if the audit shows the tail is bigger than the three known accounts suggest.\n\nFull rationale and notice schedule are in `/tmp/armd-S4-D-r1-ht8tqzmo/DECISION.md`.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 33328.0,
+   "duration_ms": 31888,
+   "duration_api_ms": 39240,
+   "cost_usd": 0.0992373,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8210,
+    "cache_read_input_tokens": 72511,
+    "output_tokens": 1834,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8210,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1493,
+      "cache_read_input_tokens": 26336,
+      "cache_creation_input_tokens": 2002,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2002
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:13:16.071253+00:00",
+    "end": "2026-07-14T07:13:49.399277+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read all three files. Premortem \u2014 assuming whatever call got made here shipped and blew up six months later, here's what most plausibly did it:\n\n**1. The migration-cost blind spot became the actual failure, not a side risk.** The memo itself names this as the load-bearing unknown (MEMO.md:24-28: \"I do not have a good estimate of per-customer migration cost... I am deciding partly in the dark on the one input that matters most\"). Whatever runway got committed to was picked without that number. NorthRoute's email spells out what migration actually costs them \u2014 not a config change but \"a rewrite of the parsing layer and a full QA pass on maps our dispatchers use live\" (complaints.md:8-9). If the committed date was sized off the 0.4% traffic stat rather than that real workload, the date either arrived before the rewrite was QA'd \u2014 breaking a dispatcher-facing tool \u2014 or had to be walked back publicly, burning credibility on the next \"firm\" deadline.\n\n**2. The 0.4% figure was read as \"low risk\" when the memo explicitly frames it as a thin tail of unknown depth, not three known cases.** version_traffic.csv only shows the aggregate v1/v2 split \u2014 it has no per-customer breakdown, so there's no way to know from this data whether the ~41k monthly v1 requests are concentrated in a handful of accounts or spread across dozens of silent integrations. MEMO.md:14-15 calls it \"a long, thin tail: no single large customer, mostly old integrations nobody ever updated.\" A staged notice schedule built assuming the three complainants are representative of \"who's affected\" would miss quieter accounts on old integrations \u2014 the kind whose original engineering contact left the company \u2014 who don't complain in advance and only surface as an outage ticket the week v1 actually goes dark.\n\n**3. Uniform treatment of a non-uniform problem.** The three emails describe three structurally different blockers \u2014 a parsing/response-shape rewrite (NorthRoute), zero engineering capacity regardless of effort required (Tavo, \"just the two of us,\" complaints.md:15-16), and workflow criticality with no time to touch it (Ferrymark, complaints.md:21-22). A single sunset date, usage floor, or \"hands-on migration help\" offer sized for one of these failure modes (e.g., help with the technical rewrite) does nothing for the capacity problem or the \"no one's available to even receive the help\" problem. If the shipped decision applied one remedy across all three, at least one of them was still unmigrated at the deadline \u2014 and that's the account that turns into the incident."
+  },
+  "assumption": {
+   "duration_ms_wall": 25173.9,
+   "duration_ms": 23761,
+   "duration_api_ms": 24692,
+   "cost_usd": 0.0962267,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8182,
+    "cache_read_input_tokens": 72499,
+    "output_tokens": 1646,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8182,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1327,
+      "cache_read_input_tokens": 26330,
+      "cache_creation_input_tokens": 1980,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1980
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T07:13:16.071919+00:00",
+    "end": "2026-07-14T07:13:41.245827+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Options and their load-bearing dependency\n\n**A \u2014 Firm date (e.g. 6mo) + usage floor + staged notice + white-glove help for the three loud accounts**\nLoad-bearing premise: the chosen runway is actually long enough to cover the *worst-case* migration cost (NorthRoute's parsing-layer rewrite + live-dispatcher QA), not just the median one.\n\u2192 If X is false \u2014 i.e. per-customer migration cost for even one account exceeds what the committed runway + hands-on help can absorb \u2014 option A flips into either a broken customer (if you hold the date) or a de facto extension (if you don't), and the \"firm\" date wasn't real.\n\n**B \u2014 Keep v1 alive indefinitely until complaints stop**\nLoad-bearing premise: dual-maintenance cost stays flat/tolerable and the tail doesn't grow \u2014 i.e. \"no complaints\" means resolved, not just quiet while new integrations keep landing on v1.\n\u2192 If X is false \u2014 the memo already says every bugfix is written and tested twice, a cost that's presumably rising, not flat \u2014 option B flips from \"reasonable patience\" into \"the two-codepath tax compounds forever with no forcing function to end it.\"\n\n**C \u2014 Aggressive 60-day sunset on the 0.4% number alone**\nLoad-bearing premise: traffic share is a valid proxy for migration cost/harm, i.e. low volume \u2248 low switching cost.\n\u2192 If X is false \u2014 which the complaints directly argue (NorthRoute: full parsing rewrite + live QA; Tavo: zero bandwidth; Ferrymark: load-bearing nightly job) \u2014 option C flips from \"low-impact cleanup\" into \"high-harm breakage of specific real workflows,\" since thin-tail volume doesn't mean thin-tail switching cost.\n\nThe memo's own admission \u2014 no per-customer migration-cost estimate \u2014 is exactly the fact each of these three dependencies turns on. None of the three options is safe to commit to until that number (or even a rough proxy for it, e.g. actual integration complexity per account) exists."
+  }
+ },
+ "artifacts": {}
+}
