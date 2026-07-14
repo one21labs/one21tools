@@ -51,6 +51,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
 - Cost is priced notionally at published rates (deterministic) even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.
+- **No primed conclusions (ADR 0059):** every pre-registration, experiment issue, and eval title
+  states a FALSIFIABLE hypothesis neutrally — kill conditions and bars up front, motivation labeled
+  as grounding (never evidence), a null recorded as an equally valid outcome. Titles pose the
+  question, never the answer. Advocacy wording is itself a contamination channel: agents read it.
 - Never edits a frozen dated benchmark dir (append-only, ADR 0026).
 
 Method foundations (pre-registration, empirical evals) live in the `building-skills` skill; this

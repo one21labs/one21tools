@@ -76,7 +76,8 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
    spec: `references/adr-lint.md`). No index
    to update — the corpus IS the plan-of-record (rules + shared register stay in
    `docs/decisions/README.md`). If a roadmap/changelog/tracker exists, mirror
-   build-order/ship-state there referencing the ADR ID.
+   build-order/ship-state there referencing the ADR ID. Spawned experiments: a
+   neutral falsifiable hypothesis (ADR 0059).
 8. **Iterate the system.** Fold what you learned (a missing field, a better stop rule) back into
    its home — an agent file, this skill, or CLAUDE.md. Automate this Act loop with `/retrospect`.
 
