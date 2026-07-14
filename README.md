@@ -26,11 +26,11 @@ The differentiating idea: manufacturing quality principles translate directly to
 
 Skills here are not shipped on faith — the dev/engineering skills carry eval sets and paired
 benchmarks, and pdca-workflow's flagship skills (`/decide`, `/retrospect`) carry outcome-level
-instruments (`benchmarks/2026-07-12-pdca-*`: both returned nulls vs cost-matched baselines at
-n=3 — recorded, not spun; the `/decide` null is judge-sensitive on cross-family re-grade, and
-ADR 0057 routes the follow-up — a measured redesign loop with a dual-judge headline,
-`benchmarks/2026-07-13-pdca-*`). Measurements exist to **improve**
-the skills (raise benefit-per-token), not just gatekeep them.
+instruments (`benchmarks/2026-07-1{2,3,4}-pdca-*`, six of them: rubric-quality nulls vs
+cost-matched baselines everywhere — recorded, not spun — judge-robust for both cheap panel
+replacements; the measured values are the process guarantees, retrospect's FP discipline, and
+the independent-perspectives failure-anticipation edge; ADR 0057/0061 route the program).
+Measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
 The loop (method home: `skills/building-skills/references/empirical-evals.md`; decision records:
 ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 
