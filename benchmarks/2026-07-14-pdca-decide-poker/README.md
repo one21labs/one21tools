@@ -94,16 +94,18 @@ threatens bar b). Runtime backstop: cumulative spend > ceiling halts resumable.
 
 **Verdict: H1 FALSIFIED, judge-ROBUST — no adoption; the panel stays (ADR 0057 d1).**
 Three of four bars miss under BOTH judges (judge split empty): (a) hard pair P−C −0.104
-[−0.411, +0.202]; (c) OUTCOME SPREAD P 0.281 vs C 0.063 — the consistency claim inverted:
-numeric scoring ADDED rep-to-rep variance; (d) full P−C −0.125 [−0.366, +0.116] opus /
+[−0.411, +0.202]; (c) OUTCOME SPREAD P 0.281 vs C 0.063 (post-verdict cell audit: mostly a decider
+capture defect, not scoring variance — correction below); (d) full P−C −0.125 [−0.366, +0.116] opus /
 −0.135 [−0.331, +0.060] grok. CIs straddle zero (the stated MDE said they would); the bar
 set decides on agreed directional misses, reported weak. (b) cost passes decisively:
 P $0.920 vs C $3.211 = 0.29x. Judge agreement 0.819, kappa 0.593.
 
-- Texture: P ~ C on backtests (exp-4 0.417 vs 0.333; B2 +0.25) and collapses on the
-  synthetic traps (S1 −0.75 — P anchored on the sunk-cost bait C refused; P synthetic
-  per-exp 0.67-0.75, BELOW bare A's 0.83-1.0, C at 1.0). H1's own named alternative —
-  structured scoring flattens the argued dialectic — is the observed mechanism.
+- Texture: P ~ C on backtests (exp-4 0.417 vs 0.333; B2 +0.25) and loses the synthetic
+  traps (P per-exp 0.67-0.75 vs bare A 0.83-1.0, C 1.0) — but per the correction below,
+  S1's −0.75 is two capture-defect zeros plus one prosecutor overturn, NOT trap anchoring.
+  The surviving genuine signal is record richness (rejected-alternative reasons, falsifiable
+  criteria, load-bearing assumptions) — a weaker form of H1's named alternative (structured
+  scoring flattens the argued dialectic).
 - Herding audit: round 2 fired 4/24 (conditional as designed); toward-mean share 0.41
   (7 toward / 4 away / 6 kept) — no strong anchoring. The economics held; quality did not.
 - Audit 4/9 = chance, blinding held. Cost ledger: grid $111.21 + pilot $3.61 executor;
@@ -113,6 +115,31 @@ P $0.920 vs C $3.211 = 0.29x. Judge agreement 0.819, kappa 0.593.
   run-to-run variance; C's synthetics ran 0.834 -> 1.0 -> 1.0 (I2's all-traps loss is the
   outlier of three). Bare-arm means flat across the three scenario reuses — the staleness
   threat did not materialize (one note: B1's bare arm drifted 0.417 -> 0.583 -> 0.833).
+
+## Post-verdict correction (2026-07-14 cell-level audit; verdict unchanged)
+
+The decider was the only generative step with NO output validation — framer and advisors got
+JSON schema + one retry; the step producing the graded artifact got nothing. It shows: the
+grid's only two zero-scored cells, S1-P-r2 and S1-P-r3, are capture failures, not bad
+decisions. Both final replies deferred to a record "above" (r3 named 300/day + a 90-day
+revisit checkpoint; r2 restated nothing) and neither wrote an artifact, so the grader saw
+empty content. S3-P-r1 (0.25) is the same terse-summary mode. Arms A and C: 48/48
+substantive captures — the poker decider does induce terse wrap-up replies, but that is a
+fixable harness property, not a property of Delphi estimation.
+
+Two Results claims are corrected. (1) "P anchored on the sunk-cost bait C refused" is NOT
+supported by the cells: every S1-P decision that states a number chose 300/day, inside the
+250-400 band C's passing records occupy, and the one fully graded record explicitly rejected
+1,000 (its anchoring expectation was overturned by the prosecutor as surface-level while C's
+300/day passed — an arm-asymmetric judge call, recorded). (2) Bar c's "inversion" is mostly
+the defect: the two scenarios with outsized P spread (S1, S3 at 0.75 each) carry all three
+defect cells; across the other six scenarios P 0.125 vs C 0.083.
+
+The verdict stands as pre-registered: only the advisor floor had an ERROR-cell rule, so these
+cells grade as cells, and bars a/d miss under both judges regardless. Forward rules this
+licenses (bench-skill homes, not retro-applied here): every generative step gets
+validation+retry or an ERROR-cell rule — above all the graded-artifact step; a pre-grading
+per-arm capture-symmetry sweep; per-bar top-cell attribution before any mechanism narrative.
 
 ## Threats to validity (pre-registered)
 

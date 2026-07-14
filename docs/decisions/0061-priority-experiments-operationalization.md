@@ -15,7 +15,7 @@ summary: "Operationalize the owner-frozen #186/#185 pre-regs: norm input + dual-
 ## Decision
 **#186 Phase-0 (zero-generation-spend):**
 - 1a Input = **norm** (arm-blind substrate; raw begs H1 via arm-C scaffolding).
-- 1b **Dual-family** on the two model items (subject-matter assumption; failure class); items 3-4 mechanical/regex, no model. Cross-family disagreement on DoD-pass/fail -> EXCLUDE + record. Verdict pivot; judge-sensitivity is the documented failure mode (0057 d2).
+- 1b **Dual-family** on the two model items (subject-matter assumption; failure class); items 3-4 mechanical/regex, no model. Cross-family disagreement on DoD-pass/fail -> EXCLUDE + record. Verdict pivot (0057 d2).
 - 1c **Within-arm, within-corpus** (never pool). Floor **n>=5 both buckets**, set BLIND (no peeking — 0042). Three states: both>=5 -> apply the owner's >=0.15 test (SUPPORTED/FALSIFIED); either bucket <5 or >90%-skew -> **INCONCLUSIVE** (absence-of-data, never falsification).
 - 1d Kill = **full fraction-met** (owner freeze). ADD a pre-registered DIAGNOSTIC: same delta on the non-ceilinged subset (exps 3-4; exps 1-2 sit at 0.92 ceiling, `benchmarks/2026-07-12-pdca-decide-outcome/README.md:141`, diluting a real delta). Diagnostic informs a REOPEN, never overrides the kill. Do NOT import #185's "hard-pair".
 
@@ -56,5 +56,5 @@ Each call is cost x validity; owner freeze held — fraction-met kills #186 (sec
 ## Act (post-ship — 2026-07-14)
 - [outcome] classifier [checkable] verified — 20.1% family disagreement excluded + recorded; TESTED deltas cleared with margin (Phase-0 SUPPORTED, bare arm only).
 - [outcome] "dual costs <$1" premise violated: $16.82 notional.
-- [outcome] #185 H1 FALSIFIED judge-robust (bar c inverted: P spread 0.281 vs C 0.063); pre-grid triggers never fired.
+- [outcome] #185 H1 FALSIFIED judge-robust (bar c spread 0.281 vs 0.063 — mostly a decider capture defect; poker README correction); pre-grid triggers never fired.
 - [pivot] "#185 verdict lands" fired -> ADR 0062.

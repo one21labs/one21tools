@@ -31,8 +31,9 @@ families — but reproducibly asserts HALF the false findings (FP guard, both ve
 only, prototype basis per ADR 0057; CIs straddle zero); a 7x-cheaper
 decider+probes replacement failed all pre-registered quality bars across a 3-iteration
 improvement loop under BOTH judges; a poker/Delphi numeric-estimation round at 0.29x cost
-failed three of four bars under BOTH judges, landing below even a bare decider on planted
-traps — the panel's one measured edge is failure anticipation from genuinely independent
+failed three of four bars under BOTH judges (its planted-trap losses trace mostly to a
+decider output-capture defect — that benchmark's post-verdict correction; the surviving
+gap is record richness) — the panel's one measured edge is failure anticipation from genuinely independent
 perspectives (solo self-argument collapses it; both cheap substitutes died on it), with high
 per-run variance and NO run-to-run variance damping (three same-config runs: panel scenario
 spread ~ bare spread). A mechanical DoD record check predicts record quality among bare
