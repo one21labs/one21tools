@@ -17,7 +17,8 @@ the judge. The only cost is judge calls (grok is subscription-billed; `--cache` 
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
-  --judge auto|grok|claude|both [--cache <prior.jsonl>] [--out report.json]
+  --judge auto|grok|claude|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
+  [--out report.json]
 ```
 
 - `--dir` must hold `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
@@ -25,6 +26,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
   diagnostic (agreement, kappa, verdict flip). See [judging.md](references/judging.md).
 - Emits arm means, clustered C-B with 95% CI, KEEP/CUT, per-expectation, and `notional_cost_usd`.
   See [cost-and-verdict.md](references/cost-and-verdict.md).
+- `--cells-out` also writes per-cell re-graded verdicts (jsonl) — the substrate for computing a
+  pre-registered bar set on the second judge's basis so a judge-disagreement rule (disagree =>
+  bar NOT MET) is mechanical, never a manual comparison.
 
 ## `skill` — with/without value benchmark (paid generation)
 
