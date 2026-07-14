@@ -95,3 +95,8 @@ records it cannot discriminate.
 - Confound (pre-registered above): correlation, not causation. Phase 1's causal
   enforcement test (on/off axis in a future grid) becomes eligible follow-up work — NOT a
   #172 gate (ADR 0061); enforcement-produces-boilerplate remains untested.
+- EXPLORATORY (`exploratory-items.json`, post-hoc, never a kill basis): within arm A the
+  stable per-item signal sits on items 1 and 3 (subject-matter assumption +0.27/+0.48;
+  falsifiable criterion +0.25/+0.39); item 2 is weak-inconsistent; item 4's +0.80 rests on
+  one fail cell (near-ceiling). Family disagreement splits evenly across items 1-2. Phase-1
+  design hint: a two-item check (1+3), one of them fully mechanical.
