@@ -70,12 +70,13 @@ PROBE_BLOCK = ("\n\nBefore deciding, two independent probes examined the same ma
 
 
 def capture_artifacts(workdir, src):
-    """Files the CELL created under a decisions path (I2 lesson: never sweep the corpus)."""
+    """Every .md the CELL created (absent from the source bundle) — deciders in ANY arm may
+    write the decision to a file (e.g. a root DECISION.md) and reply with a pointer; the
+    I2 lesson still holds in the other direction: never sweep pre-existing corpus files."""
     out = {}
     for p in Path(workdir).rglob("*.md"):
         rel = str(p.relative_to(workdir))
-        if (rel.startswith("docs/decisions/") or rel.startswith("decisions/")) \
-                and not (Path(src) / rel).exists():
+        if not (Path(src) / rel).exists():
             out[rel] = p.read_text(encoding="utf-8", errors="replace")[:20000]
     return out
 
@@ -155,9 +156,12 @@ def main():
         summary = summarize_call(call)
         probe_cost = sum((probes.get(k) or {}).get("cost_usd") or 0.0 for k in probes)
         summary["cell_cost_usd"] = (summary.get("cost_usd") or 0.0) + probe_cost
+        # Artifacts captured for EVERY arm: A/D deciders may also write their decision to a
+        # file and reply with a pointer (defect found post-grading iteration 1: 4 cells graded
+        # on a stub while the written decision was lost with the workdir; run log 2026-07-13).
         record = {"cell": cell, "scenario": sub, "arm": arm, "rep": rep, "model": MODEL,
                   "summary": summary, "response": call["response"], "probes": probes,
-                  "artifacts": capture_artifacts(workdir, src) if arm == "C" else {}}
+                  "artifacts": capture_artifacts(workdir, src)}
         path.write_text(json.dumps(record, indent=1), encoding="utf-8")
         shutil.rmtree(workdir, ignore_errors=True)
         with lock:
