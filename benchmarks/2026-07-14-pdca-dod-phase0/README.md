@@ -73,3 +73,25 @@ Zero generation. Classifier: 144 cells x 2 families x 1 call (~$1-2 notional gro
 `dod.jsonl` (per-cell item verdicts, both families, mechanical results), `results.json`
 (buckets, deltas, three-state, H1 verdict, disagreement ledger, diagnostic, costs),
 `metadata.json` (frozen config). Append-only dated dir (ADR 0041).
+
+## Results (verdict — 2026-07-14; `results.json`, `dod.jsonl`)
+
+**H1 SUPPORTED under the frozen rule — with the discriminating power confined to the bare
+arm.** In both corpora arm A is the only TESTED arm (both buckets >= 5, skew <= 0.90): full
+fraction-met delta pass−fail = **+0.225** (outcome, 11v9) / **+0.208** (armd, 6v10), both
+>= 0.15; the hard-pair diagnostic agrees (+0.227 / +0.267). Every structured arm lands
+INCONCLUSIVE by the blind floor, in two distinct ways: the panel arms pass the check
+near-universally (outcome C 14/18, armd C 17/19, armd D 22/23 — the /decide template
+mandates the checked items, so among panel records the checkable properties ARE ceilinged
+formalities, the failure mode the issue named), while arm B's pass bucket is too thin
+(4/19). In bare records the check separates quality as H1 claimed; within structured
+records it cannot discriminate.
+
+- Dual-family reliability (ADR 0061's pending [checkable]): **29/144 cells (20.1%) excluded
+  on family disagreement**, concentrated in armd arm A (8) — verdict rides only on agreed
+  cells; both TESTED deltas clear the bar with margin. Classifier notional cost: claude
+  $11.95 + grok $4.87 — ADR 0061's "<$1" guess was wrong by an order of magnitude
+  (recorded honestly; still zero generation spend).
+- Confound (pre-registered above): correlation, not causation. Phase 1's causal
+  enforcement test (on/off axis in a future grid) becomes eligible follow-up work — NOT a
+  #172 gate (ADR 0061); enforcement-produces-boilerplate remains untested.
