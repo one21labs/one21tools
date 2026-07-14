@@ -340,7 +340,7 @@ def main():
         for sub, (src_rel, context) in SCENARIOS.items():
             src = I2 / src_rel
             if not src.exists():
-                sys.exit(f"{sub}: {src_rel} missing from the frozen I2 dir")
+                sys.exit(f"{sub}: {src_rel} missing — run the I2 dir's build_b1.py / build_scenarios.py first")
             for rep in range(1, REPS + 1):
                 for arm in ("A", "C", "P"):
                     tasks.append((sub, src, context, rep, arm))

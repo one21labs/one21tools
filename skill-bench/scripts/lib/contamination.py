@@ -11,6 +11,8 @@ Three checks, all mechanical, run BEFORE a verdict is recorded:
 2. sweep_tree(root, tells) — bench-tell scan over a substrate tree AND its full git history
    (defect class names, manifest field names, 'planted', 'pre-registration', ...). A substrate
    that names its own seeds grades the control arm's rule-reading, not its defect-finding.
+   Backtest snapshots OF THIS REPO legitimately contain generic bench language (they are its
+   history) — scope their tells to experiment-specific/post-outcome terms, never generic ones.
 3. sanitized_plugin_dir(src, dst) — copy a plugin for mounting into cells WITHOUT its
    documentation surface (README/docs/CHANGELOG): the live README may carry measurement
    results about the very skills under test. Skills/agents/hooks/manifest are kept —
