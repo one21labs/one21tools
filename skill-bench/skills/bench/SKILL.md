@@ -34,13 +34,15 @@ bare, grade both against pre-registered expectations, report the with-without de
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
   --with-cmd '<json argv, skill loaded>' --without-cmd '<json argv, bare>' \
-  [--judge auto] [--substrate native|promptfoo] --yes
+  [--judge auto] [--substrate native|promptfoo] [--reps 3] --yes
 ```
 
 - `--evals`: JSON list of `{id, task, expectations:[...]}`. Arms differ ONLY in skill loading (arm
   symmetry) — the task is appended as the final CLI arg.
 - Prints a cost estimate and **refuses to spend without `--yes`** (spend guard).
 - `--substrate` selects the generation runner; see [substrate.md](references/substrate.md).
+- `--reps` (default 3): generations per task x arm — a single pass cannot separate reliably-good
+  from lucky (ADR 0058); use 1 only for a smoke run.
 
 ## Guardrails (both subcommands)
 

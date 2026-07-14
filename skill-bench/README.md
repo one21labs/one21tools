@@ -21,9 +21,9 @@ target design from ADR 0055. Nothing here is on the marketplace or moved out of 
   cross-family judge (grok default) | verdict.py         keep in-repo; no vendor sells this
   ---------------------------------------------------
   hermetic_driver adapter interface                   <- swappable RUNNER
-     -> promptfoo (default; npx, CI regression gating)
+     -> promptfoo (npx, version-pinned; CI regression gating)
      -> inspect-ai (serious agent-eval; sandboxed)
-     -> native claude -p / grok -p (fallback)         <- rent tracing/versioning/gating; don't rebuild it
+     -> native claude -p / grok -p (default)          <- rent tracing/versioning/gating; don't rebuild it
 ```
 
 ## The cross-family judge (why it is default-on)
@@ -64,8 +64,9 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 ## Portability (installed elsewhere)
 
 The pure layer (`costing`, `benchstats`, `rubric`, judge dispatch, the promptfoo config
-gen/parse) is machine-independent — stdlib only, relative imports, `npx --yes promptfoo@latest`
-fetches on demand. What a consumer must provide / knows:
+gen/parse) is machine-independent — stdlib only, relative imports, `npx --yes` fetches the
+version-pinned promptfoo on demand (pin + bump rule: `substrate.py:PromptfooSubstrate.PIN`,
+ADR 0058). What a consumer must provide / knows:
 
 - **CLIs on PATH, authenticated:** `grok` (grok judge/gen — resolved via `$GROK_BIN`, then PATH,
   then `~/.grok/bin/grok`), `claude` (claude judge/gen), `node`/`npx` (promptfoo substrate). Not
@@ -88,5 +89,6 @@ config layer + consumer-layout test (M2), registered in the marketplace.
 Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces a verdict from a
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
-CI-runnable, needs authenticated grok). Not yet done: promptfoo generation wired into `/bench skill`,
-the `/plugin install` marketplace round-trip (#170 M4/M6 tail). See `docs/decisions/0055-*`.
+CI-runnable, needs authenticated grok). Promptfoo generation is wired into
+`/bench skill` (`--substrate promptfoo`, M4, proven live). Not yet done: the `/plugin install`
+marketplace round-trip (#170 M6 tail). See `docs/decisions/0055-*`.

@@ -27,6 +27,16 @@ EVALS = [{"id": "t1", "task": "task one", "expectations": ["e1", "e2"]},
 
 
 class TestBenchSkill(unittest.TestCase):
+    def test_grade_all_rep_tagged_bids_are_unique(self):
+        # ADR 0058: reps are distinct cells, never collapsed — a single pass can't
+        # separate reliably-good from lucky
+        judge = FakeJudge({"outA": [True, True], "outB": [False, False]})
+        rows = [{"prompt_id": "t1", "arm": "with", "output": "outA", "rep": 1},
+                {"prompt_id": "t1", "arm": "with", "output": "outB", "rep": 2}]
+        cells = bs.grade_all(rows, {e["id"]: e for e in EVALS}, judge)
+        self.assertEqual({c["bid"] for c in cells}, {"t1:with:r1", "t1:with:r2"})
+        self.assertEqual(len({c["bid"] for c in cells}), len(cells))
+
     def test_grade_all_maps_outputs_to_met(self):
         gen = [{"prompt_id": "t1", "arm": "with", "output": "GOOD1"},
                {"prompt_id": "t1", "arm": "without", "output": "BAD1"}]

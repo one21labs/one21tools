@@ -29,7 +29,7 @@ def grade_all(gen_rows, evals_by_id, judge):
         m = met_map(v)
         # normalize to ids 1..len(exps); missing -> False
         met = {i: bool(m.get(i, False)) for i in range(1, len(exps) + 1)}
-        cells.append({"bid": f'{ev["id"]}:{r["arm"]}', "arm": r["arm"],
+        cells.append({"bid": f'{ev["id"]}:{r["arm"]}:r{r.get("rep", 1)}', "arm": r["arm"],
                       "scenario": str(ev["id"]), "met": met})
     return cells
 
@@ -53,17 +53,22 @@ def main():
     ap.add_argument("--judge", choices=["auto", "grok", "claude"], default="auto",
                     help="auto = grok if available else claude (cross-family preferred)")
     ap.add_argument("--substrate", choices=["native", "promptfoo"], default="native")
+    ap.add_argument("--reps", type=int, default=3,
+                    help="generations per task x arm (a single pass cannot separate reliably-good "
+                         "from lucky; ADR 0019/0058 — set 1 only for a smoke run)")
     ap.add_argument("--out", default="-")
     ap.add_argument("--yes", action="store_true", help="confirm paid generation (spend guard)")
     a = ap.parse_args()
+    if a.reps < 1:
+        sys.exit("--reps must be >= 1")
 
     evals = json.load(open(a.evals))
     evals_by_id = {e["id"]: e for e in evals}
     arms = [{"name": "with", "cmd": json.loads(a.with_cmd)},
             {"name": "without", "cmd": json.loads(a.without_cmd)}]
-    n_gen = len(evals) * 2
-    print(f"[cost] {len(evals)} tasks x 2 arms = {n_gen} generations + {n_gen} judge calls "
-          f"(judge={a.judge}, substrate={a.substrate})", file=sys.stderr)
+    n_gen = len(evals) * 2 * a.reps
+    print(f"[cost] {len(evals)} tasks x 2 arms x {a.reps} reps = {n_gen} generations + "
+          f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})", file=sys.stderr)
     if not a.yes:
         print("Refusing to spend without --yes (spend guard). Re-run with --yes to proceed.", file=sys.stderr)
         sys.exit(2)
@@ -73,7 +78,12 @@ def main():
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     tasks = [e["task"] for e in evals]
-    gen = sub.run(tasks, arms)
+    gen = []
+    for rep in range(1, a.reps + 1):
+        rows = sub.run(tasks, arms)
+        for g in rows:
+            g["rep"] = rep
+        gen.extend(rows)
     # resolve prompt_id (task index from the substrate) back to the eval id; promptfoo may echo it as
     # a string, native as an int. A non-numeric value is assumed to already be an eval id.
     for g in gen:
@@ -84,7 +94,7 @@ def main():
             g["prompt_id"] = evals[int(pid)]["id"]
     cells = grade_all(gen, evals_by_id, judge)
     report = {"skill_evals": a.evals, "judge": judge.name, "n_tasks": len(evals),
-              **aggregate(cells)}
+              "n_reps": a.reps, **aggregate(cells)}
     js = json.dumps(report, indent=1)
     print(js) if a.out == "-" else open(a.out, "w").write(js)
 

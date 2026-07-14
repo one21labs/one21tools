@@ -73,12 +73,16 @@ def _write_arm_wrapper(workdir, arm):
 
 class PromptfooSubstrate:
     name = "promptfoo"
+    # Pinned: parse_promptfoo_output is validated against the 0.121 result shape; a benchmark
+    # harness must not track a moving head (reproducibility + supply chain — ADR 0058). Bump
+    # deliberately: re-validate the parser, then move this constant.
+    PIN = "promptfoo@0.121.18"
 
     def __init__(self, bin=None):
-        # explicit arg > $SKILL_BENCH_PROMPTFOO_BIN > `npx promptfoo` (fetched on demand, portable)
+        # explicit arg > $SKILL_BENCH_PROMPTFOO_BIN > `npx promptfoo@<pin>` (fetched on demand)
         bin = bin or os.environ.get("SKILL_BENCH_PROMPTFOO_BIN")
         self.bin = bin
-        self.argv = [bin] if bin else ["npx", "--yes", "promptfoo@latest"]
+        self.argv = [bin] if bin else ["npx", "--yes", self.PIN]
 
     def run(self, prompts, arms, workdir=None):
         workdir = workdir or tempfile.mkdtemp(prefix="skillbench-pf-")

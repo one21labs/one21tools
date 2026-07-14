@@ -52,6 +52,17 @@ class TestSubstrate(unittest.TestCase):
         self.assertEqual(sub.make_substrate("native").name, "native")
         self.assertEqual(sub.make_substrate("promptfoo").name, "promptfoo")
 
+    def test_promptfoo_substrate_is_version_pinned(self):
+        # ADR 0058: a benchmark harness must not track a moving head (@latest)
+        old = os.environ.pop("SKILL_BENCH_PROMPTFOO_BIN", None)
+        try:
+            s = sub.PromptfooSubstrate()
+            self.assertIn(sub.PromptfooSubstrate.PIN, s.argv)
+            self.assertNotIn("latest", " ".join(s.argv))
+        finally:
+            if old is not None:
+                os.environ["SKILL_BENCH_PROMPTFOO_BIN"] = old
+
 
 if __name__ == "__main__":
     unittest.main()
