@@ -80,4 +80,11 @@ prosecutor min and the routing_key's concreteness.
 
 ## Run log (append-only)
 
-- (none yet — build follows this commit; pre-screen before grid)
+- 2026-07-13 pilot: 1 A + 1 C on T1, $0.80 each ($1.60 total, cap $10) — gate projection
+  48 x 0.80 = $38.4 within the $60 ceiling.
+- 2026-07-13 saturation pre-screen (6 bare cells, $4.73; graded found-iff + prosecutor,
+  `prescreen-graded/`): T1 0.75, T2 0.75, T3 0.75, T6 0.75 — SATURATED (>= 0.75 fires
+  exactly at threshold); T4 0.50, T5 0.25 pass. Decision per pre-reg: HARDEN the four
+  (plant-subtlety edits only, arm-blind, documented in the builder), re-screen before the
+  grid. v1 comparison: bare-arm recall dropped from 0.83-1.0 to a 0.25-0.75 spread — the
+  discriminating-surface redesign works; four substrates need one more notch.
