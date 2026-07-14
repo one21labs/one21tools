@@ -9,7 +9,7 @@ disable-model-invocation: true
 Decide a judgment call as a dialectic of advisors, one accountable decider, and an independent
 verification gate — never parallel-and-average. This skill IS the workflow's system of record; no
 separate doc restates it. Explicit-invoke only (`disable-model-invocation`): the panel spends 10+
-agents, writes ADRs, and may bump the version — it must never auto-fire.
+agents and writes ADRs.
 
 **Trigger.** A roadmap/product change, an open judgment call, or ANY user feedback (bug report,
 feature ask, behavioral observation). Route it here — never fix a feedback item directly before
@@ -73,8 +73,7 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
    The handoff-overwrite rule (stale shared verdicts are drift) lives in the `verify` skill.
 7. **Record.** Write accepted ADRs to `docs/decisions/NNNN-slug.md` with frontmatter
    (`id`/`title`/`status`/`summary`; version-agnostic — ship-state derives from `## Act`; lint
-   spec: `references/adr-lint.md`). No index
-   to update — the corpus IS the plan-of-record (rules + shared register stay in
+   spec: `references/adr-lint.md`; rules + shared register:
    `docs/decisions/README.md`). If a roadmap/changelog/tracker exists, mirror
    build-order/ship-state there referencing the ADR ID. Spawned experiments: a
    neutral falsifiable hypothesis (ADR 0059).
