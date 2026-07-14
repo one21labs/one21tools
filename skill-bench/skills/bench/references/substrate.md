@@ -12,7 +12,8 @@ to the produced text. Use it when you want the fewest moving parts and no extern
 
 ## promptfoo
 
-Wraps the promptfoo matrix runner (fetched via `npx` on demand, or `$SKILL_BENCH_PROMPTFOO_BIN`).
+Wraps the promptfoo matrix runner (fetched via `npx` at the pinned version — the pin's one home
+is `substrate.py:PromptfooSubstrate.PIN`, ADR 0058 — or `$SKILL_BENCH_PROMPTFOO_BIN`).
 promptfoo is a declarative harness: it takes prompts, providers, and test rows, runs the product,
 and reports per-cell results with caching, a web viewer, and CI gating. Here it is used ONLY for the
 execution matrix — each arm becomes an `exec` provider driving the same grok/claude CLI. Its own
@@ -22,8 +23,8 @@ gating — not the grading. Reach for it when a consumer already runs promptfoo 
 
 Version note: promptfoo's `exec` provider passes the rendered prompt as the first argument and a
 context object as the second, so each arm is fronted by a generated shim that forwards only the
-prompt. This is handled in the adapter; a promptfoo version bump surfaces as a failing adapter test,
-not silent drift.
+prompt. This is handled in the adapter; the version is pinned, and a deliberate pin bump
+re-validates the output parser (adapter tests) before the constant moves — never silent drift.
 
 ## Arm symmetry (both runners)
 

@@ -22,7 +22,7 @@ target design from ADR 0055. Nothing here is on the marketplace or moved out of 
   ---------------------------------------------------
   hermetic_driver adapter interface                   <- swappable RUNNER
      -> promptfoo (npx, version-pinned; CI regression gating)
-     -> inspect-ai (serious agent-eval; sandboxed)
+     -> inspect-ai (PLANNED, not shipped; serious agent-eval; sandboxed)
      -> native claude -p / grok -p (default)          <- rent tracing/versioning/gating; don't rebuild it
 ```
 
@@ -57,7 +57,7 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; update `gates.yml` + nav; gates stay green.
 - **M2** Genericize: config layer + consumer-layout test.
 - **M3** Skill surface: one `/bench` skill (verdict + skill subcommands shipped; trigger planned) + on-demand references.
-- **M4** Substrate adapter: promptfoo behind `hermetic_driver`; inspect-ai option; native fallback.
+- **M4** Substrate adapter: promptfoo behind `hermetic_driver`; native fallback (inspect-ai stays planned).
 - **M5** Cross-family judge wired into the grading template + `judge-divergence` diagnostic.
 - **M6** Dogfood: reproduce one committed benchmark via the installed plugin; then one third-party skill.
 
