@@ -1,0 +1,56 @@
+{
+ "cell": "S2-C-r3",
+ "scenario": "S2",
+ "arm": "C",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 828583.9,
+  "duration_ms": 827256,
+  "duration_api_ms": 935000,
+  "cost_usd": 2.639984949999999,
+  "usage": {
+   "input_tokens": 22,
+   "cache_creation_input_tokens": 21937,
+   "cache_read_input_tokens": 388356,
+   "output_tokens": 6765,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 21937,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1157,
+     "cache_read_input_tokens": 42939,
+     "cache_creation_input_tokens": 2248,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2248
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T20:57:39.252678+00:00",
+   "end": "2026-07-14T21:11:27.836582+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 2.639984949999999
+ },
+ "response": "The `/decide` process ran end to end (advisor panel \u2192 PM decision \u2192 red-team \u2192 verification) via the `pdca-workflow:pm` agent, and the ADR is recorded at `docs/decisions/0001-first-monolith-extraction.md`. Here's the final decision record:\n\n---\n\n## ADR 0001 \u2014 Extract dispatcher_console first, as a reversible probe\n\n**Status:** Accepted \u00b7 **Date:** 2026-07-14 \u00b7 **Decider:** PM (accountable) \u00b7 **Sources:** MEMO.md, modules.md\n\n### Weakest assumption\nAn independent deployable is the cheapest way to break the deploy-train coupling blocking Ops Tools \u2014 i.e. no in-monolith fix (per-module CI gating, feature-flagged deploys, splitting the deploy artifact) is both feasible and sufficient. Untested but load-bearing for choosing A over an unlisted Option D. **[checkable]** The one-week spike in precondition 2 tests this directly.\n\n### Decision\n**Take Option A** \u2014 extract `dispatcher_console` as one service behind a thin API, tables left in the shared DB \u2014 as a reversible probe deliberately identical to phase 1 of a broad migration, so choosing A forecloses nothing. Two blocking preconditions before any cut (one-week box, owned by platform lead):\n1. A written success metric (what \"pays off\" means).\n2. Option D ruled out \u2014 a paragraph showing an in-monolith fix does *not* resolve the pain cheaper.\n\nDefinition of done includes a contract/CI check on the `bookings`/`carriers` columns dispatcher_console reads, so schema drift fails a build, not the live service.\n\n### Rejected options\n- **B (full two-quarter migration) \u2014 rejected.** Its loudest driver \u2014 enterprise prospects asking about microservices \u2014 is secondhand and unverified after two asks; near-zero weight, cannot fund an irreversible commitment. The coupling map's later-phase rows (`notification_log`, `invoices`) also contradict their own prose \u2014 untrustworthy past the first cut. A is B's phase 1, so rejecting B costs nothing A doesn't keep.\n- **C (do nothing) \u2014 rejected.** Leaves the one verified problem (4 engineers blocked at release time) unresolved. C's legitimate point \u2014 unquantified pain, untested cheaper fixes \u2014 is absorbed into the two preconditions rather than used to justify inaction.\n\n### Rationale\ndispatcher_console is the only clean seam (0 readers of its sole write target, 0 inbound callers \u2014 verified). Regret is bounded (~1 week code rollback, no DB migration). This is a bounded falsification gate, not a hedge.\n\n### Risks\n- \"~1 week\" prices code rollback only, not the ongoing tax (on-call, CI/CD, cross-service schema contract) \u2014 reversible isn't free.\n- Preconditions could go cosmetic \u2014 mitigated by making them blocking and artifact-backed.\n- Coupling-map trust is scoped to this seam only, not the flagged `notification_log`/`invoices` rows.\n- Rejecting B is wrong only if sales pressure is real *and* unserved by anything short of migration \u2014 covered by the revisit trigger below.\n\n### Revisit triggers\nA concrete procurement artifact appears \u2192 reopen scope. Option D resolves the pain cheaper \u2192 supersede, don't cut. Probe misses its metric within one quarter \u2192 fold back. Any later-phase cut \u2192 re-verify the flagged counts first.",
+ "poker": {},
+ "artifacts": {
+  "docs/decisions/0001-first-monolith-extraction.md": "---\nid: 0001\ntitle: First cut out of the Dockline monolith \u2014 extract dispatcher_console as a reversible probe\nstatus: Accepted\ndate: 2026-07-14\nsummary: Cut dispatcher_console into one service (tables left in shared DB) as a reversible probe = phase 1 of any future migration; reject full migration B (driver is secondhand, unverified) and do-nothing C; gate the cut behind a written success metric and an Option-D (in-monolith fix) rule-out.\ndecider: PM (accountable)\nsources: [MEMO.md, modules.md]\ntags: [architecture, monolith-split, reversible]\nsupersedes: none\n---\n\n# ADR 0001 \u2014 Extract dispatcher_console first, as a reversible probe\n\n## Weakest assumption (read first)\n\nWe assume an independent deployable is the cheapest way to break the deploy-train coupling that blocks Ops Tools \u2014 i.e., that no in-monolith fix (per-module CI gating, feature-flagged deploys, splitting the deploy artifact) is both feasible and sufficient. MEMO.md:5-7 calls Dockline \"a single deploy,\" which makes per-module deploy independence hard without extraction \u2014 but this is untested, and it is load-bearing for picking A over an unlisted Option D.\n\n- [checkable] Falsifiable criterion: the one-week spike in precondition 2 attempts an in-monolith deploy-decoupling on dispatcher_console; if it reaches independent deploy cadence for Ops Tools without a separate service, this assumption is FALSE and Option A is refuted \u2014 supersede with an Option D ADR instead of cutting.\n\n## Decision\n\nExtract dispatcher_console as one service behind a thin API, tables left in the shared DB (Option A) \u2014 as a reversible probe, deliberately identical to phase 1 of a broad migration (B), so choosing A forecloses nothing.\n\nBlocking preconditions (both artifacts must exist in-repo, owned by platform lead, one-week box, before any cut):\n\n1. Written success metric \u2014 what \"pays off\" means (e.g. Ops Tools ships N independent deploys/quarter, release-block delay to ~0). Without it the decision cannot be judged.\n2. Option D ruled out \u2014 a paragraph showing in-monolith deploy-decoupling does NOT resolve the pain cheaper. If it does, do that and supersede this ADR; do not cut.\n\nDefinition of done includes a contract/migration CI check on the `bookings`/`carriers` columns dispatcher_console reads, so a schema change by the bookings team (6 other callers, modules.md:14-19) fails a build, not the live service.\n\n## Rejected options\n\nOption B \u2014 full two-quarter migration \u2014 REJECTED. Its loudest driver is secondhand: the author asked twice for a named prospect / lost-deal note / procurement ticket and got none, \"secondhand each time\" (MEMO.md:17-19, verifier CONFIRMED). That carries near-zero justification weight \u2014 it cannot fund an irreversible commitment \"slow and expensive to unwind\" (MEMO.md:38-39). Two nails: (a) B's own steelman conceded dispatcher_console is internal and answers nothing for procurement, so even real pressure isn't served by starting here; (b) the coupling map B treats as a pre-discovered sequence is untrustworthy past the first cut.\n\n- [contradiction] Verifier found the table-ownership read-counts for `notification_log` (1 vs 0 supported) and `invoices` (2 vs 1 supported) contradicted by modules.md's own prose (modules.md:36-42). The dispatcher_console rows check out; B's later-phase rows do not. Rejecting B costs nothing A doesn't keep \u2014 A is B's phase 1.\n\nOption C \u2014 do nothing \u2014 REJECTED. Leaves the one verified problem unresolved: 4 engineers \"blocked at release time\" (MEMO.md:8-11). C's real point \u2014 pain unquantified, cheaper fixes untested \u2014 is absorbed as preconditions 1-2, not used to sit still.\n\n## Rationale\n\n- Only clean seam. dispatcher_console writes only to `dispatch_events` (0 readers) with 0 inbound callers (modules.md:10-11,39; verifier PASS). Every alternative is worse: bookings (6 callers), notifications (\"multi-month entanglement\"), billing (regulated).\n- Bounded regret. Small forward cost, no DB migration; code rollback is a routing change in ~1 week (MEMO.md:30-31,37). Cheapest way to turn argument into evidence.\n- Decision, not hedge. The call is A over B and C; the gate is a bounded one-week falsification with a clear rule, not \"it depends.\"\n\n## Risks / assumptions\n\n- [risk] \"~1 week\" prices code rollback only \u2014 NOT the ongoing tax of a new deployable: on-call, CI/CD, and the cross-service `bookings`/`carriers` schema contract shared CI stops catching (red-team). Permanent costs, mitigated not erased by the contract-CI condition. \"Reversible in a week\" is not \"free.\"\n- [risk] Conditions going cosmetic \u2014 mitigated by making them blocking, owned, boxed, artifact-backed. \"Accepted\" with no metric or Option-D note on file is a false record.\n- [checkable] Coupling map current for this seam \u2014 verifier confirmed the load-bearing rows; trust does NOT extend to the notification_log / invoices rows.\n- [risk] Rejecting B is wrong only if sales pressure is real AND unserved by anything short of migration \u2014 covered by the revisit trigger; cost of error is a delayed start, not a foreclosed path.\n\n## Revisit triggers\n\n- A concrete procurement artifact appears (named prospect / lost-deal note / procurement ticket) \u2192 reopen scope, informed by A's measured outcome.\n- Precondition 2 shows an in-monolith fix resolves the pain cheaper \u2192 supersede with an Option D ADR; do not cut.\n- Probe misses its success metric within one quarter live \u2192 fold back (routing change), record the learning.\n- Any later-phase cut is contemplated \u2192 re-verify the flagged table-ownership counts first.\n"
+ }
+}

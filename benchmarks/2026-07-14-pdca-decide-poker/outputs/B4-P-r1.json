@@ -1,0 +1,222 @@
+{
+ "cell": "B4-P-r1",
+ "scenario": "B4",
+ "arm": "P",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 58336.5,
+  "duration_ms": 57046,
+  "duration_api_ms": 58192,
+  "cost_usd": 0.193793,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 15525,
+   "cache_read_input_tokens": 116030,
+   "output_tokens": 4225,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 15525,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3221,
+     "cache_read_input_tokens": 33157,
+     "cache_creation_input_tokens": 2496,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2496
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T20:21:49.559512+00:00",
+   "end": "2026-07-14T20:22:47.896045+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.8895797666666666
+ },
+ "response": "O2 wins clearly \u2014 all three advisors independently scored it 5/5/5 with no spread, so no second round was needed. Here's the decision record.\n\n---\n\n## Decision: ISSUE-109 \u2014 Adopt O2 (gate on checker fidelity first)\n\n**Decision:** Proceed with the routing experiment, but staged: measure checker false-accept rate first (reusing the existing `benchmarks/2026-07-10-tiered-execution` harness), and only fund the full grid if a checker variant clears the ~10\u201315% false-accept threshold. Do not run the full grid immediately (O1); do not decline outright (O3); do not defer (O4).\n\n**Rationale**\n\n- **Unanimous, unreversed:** all three advisors scored O2 a 5 and O1/O3/O4 lower, with no spread \u22652 anywhere \u2014 the panel converged without needing a reveal round.\n- **The reversing premise for O2 doesn't hold here.** All three advisors' downside case was \"if isolated checker-fidelity testing can't be done without running the full grid, staging buys nothing.\" But the issue itself (ISSUE-109.md:9-10) states the harness is reusable *nearly verbatim* and that \"only the checker calls and the composition are new\" \u2014 i.e., the checker-fidelity measurement is separable from the full grid by construction. So the premise that would flip O2 into O1 is false, and O2's advantage stands.\n- **O1 is disqualified on its own terms:** it spends full-grid budget before checking the one variable the issue pre-registers as gating (checker false-accept, measured at 25% for the #41/ADR 0035 Sonnet validator) and before the decision rule is finalized per ADR 0024.\n- **O3 (decline) forecloses a strictly dominated option:** a null is still recordable under O2 if no checker variant clears the threshold (ADR 0019 treats a recorded null as valuable), but O2 gets that same outcome at the cost of one cheap pretest instead of zero information gained. Declining buys nothing O2 doesn't already cover as its floor case.\n- **O4 (defer) is foreclosed by CLAUDE.md itself**, not by the issue: \"a judgment call... triggers `/decide` immediately... Never fix a judgment call directly before deciding it.\" The issue's own \"owner's call, no urgency\" note (ISSUE-109.md:16) describes *scheduling the full experiment*, not license to postpone the proceed/gate/decline decision \u2014 that decision is being made now, per repo policy.\n\n**Conditions on proceeding (per the issue's own design, ISSUE-109.md:14,16):**\n1. Test checker variants (e.g., Sonnet-judge vs. checklist-scored deterministic) for false-accept rate in isolation, before any full-grid spend.\n2. If no variant beats ~10\u201315% false-accept: record the null (ADR 0019, append-only) and stop \u2014 do not run the full grid.\n3. If a variant clears the threshold: finalize the adopt decision rule per ADR 0024 (frac-met non-inferior to Sonnet-solo at margin \u22120.05, clustered CI, AND median cost materially below Sonnet-solo) *before* spending on the full grid.\n\nThis is a real judgment call under CLAUDE.md's sacred rules, so the standard next step would be formalizing this as an ADR (next available: 0036) in `docs/decisions/`. Let me know if you want that filed, or if you'd rather I close ISSUE-109 referencing this decision as-is.",
+ "poker": {
+  "options": [
+   {
+    "id": "O1",
+    "label": "Run full routing experiment now",
+    "summary": "Execute the complete grid across checker variants immediately, reusing the benchmarks/2026-07-10-tiered-execution harness as described."
+   },
+   {
+    "id": "O2",
+    "label": "Gate on checker fidelity first",
+    "summary": "Test checker false-accept rate first; only proceed to the full grid if a checker variant beats ~10-15% false-accept."
+   },
+   {
+    "id": "O3",
+    "label": "Decline the experiment",
+    "summary": "Do not run the routing experiment; keep Sonnet-solo as the default given the pre-registered 25% false-accept threat."
+   },
+   {
+    "id": "O4",
+    "label": "Defer with no urgency",
+    "summary": "Postpone the decision to a later time, per the issue's own timing note that it is the owner's call with no urgency."
+   }
+  ],
+  "usable_advisors": 3,
+  "round1": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Running the full grid immediately skips the issue's own prescribed disqualifying pretest (checker false-accept vs ~10-15%) and spends full-grid budget before the decision rule is even finalized per ADR 0024.",
+     "dependency": "If checker fidelity were already known/assumed to clear ~10-15% false-accept (e.g. from prior data), the gate would be moot and immediate full-grid spend would be reasonable."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "Matches the issue's explicit design: checker false-accept rate is the whole bottleneck (25% measured in #41/ADR 0035), and testing it first can record a null cheaply without a full-grid spend.",
+     "dependency": "If the harness can't actually isolate a cheap checker-fidelity-only measurement (i.e. fidelity can only be observed as a byproduct of running the full grid), gating adds delay/cost rather than saving it."
+    },
+    "O3": {
+     "score": 3,
+     "crux": "Sonnet-solo stays the safer default under the already-measured 25% false-accept threat, but declining outright forecloses the cheap value-of-information test the issue itself frames as low-cost.",
+     "dependency": "If the cheap checker-pretest (O2) turned out infeasible or nearly as costly as the full grid, outright decline would become the stronger choice."
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue's timing note says 'owner's call, no urgency,' but CLAUDE.md requires judgment calls to trigger /decide immediately rather than be postponed.",
+     "dependency": "If 'no urgency' is read as license to defer the substantive proceed/gate/decline decision itself (not just execution scheduling), deferral would align with the issue's own framing and be less clearly wrong."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Skips the checker-fidelity pre-check the issue itself specifies as a prerequisite; spends on a full grid whose quality is capped by an unproven checker's false-accept rate (25% baseline per ADR 0035's validator).",
+     "dependency": "If measuring checker false-accept rate in isolation is not actually separable/cheaper than the full grid (i.e. fidelity can only be assessed at grid scale), gating adds nothing and O1 becomes correct."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "This is the issue's own pre-registered design: false-accept rate is the single variable that determines whether routing can even reach Sonnet-solo quality, and it's testable far more cheaply than the full grid by reusing the same harness.",
+     "dependency": "If isolated false-accept testing can't be done without running the full grid (checker fidelity only shows up under full escalation dynamics), the sequencing buys nothing and O1 is equally valid."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "The 25% figure is measured for a Sonnet validator in #41's coach-and-retry context, not for the checker variants (e.g. deterministic checklist checks) this issue proposes; declining forecloses a cheap, harness-reuse test of a mechanistically different arm (routing vs. iterative coaching) before that number is confirmed to generalize.",
+     "dependency": "If 25% false-accept is expected to generalize across all plausible checker designs (no variant could plausibly clear 10-15%), further testing is wasted motion and declining now is correct."
+    },
+    "O4": {
+     "score": 3,
+     "crux": "The issue explicitly frames timing as owner's-call/no-urgency with Sonnet-solo as the safe default meanwhile, so deferring violates no stated constraint \u2014 but it forfeits a cheap, low-risk information gain (the gated checker-fidelity test) that's ready to run now.",
+     "dependency": "If there's an unstated deadline or competing resource pressure on the harness/benchmark budget not captured in the issue, deferring is costlier than it looks and this score would drop."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Runs the full grid before testing the one thing the issue itself flags as the gating variable (checker false-accept rate), spending the full-grid budget on a design the issue says may not be worth running at all.",
+     "dependency": "If checker fidelity were already known/established to beat ~10-15% false-accept (so the gate is moot), skipping straight to the full grid would be the efficient choice."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "This is verbatim the issue's own decision rule \u2014 test checker false-accept first, only fund the full grid if a variant clears ~10-15% \u2014 so it maximizes information per token spent under ADR 0024's earn-your-cost mandate.",
+     "dependency": "If measuring checker false-accept rate reliably requires running most of the full grid anyway (no cheap standalone way to score checker accept/reject decisions), the staged gate loses its cost advantage over O1."
+    },
+    "O3": {
+     "score": 3,
+     "crux": "The pre-registered 25% false-accept from #41 is a real measured threat, but declining forecloses a cheap, decisive test (reusing an existing hermetic harness) that could resolve the open question either way \u2014 ADR 0024 treats a recorded null as valuable, not a reason to skip testing.",
+     "dependency": "If no plausible checker variant (Sonnet-judge, checklist-scored deterministic) could plausibly beat 10-15% false-accept \u2014 i.e., the gate is a foregone failure \u2014 then declining now is equivalent to O2's outcome without the spend."
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue's own timing note ('owner's call; no urgency') sanctions deferral, but that note describes when to schedule the experiment, not whether the cheap first-stage gate is worth doing before the moment passes; deferring the whole question leaves #41's rejected mechanism's one untested variant (routing) unresolved indefinitely for no cost savings over just running O2 now.",
+     "dependency": "If there is a genuine competing priority consuming the same benchmark harness/budget right now, deferring the low-cost gate until that contention clears is reasonable rather than merely inertial."
+    }
+   }
+  ],
+  "reveal_spread": {
+   "O1": 1,
+   "O2": 0,
+   "O3": 1,
+   "O4": 1
+  },
+  "divergent": [],
+  "round2": [],
+  "final": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Running the full grid immediately skips the issue's own prescribed disqualifying pretest (checker false-accept vs ~10-15%) and spends full-grid budget before the decision rule is even finalized per ADR 0024.",
+     "dependency": "If checker fidelity were already known/assumed to clear ~10-15% false-accept (e.g. from prior data), the gate would be moot and immediate full-grid spend would be reasonable."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "Matches the issue's explicit design: checker false-accept rate is the whole bottleneck (25% measured in #41/ADR 0035), and testing it first can record a null cheaply without a full-grid spend.",
+     "dependency": "If the harness can't actually isolate a cheap checker-fidelity-only measurement (i.e. fidelity can only be observed as a byproduct of running the full grid), gating adds delay/cost rather than saving it."
+    },
+    "O3": {
+     "score": 3,
+     "crux": "Sonnet-solo stays the safer default under the already-measured 25% false-accept threat, but declining outright forecloses the cheap value-of-information test the issue itself frames as low-cost.",
+     "dependency": "If the cheap checker-pretest (O2) turned out infeasible or nearly as costly as the full grid, outright decline would become the stronger choice."
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue's timing note says 'owner's call, no urgency,' but CLAUDE.md requires judgment calls to trigger /decide immediately rather than be postponed.",
+     "dependency": "If 'no urgency' is read as license to defer the substantive proceed/gate/decline decision itself (not just execution scheduling), deferral would align with the issue's own framing and be less clearly wrong."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Skips the checker-fidelity pre-check the issue itself specifies as a prerequisite; spends on a full grid whose quality is capped by an unproven checker's false-accept rate (25% baseline per ADR 0035's validator).",
+     "dependency": "If measuring checker false-accept rate in isolation is not actually separable/cheaper than the full grid (i.e. fidelity can only be assessed at grid scale), gating adds nothing and O1 becomes correct."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "This is the issue's own pre-registered design: false-accept rate is the single variable that determines whether routing can even reach Sonnet-solo quality, and it's testable far more cheaply than the full grid by reusing the same harness.",
+     "dependency": "If isolated false-accept testing can't be done without running the full grid (checker fidelity only shows up under full escalation dynamics), the sequencing buys nothing and O1 is equally valid."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "The 25% figure is measured for a Sonnet validator in #41's coach-and-retry context, not for the checker variants (e.g. deterministic checklist checks) this issue proposes; declining forecloses a cheap, harness-reuse test of a mechanistically different arm (routing vs. iterative coaching) before that number is confirmed to generalize.",
+     "dependency": "If 25% false-accept is expected to generalize across all plausible checker designs (no variant could plausibly clear 10-15%), further testing is wasted motion and declining now is correct."
+    },
+    "O4": {
+     "score": 3,
+     "crux": "The issue explicitly frames timing as owner's-call/no-urgency with Sonnet-solo as the safe default meanwhile, so deferring violates no stated constraint \u2014 but it forfeits a cheap, low-risk information gain (the gated checker-fidelity test) that's ready to run now.",
+     "dependency": "If there's an unstated deadline or competing resource pressure on the harness/benchmark budget not captured in the issue, deferring is costlier than it looks and this score would drop."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Runs the full grid before testing the one thing the issue itself flags as the gating variable (checker false-accept rate), spending the full-grid budget on a design the issue says may not be worth running at all.",
+     "dependency": "If checker fidelity were already known/established to beat ~10-15% false-accept (so the gate is moot), skipping straight to the full grid would be the efficient choice."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "This is verbatim the issue's own decision rule \u2014 test checker false-accept first, only fund the full grid if a variant clears ~10-15% \u2014 so it maximizes information per token spent under ADR 0024's earn-your-cost mandate.",
+     "dependency": "If measuring checker false-accept rate reliably requires running most of the full grid anyway (no cheap standalone way to score checker accept/reject decisions), the staged gate loses its cost advantage over O1."
+    },
+    "O3": {
+     "score": 3,
+     "crux": "The pre-registered 25% false-accept from #41 is a real measured threat, but declining forecloses a cheap, decisive test (reusing an existing hermetic harness) that could resolve the open question either way \u2014 ADR 0024 treats a recorded null as valuable, not a reason to skip testing.",
+     "dependency": "If no plausible checker variant (Sonnet-judge, checklist-scored deterministic) could plausibly beat 10-15% false-accept \u2014 i.e., the gate is a foregone failure \u2014 then declining now is equivalent to O2's outcome without the spend."
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue's own timing note ('owner's call; no urgency') sanctions deferral, but that note describes when to schedule the experiment, not whether the cheap first-stage gate is worth doing before the moment passes; deferring the whole question leaves #41's rejected mechanism's one untested variant (routing) unresolved indefinitely for no cost savings over just running O2 now.",
+     "dependency": "If there is a genuine competing priority consuming the same benchmark harness/budget right now, deferring the low-cost gate until that contention clears is reasonable rather than merely inertial."
+    }
+   }
+  ]
+ },
+ "artifacts": {}
+}

@@ -1,0 +1,54 @@
+{
+ "cell": "B2-A-r3",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 118287.6,
+  "duration_ms": 116712,
+  "duration_api_ms": 117780,
+  "cost_usd": 0.3132038,
+  "usage": {
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 20081,
+   "cache_read_input_tokens": 154576,
+   "output_tokens": 9707,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 20081,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3822,
+     "cache_read_input_tokens": 37265,
+     "cache_creation_input_tokens": 2944,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2944
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:52:17.441420+00:00",
+   "end": "2026-07-14T19:54:15.729033+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3132038
+ },
+ "response": "## Decision Record \u2014 ISSUE-41 execution design\n\n**Question in scope:** should the tiered-agent experiment fire the full pre-registered grid (4 arms \u00d7 8 tasks \u00d7 3 reps, ~250-300 invocations) up front, or pilot the arm(s) the decision gate actually turns on, and stop early if that gate is already decidable?\n\n**Decision: Pilot first, expand only if ambiguous. Do not fire the full grid unconditionally.**\n\n### What \"pilot\" means operationally\nThe pre-registered decision rule (Comment 1) is defined over exactly one pair: **Tiered vs Sonnet-solo** (delta \u2265 -0.05 AND tokens \u2264 0.7\u00d7). \"Most expensive arm\" piloted alone can't resolve that gate \u2014 you need the baseline it's compared against. So the pilot is:\n\n1. Run **Tiered + Sonnet-solo only**, full 3 reps \u00d7 the 8 pre-screened tasks (Tiered is the most expensive of the four arms per task \u2014 up to 1 plan + 3\u00d7(implement+validate) calls vs 1 call for a solo arm \u2014 so this pair already carries most of the grid's real cost and is where the answer lives).\n2. Evaluate the eval-clustered 95% CI against both legs of the decision rule after this pair completes.\n3. **If the CI clears or misses both boundaries unambiguously \u2192 stop.** Record the result (append-only, per ADR 0024) and open a follow-up issue for Haiku-solo (cost floor) and Opus-solo (quality ceiling) context data if still wanted \u2014 don't spend against a resolved primary hypothesis.\n4. **If the CI straddles either boundary \u2192 proceed** to add Haiku-solo, Opus-solo, and/or additional reps per the pre-reg's own escalation clause.\n\n### Rationale\n- **Symmetry with the pre-reg's own design.** Comment 1 already licenses interim looks in one direction \u2014 \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous.\" A disciplined interim-analysis design is symmetric: if you're allowed to look and *expand* on ambiguity, you're equally licensed to look and *stop* on an unambiguous result \u2014 provided the look point and stopping rule are fixed before any data exists. Declaring it here, before execution, is a valid pre-registration amendment, not the \"fishing for a favorable cut\" the pre-reg was written to avoid (that risk is about cherry-picking *after* seeing data, not about pre-declaring *when* you'll look).\n- **Precedent already set in this issue.** Comment 3 already defers Opus-main \"per the pre-reg's own sequencing\" \u2014 the issue has already established that arms get sequenced by cost/priority rather than fired simultaneously. This decision just makes that logic explicit and applies it to the full grid, not only to Opus-main.\n- **Muda.** CLAUDE.md: cut waste the moment you see it. Committing ~250-300 invocations upfront when the primary pair can resolve the question with roughly half that is over-processing \u2014 spending against a hypothesis that may already be dead (or already won) after the cheaper first look.\n- **Cost discipline already flagged in-issue.** Comment 3's \"Owner calls before spend\" and the issue's own deferral-until-after-the-prior-batch both signal cost is a live constraint here, not a background concern.\n\n### Rejected alternative\n**Full grid, unconditional.** This is what a literal reading of Comment 1's rep/arm counts implies, and it has the virtue of matching the pre-registration to the letter. Rejected because: it spends the Haiku-floor and Opus-ceiling reps even when the Tiered-vs-Sonnet-solo comparison alone already answers the adoption question (the grid's stated purpose), and because the pre-reg's own escalation clause already establishes that this experiment is meant to be run adaptively, not as a fixed-N batch.\n\n### Risk / mitigation\n- Interim-look inflation of false-positive/false-negative rate on a non-inferiority+cost-ratio combined rule is a real but proportionate risk given this is a lean engineering test (single eval-clustered CI, no formal alpha-spending in the pre-reg either) \u2014 not a clinical trial. One pre-declared interim check (this one) rather than repeated peeking keeps the inflation small and consistent with the \"lean\" standard the pre-reg already set for itself.\n- Grader independence, hermetic-control carryover, and retry-cap/feedback format (Comment 3's three \"owner calls before spend\") are **out of scope for this decision** and still need resolving before the pilot runs.",
+ "poker": {},
+ "artifacts": {}
+}

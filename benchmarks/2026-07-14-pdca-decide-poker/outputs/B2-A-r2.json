@@ -1,0 +1,54 @@
+{
+ "cell": "B2-A-r2",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 46074.6,
+  "duration_ms": 44518,
+  "duration_api_ms": 46272,
+  "cost_usd": 0.13970839999999998,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 11414,
+   "cache_read_input_tokens": 48708,
+   "output_tokens": 3726,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 11414,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3623,
+     "cache_read_input_tokens": 28580,
+     "cache_creation_input_tokens": 2962,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2962
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:49:11.617067+00:00",
+   "end": "2026-07-14T19:49:57.691723+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.13970839999999998
+ },
+ "response": "## Decision Record \u2014 ISSUE-41 execution design\n\n**Question.** When the tiered-agent experiment runs, does it execute the full pre-registered 4-arm \u00d7 8-task \u00d7 3-rep grid, or pilot the most expensive arm first and stop early if the decision gate is already decidable?\n\n**Decision: Execute the full pre-registered grid \u2014 reject the \"pilot the expensive arm, stop early\" alternative as a separate mechanism.**\n\n**Rationale**\n\n1. **The decision gate is a paired comparison, not decidable from one arm.** The pre-registered rule (Comment 1, line 51) is `delta(Tiered \u2212 Sonnet-solo) >= -0.05 AND tokens(Tiered) <= 0.7x tokens(Sonnet-solo)`. Both the quality delta and the cost ratio are computed per-task, paired against Sonnet-solo. Running only the \"most expensive arm\" (Tiered, given its multi-cycle plan\u2192dispatch\u2192validate\u2192re-dispatch loop, or Opus-solo by per-token price) in isolation produces no denominator to compare against \u2014 the gate is structurally undecidable from a single arm. \"Pilot one arm and check if the gate is decidable\" is not actually possible under this design; it would require silently smuggling in the other arms' data anyway, which is the full grid by another name.\n\n2. **The pre-registration already contains its own cost-controlled pilot/stop-early mechanism \u2014 a second one is redundant and undermines the pre-registration's purpose.** Two escalation controls are already registered:\n   - The 1-rep Haiku-vs-Opus pre-screen (line 42) drops saturated tasks *before* the full grid runs \u2014 this is the legitimate \"cheap pilot\" step, and it's already scoped to arms that don't require Sonnet-solo pairing.\n   - \"Sequential escalation\" (line 49): add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous \u2014 this is the legitimate \"stop early\" mechanism, and it operates *within* the full grid (all 4 arms present from the first replicate), not by substituting a single arm for the grid.\n   \n   Introducing a new, unregistered \"run the expensive arm first, stop if decidable\" rule is exactly the kind of adaptive-stopping-on-interim-results the pre-registration exists to prevent (Comment 1's opening line: \"Registered before running to avoid fishing for a favorable cut\"). Ad hoc early stopping on a partial arm set, decided after seeing how expensive/informative that arm looks, reintroduces the fishing risk pre-registration was designed to close off.\n\n3. **Cost is already bounded by the registered design, not by cutting arms.** Comment 3 estimates ~250-300 agent invocations for the full design; the pre-screen and sequential escalation already minimize spend without touching which arms run. There's no unmet cost pressure that an ad hoc single-arm pilot would solve that the existing mechanisms don't.\n\n**What this means operationally:** run the pre-screen (1 rep Haiku-solo vs Opus-solo, drop saturated tasks) \u2192 run replicate 1 of all 4 arms across the surviving tasks \u2192 apply sequential escalation (add reps/tasks only where the Tiered-vs-Sonnet-solo CI straddles the boundary) \u2192 stop when unambiguous. No arm is designated for isolated early piloting outside this loop.\n\n**Not part of this call:** the three \"Owner calls before spend\" items in Comment 3 (grader independence, hermetic-control carryover, retry-cap/feedback format) are separate judgment calls, unaddressed here.",
+ "poker": {},
+ "artifacts": {}
+}

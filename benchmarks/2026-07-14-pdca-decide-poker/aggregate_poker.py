@@ -2,15 +2,20 @@
 """Poker-grid aggregation (pre-registration: README.md — frozen bars, this script computes them).
 
 Reads graded/verdicts.jsonl + arm_map.tsv + audit.jsonl + outputs/*.json (cell costs, poker
-records). Computes the four pre-registered #185 bars (opus pipeline basis):
+records). Computes the four pre-registered #185 bars on the opus basis, and — given
+--grok-cells (per-cell re-grades from `bench_verdict.py --cells-out`) — the SAME bars on the
+grok basis plus the mechanical judge-split: a bar where the judges disagree is NOT MET
+(ADR 0057 d2; README Judge policy). Bar b (cost) is judge-independent.
+
   a. hard pair (exps 3+4), cluster mean over all 8 scenarios: mean_P >= mean_C - 0.05
   b. cost: mean cell_cost_P <= 0.7 * mean cell_cost_C (same run; framer amortized in cells)
   c. OUTCOME SPREAD: per-scenario max-min of rep full fraction-met, averaged; P <= C
   d. full fraction-met: cluster mean_P >= mean_C - 0.05
-plus P-C / P-A cluster deltas with 95% t-CIs, per-expectation tables, the mechanical herding
-metrics (round-2 fire rate; fraction of re-estimates moving toward the round-1 mean),
-guess-the-arm audit, and the grok slot (judge disagreement on a bar => bar NOT MET; rerun
-with --grok <summary.json> after the re-grade). Writes results.json.
+
+Also: P-C / P-A cluster deltas with 95% t-CIs, per-expectation tables, mechanical herding
+metrics, guess-the-arm audit, grok summary slot (--grok). Writes results.json.
+Pure decision logic (metrics_from, bars_of, outcome_spread, herding_metrics, judge_split)
+is tested by aggregate_poker_test.py.
 """
 import argparse
 import json
@@ -27,6 +32,22 @@ from verdict import verdict_of  # noqa: E402
 T_DF7_95 = 2.365
 SCENARIOS = ["B1", "B2", "B3", "B4", "S1", "S2", "S3", "S4"]
 BACKTESTS = {"B1", "B2", "B3", "B4"}
+
+
+# --- pure decision logic (tested) ---
+
+def metrics_from(met_by_bid, arm_map):
+    """met_by_bid: {bid: {1..4: bool}} for ONE judge basis. Returns (frac, hard) keyed
+    (scenario, arm) -> [per-rep values]."""
+    frac, hard = {}, {}
+    for m in arm_map:
+        met = met_by_bid.get(m["bid"])
+        if met is None:
+            continue
+        s, arm = m["scenario"], m["arm"]
+        frac.setdefault((s, arm), []).append(sum(bool(met[i]) for i in (1, 2, 3, 4)) / 4.0)
+        hard.setdefault((s, arm), []).append((bool(met[3]) + bool(met[4])) / 2.0)
+    return frac, hard
 
 
 def cluster_delta(frac, hi_arm, lo_arm, scenarios=SCENARIOS):
@@ -52,6 +73,31 @@ def outcome_spread(frac, arm):
         spreads[s] = round(max(v) - min(v), 4) if len(v) >= 2 else None
     usable = [x for x in spreads.values() if x is not None]
     return round(statistics.mean(usable), 4) if usable else None, spreads
+
+
+def bars_of(frac, hard, mean_cost):
+    """The four pre-registered bars for one judge basis (bar b is judge-independent)."""
+    pc_hard = cluster_delta(hard, "P", "C")
+    pc_full = cluster_delta(frac, "P", "C")
+    spread_p, _ = outcome_spread(frac, "P")
+    spread_c, _ = outcome_spread(frac, "C")
+    # deltas compared at reported precision — raw float error at the exact -0.05 margin
+    # otherwise flips a bar (caught by aggregate_poker_test.test_exact_margin_passes)
+    return {
+        "a_hard_pair_noninferior": round(pc_hard[0], 4) >= -0.05,
+        "b_cost": ("P" in mean_cost and "C" in mean_cost
+                   and round(mean_cost["P"], 4) <= round(0.7 * mean_cost["C"], 4)),
+        "c_outcome_spread": (spread_p is not None and spread_c is not None
+                             and spread_p <= spread_c),
+        "d_full_noninferior": round(pc_full[0], 4) >= -0.05,
+    }
+
+
+def judge_split(bars_opus, bars_grok):
+    """ADR 0057 d2: a bar where the judges disagree is NOT MET. Returns (split, effective)."""
+    split = sorted(k for k in bars_opus if bars_opus[k] != bars_grok[k])
+    effective = {k: bars_opus[k] and bars_grok[k] for k in bars_opus}
+    return split, effective
 
 
 def herding_metrics(outputs):
@@ -93,9 +139,13 @@ def herding_metrics(outputs):
     }
 
 
+# --- IO + report ---
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--grok", help="grok re-grade summary json (bench_verdict output) to fold in")
+    ap.add_argument("--grok", help="grok re-grade summary json (bench_verdict --out) to fold in")
+    ap.add_argument("--grok-cells", help="per-cell grok verdicts jsonl (bench_verdict --cells-out) "
+                                         "— enables grok-basis bars + the mechanical judge split")
     args = ap.parse_args()
 
     graded = HERE / "graded"
@@ -103,22 +153,14 @@ def main():
     arm_map = bench_io.load_records(str(graded / "arm_map.tsv"), fmt="tsv")
     audit = bench_io.load_records(str(graded / "audit.jsonl"), fmt="jsonl")
 
-    frac, hard = {}, {}
-    for m in arm_map:
-        c = cells.get(m["bid"])
-        if not c:
-            continue
-        s, arm = m["scenario"], m["arm"]
-        met = {e["id"]: e["met"] for e in c["expectations"]}
-        frac.setdefault((s, arm), []).append(sum(met.values()) / 4.0)
-        hard.setdefault((s, arm), []).append((met[3] + met[4]) / 2.0)
+    opus_met = {bid: {e["id"]: e["met"] for e in c["expectations"]} for bid, c in cells.items()}
+    frac, hard = metrics_from(opus_met, arm_map)
 
     exp_rate = {}
     for m in arm_map:
-        c = cells.get(m["bid"])
-        if not c:
+        met = opus_met.get(m["bid"])
+        if met is None:
             continue
-        met = {e["id"]: e["met"] for e in c["expectations"]}
         for i in (1, 2, 3, 4):
             exp_rate.setdefault((m["arm"], i, m["scenario"] in BACKTESTS), []).append(
                 1.0 if met[i] else 0.0)
@@ -141,24 +183,30 @@ def main():
     pa_hard = cluster_delta(hard, "P", "A")
     spread_p, spread_p_per = outcome_spread(frac, "P")
     spread_c, spread_c_per = outcome_spread(frac, "C")
-
-    bars = {
-        "a_hard_pair_noninferior": pc_hard[0] >= -0.05,
-        "b_cost": ("P" in mean_cost and "C" in mean_cost
-                   and mean_cost["P"] <= 0.7 * mean_cost["C"]),
-        "c_outcome_spread": (spread_p is not None and spread_c is not None
-                             and spread_p <= spread_c),
-        "d_full_noninferior": pc_full[0] >= -0.05,
-    }
+    bars = bars_of(frac, hard, mean_cost)
 
     grok = json.loads(Path(args.grok).read_text(encoding="utf-8")) if args.grok else None
+    bars_grok = split = effective = None
+    if args.grok_cells:
+        grok_met = {}
+        for line in Path(args.grok_cells).read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                r = json.loads(line)
+                grok_met[r["bid"]] = {int(k): v for k, v in r["met"].items()}
+        gfrac, ghard = metrics_from(grok_met, arm_map)
+        bars_grok = bars_of(gfrac, ghard, mean_cost)
+        split, effective = judge_split(bars, bars_grok)
 
     arm_of = {m["bid"]: m["arm"] for m in arm_map}
     correct = sum(1 for a in audit if a.get("guess") == arm_of.get(a["bid"]))
 
     results = {
         "bars_opus_basis": bars,
-        "h1_survives_opus_basis": all(bars.values()),
+        "bars_grok_basis": bars_grok,
+        "judge_split_bars": split,
+        "bars_effective": effective,
+        "h1_survives": (all(effective.values()) if effective is not None
+                        else "pending grok re-grade (--grok-cells)"),
         "hard_pair_P_minus_C": {"mean_delta": round(pc_hard[0], 4),
                                 "ci95": [round(pc_hard[1], 4), round(pc_hard[2], 4)],
                                 "per_scenario": pc_hard[3]},
@@ -182,7 +230,6 @@ def main():
                   "blinding_leak": len(audit) >= 9 and correct >= 7},
         "verdict_word_full_PC": verdict_of(pc_full[0], pc_full[1], pc_full[2], 8),
         "grok_second_headline": grok,
-        "judge_split": None if grok is None else "fill after comparing bar outcomes across judges",
     }
     (HERE / "results.json").write_text(json.dumps(results, indent=1), encoding="utf-8")
     print(json.dumps(results, indent=1))

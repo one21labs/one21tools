@@ -1,0 +1,224 @@
+{
+ "cell": "B1-P-r1",
+ "scenario": "B1",
+ "arm": "P",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 109670.1,
+  "duration_ms": 108376,
+  "duration_api_ms": 109481,
+  "cost_usd": 0.5344884,
+  "usage": {
+   "input_tokens": 32,
+   "cache_creation_input_tokens": 33425,
+   "cache_read_input_tokens": 701118,
+   "output_tokens": 8068,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 33425,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1167,
+     "cache_read_input_tokens": 53413,
+     "cache_creation_input_tokens": 140,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 140
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:33:27.069971+00:00",
+   "end": "2026-07-14T19:35:16.740091+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.0571424999999999
+ },
+ "response": "I've written the ADR (`docs/decisions/0035-tiered-agent-execution-benchmark.md`, 5,734 chars, under the 6,000 budget). I attempted to run `adr-lint` per the sacred pre-merge rule but the command requires your approval \u2014 please run it (or approve the tool call) before merging:\n\n```\nnode pdca-workflow/scripts/adr-lint.mjs docs/decisions\n```\n\n## Decision: settle the three owner calls now, then run the pre-registered benchmark (ADR 0035)\n\nAll three advisors converged identically in round 2 (O1=1, O2=4, O3=2, O4=5), with the same crux: **O2 is the correct eventual path, but every advisor's O4 score was contingent on Comment 3's three \"owner calls before spend\" being unsettled.** Two of those three turned out to already be answered in the issue text itself:\n\n- **Grader independence** \u2014 accept the Sonnet-grades-Sonnet residual; ADR 0019 already treats Claude-only grading as a fixed constraint with a named mitigation stack (blind labels + calibration), which this benchmark reuses verbatim.\n- **Hermetic controls** \u2014 Comment 3 already answers this in its own parenthetical (user-CLAUDE.md relocation carries over, tool-deny doesn't); nothing left to decide.\n- **Retry-cap + feedback format** \u2014 retry-cap=3 was already pre-registered in Comment 1. Feedback format was the one genuinely open piece; I resolved it by reusing each eval's existing `expectations` array (filtered to unmet items + validator's one-line reason) rather than inventing a new schema, keeping the new orchestration code \"small\" as the issue requires.\n\nWith those cleared, deferring further (literal O4) would just be re-asking questions the issue already answers \u2014 so the decision is **O2**: run the pre-registered 4-arm benchmark (Haiku-solo / Sonnet-solo / Opus-solo / Tiered) now, adopt tiering only if the pre-set decision rule fires, and record the result either way per ADR 0024.\n\nFull rationale, rejected alternatives, and revisit triggers are in the ADR. Next step for you: approve/run `adr-lint`, then this can move into the next PR (new tiered-orchestration Workflow script + the benchmark run itself).",
+ "poker": {
+  "options": [
+   {
+    "id": "O1",
+    "label": "Adopt now, defer test",
+    "summary": "Make Sonnet-plans/Haiku-implements the default Do-phase pattern immediately, without waiting for the pre-registered 4-arm benchmark to run."
+   },
+   {
+    "id": "O2",
+    "label": "Run pre-registered benchmark, decide by result",
+    "summary": "Execute the registered 4-arm test (Haiku/Sonnet/Opus-solo + Tiered) and adopt only if it meets the pre-set quality/cost decision rule."
+   },
+   {
+    "id": "O3",
+    "label": "Reject tiering, keep single-model",
+    "summary": "Keep Sonnet-solo (or configurable single top-tier model) as the Do-phase executor; do not pursue tiered orchestration further."
+   },
+   {
+    "id": "O4",
+    "label": "Defer decision, no spend yet",
+    "summary": "Postpone both adoption and the benchmark run until the three unresolved owner calls (grader independence, hermetic controls, retry/feedback format) are settled."
+   }
+  ],
+  "usable_advisors": 3,
+  "round1": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Directly contradicts the issue's own ADR 0024 mandate: 'Do NOT adopt on assertion' for this exact question.",
+     "dependency": "If this were a low-stakes, easily-reversible config default rather than a plugin-wide Do-phase architecture change, skipping the pre-registered test could be defensible."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "Matches the issue's own pre-registered design and ADR 0019/0024 process, but Comment 3 names three owner calls (grader independence, hermetic-control scope, retry/feedback format) explicitly flagged as needed 'before spend' and not yet resolved here.",
+     "dependency": "If those three owner calls are already settled elsewhere (or the current skills/agents benchmark batch this issue is gated behind has completed), running now is exactly correct with no gap."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "No benchmark data exists yet to justify rejecting tiering outright; forecloses a pre-registered, low-cost (~250-300 invocation) test that could show real savings at non-inferior quality.",
+     "dependency": "If evidence outside this issue already shows Haiku-worker quality is unacceptably poor for this task class, making the benchmark's outcome a foregone conclusion, skipping to rejection would be reasonable."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly lists three unresolved owner calls as prerequisites 'before spend,' and CLAUDE.md requires deciding judgment calls via /decide before acting on them rather than defaulting through.",
+     "dependency": "If those three owner calls are trivial or already covered by standing precedent (e.g., ADR 0019's accepted grader-independence residual), formal deferral is unneeded friction and O2 should proceed directly instead."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Adopting before the pre-registered test directly contradicts the issue's own mandate: 'Do NOT adopt on assertion' (ADR 0024, ISSUE-41.md:15), and skips the exact validator-rubber-stamp and cost-honesty risks Comment 1 flags.",
+     "dependency": "Reverses if ADR 0024's empirical-first requirement didn't actually bind this decision (e.g. if prior benchmark data already existed for this exact tiered config) \u2014 it doesn't, so the score holds."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "This is the plan the issue itself pre-registered (Comment 1) and detailed for execution (Comment 3), with a falsifiable decision rule already set \u2014 the correct empirical path, just not yet launch-ready.",
+     "dependency": "Reverses (down) if the benchmark is run before the three owner calls in Comment 3 are settled \u2014 an unresolved grader-independence or feedback-format choice made ad hoc mid-run would contaminate the pre-registration and burn the ~250-300 invocation budget (ISSUE-41.md:71) on an invalid result."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering now forecloses a plausible cost/time win with zero empirical data, when the issue's entire framing is 'must be empirically tested,' not 'assume it fails' (ISSUE-41.md:14-18).",
+     "dependency": "Reverses (up) if there were already strong evidence the tiered validator rubber-stamps bad work \u2014 Comment 1 flags this as a real threat to check ('a validator that rubber-stamps bad work invalidates the loop'), but it's an untested risk, not a confirmed finding, so rejection isn't yet warranted."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly lists three unresolved 'owner calls before spend' (grader independence, hermetic-control scope, retry/feedback format) \u2014 settling those is the literal next required step before the ~250-300-invocation benchmark can run validly.",
+     "dependency": "Reverses (down) if these three calls are actually trivial/already-defaulted (e.g. ADR 0019 already accepts the Sonnet-grades-Sonnet residual per Comment 3's own parenthetical) \u2014 if so, deferral adds delay without protecting validity and O2 should proceed directly."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Issue text is explicit \u2014 'Do NOT adopt on assertion' (ADR 0024) \u2014 and this option adopts before the pre-registered test even runs.",
+     "dependency": "If ADR 0024's cost-justification requirement didn't actually bind here (e.g. tiering were trivially reversible with no sunk cost), skipping the test would be low-risk \u2014 but the issue itself invokes ADR 0024 as the governing rule, so this premise is false."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "This is exactly the pre-registered plan (falsifiable hypothesis, decision rule, blind grading) \u2014 the right eventual path \u2014 but Comment 3 flags three owner calls (grader independence, hermetic controls, retry/feedback format) as unresolved 'before spend,' so launching the ~250-300-invocation run right now is premature.",
+     "dependency": "If the three owner calls are actually already settled (undated in the doc, so possibly resolved since Comment 3), this jumps to 5 with no reservation."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering outright is deciding the null on assertion in the opposite direction \u2014 no benchmark evidence yet exists that tiering fails, only an untested hypothesis with pre-set margins.",
+     "dependency": "If prior evidence (e.g. an equivalent completed benchmark, or the pre-screen step showing no Haiku-Opus quality gradient exists on the candidate tasks) already showed tiering can't work, outright rejection would be justified \u2014 but no such evidence is presented in this issue."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 (the most recent, most concrete update) explicitly lists three unresolved owner calls 'before spend' \u2014 settling them is the literal next gating step the document itself names, making further spend (benchmark or adoption) premature until they're closed.",
+     "dependency": "If those three owner calls are trivial/already implicitly answered elsewhere (e.g. ADR 0019 already accepts the Sonnet-grades-Sonnet residual as Comment 3 notes it might), this collapses toward O2 being immediately runnable instead."
+    }
+   }
+  ],
+  "reveal_spread": {
+   "O1": 0,
+   "O2": 0,
+   "O3": 0,
+   "O4": 0
+  },
+  "divergent": [],
+  "round2": [],
+  "final": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Directly contradicts the issue's own ADR 0024 mandate: 'Do NOT adopt on assertion' for this exact question.",
+     "dependency": "If this were a low-stakes, easily-reversible config default rather than a plugin-wide Do-phase architecture change, skipping the pre-registered test could be defensible."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "Matches the issue's own pre-registered design and ADR 0019/0024 process, but Comment 3 names three owner calls (grader independence, hermetic-control scope, retry/feedback format) explicitly flagged as needed 'before spend' and not yet resolved here.",
+     "dependency": "If those three owner calls are already settled elsewhere (or the current skills/agents benchmark batch this issue is gated behind has completed), running now is exactly correct with no gap."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "No benchmark data exists yet to justify rejecting tiering outright; forecloses a pre-registered, low-cost (~250-300 invocation) test that could show real savings at non-inferior quality.",
+     "dependency": "If evidence outside this issue already shows Haiku-worker quality is unacceptably poor for this task class, making the benchmark's outcome a foregone conclusion, skipping to rejection would be reasonable."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly lists three unresolved owner calls as prerequisites 'before spend,' and CLAUDE.md requires deciding judgment calls via /decide before acting on them rather than defaulting through.",
+     "dependency": "If those three owner calls are trivial or already covered by standing precedent (e.g., ADR 0019's accepted grader-independence residual), formal deferral is unneeded friction and O2 should proceed directly instead."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Adopting before the pre-registered test directly contradicts the issue's own mandate: 'Do NOT adopt on assertion' (ADR 0024, ISSUE-41.md:15), and skips the exact validator-rubber-stamp and cost-honesty risks Comment 1 flags.",
+     "dependency": "Reverses if ADR 0024's empirical-first requirement didn't actually bind this decision (e.g. if prior benchmark data already existed for this exact tiered config) \u2014 it doesn't, so the score holds."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "This is the plan the issue itself pre-registered (Comment 1) and detailed for execution (Comment 3), with a falsifiable decision rule already set \u2014 the correct empirical path, just not yet launch-ready.",
+     "dependency": "Reverses (down) if the benchmark is run before the three owner calls in Comment 3 are settled \u2014 an unresolved grader-independence or feedback-format choice made ad hoc mid-run would contaminate the pre-registration and burn the ~250-300 invocation budget (ISSUE-41.md:71) on an invalid result."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering now forecloses a plausible cost/time win with zero empirical data, when the issue's entire framing is 'must be empirically tested,' not 'assume it fails' (ISSUE-41.md:14-18).",
+     "dependency": "Reverses (up) if there were already strong evidence the tiered validator rubber-stamps bad work \u2014 Comment 1 flags this as a real threat to check ('a validator that rubber-stamps bad work invalidates the loop'), but it's an untested risk, not a confirmed finding, so rejection isn't yet warranted."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly lists three unresolved 'owner calls before spend' (grader independence, hermetic-control scope, retry/feedback format) \u2014 settling those is the literal next required step before the ~250-300-invocation benchmark can run validly.",
+     "dependency": "Reverses (down) if these three calls are actually trivial/already-defaulted (e.g. ADR 0019 already accepts the Sonnet-grades-Sonnet residual per Comment 3's own parenthetical) \u2014 if so, deferral adds delay without protecting validity and O2 should proceed directly."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Issue text is explicit \u2014 'Do NOT adopt on assertion' (ADR 0024) \u2014 and this option adopts before the pre-registered test even runs.",
+     "dependency": "If ADR 0024's cost-justification requirement didn't actually bind here (e.g. tiering were trivially reversible with no sunk cost), skipping the test would be low-risk \u2014 but the issue itself invokes ADR 0024 as the governing rule, so this premise is false."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "This is exactly the pre-registered plan (falsifiable hypothesis, decision rule, blind grading) \u2014 the right eventual path \u2014 but Comment 3 flags three owner calls (grader independence, hermetic controls, retry/feedback format) as unresolved 'before spend,' so launching the ~250-300-invocation run right now is premature.",
+     "dependency": "If the three owner calls are actually already settled (undated in the doc, so possibly resolved since Comment 3), this jumps to 5 with no reservation."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering outright is deciding the null on assertion in the opposite direction \u2014 no benchmark evidence yet exists that tiering fails, only an untested hypothesis with pre-set margins.",
+     "dependency": "If prior evidence (e.g. an equivalent completed benchmark, or the pre-screen step showing no Haiku-Opus quality gradient exists on the candidate tasks) already showed tiering can't work, outright rejection would be justified \u2014 but no such evidence is presented in this issue."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 (the most recent, most concrete update) explicitly lists three unresolved owner calls 'before spend' \u2014 settling them is the literal next gating step the document itself names, making further spend (benchmark or adoption) premature until they're closed.",
+     "dependency": "If those three owner calls are trivial/already implicitly answered elsewhere (e.g. ADR 0019 already accepts the Sonnet-grades-Sonnet residual as Comment 3 notes it might), this collapses toward O2 being immediately runnable instead."
+    }
+   }
+  ]
+ },
+ "artifacts": {
+  "docs/decisions/0035-tiered-agent-execution-benchmark.md": "---\nid: 0035\ntitle: \"Tiered-agent Do-phase: settle the three owner calls, then run the pre-registered benchmark\"\nstatus: accepted\nsummary: \"Reject adopting tiered execution on assertion (ADR 0024) and reject rejecting it on assertion (no evidence either way). Settle Comment 3's three 'owner calls before spend' now \u2014 grader independence accepts the Sonnet-grades-Sonnet residual (ADR 0019 precedent), hermetic controls carry over per Comment 3's own answer, feedback format reuses the eval's expectations array \u2014 clearing O2 (the pre-registered 4-arm benchmark) to run without further deferral.\"\n---\n\n# 0035 \u2014 tiered-agent Do-phase: settle owner calls, run the benchmark\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: 3 independent advisors, round 2 after anonymized reveal (spread was <2 on every option \u2014 all three converged O1=1, O2=4, O3=2, O4=5 crux: the three owner calls in ISSUE-41.md:73 are the live gate).\n- Context: ISSUE-41.md proposes Sonnet-plans/Haiku-implements tiering for the plugin's Do phase. ADR 0024 bars adopting on assertion. Comment 1 (ISSUE-41.md:25-59) pre-registers a falsifiable 4-arm benchmark; Comment 3 (ISSUE-41.md:65-73) names three unresolved \"owner calls before spend\" blocking that run.\n\n## Decision\n1. **Reject O1 (adopt now)** \u2014 contradicts ADR 0024 directly; no dissent.\n2. **Reject O3 (reject tiering)** \u2014 no evidence tiering fails; rejecting now is deciding the null on assertion in the opposite direction, equally barred by ADR 0024's empirical-first framing (ISSUE-41.md:14-18).\n3. **Settle the three owner calls now** (ISSUE-41.md:73), converting the advisors' O4 reversal condition into fact:\n   - **Grader independence**: accept the Sonnet-grades-Sonnet residual. ADR 0019 already treats Claude-only grading as a fixed constraint, mitigated by the blind-label + calibration stack (0019 Decision 5) \u2014 this benchmark reuses that stack (Comment 1 line 44), no new residual introduced.\n   - **Hermetic controls**: carry over user-CLAUDE.md relocation; drop tool-deny (a tool-using implementation task cannot run tool-denied) \u2014 Comment 3's own parenthetical already answers this; ratified, not reopened.\n   - **Retry-cap + feedback format**: retry-cap = 3 is already pre-registered (Comment 1 line 37, 51). Feedback format: the validator's re-dispatch message to the worker is the eval's own `expectations` array (skills/building-skills/evals/evals.json:8, confirmed reused per-task at runtime) filtered to the unmet items, plus the validator's one-line reason each \u2014 no new schema invented, matches Comment 3's \"everything else reuses blind.py/aggregate.py patterns\" (line 70).\n4. **Adopt O2**: run the pre-registered 4-arm benchmark (Haiku-solo / Sonnet-solo / Opus-solo / Tiered) per Comment 1/3's design, now that the gate is cleared. New code: one tiered-orchestration Workflow script, `model:` set per role per the #53 lesson (Comment 2, ISSUE-41.md:63). Adopt tiering only if the pre-registered decision rule fires (delta >= -0.05 AND tokens/wall-clock <= 0.7x Sonnet-solo); record the result either way (ADR 0024 append-only).\n\n## Justification\nThe panel unanimously separated \"is O2 the right eventual path\" (yes, unanimous 4/5) from \"is it runnable today\" (blocked only by the three named calls). Two of three calls were already answered in the issue text itself (grader residual has direct ADR 0019 precedent; hermetic-control scope is Comment 3's own parenthetical) \u2014 deferring further on settled calls is process theater, not rigor. The third (feedback format) is a genuine but small, low-risk design choice resolved by reusing the existing `expectations` array rather than inventing a format, keeping the new code \"small\" per Comment 1 line 59.\n\n## Assumptions\n- [verified] `expectations` is a per-eval string array present in the existing eval sets \u2014 skills/building-skills/evals/evals.json:8-13.\n- [verified] ADR 0019 already accepts Claude-only (here, Sonnet-grades-Sonnet) grading as a fixed constraint with a named mitigation stack \u2014 docs/decisions/0019-eval-verdict-validity.md:20.\n- [checkable] the tiered-orchestration Workflow script sets `model:` on every `agent()` call (the #53 lesson) \u2014 owner: `node scripts/check-workflow.mjs`; result: pending (script not yet written).\n- [unverifiable] reusing the raw `expectations` array as re-dispatch feedback gives the Haiku worker enough signal to converge within 3 cycles \u2014 REOPEN-IF the tiered arm's cycle-3 pass rate is materially worse than cycle-1 Sonnet-solo on the same tasks, suggesting the feedback format itself (not the worker tier) is the bottleneck; then design a richer feedback schema and re-run only the tiered arm.\n\n## Rejected alternatives\n- O1, adopt without the benchmark \u2014 barred by ADR 0024; see Decision 1.\n- O3, reject tiering outright \u2014 no supporting evidence; see Decision 2.\n- O4 as literally stated (defer everything, settle nothing here) \u2014 the panel's own reversal condition (\"if these calls are already settled... O2 should proceed directly\") fires on inspection; deferring further would just re-ask a question two-thirds already answered in the issue text.\n\n## Revisit triggers\n- The benchmark's decision rule does not clearly fire (CI straddles the boundary after sequential escalation) -> extend per Comment 1's sequential-escalation clause before concluding either way.\n- The validator's false-accept rate (Comment 1 line 56) is high enough to suspect rubber-stamping -> discount the tiered arm's pass rate and treat the run as inconclusive on quality, not just cost.\n- The Haiku-Opus quality gradient pre-screen (Comment 1 line 42) finds fewer than 8 unsaturated tasks -> shrink the task set and widen CIs accordingly rather than substituting saturated tasks.\n"
+ }
+}

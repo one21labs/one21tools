@@ -88,6 +88,8 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--cache", help="prior regrade jsonl (offline: skip live judge calls)")
+    ap.add_argument("--cells-out", help="also write per-cell regraded verdicts (jsonl: bid, arm, "
+                                        "scenario, met) — the substrate for judge-basis bar math")
     ap.add_argument("--primary", default="C,B",
                     help="treatment,control arm pair for the clustered delta (default C,B)")
     a = ap.parse_args()
@@ -127,6 +129,12 @@ def main():
     print(f"re-grading {len(cells)} cells with judge={judge.name}"
           + (" (cached)" if cache else ""), file=sys.stderr)
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
+    if a.cells_out:
+        with open(a.cells_out, "w") as f:
+            for c in regraded:
+                f.write(json.dumps({"bid": c["bid"], "arm": c["arm"], "scenario": c["scenario"],
+                                    "met": c["met"]}) + "\n")
+        print(f"wrote {len(regraded)} per-cell verdicts to {a.cells_out}", file=sys.stderr)
 
     report = {"dir": a.dir, "judge": judge.name, "n_cells": len(regraded), "errors": len(errs),
               "notional_cost_usd": {
