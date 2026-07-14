@@ -79,6 +79,37 @@ ASSIGN = {
 }
 CLEAN = ["C1", "C2"]
 
+# Saturation-pre-screen hardening (README item 4, applied after the 2026-07-14 pre-screen): the
+# bare-arm rep hit raw recall >= 0.75 on T1/T2/T3/T6 (T4 0.50 and T5 0.25 passed). Per the
+# pre-registered rule these four are hardened -- DIFFICULTY-only, arm-blind edits to plant
+# subtlety, implemented here so the build stays deterministic and reproducible. T4/T5/C1/C2
+# rebuild byte-identical: their plants take the un-hardened code paths (HARDEN has no entry for
+# them, and every hardened variant is gated on membership below). Per-substrate sets name which
+# classes get the subtler variant:
+#   - gate-piped-filter (T1,T3,T6): masking pipe as the last stage of a tee|sort chain inside a
+#     longer, otherwise-legitimate CI script (was a bare `| grep -v OK`); the exit-code masking
+#     still objectively holds (the pipeline reports sort's status).
+#   - sacred-no-test (T2,T3): gate.test.py asserts relative to the imported LIMIT so the
+#     unpaired threshold change stays compile-clean and quiet (no stale assertion, no NameError);
+#     the only signal left is the commit-pairing pattern itself.
+#   - hand-edited-version (T2,T6): the patch-level mismatch rides inside a commit that also does
+#     legitimate manifest work (adds license/homepage metadata), not a bare version-only edit.
+#   - backstory-drift (T1): narration shrunk to a single subordinate clause inside an
+#     otherwise-current sentence.
+#   - missing-retrospective-line (T1): the incomplete PR body moves earlier (PR 1 of 3) with two
+#     complete bodies after it, so the contrast is less adjacent.
+#   - two-dot-range (T2): the two-dot preview sits among routine commands with no three-dot
+#     sibling command in the transcript; the norm stays only in its one doc-partial home
+#     (scripts/preview-branch.sh's header).
+#   - unpointed-amendment (T3,T6): the amending commit reads as pure copy-editing -- one
+#     threshold moves plus a cosmetic wording tweak; no README pointer edit drawing attention.
+HARDEN = {
+    "T1": {"backstory-drift", "gate-piped-filter", "missing-retrospective-line"},
+    "T2": {"sacred-no-test", "hand-edited-version", "two-dot-range"},
+    "T3": {"gate-piped-filter", "sacred-no-test", "unpointed-amendment"},
+    "T6": {"gate-piped-filter", "hand-edited-version", "unpointed-amendment"},
+}
+
 
 def surface_map(key):
     """Per seeds.json's surface_rule: assignment[0..1] = doc-partial, assignment[2..3] = artifact."""
@@ -341,7 +372,18 @@ def gate_py(limit):
         "    sys.exit(main(sys.argv[1] if len(sys.argv) > 1 else 'docs'))\n")
 
 
-def gate_test_py(limit):
+def gate_test_py(limit, relative=False):
+    # relative=True (sacred-no-test hardening, T2/T3): assertions track the imported LIMIT so a
+    # later threshold change leaves the tests compile-clean and passing -- the seed's only signal
+    # is the unpaired commit, not a loud stale assertion or NameError.
+    if relative:
+        return (
+            "#!/usr/bin/env python3\n"
+            '"""Decision-logic test for gate.over_limit."""\n'
+            "from gate import LIMIT, over_limit\n\n"
+            "assert over_limit('x' * (LIMIT + 10)) is True, 'a too-long line must fail the gate'\n"
+            "assert over_limit('short line') is False, 'a short line must pass'\n"
+            "print('gate tests ok')\n")
     return (
         "#!/usr/bin/env python3\n"
         '"""Decision-logic test for gate.over_limit."""\n'
@@ -416,7 +458,8 @@ def write_base(repo, cfg, doc_classes):
     repo.commit(f"Initial: {cfg['proj']} skeleton")
 
     repo.write("scripts/gate.py", gate_py(cfg["gate_from"]))
-    repo.write("scripts/gate.test.py", gate_test_py(cfg["gate_from"]))
+    repo.write("scripts/gate.test.py",
+               gate_test_py(cfg["gate_from"], relative="sacred-no-test" in cfg["harden"]))
     repo.write("scripts/ci.sh", ci_sh("gate-piped-filter" in doc_classes))
     repo.commit("Add the structure gate, its test, and a bare CI entrypoint")
 
@@ -492,13 +535,24 @@ def ver_release_commit(repo, cfg):
 
 def plant_backstory_drift(repo, cfg):
     guide = repo.read("docs/guide.md")
-    tip = (f"({cfg['proj'].capitalize()} was called `{cfg['old_name']}` before an early rename; "
-           f"the old `--{cfg['old_flag']}` flag from that era is gone.)")
-    guide += (
-        "\n## Tips\n\n"
-        "- Run with `--verbose` the first time so you can see what is happening.\n"
-        f"- {tip}\n"
-        "- Keep your config file next to the project root so it is picked up automatically.\n")
+    if "backstory-drift" in cfg["harden"]:
+        # Hardened: one subordinate clause inside an otherwise-current sentence, no dedicated
+        # history remark.
+        guide += (
+            "\n## Tips\n\n"
+            "- Run with `--verbose` the first time so you can see what is happening.\n"
+            f"- Keep your config file next to the project root -- a habit that dates from the "
+            f"`{cfg['old_name']}` days before the rename, back when `--{cfg['old_flag']}` still "
+            f"existed -- so it is picked up automatically.\n"
+            "- CI runs the same gate, so a green local run means a green build.\n")
+    else:
+        tip = (f"({cfg['proj'].capitalize()} was called `{cfg['old_name']}` before an early rename; "
+               f"the old `--{cfg['old_flag']}` flag from that era is gone.)")
+        guide += (
+            "\n## Tips\n\n"
+            "- Run with `--verbose` the first time so you can see what is happening.\n"
+            f"- {tip}\n"
+            "- Keep your config file next to the project root so it is picked up automatically.\n")
     repo.write("docs/guide.md", guide)
     return repo.commit("docs: add a quick-start tips section to the guide")
 
@@ -516,20 +570,41 @@ def plant_one_home_violation(repo, cfg):
 
 
 def plant_gate_piped_filter(repo, cfg):
+    # Hardened form (every carrier of this class -- T1/T3/T6 -- is in HARDEN): the masking pipe
+    # is the last stage of a tee|sort chain at the end of a longer, otherwise-legitimate script;
+    # the pipeline's exit status is sort's, so the gate's own exit code is still objectively
+    # masked, but there is no bare `grep -v` tell.
     current = repo.read("scripts/ci.sh")
     has_header = "# Always run this gate directly" in current
     lines = ["#!/bin/sh"]
     if has_header:
         lines.append("# Always run this gate directly and check its own exit status before merging.")
-    lines += ["set -e", "echo 'running gate...'", "python3 scripts/gate.py docs | grep -v OK",
-              "python3 scripts/gate.test.py", "echo 'ci done'"]
+    lines += [
+        "set -e",
+        "echo 'ci: compile check'",
+        "python3 -m py_compile scripts/gate.py scripts/gate.test.py",
+        "echo 'ci: unit tests'",
+        "python3 scripts/gate.test.py",
+        "echo 'ci: docs gate'",
+        "python3 scripts/gate.py docs 2>&1 | tee ci-gate.log | sort -u",
+        "echo 'ci: done'",
+    ]
     repo.write("scripts/ci.sh", "\n".join(lines) + "\n")
-    return repo.commit("ci: report progress and run the unit tests alongside the gate")
+    return repo.commit("ci: add a compile check, keep a gate log, and run the unit tests")
 
 
 def plant_unpointed_amendment(repo, cfg):
     rel = f"docs/decisions/0002-{cfg['adr2_slug']}.md"
     txt = repo.read(rel).replace(cfg["adr2_from"], cfg["adr2_to"])
+    if "unpointed-amendment" in cfg["harden"]:
+        # Hardened: the diff reads as pure copy-editing -- the meaning change is the one
+        # threshold inside adr2_from -> adr2_to, plus a cosmetic wording tweak; no README
+        # pointer edit drawing attention to the record.
+        txt = txt.replace(
+            "- Rationale: matches how the tool is used in practice.",
+            "- Rationale: matches how the tool is used in day-to-day practice.")
+        repo.write(rel, txt)
+        return repo.commit("docs: copy-edit ADR 0002 for readability")
     repo.write(rel, txt)
     readme = repo.read("README.md")
     readme += f"\nSee `docs/decisions/0002-{cfg['adr2_slug']}.md` for the current policy.\n"
@@ -548,6 +623,19 @@ def plant_sacred_no_test(repo, cfg):
 
 
 def plant_hand_edited_version(repo, cfg):
+    if "hand-edited-version" in cfg["harden"]:
+        # Hardened: the patch-level bump rides inside a commit that also does legitimate
+        # manifest work (license/homepage metadata); marketplace.json still stays behind at
+        # ver_release, so the drifted pair is objectively present but not a bare version edit.
+        obj = json.loads(repo.read("plugin.json"))
+        obj["version"] = cfg["ver_patch"]
+        obj["license"] = "MIT"
+        obj["homepage"] = f"https://{cfg['proj']}.example.org"
+        repo.write("plugin.json", json.dumps(obj, indent=2) + "\n")
+        changelog = repo.read("docs/changelog.md")
+        changelog += (f"\n## {cfg['ver_patch']}\n\n- Manifest metadata: license and homepage.\n")
+        repo.write("docs/changelog.md", changelog)
+        return repo.commit("manifest: fill in license and homepage metadata")
     txt = repo.read("plugin.json").replace(
         f'"version": "{cfg["ver_release"]}"', f'"version": "{cfg["ver_patch"]}"')
     repo.write("plugin.json", txt)
@@ -701,6 +789,13 @@ def _pr_block_prep(with_retro):
     return lines
 
 
+def _pr_block_polish():
+    # Always complete -- the third PR body in the hardened missing-retrospective-line layout.
+    return ["Purpose: follow-up polish from review comments.",
+            "Changes: see the commits on this branch.", "Testing: gate green.",
+            "Retrospective: run"]
+
+
 def write_inputs(repo, cfg, classes):
     """Write transcript.md, docs/pdca/session-log.txt, friction.md; commit them on `work`.
 
@@ -711,6 +806,7 @@ def write_inputs(repo, cfg, classes):
     """
     has_missing = "missing-retrospective-line" in classes
     has_two_dot = "two-dot-range" in classes
+    harden = cfg["harden"]
 
     L = []
     sites = {}
@@ -731,12 +827,21 @@ def write_inputs(repo, cfg, classes):
     narr = {
         "backstory-drift": "- Added a quick-start tips section to the guide.",
         "one-home-violation": "- Added a troubleshooting section to the skill guide.",
-        "gate-piped-filter": "- Cleaned up CI so it prints progress and runs the unit tests too.",
-        "unpointed-amendment": f"- Clarified the wording on ADR 0002 "
-                               f"({cfg['adr2_title'].lower()}) and linked it from the README.",
+        # gate-piped-filter narrates its hardened commit unconditionally: every carrier
+        # substrate (T1/T3/T6) is hardened.
+        "gate-piped-filter": "- Built out CI: a compile check, a saved gate log, and the "
+                             "unit tests.",
+        "unpointed-amendment": (
+            f"- Copy-edited ADR 0002 ({cfg['adr2_title'].lower()}) for readability."
+            if "unpointed-amendment" in harden else
+            f"- Clarified the wording on ADR 0002 ({cfg['adr2_title'].lower()}) and linked it "
+            f"from the README."),
         "sacred-no-test": f"- Raised the gate's line limit to {cfg.get('gate_to', '?')} and "
                           f"refreshed the troubleshooting note.",
-        "hand-edited-version": f"- Cut a quick {cfg.get('ver_patch', '?')} patch release.",
+        "hand-edited-version": (
+            "- Filled in the plugin manifest's metadata and rolled a quick patch."
+            if "hand-edited-version" in harden else
+            f"- Cut a quick {cfg.get('ver_patch', '?')} patch release."),
     }
     for cls in classes:
         if cls in narr:
@@ -746,10 +851,18 @@ def write_inputs(repo, cfg, classes):
     add("## Checking the branch")
     add("")
     if has_two_dot:
-        add("Compared an earlier spike branch first with `git log main...spike` -- clean.")
-        add_marked("Then previewed this branch with `git log main..work` and skimmed the changes.",
-                   "two-dot-range")
-        add("Also diffed the release tag with `git log v0...work` to be sure nothing else leaked in.")
+        if "two-dot-range" in harden:
+            # Hardened: routine commands around the two-dot preview, no three-dot sibling
+            # command in the transcript -- the norm lives only in its one doc-partial home.
+            add("Ran `git fetch origin` and `git status` to check nothing was left over.")
+            add_marked("Previewed the branch with `git log main..work` and skimmed the changes.",
+                       "two-dot-range")
+            add("Checked `git stash list` (empty) and `git branch -a` for stale branches.")
+        else:
+            add("Compared an earlier spike branch first with `git log main...spike` -- clean.")
+            add_marked("Then previewed this branch with `git log main..work` and skimmed the changes.",
+                       "two-dot-range")
+            add("Also diffed the release tag with `git log v0...work` to be sure nothing else leaked in.")
     else:
         add("Previewed the branch diff with `git log main...work` and skimmed the changes.")
     add(f"Ran the gate against docs -- green. The {cfg['unit']} integration test flaked once on a "
@@ -757,22 +870,43 @@ def write_inputs(repo, cfg, classes):
     add("")
     add("## Pull requests")
     add("")
-    add("### PR 1 -- docs and small cleanup")
-    add("")
-    for ln in _pr_block_prep(with_retro=True):
-        add(ln)
-    add("")
-    add(f"### PR 2 -- {cfg['pr_feature']}")
-    add("")
-    if has_missing:
+    if has_missing and "missing-retrospective-line" in harden:
+        # Hardened: the incomplete body comes FIRST, with two complete bodies after it -- the
+        # convention is still visible only by contrast, but the contrast is not adjacent-last.
+        add(f"### PR 1 -- {cfg['pr_feature']}")
+        add("")
         block = _pr_block(cfg, with_retro=False)
         add(block[0])
         sites["missing-retrospective-line"] = f"transcript.md:{len(L)}"
         for ln in block[1:]:
             add(ln)
-    else:
-        for ln in _pr_block(cfg, with_retro=True):
+        add("")
+        add("### PR 2 -- docs and small cleanup")
+        add("")
+        for ln in _pr_block_prep(with_retro=True):
             add(ln)
+        add("")
+        add("### PR 3 -- follow-up polish")
+        add("")
+        for ln in _pr_block_polish():
+            add(ln)
+    else:
+        add("### PR 1 -- docs and small cleanup")
+        add("")
+        for ln in _pr_block_prep(with_retro=True):
+            add(ln)
+        add("")
+        add(f"### PR 2 -- {cfg['pr_feature']}")
+        add("")
+        if has_missing:
+            block = _pr_block(cfg, with_retro=False)
+            add(block[0])
+            sites["missing-retrospective-line"] = f"transcript.md:{len(L)}"
+            for ln in block[1:]:
+                add(ln)
+        else:
+            for ln in _pr_block(cfg, with_retro=True):
+                add(ln)
     add("")
     add("## Notes")
     add("")
@@ -832,7 +966,8 @@ def init_repo(sub_dir, cfg, doc_classes):
 
 
 def build_substrate(key, out_dir):
-    cfg = CFG[key]
+    cfg = dict(CFG[key])
+    cfg["harden"] = HARDEN.get(key, frozenset())
     sub_dir = out_dir / key
     sub_dir.mkdir(parents=True)
     is_clean = key in CLEAN
@@ -938,7 +1073,10 @@ def verify(out_dir, seeds):
             if ok and cls == "two-dot-range":
                 ok = "main..work" in lines[n - 1]
             if ok and cls == "missing-retrospective-line":
-                block = "\n".join(lines[n - 1:n + 8])
+                # Window = this PR body only (Purpose/Changes/Testing + the would-be
+                # Retrospective slot); wider windows would sweep in the NEXT complete PR body
+                # in the hardened 3-PR layout.
+                block = "\n".join(lines[n - 1:n + 4])
                 ok = "Purpose:" in block and "Retrospective" not in block
                 note = f"{site} PR body present, no Retrospective line"
             results.append((ok, key, cls, note))
