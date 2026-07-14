@@ -88,3 +88,7 @@ prosecutor min and the routing_key's concreteness.
   (plant-subtlety edits only, arm-blind, documented in the builder), re-screen before the
   grid. v1 comparison: bare-arm recall dropped from 0.83-1.0 to a 0.25-0.75 spread — the
   discriminating-surface redesign works; four substrates need one more notch.
+- 2026-07-13 re-screen (round 2, hardened T1/T2/T3/T6, $2.89, graded 12/12 agents,
+  `prescreen-graded-r2/`): T1 0.50, T2 0.50, T3 0.25, T6 0.25 — ALL PASS. Full bare-arm
+  spread across the 6 seeded substrates now 0.25-0.50. Pre-screen discipline satisfied;
+  counted grid proceeds behind the cost gate.
