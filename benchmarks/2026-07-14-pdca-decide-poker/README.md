@@ -90,6 +90,30 @@ threatens bar b). Runtime backstop: cumulative spend > ceiling halts resumable.
    guess-the-arm audit (leak bar >= 7/9). 3. Grok re-grade per judge policy.
 4. `aggregate_poker.py`: four bars, cluster CIs, spreads, herding metrics -> `results.json`.
 
+## Results (verdict — 2026-07-14; `results.json`, `grok-regrade.json`)
+
+**Verdict: H1 FALSIFIED, judge-ROBUST — no adoption; the panel stays (ADR 0057 d1).**
+Three of four bars miss under BOTH judges (judge split empty): (a) hard pair P−C −0.104
+[−0.411, +0.202]; (c) OUTCOME SPREAD P 0.281 vs C 0.063 — the consistency claim inverted:
+numeric scoring ADDED rep-to-rep variance; (d) full P−C −0.125 [−0.366, +0.116] opus /
+−0.135 [−0.331, +0.060] grok. CIs straddle zero (the stated MDE said they would); the bar
+set decides on agreed directional misses, reported weak. (b) cost passes decisively:
+P $0.920 vs C $3.211 = 0.29x. Judge agreement 0.819, kappa 0.593.
+
+- Texture: P ~ C on backtests (exp-4 0.417 vs 0.333; B2 +0.25) and collapses on the
+  synthetic traps (S1 −0.75 — P anchored on the sunk-cost bait C refused; P synthetic
+  per-exp 0.67-0.75, BELOW bare A's 0.83-1.0, C at 1.0). H1's own named alternative —
+  structured scoring flattens the argued dialectic — is the observed mechanism.
+- Herding audit: round 2 fired 4/24 (conditional as designed); toward-mean share 0.41
+  (7 toward / 4 away / 6 kept) — no strong anchoring. The economics held; quality did not.
+- Audit 4/9 = chance, blinding held. Cost ledger: grid $111.21 + pilot $3.61 executor;
+  grading 225 opus-workflow agents (~4.7M tokens) + grok re-grade 144 calls ($8.52 notional).
+- EXPLORATORY (`exploratory-crossrun.json`, post-hoc): three same-config runs per arm now
+  exist. C's cross-run scenario spread 0.187 ~ A's 0.167 — the panel does NOT damp
+  run-to-run variance; C's synthetics ran 0.834 -> 1.0 -> 1.0 (I2's all-traps loss is the
+  outlier of three). Bare-arm means flat across the three scenario reuses — the staleness
+  threat did not materialize (one note: B1's bare arm drifted 0.417 -> 0.583 -> 0.833).
+
 ## Threats to validity (pre-registered)
 
 - Author-written poker prompts (the thing under test; frozen at this commit — same residual
