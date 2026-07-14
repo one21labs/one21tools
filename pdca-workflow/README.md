@@ -22,14 +22,17 @@ finds problems but can't decide trade-offs, and averaging hides the one accounta
 The panel pieces also ship standalone — `/advise`, `/verify`, `/red-team` — for calls that
 need one right-sized check, not the ceremony; `/decide` composes them and adds the record.
 
-**Measured (2026-07):** two outcome-level instruments (`benchmarks/2026-07-12-pdca-*` in the
-source repo) found no rubric-quality edge for `/retrospect` over a bare reviewer on seeded
-defects, or for `/decide` over a token-matched deliberation prompt (blinding audit clean,
-n=3, wide CIs). The `/decide` null is judge-sensitive, not settled: a cross-family re-grade
-found the same-family judge one-directionally more lenient (C−B +0.010 same-family vs +0.125
-cross-family, both CIs straddling zero — ADR 0057). The structure's measured value so far is
-process guarantees (records, falsifiable criteria, spend gates), not per-decision quality —
-follow-up per ADR 0052.
+**Measured (2026-07, four instruments; `benchmarks/2026-07-1{2,3}-pdca-*` in the source repo):**
+`/retrospect` shows no recall/triage edge over a bare reviewer on seeded defects — on
+discriminating substrates with a triage-aware metric the delta is ~zero under both judge
+families — but reproducibly asserts HALF the false findings (FP guard, both versions).
+`/decide` shows no rubric-quality edge over a token-matched deliberation prompt
+(judge-sensitive: +0.010 same-family / +0.125 cross-family, CIs straddle zero); a 7x-cheaper
+decider+probes replacement failed all pre-registered quality bars across a 3-iteration
+improvement loop under BOTH judges — the panel's one measured edge is failure anticipation
+from genuinely independent perspectives (solo self-argument collapses it), with high per-run
+variance. Measured value so far: process guarantees, FP discipline, and that independence
+edge — not per-decision quality. Follow-up: ADR 0057; successor hypotheses #184/#185/#186.
 
 ## What's in the box
 
