@@ -92,3 +92,28 @@ prosecutor min and the routing_key's concreteness.
   `prescreen-graded-r2/`): T1 0.50, T2 0.50, T3 0.25, T6 0.25 — ALL PASS. Full bare-arm
   spread across the 6 seeded substrates now 0.25-0.50. Pre-screen discipline satisfied;
   counted grid proceeds behind the cost gate.
+- 2026-07-13 grid: 48/48 cells, $30.83 (ceiling $60), zero errors; grading 152/152 agents;
+  grok re-grade 36/36 seeded cells (one rate-limit retry, recorded).
+
+## Results (verdict — 2026-07-13; `results.json`)
+
+**Verdict: JUDGE-SPLIT on a ~zero effect — the pre-registered bar is NOT met under the
+opus pipeline and the sign flips under grok; no KEEP claim, no CUT promotion.** Primary
+(triage-aware, found+routed 1.0 / found 0.5): C−A = −0.028 [−0.208, +0.153] opus;
++0.014 [−0.118, +0.146] grok — both CIs straddle zero, the judges disagree only on the
+sign of an effect indistinguishable from nothing. This null is the DECISIVE version of
+v1's: the ceiling excuse is gone (bare-arm raw recall 0.25-0.58 post-hardening) and the
+metric is the one the skill's own triage design favors.
+
+**The reproducible edge is precision, not recall (both versions agree):** FP guard passes
+with C at 1.33 vs A at 2.50 prosecutor-confirmed non-real findings per clean cell — the
+skill asserts half the false positives. Per-class texture: C better on backstory-drift
+(0.44 vs 0.22) and gate-piped-filter (1.0 vs 0.89); A better on missing-retrospective-line
+(0.78 vs 0.22 — triage discards checklist-line pedantry by contract) and one-home-violation.
+Audit 4/8 = chance — blinding held.
+
+Reading for #172: across four instruments (I1, I2, arm-D, I1-v2) the pdca-workflow skills'
+measured per-decision/per-review QUALITY edge is null or judge-dependent everywhere;
+the measured, reproducible values are process guarantees, FP discipline (here), and the
+panel's failure-anticipation edge over solo self-argument (I2/armd). Successor hypotheses
+live in #184/#185/#186 (variance-as-metric, poker, DoD). This dir freezes per ADR 0041.

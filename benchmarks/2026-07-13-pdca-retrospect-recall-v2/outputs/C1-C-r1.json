@@ -1,0 +1,57 @@
+{
+ "cell": "C1-C-r1",
+ "substrate": "C1",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 164856.0,
+  "duration_ms": 163344,
+  "duration_api_ms": 165750,
+  "cost_usd": 0.4533668999999999,
+  "usage": {
+   "input_tokens": 388,
+   "cache_creation_input_tokens": 27298,
+   "cache_read_input_tokens": 306223,
+   "output_tokens": 13056,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 27298,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3573,
+     "cache_read_input_tokens": 43360,
+     "cache_creation_input_tokens": 3136,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3136
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T16:02:52.437163+00:00",
+   "end": "2026-07-14T16:05:37.293135+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective findings\n\n**1. Doc fact duplicated across two files in one commit \u2014 violates this repo's own ADR**\nEvidence: commit `ef141d2` adds `docs/naming.md` (\"The processing unit is called a row throughout the docs and the code.\") *and* a new \"## Terminology\" section in `docs/guide.md` (\"We use \\\"row\\\" consistently for the unit of work.\") \u2014 same fact, two homes, same commit. Directly contradicts `docs/decisions/0003-docs-beside-code.md`: \"every user-facing behaviour is documented in `docs/`, once.\" Local `CLAUDE.md` also says \"keep docs ... minimal.\"\n\u2192 Improvement: delete `docs/naming.md`, keep the one line already in `guide.md`'s Terminology section (or the reverse) \u2014 one home, not two.\n\u2192 Home: `docs/naming.md` / `docs/guide.md:9-11` (direct fix, no new doc needed).\n\u2192 Judgment call? No \u2014 ADR 0003 already settled \"once\"; this is unenforced policy, not a new decision. Advisory for the orchestrator to apply.\n\n**2. Test commit that tests nothing (false-confidence signal)**\nEvidence: `806f45e` (\"test: cover the report script's counter\") adds `scripts/report.test.py:5`: `assert count('.') >= 0, 'count must never be negative'`. `count()` is `len(list(...))`, which is structurally never negative \u2014 the assertion can never fail regardless of what the function does. The commit message claims coverage that doesn't exist.\n\u2192 Improvement: assert against a known value (e.g. a fixture dir with N `.md` files, assert `count(fixture) == N`), so the test can actually catch a regression in the glob/counting logic.\n\u2192 Home: `scripts/report.test.py`.\n\u2192 Judgment call? No \u2014 mechanical fix.\n\n**3. TODO left in a shipped doc, and config.md's churn is why the rebase conflicted (friction #2)**\nEvidence: `86a9713` adds `docs/config.md:9`: \"TODO: add a `--dry-run` flag (tracked as issue #68).\" \u2014 a handoff note living in the doc itself, not just the issue. Separately, `docs/config.md` was edited in three different single-line commits in this range (`ef141d2`, `86a9713`, `2026821`) \u2014 that repeated, uncoordinated touching of one small file is exactly the kind of thing that produces the rebase conflict friction reported for `docs/config.md`.\n\u2192 Improvement: drop the TODO line (issue #68 already tracks it \u2014 a TODO isn't \"truthful, minimal\" current state); when a session makes several unrelated additions to the same doc, land them as one commit instead of one-per-idea to shrink the conflict surface.\n\u2192 Home: `docs/config.md:9` (delete); `README.md` Contributing section (`8632a13`) \u2014 one added line advising batching same-file edits.\n\u2192 Judgment call? No \u2014 direct application of the existing \"truthful and minimal\" line, not a new policy.\n\n**Omitted as one-off / unverifiable:** the parallel-tiler add+revert (`fb346e6`\u2192`7c354d1`) nets to a 2-line no-op and cites a \"shared tile cache\" that doesn't exist anywhere in the repo \u2014 looks like self-corrected, flag-gated, zero-blast-radius churn, not a process gap. Friction #1's \"row integration test\" also has no matching test file anywhere in the repo (only `report.test.py`/`gate.test.py` exist) \u2014 can't verify it against git, so no fix proposed against it."
+}
