@@ -9,7 +9,7 @@ benefit-per-token of what Claude loads (quality), or move rules into surfaces th
 human catching the miss — shipped gates, hooks, and skills, not prose (autonomy). Work is
 prioritized against them.
 
-Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: documentation is held to CI-checked character budgets.
+Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: SKILL.md bodies and references, ADRs, CLAUDE.md, and agent prompts are held to CI-checked character budgets.
 
 The differentiating idea: manufacturing quality principles translate directly to AI-assisted code. Lean's waste elimination becomes YAGNI and SSoT enforcement. Toyota's poka-yoke becomes boundary validation. Deming's "build quality in" becomes catching defects at source rather than inspecting them out downstream. The skills encode these as Claude directives.
 
@@ -29,7 +29,7 @@ measurements exist to **improve** the skills (raise benefit-per-token), not just
 The loop (method home: `skills/building-skills/references/empirical-evals.md`; decision records:
 ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 
-1. **Evals** — every skill has `evals/evals.json` (3+ cases, schema-gated by `validate.py`).
+1. **Evals** — each of the four skills above carries `evals/evals.json` (3+ cases, schema-gated by `validate.py`).
 2. **Hermetic paired benchmark** — each eval runs with and without the skill under a hermetic
    executor (no installed plugins, no repo file access; ADR 0023 — a non-hermetic run is a
    recorded confounded null, never a verdict).
