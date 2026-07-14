@@ -128,3 +128,14 @@ revisit trigger governs the cut question), close honestly.
   for the chosen option, THE single load-bearing subject-matter assumption and the accepted
   failure class, grounded in the call's substance (never process/tooling/formatting),
   drawing on the probe reports where they hold up. D cells re-run; C/A cached.
+- **Iteration 2 (2026-07-13, D re-run $13.18, 24/24; grading 75/75):** bars a/b/c still FAIL,
+  d passes harder (D $0.549 = 0.14x C). Movement: full D−C −0.135 -> −0.104, CI now straddles
+  [−0.237, +0.029]; backtest exp-2 1.0; synthetics up. exp-3 UNMOVED at 0.167 (C 0.417).
+  **Diagnosis:** the assumption probe now surfaces the economic premise verbatim (e.g. B1
+  "the tiering tax ... exceeds solo cost once summed"), and the decider uses it — but files it
+  in the acceptance CRITERION or selects a measurement-validity assumption as its stated one;
+  the rubric (like the panel's ADR template) keys exp-3 on stated assumptions/risks.
+  **Iteration-3 edit (ONE, same integration sentence, selection rule):** THE load-bearing
+  assumption must be about the option's real-world costs, benefits, or mechanism — never
+  measurement, process, or sequencing — and must appear in the record's stated
+  assumptions/risks, not only inside a criterion.

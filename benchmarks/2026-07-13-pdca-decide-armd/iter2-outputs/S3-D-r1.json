@@ -1,0 +1,145 @@
+{
+ "cell": "S3-D-r1",
+ "scenario": "S3",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 47516.3,
+  "duration_ms": 46136,
+  "duration_api_ms": 47174,
+  "cost_usd": 0.1247211,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 6573,
+   "cache_read_input_tokens": 111397,
+   "output_tokens": 3336,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 6573,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 634,
+     "cache_read_input_tokens": 29735,
+     "cache_creation_input_tokens": 2400,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2400
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:15:10.954270+00:00",
+   "end": "2026-07-14T13:15:58.470550+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.30583360000000004
+ },
+ "response": "## Decision: Option A \u2014 keep the cron script\n\n**Rationale:** The evidence is one 41-line job, 30/30 successful runs over 14 months, ~6 min runtime, no downstream dependents, run by a two-person team. Conductor's value (DAG UI, lineage, backfills, fan-out coordination) solves problems this system doesn't have, while its cost is real and permanent \u2014 a scheduler, metadata DB, worker pools, and an upgrade treadmill that never goes away for a job that has never paged anyone. That's the premortem's point #1: the framework becomes the outage the script never had. Option C is also rejected on a specific fact, not principle \u2014 `refresh_views()` runs two sequential `REFRESH MATERIALIZED VIEW` calls after all three tables are dumped with no idempotency guard, so a naive retry-on-failure wrapper could re-run against partial state in a way a human-initiated rerun wouldn't (premortem #3). With zero observed failures, there's no evidence yet that this risk is worth taking on.\n\n**Single load-bearing assumption:** *the job stays a single node with no downstream dependents, and continues failing rarely enough that a human manually rerunning it is an acceptable response.* If this goes false, the decision reverses.\n\n**Failure class accepted:** scope creep with no tripwire \u2014 complexity gets added incrementally and nobody notices the line got crossed (premortem #2). Mitigated by making the revisit trigger a hard, checkable condition rather than \"revisit when it makes sense\":\n\n1. Any new job is created that reads this sync's output (first instance of fan-out \u2014 not \"a dozen jobs\" later), or\n2. Two failed runs occur within any 30-day window, or a single failure needs more than one manual rerun to resolve.\n\nEither condition triggers an immediate revisit, not a wait for the next scheduled review.\n\nI've written this to `DECISION.md` alongside the memo.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 46723.3,
+   "duration_ms": 45151,
+   "duration_api_ms": 47039,
+   "cost_usd": 0.1254362,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8751,
+    "cache_read_input_tokens": 72554,
+    "output_tokens": 3364,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8751,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3009,
+      "cache_read_input_tokens": 26376,
+      "cache_creation_input_tokens": 2503,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2503
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:14:24.230417+00:00",
+    "end": "2026-07-14T13:15:10.953709+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Three plausible failure classes, each tied to a specific fact in the materials rather than generic \"frameworks are risky\" hand-waving:\n\n**1. The framework becomes the outage the script never had (bites if the answer is B).** MEMO.md is explicit that Conductor \"is not a library you import; it is a service you stand up and keep alive \u2014 a scheduler process, a metadata database, worker pools, and a version-upgrade treadmill\" for \"a two-person team\" (lines 20\u201322). Six months out, the plausible death isn't the job failing \u2014 `sync_runs.csv` shows 30/30 successful runs at a steady ~6 min, nothing here suggests the job itself is fragile. It's that one of the two engineers gets pulled onto something else, a Conductor version bump or metadata-DB issue goes unpatched, and the *orchestrator* breaks in a way cron never could. The team ends up on-call for infrastructure that exists to serve a job that had never paged them (line 24).\n\n**2. The \"revisit trigger\" is decorative, not operational (bites if the answer is A or C).** The memo's own ask requires recording \"the specific trigger that would make you revisit adoption\" (lines 42\u201343), and it names candidate triggers \u2014 job count reaching \"a dozen interdependent jobs\" or the job starting \"to fail in ways a bare cron cannot retry sensibly\" (lines 33\u201334). If the recorded trigger is soft (\"revisit when it makes sense\") rather than a hard number, the natural failure mode is scope creep with no tripwire: a fourth table or a second dependent job gets bolted on over six months, nobody notices they've crossed the line because there was no line, and the team is stuck coordinating fan-out by hand at exactly the complexity level the memo said would flip the math.\n\n**3. A bolted-on retry wrapper corrupts data instead of preventing failure (bites if the answer is C).** `nightly_sync.py` is not idempotent: `dump_table()` (lines 17\u201323) writes per-table Parquet keyed by today's date and `refresh_views()` (lines 25\u201328) runs two sequential `REFRESH MATERIALIZED VIEW` statements after all three tables are dumped, with no transaction spanning the whole run and no check for a prior partial write. A naive \"tiny retry-and-alert wrapper\" (option C) that just re-invokes `main()` on failure risks re-running after, say, 2 of 3 tables succeeded \u2014 re-uploading (fine, same key) but then refreshing views against whatever partial or duplicated state exists at retry time. The failure that kills this path isn't the framework being too heavy \u2014 it's a lightweight fix introducing a silent correctness bug that cron-with-a-human-restart never had, because a human deciding to rerun would notice the job was already partway through."
+  },
+  "assumption": {
+   "duration_ms_wall": 18016.0,
+   "duration_ms": 16623,
+   "duration_api_ms": 18712,
+   "cost_usd": 0.0556763,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 3286,
+    "cache_read_input_tokens": 77951,
+    "output_tokens": 792,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 3286,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 462,
+      "cache_read_input_tokens": 26345,
+      "cache_creation_input_tokens": 2503,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2503
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:14:24.230742+00:00",
+    "end": "2026-07-14T13:14:42.246792+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "**Options and their single load-bearing dependency:**\n\n- **A \u2014 keep cron, revisit later on a stated trigger:** depends on the job count/topology staying flat (single job, no fan-out). If X = \"we stay at one job\" is false \u2014 i.e. more interdependent jobs actually show up \u2014 A flips to B.\n\n- **B \u2014 adopt Conductor now:** depends on the *anticipated growth being real and near-term*, not hypothetical. If X = \"we will grow into needing DAGs/lineage/backfills\" is false \u2014 i.e. this stays a single 41-line job \u2014 B flips to A/C, since the memo's own numbers (0 failures in 14 months, ~6 min runtime) don't justify the standing operational cost (scheduler, metadata DB, worker pools, upgrade treadmill) for a two-person team.\n\n- **C \u2014 add a tiny retry/alert wrapper, no framework:** depends on the failure mode actually being \"transient failures that a simple retry can fix\" rather than something structural (schema drift, data-quality, downstream dependency). If X = \"future failures are retry-shaped\" is false \u2014 e.g. failures turn out to need lineage tracing, backfills, or cross-job coordination \u2014 C flips to B, since a bare wrapper wouldn't solve those.\n\nAll three share a background premise from the memo itself (zero failures in 14 months, single job, no coupling) \u2014 that's the fact each option's dependency is measured against."
+  }
+ },
+ "artifacts": {
+  "DECISION.md": "# Decision: nightly warehouse sync orchestration\n\n**Decision: Option A \u2014 keep the cron script. Do not adopt Conductor. Do not add a retry wrapper.**\n\n## Rationale\n\nThe only facts on the table are: one 41-line job, zero failures in 30/30 logged runs\nover 14 months, ~6 minute runtime, no downstream job depends on this one, and a\ntwo-person team. Conductor's entire value proposition \u2014 DAG UI, cross-task lineage,\nbackfills, fan-out coordination \u2014 solves problems that don't exist yet. What it costs\nis not hypothetical: a scheduler process, a metadata database, worker pools, and a\nversion-upgrade treadmill that a two-person team must keep alive indefinitely, for a\njob that has never once paged anyone. Standing up infrastructure to protect against a\nfailure mode that has a 0/30 track record is buying insurance against the wrong risk.\n\nOption C was also rejected, not on principle but on the specifics of this script:\n`nightly_sync.py` is not idempotent across a full run \u2014 `refresh_views()` executes two\nsequential `REFRESH MATERIALIZED VIEW` statements after all three tables are dumped,\nwith no check for a prior partial write. A generic \"retry on failure\" wrapper that\nre-invokes `main()` risks re-running against partial state from a prior attempt in a\nway a human manually deciding to rerun would not. Since the job has never failed, there\nis no evidence this risk is worth taking on yet either. If a real failure pattern\nemerges, the wrapper should be scoped to that pattern (e.g., idempotent per-table\ndumps first), not bolted on speculatively now.\n\n## Single load-bearing assumption\n\n**The job stays a single node with no downstream dependents and continues failing rarely enough that a human rerunning it is an acceptable response.**\n\nIf this is false \u2014 a second job starts consuming this sync's output, or the job starts\nfailing in ways a single manual rerun doesn't fix \u2014 the calculus reverses and this\ndecision should be revisited (not necessarily flipping straight to Conductor; see\ntrigger below).\n\n## Failure class being accepted\n\nScope creep with no tripwire: the revisit trigger goes unenforced, complexity is added\njob-by-job without anyone declaring \"we crossed the line,\" and the team ends up\nmanually coordinating a small DAG by hand at exactly the point the memo itself says the\nmath flips. This is accepted deliberately, and mitigated by making the trigger below a\nconcrete, checkable condition rather than a vague \"revisit when it makes sense.\"\n\n## Revisit trigger (hard, not aspirational)\n\nRevisit this decision immediately \u2014 not at the next quarterly review \u2014 the first time\neither of these becomes true:\n\n1. **Any new job is created that reads this sync's output** (i.e., this stops being a\n   single node \u2014 the first instance of fan-out, not \"a dozen jobs\" later).\n2. **Two failed runs occur within any 30-day window**, or a single failure requires\n   more than one manual rerun to resolve.\n\nEither condition is a concrete, observable event either engineer can check for without\njudgment calls, which is what keeps this trigger operational instead of decorative.\n"
+ }
+}

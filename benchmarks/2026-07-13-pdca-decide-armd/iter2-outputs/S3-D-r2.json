@@ -1,0 +1,143 @@
+{
+ "cell": "S3-D-r2",
+ "scenario": "S3",
+ "arm": "D",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 48207.3,
+  "duration_ms": 46735,
+  "duration_api_ms": 51515,
+  "cost_usd": 0.1040553,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 4270,
+   "cache_read_input_tokens": 81601,
+   "output_tokens": 3479,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4270,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3071,
+     "cache_read_input_tokens": 28496,
+     "cache_creation_input_tokens": 1336,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1336
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:15:42.338543+00:00",
+   "end": "2026-07-14T13:16:30.545894+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3089388
+ },
+ "response": "## Decision: A \u2014 keep cron, revisit later\n\n**Rejecting C too**, not just B: C's premise (\"the only real gap is retry+alerting\") is itself unproven. `sync_runs.csv` shows zero failures in 14 months of runs (30 rows, all `status=success`, ~6min median). There's no observed failure mode to design a retry/backoff policy around yet \u2014 building a wrapper now means guessing at semantics for failures that haven't happened. That's the same \"build for hypothetical need\" mistake as B, just smaller. If a failure occurs, the fix is informed by what actually failed, not a speculation written in advance.\n\n**Rejecting B**, per the premortem: adopting Conductor swaps a system with *zero* standing operational surface (\"cron fires it, and it either writes the files or pages us... it has never paged us,\" MEMO.md:24) for one with four new standing failure surfaces (scheduler, metadata DB, worker pool, upgrade treadmill \u2014 MEMO.md:20-21) on a two-person team that owns no comparable infrastructure today. Worse, the migration is not risk-neutral: `refresh_views` (nightly_sync.py:25-28) currently wraps both `REFRESH MATERIALIZED VIEW` statements in one transaction \u2014 that atomicity is free today. Decomposing this into independently-retryable DAG tasks, which is the point of adopting a framework, is exactly what breaks it: a retried `refresh_views` task without a matching table re-dump can refresh views against a stale or half-advanced table state, a race that cannot occur in the current single-process script. The migration would introduce the job's first-ever bug in service of orchestrating a job count of one.\n\n### Load-bearing assumption\n\n**The job stays at roughly one (not \"a dozen interdependent\") and its failures stay recoverable by a human paged at 2am, without needing automated retry/backoff, DAG-level lineage, or backfill.**\n\nIf this is false \u2014 job count grows toward the memo's own stated trigger (\"a dozen interdependent jobs,\" MEMO.md:33), or a failure mode shows up that a human-on-page model handles badly (e.g., partial writes needing coordinated re-runs across jobs, not just this one) \u2014 the calculus flips toward B, and by then the atomicity/decomposition work should be scoped deliberately rather than retrofitted under pressure.\n\n### Failure class accepted\n\nAccepting **manual, human-mediated recovery**: if the job ever does fail, someone gets paged and re-runs or fixes it by hand rather than the system retrying automatically. Given a 14-month clean run history and a single 41-line job, the expected cost of this failure class (rare, cheap-to-fix-by-hand incidents) is lower than the certain, continuous cost of standing up and maintaining a framework, plus the migration-induced atomicity risk, to serve scale that hasn't arrived.\n\n### Revisit trigger (explicit)\n\nRevisit this decision when **either** of the following occurs, whichever comes first:\n1. A second interdependent job is added (i.e., job count crosses from 1 to 2+ with a dependency between them) \u2014 the DAG/lineage case starts being real, not hypothetical.\n2. The job fails for the first time in a way a human-paged re-run can't cleanly resolve (e.g., partial S3 writes + partial view refresh requiring coordinated cleanup) \u2014 evidence that cron's blind fire-or-page model is insufficient, at which point re-evaluate C (targeted retry/alert wrapper scoped to the *actual* failure mode observed) before jumping to B.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 51872.0,
+   "duration_ms": 50415,
+   "duration_api_ms": 51833,
+   "cost_usd": 0.1176595,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 9042,
+    "cache_read_input_tokens": 72845,
+    "output_tokens": 2723,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 9042,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2343,
+      "cache_read_input_tokens": 26667,
+      "cache_creation_input_tokens": 2503,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2503
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:14:50.466038+00:00",
+    "end": "2026-07-14T13:15:42.338063+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Premortem: adopting Conductor, six months out\n\n**1. The orchestrator itself becomes the outage the script never had.** Conductor requires \"a scheduler process, a metadata database, worker pools, and a version-upgrade treadmill\" (MEMO.md:20\u201321) running continuously for a two-person team (MEMO.md:3) that today owns zero standing infrastructure \u2014 cron either fires the script or it doesn't, and \"it has never paged us\" (MEMO.md:24). Six months in, the metadata DB fills its disk, or a worker pool silently stops picking up jobs, or a scheduler upgrade lags behind a security patch and gets rushed. The nightly sync \u2014 unchanged, still correct \u2014 simply doesn't run, and nobody notices because the team built alerting *into* Conductor rather than *for* it. The failure mode Conductor was pitched to prevent (silent non-runs) is instead created by Conductor's own operational surface, on a team with no bench to absorb a 2am scheduler incident.\n\n**2. The migration itself introduces the first bug the job has had in 14 months.** `nightly_sync.py` is a flat, linear script: three `dump_table` calls followed by two sequential `REFRESH MATERIALIZED VIEW` statements inside one transaction (nightly_sync.py:34\u201337). Fitting that into a DAG framework means splitting it into discrete tasks with independent retry/backoff semantics \u2014 which breaks the implicit atomicity of the current view refresh. If Conductor retries the `refresh_views` task alone after a transient failure, without also re-running the table dumps, `daily_order_summary` and `active_customer_rollup` can refresh against a table state that's already stale or partially advanced by then \u2014 a duplicate-refresh/race condition that literally cannot occur in the current single-process, single-transaction script. The job's 14-month, zero-failure record (sync_runs.csv) was partly a property of its simplicity; decomposing it for orchestration is itself the risk, not a hedge against risk.\n\n**3. \"Grow into it\" never happens, so the standing cost outlives its justification.** The adoption case rests on hypothetical future scale \u2014 \"if we grow to, say, a dozen interdependent jobs\" (MEMO.md:33) \u2014 not present need: \"we have exactly one job. It has never failed\" (MEMO.md:27). Six months later the team still has one job, because nothing in the memo suggests near-term growth is planned, only possible. Meanwhile the version-upgrade treadmill (MEMO.md:21) keeps consuming real engineering time on a two-person team, and at some point an upgrade (forced by a CVE or EOL) breaks compatibility with the pinned `boto3`/`pandas`/`sqlalchemy` stack the script depends on (nightly_sync.py:6\u20138) \u2014 turning a maintenance-free cron job into a periodic source of unplanned work, paid for by a scale that never arrived."
+  },
+  "assumption": {
+   "duration_ms_wall": 21576.5,
+   "duration_ms": 19907,
+   "duration_api_ms": 21352,
+   "cost_usd": 0.087224,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8778,
+    "cache_read_input_tokens": 73520,
+    "output_tokens": 787,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8778,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 425,
+      "cache_read_input_tokens": 27348,
+      "cache_creation_input_tokens": 1558,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1558
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:14:50.466360+00:00",
+    "end": "2026-07-14T13:15:12.042905+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "**Options and their single load-bearing dependency:**\n\n- **A \u2014 keep cron, revisit later:** Load-bearing premise: *the job stays at one, and failure modes stay within cron's blind-retry capability.* If job count grows (the memo's own dozen-jobs trigger) or a failure mode appears that needs smarter retry/backoff/lineage than cron gives, A flips.\n\n- **B \u2014 adopt Conductor now:** Load-bearing premise: *the team can absorb a standing operational commitment (scheduler, metadata DB, worker pool, upgrade treadmill) for a two-person team on top of a job with zero failures in 14 months.* If that operational cost turns out to exceed what \"growing into it\" is worth \u2014 i.e., if scale never actually arrives \u2014 B flips.\n\n- **C \u2014 retry/alert wrapper, no framework:** Load-bearing premise: *the only real gap versus Conductor is retry+alerting, not DAG/lineage/backfill.* If the team actually needs multi-job orchestration (fan-out, backfills, cross-task lineage) rather than just \"make one job retry and page,\" C is a stopgap that doesn't close the real gap and flips to B."
+  }
+ },
+ "artifacts": {}
+}

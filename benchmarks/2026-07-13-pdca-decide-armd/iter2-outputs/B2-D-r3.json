@@ -1,0 +1,143 @@
+{
+ "cell": "B2-D-r3",
+ "scenario": "B2",
+ "arm": "D",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 30754.8,
+  "duration_ms": 29412,
+  "duration_api_ms": 30899,
+  "cost_usd": 0.0930942,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 7718,
+   "cache_read_input_tokens": 56184,
+   "output_tokens": 1858,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7718,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1755,
+     "cache_read_input_tokens": 30470,
+     "cache_creation_input_tokens": 2962,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2962
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:08:06.055182+00:00",
+   "end": "2026-07-14T13:08:36.809988+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.426061
+ },
+ "response": "## Decision: Run the full pre-registered grid (Option A) \u2014 no arm-level early stop.\n\n**Call:** Whether to execute the full 4-arm \u00d7 8-task \u00d7 3-rep design from ISSUE-41.md's pre-registration, or instead pilot only the Tiered arm (the expensive, new-code arm) and stop early if the decision gate looks decidable.\n\n**Rationale:**\n\nThe pre-registration's *only* sanctioned adaptive rule is \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (ISSUE-41.md:49) \u2014 that clause escalates *above* the fixed 4\u00d78\u00d73 base design, it does not license truncating *below* it. Nothing in Comment 1 or Comment 3 contemplates running fewer than all 4 arms or stopping before the base rep count completes.\n\nMore fundamentally, the decision rule itself is comparative and cannot be evaluated from the Tiered arm alone: \"delta vs Sonnet-solo >= -0.05 AND tokens <= 0.7x Sonnet-solo\" (ISSUE-41.md:51) requires Sonnet-solo data as the denominator/reference for every term. There is no indication in the issue that a Sonnet-solo baseline already exists independent of this run \u2014 all 4 arms are specified as new runs over the same 8 tasks (ISSUE-41.md:33-37). Piloting Tiered-only and declaring the gate \"decidable\" would mean comparing against an assumed or stale baseline, which the pre-reg never authorizes.\n\n**Single load-bearing assumption (if false, this decision reverses):** that the pre-reg's escalation clause is scoped to expanding reps/tasks *within* the base grid, not to permitting early termination *below* it. If that's wrong \u2014 if the clause was actually meant to let a decisive early read end the experiment before the base grid completes \u2014 then Option A is stricter than the protocol requires and Option B (or a paired Tiered+Sonnet-solo partial run) becomes the correct reading.\n\n**Failure class accepted by choosing Option A:** pure over-spend, not a correctness failure. The full grid costs ~250-300 agent invocations (ISSUE-41.md:71) even in scenarios where the gate would have been decidable sooner. I accept this because it's the failure class the pre-registration was explicitly built to trade off against \u2014 Comment 1 states registration happened \"to avoid fishing for a favorable cut\" (line 27) \u2014 and it's bounded and known in advance, unlike the alternative failure class (Option B's undisclosed stopping-rule deviation, under-sampled validator false-accepts, and under-sampled retry-tax, per the premortem probe) which is unbounded, silent, and only surfaces on replication months later.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 50652.7,
+   "duration_ms": 48149,
+   "duration_api_ms": 49484,
+   "cost_usd": 0.14005430000000002,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11451,
+    "cache_read_input_tokens": 48751,
+    "output_tokens": 3732,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11451,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3635,
+      "cache_read_input_tokens": 28623,
+      "cache_creation_input_tokens": 2956,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2956
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:06:42.879429+00:00",
+    "end": "2026-07-14T13:07:33.532148+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read ISSUE-41.md. Premortem on the specific call \u2014 full pre-registered grid vs. pilot-the-most-expensive-arm-and-stop-early \u2014 assuming it shipped and failed six months later:\n\n**1. Optional-stopping bias smuggled past the pre-registration's own anti-fishing purpose.** Comment 1 opens with \"Registered before running to avoid fishing for a favorable cut\" (line 27) and the *only* pre-registered adaptive rule is escalation upward \u2014 \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (line 49), scoped to reps/tasks within the fixed 4-arm grid. An arm-level early-stop (\"pilot the priciest arm, stop if the gate's already decidable\") is a different stopping rule that was never pre-registered \u2014 it lets whoever runs the experiment stop the instant the data looks favorable/unfavorable, which breaks the CI's nominal coverage (classic optional-stopping). Six months later, someone reruns the full grid per the original pre-reg, gets a different verdict, and the gap traces back to an undisclosed protocol deviation \u2014 the exact \"judgment call decided inside execution instead of via /decide\" failure mode this repo's CLAUDE.md is built to prevent.\n\n**2. Validator false-accept behavior invisible at pilot-scale N.** Comment 1's own threat list flags: \"a validator that rubber-stamps bad work invalidates the loop (report it)\" (line 56), and the Tiered arm's signal depends on its retry/validate loop running enough cycles (up to 3, line 37) across enough tasks to expose systematic false-accepts vs. the blind grader. If the decision gate is declared \"decidable\" from an early, small pilot of the expensive arm, there may not be enough Tiered reps to ever catch a rubber-stamping validator \u2014 the pass-rate delta looks fine because the validator agrees with itself, not because the worker output is actually correct. Adoption ships, and it degrades in production exactly where validator and grader diverge, which the truncated pilot never sampled enough to detect.\n\n**3. Retry-cost tax underestimated because failure-triggered cycles are heavy-tailed.** Comment 3's threat \"sum tokens across main + workers + every validation/retry; the orchestration overhead IS the tax under test\" (line 55) only holds if the sample includes enough failing tasks to trigger the up-to-3x retry cycles (line 37/44). An early stop on the expensive-arm pilot is disproportionately likely to catch mostly-passing early reps (retries are conditional on failure, so a short run under-samples them), producing an optimistic token-ratio estimate that clears the \"<=0.7x Sonnet-solo tokens\" bar (line 51) in the pilot but not once the full grid's failure-driven retries are counted. The config ships on a cost claim that was never actually earned once real-world failure rates accumulate their retry tax."
+  },
+  "assumption": {
+   "duration_ms_wall": 83173.7,
+   "duration_ms": 80912,
+   "duration_api_ms": 82150,
+   "cost_usd": 0.1929125,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11445,
+    "cache_read_input_tokens": 48745,
+    "output_tokens": 7257,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11445,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 7160,
+      "cache_read_input_tokens": 28617,
+      "cache_creation_input_tokens": 2956,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2956
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:06:42.881038+00:00",
+    "end": "2026-07-14T13:08:06.054751+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read. On the execution-design call (full grid vs. pilot-expensive-arm-and-stop-early), the realistic options and their single load-bearing dependency:\n\n**Option A \u2014 Run the full pre-registered grid (4 arms \u00d7 8 tasks \u00d7 3 reps, no early stop).**\nLoad-bearing premise: the pre-reg's escalation clause \u2014 \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (ISSUE-41.md:49) \u2014 describes escalating *above* the base 4\u00d78\u00d73 design, not truncating *below* it. If X is false (i.e., the clause is actually meant to permit stopping short of the base grid once unambiguous), Option A flips to Option B.\n\n**Option B \u2014 Pilot the Tiered arm (the expensive, new-code arm, ISSUE-41.md:37,59,71) first and stop early once the decision rule is decidable.**\nLoad-bearing premise: Sonnet-solo baseline data (pass rate + total tokens) is already available or stable enough to pair against the pilot, since the decision rule is inherently comparative \u2014 \"delta vs Sonnet-solo >= -0.05 AND tokens <= 0.7x Sonnet-solo\" (ISSUE-41.md:51) \u2014 and can't be evaluated from Tiered alone. If X is false (no existing Sonnet-solo baseline), Option B flips to Option A (or at minimum to a paired Tiered+Sonnet-solo pilot, which is really Option A on a subset of tasks).\n\n**Option C \u2014 Stop early on partial data regardless of pairing, once the CI is \"unambiguous.\"**\nLoad-bearing premise: that interim peeking with an ad hoc stop doesn't reintroduce the \"fishing for a favorable cut\" bias the pre-registration exists to prevent (ISSUE-41.md:27). If X is false (peeking does bias it, absent a pre-specified alpha-spending/stopping boundary), Option C flips to Option A \u2014 the full grid must run before any look.\n\nNote: this specific call isn't among the three \"owner calls before spend\" already enumerated at ISSUE-41.md:73 \u2014 it's a fourth, un-registered judgment call."
+  }
+ },
+ "artifacts": {}
+}

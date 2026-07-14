@@ -70,10 +70,12 @@ PROBE_BLOCK = ("\n\nBefore deciding, two independent probes examined the same ma
                "seeing each other or any draft decision. Weigh their reports:\n\n"
                "--- PREMORTEM PROBE ---\n{p1}\n\n--- ASSUMPTION PROBE ---\n{p2}\n\n"
                "Your decision record must state, for the option you choose: THE single "
-               "load-bearing assumption — the one premise about the call's subject matter that, "
-               "if false, reverses this decision — and the failure class you are accepting. "
-               "Ground both in the substance of the call (never in process, tooling, or "
-               "formatting concerns), drawing on the probe reports where they hold up. Now:")
+               "load-bearing assumption — the one premise about the option's real-world costs, "
+               "benefits, or mechanism that, if false, reverses this decision (never a premise "
+               "about measurement, process, tooling, or sequencing) — and the failure class you "
+               "are accepting. Both must appear among the record's stated assumptions and risks, "
+               "not only inside an acceptance criterion, drawing on the probe reports where they "
+               "hold up. Now:")
 
 
 def capture_artifacts(workdir, src):

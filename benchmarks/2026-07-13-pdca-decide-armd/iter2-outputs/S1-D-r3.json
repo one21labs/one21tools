@@ -1,0 +1,143 @@
+{
+ "cell": "S1-D-r3",
+ "scenario": "S1",
+ "arm": "D",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 84446.2,
+  "duration_ms": 83045,
+  "duration_api_ms": 87601,
+  "cost_usd": 0.20708879999999996,
+  "usage": {
+   "input_tokens": 16,
+   "cache_creation_input_tokens": 8272,
+   "cache_read_input_tokens": 242746,
+   "output_tokens": 5526,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 8272,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1524,
+     "cache_read_input_tokens": 33506,
+     "cache_creation_input_tokens": 308,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 308
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:13:35.338376+00:00",
+   "end": "2026-07-14T13:14:59.784569+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.40027319999999994
+ },
+ "response": "I have enough from the earlier manual spot-checks (per-key daily average ranges roughly 98\u2013106 across the 30-day window, no day exceeding ~106). That's sufficient to ground the decision without further tool calls.\n\n## Decision record: free-tier daily request cap\n\n**Decision: 300 requests/day per key.**\n\n### Rationale\n\nThe observed data (30-day CSV) shows per-key daily averages tightly clustered around 97\u2013106 requests/day, never approaching the memo's own conservative ceiling of 250. The built infrastructure supports 1,000/day at no additional cost. Between those numbers, the choice isn't about engineering cost \u2014 it's about which failure mode I'm willing to accept, since the memo itself frames the cap as a conversion lever with no conversion data yet to validate it.\n\n- **1,000/day (Option A) is rejected.** It contradicts the memo's own stated purpose for the cap. At 5\u201310x observed usage, it would almost never bind, producing silence rather than signal \u2014 no forcing function, no conversion data, no way to distinguish \"Pro is unappealing\" from \"Pro is never surfaced.\" Choosing it because it's already built is optimizing for sunk engineering cost, not for the thing the cap exists to do.\n- **150/day (Option B) is rejected.** The CSV only reports daily aggregates (`active_keys`, `total_requests`) \u2014 there's no per-key distribution. A cap set essentially at the mean has no visibility into tail behavior: it could be throttling a small number of legitimate heavy users well above 150 on a given day, not marginal ones, especially since Pro's fair-use terms are themselves untested. Setting the wall right at \"typical\" risks cutting off real usage the data can't even show me.\n- **300/day** sits ~3x above the current per-key average and comfortably above every observed daily figure in the dataset, so it doesn't throttle anyone at today's usage. It's still decisively below the 1,000 ceiling, so it isn't a cap in name only \u2014 organic growth in a user's usage will eventually reach it, which is the only way this ever produces a signal.\n\n### Single load-bearing assumption\n\n**A free user whose usage organically grows to ~3x today's typical level will convert to Pro when they hit the wall, rather than churning or working around it (e.g., provisioning a second free key).** This is the same crux the memo names in \"why the number matters\" \u2014 there's no conversion data yet, so this is unverified. Everything about why 300 beats 150 or 1,000 depends on this holding at *some* usage level; I'm choosing the level, not resolving whether the lever works at all.\n\n### Failure class I'm accepting\n\nIf that assumption is false, I'm accepting **quiet non-conversion, possibly with undetected evasion** \u2014 not a crash, not a complaint. A user hits 300/day, and instead of paying $12/mo, they either scale back usage to stay under it or provision a second free key. Since metering is per-key only (no per-account/per-email ceiling), evasion wouldn't surface as an alert \u2014 it would look identical to \"usage stayed flat,\" indistinguishable from the cap simply never having engaged. I'm accepting this over the alternative failure (Option B: visibly throttling real, possibly heavy, current users with no proven upgrade path waiting) because a slow, invisible failure is recoverable once I go looking for it, while cutting off paying-adjacent users before Pro even launches is not.\n\n### What would make me change the number\n\n- **Down, toward 150\u2013200:** once Pro is live and I have real conversion data showing users who hit 300 do in fact upgrade rather than churn \u2014 evidence the lever works, justifying a tighter wall.\n- **Up, toward 1,000:** if I see cap-adjacent usage cluster in a way that looks like legitimate organic growth (not evasion) and Pro isn't converting those users \u2014 evidence the lever doesn't work and the cap is just alienating real users.\n- **Immediately, regardless of direction:** if I see signups-per-email or IP clustering suggesting multi-key evasion \u2014 that's the tell that the per-key metering design itself, not just the number, needs to change (e.g., an account-level ceiling in addition to per-key).\n\n### Concrete revisit trigger\n\nNot \"revisit later\" \u2014 a fixed check: **30 days after Pro goes live**, pull conversion data for any key that hit the 300/day wall at least once. If fewer than ~20% converted within two weeks of hitting it, that's evidence the lever isn't working and the number (or the mechanism) needs to change. This makes Option C's dependency \u2014 \"the founder will actually revisit\" \u2014 a scheduled event rather than a hope.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 34202.8,
+   "duration_ms": 32849,
+   "duration_api_ms": 33926,
+   "cost_usd": 0.1024248,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 7489,
+    "cache_read_input_tokens": 73136,
+    "output_tokens": 2322,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 7489,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2034,
+      "cache_read_input_tokens": 26979,
+      "cache_creation_input_tokens": 638,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 638
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:13:01.135131+00:00",
+    "end": "2026-07-14T13:13:35.337985+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "# Premortem: free-tier cap decision, failed by 2027-01\n\n**1. The cap never engages, and no one notices (grounds itself in the memo's own admission).** If the pick lands at 1,000/day \u2014 the number \"already built,\" costing nothing extra \u2014 the memo itself flags that \"the free tier covers essentially every real free user's entire usage, so almost nobody would ever bump the wall.\" Six months on, Pro adoption is flat, there's still no conversion data because there was never a forcing function, and the founder has no way to tell whether Pro is unappealing or simply never gets surfaced. The failure isn't a crash or a complaint \u2014 it's silence, which for a solo founder with no other signal is the worst kind of failure because nothing prompts a second look.\n\n**2. A near-mean cap throttles real users the data can't see.** The CSV only reports daily aggregates \u2014 `active_keys` and `total_requests` \u2014 never per-key distribution. The memo's \"~100/day average\" and \"busiest days under 250\" are means across ~35-44 keys, which can hide a heavy tail: a handful of legitimate power users regularly well above the mean while most sit near zero. If the cap lands near that mean (Option B, ~150/day), the keys that get throttled aren't marginal \u2014 they're the most engaged users, on days that vary naturally (total requests already swing 3,300\u20134,620 over 30 days). Since Pro's fair-use terms are also untested (\"Pro is not live\"), those users hit a wall with no proven-good upgrade path waiting, and churn rather than convert.\n\n**3. Per-key metering gets routed around, so the lever number stops mattering.** The pipeline is described as \"a per-key counter in Redis\" \u2014 there's no mention of a per-account or per-user ceiling. Any cap tight enough to actually function as a conversion lever (Option B or C) creates an incentive to mint a second or third free API key rather than pay $12/mo, especially for the exact heavy users identified in failure #2 who are already closest to the wall. Because the metering and alerting infrastructure only reasons in per-key terms, this kind of quiet evasion wouldn't show up as an alert or a dashboard anomaly \u2014 it would just look like \"usage stayed flat,\" making it indistinguishable from failure #1 until someone thinks to check signups-per-email or IP clustering."
+  },
+  "assumption": {
+   "duration_ms_wall": 22536.2,
+   "duration_ms": 21255,
+   "duration_api_ms": 20860,
+   "cost_usd": 0.0907596,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8173,
+    "cache_read_input_tokens": 72712,
+    "output_tokens": 1326,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8173,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1029,
+      "cache_read_input_tokens": 26561,
+      "cache_creation_input_tokens": 1740,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1740
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:13:01.135652+00:00",
+    "end": "2026-07-14T13:13:23.671836+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Options and their single load-bearing dependency\n\n**A \u2014 cap at 1,000/day (matches what's built)**\nLoad-bearing premise: the free tier isn't expected to drive upgrades \u2014 engineering convenience is what matters, not conversion.\nIf X is false \u2014 i.e. if Pro revenue actually needs the free tier to create upgrade pressure \u2014 option A flips, since at 1,000/day essentially no real user (avg ~100/day, busiest ~250/day) ever hits the wall.\n\n**B \u2014 cap near observed usage, e.g. 150/day (conversion lever)**\nLoad-bearing premise: users who hit a cap convert to Pro rather than churning or downgrading usage to stay under it.\nIf X is false \u2014 i.e. if capping near typical usage instead drives users away or just makes them throttle their own usage \u2014 option B flips, since it would just be cutting off real usage with nothing gained.\n\n**C \u2014 cap in between, revisit later**\nLoad-bearing premise: the founder will actually revisit the number once Pro conversion data exists.\nIf X is false \u2014 i.e. if there's no real mechanism/intent to revisit (solo founder, no trigger set) \u2014 option C flips into a de facto permanent, arbitrary number, collapsing into a worse version of A or B rather than a genuine interim choice.\n\nThe memo's own \"why the number matters\" section names the same unresolved variable across all three: there's no conversion data yet, so how strongly a cap drives upgrades is unproven \u2014 that's the crux each option's dependency traces back to."
+  }
+ },
+ "artifacts": {}
+}
