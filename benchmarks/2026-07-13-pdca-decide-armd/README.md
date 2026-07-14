@@ -139,3 +139,36 @@ revisit trigger governs the cut question), close honestly.
   assumption must be about the option's real-world costs, benefits, or mechanism — never
   measurement, process, or sequencing — and must appear in the record's stated
   assumptions/risks, not only inside a criterion.
+- **Iteration 3 (2026-07-13, D re-run $14.82, 24/24; grading 75/75): PLATEAU — loop closed.**
+  Bars a/b/c FAIL a third time; d passes (D $0.62 = 0.15x C). Full D−C −0.083 [−0.175,
+  +0.008]; synthetics near-parity (D 0.917-1.0); but backtest exp-3 DROPPED to 0.083 — the
+  sharpened selection rule made deciders name A mechanism assumption, still not THE one that
+  broke. Per the pre-registration: record the null, keep the current panel.
+
+## Results (verdict — 2026-07-13; three iterations, plateau; `results.json` + `grok-regrade.json`)
+
+**Verdict: NULL for adoption — arm D never clears the pre-registered quality bars; the full
+panel stays (ADR 0057 decision 1's loop discharged; the cut question routes to ADR 0057's
+plateau revisit trigger).** Best iteration (3): full D−C −0.083 [−0.175, +0.008] weak; hard
+pair −0.146 [−0.320, +0.028]; D ~ A on the hard pair throughout. Cost bar passes decisively
+every iteration (final D $0.617 vs C $4.052 = 0.15x). Audit 3/9 = chance, blinding held.
+
+**Dual-judge headline (ADR 0057 decision 2): the null is JUDGE-ROBUST.** Same 72 final
+cells, grok-4.5 re-grade: D−C −0.052 [−0.154, +0.050] vs opus −0.083; no verdict flip
+(both CUT-CANDIDATE); D−A 0.0 (opus) / +0.042 (grok); grok stricter on 58/58 disagreement
+grades (kappa 0.552) — the same one-directional leniency I2 found, but here BOTH judges
+put D at-or-below C, so no bar outcome depends on the judge. (CI-method note: the grok
+tool's baseline CI [−0.159, −0.008] differs from aggregate_armd's [−0.175, +0.008] only in
+the interval multiplier; the pre-registered pipeline's numbers are the bars' basis.)
+
+**What the loop bought (texture for #179/#172):** (1) independence-via-probes does NOT
+transfer the panel's backtest edge — three targeted edits moved synthetics to parity but
+never exp-3/exp-4; (2) the panel's own run was its best measured (C 1.0 on all four traps
+it lost in I2) — C's per-run variance is real and cuts against any single-run verdict;
+(3) exp-3 (name THE assumption that broke) may partly measure hindsight — no arm cleared
+0.42 across both runs; named as a rubric-validity residual for any v3.
+
+Cost ledger: grid $127.76 + repair $1.64 + iter2 $13.18 + iter3 $14.82 = **$157.40
+executor** (+$7.11 pilot); grading ~4 opus workflow runs + grok re-grade (~7.9M + 1.5M +
+1.5M tokens + grok). Raw: rep-1 cells kept in `outputs/`, rest + iteration snapshots in
+tarballs (ADR 0026).
