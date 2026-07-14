@@ -25,8 +25,11 @@ need one right-sized check, not the ceremony; `/decide` composes them and adds t
 **Measured (2026-07):** two outcome-level instruments (`benchmarks/2026-07-12-pdca-*` in the
 source repo) found no rubric-quality edge for `/retrospect` over a bare reviewer on seeded
 defects, or for `/decide` over a token-matched deliberation prompt (blinding audit clean,
-n=3, wide CIs). The structure's measured value so far is process guarantees (records,
-falsifiable criteria, spend gates), not per-decision quality — follow-up per ADR 0052.
+n=3, wide CIs). The `/decide` null is judge-sensitive, not settled: a cross-family re-grade
+found the same-family judge one-directionally more lenient (C−B +0.010 same-family vs +0.125
+cross-family, both CIs straddling zero — ADR 0057). The structure's measured value so far is
+process guarantees (records, falsifiable criteria, spend gates), not per-decision quality —
+follow-up per ADR 0052.
 
 ## What's in the box
 
