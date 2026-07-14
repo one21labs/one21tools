@@ -71,7 +71,8 @@ def regrade(judge, cells, keys, workers, cache=None):
 
 def summarize(cells, x, y):
     d_xy = benchstats.clustered_delta(cells, x, y)
-    return {"arm_means": {a: round(benchstats.arm_mean(cells, a), 3) for a in ("A", "B", "C")},
+    arms = sorted({c["arm"] for c in cells})
+    return {"arm_means": {a: round(benchstats.arm_mean(cells, a), 3) for a in arms},
             f"{x}_minus_{y}": {**benchstats.keep_verdict(d_xy)},
             f"{x}_minus_A": round(benchstats.clustered_delta(cells, x, "A")["mean"], 4),
             "per_expectation": {i: {a: round(v, 2) for a, v in benchstats.per_expectation(cells)[i].items()}
@@ -87,7 +88,13 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--cache", help="prior regrade jsonl (offline: skip live judge calls)")
+    ap.add_argument("--primary", default="C,B",
+                    help="treatment,control arm pair for the clustered delta (default C,B)")
     a = ap.parse_args()
+    try:
+        px, py = [s.strip() for s in a.primary.split(",")]
+    except ValueError:
+        sys.exit(f"--primary must be 'X,Y' (got {a.primary!r})")
 
     cells, baseline, keys = load_dir(a.dir)
     if a.limit:
@@ -126,18 +133,18 @@ def main():
                   "judge_calls": judge.calls, "usd": judge.cost_usd(),
                   "note": "shadow cost at published API rates (deterministic: tokens x rate); "
                           "$0 marginal under subscription; 0 here when --cache (no live calls)"},
-              "regraded": summarize(regraded, "C", "B")}
+              "regraded": summarize(regraded, px, py)}
     if judge.fallback_note:
         report["judge_fallback"] = judge.fallback_note
     if degrade_note:
         report["degraded"] = degrade_note
     if want_both:
         report["baseline_judge"] = "committed (opus)"
-        report["baseline"] = summarize(baseline, "C", "B")
+        report["baseline"] = summarize(baseline, px, py)
         report["divergence"] = benchstats.divergence(baseline, regraded, "baseline", judge.name)
         report["verdict_flip"] = benchstats.verdict_flip(
-            benchstats.clustered_delta(baseline, "C", "B"),
-            benchstats.clustered_delta(regraded, "C", "B"))
+            benchstats.clustered_delta(baseline, px, py),
+            benchstats.clustered_delta(regraded, px, py))
     js = json.dumps(report, indent=1)
     if a.out == "-":
         print(js)

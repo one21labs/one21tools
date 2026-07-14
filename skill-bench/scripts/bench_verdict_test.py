@@ -55,6 +55,17 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(flip["judge_a_verdict"], "CUT-CANDIDATE")
         self.assertEqual(flip["judge_b_verdict"], "KEEP")
 
+    def test_summarize_generalizes_to_any_arm_pair(self):
+        # --primary D,C (#180 arm-D grid): arm means infer from the cells, delta keys follow the pair
+        import bench_verdict as bv
+        cells = [cell("d1", "D", "S1", [1, 1, 1, 1]), cell("c1", "C", "S1", [1, 1, 0, 0]),
+                 cell("a1", "A", "S1", [1, 0, 0, 0])]
+        s = bv.summarize(cells, "D", "C")
+        self.assertEqual(set(s["arm_means"]), {"A", "C", "D"})
+        self.assertIn("D_minus_C", s)
+        self.assertIn("D_minus_A", s)
+        self.assertAlmostEqual(s["D_minus_C"]["mean"], 0.5)
+
 
 if __name__ == "__main__":
     unittest.main()
