@@ -9,8 +9,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift, agentProblems, decisionSetProblems } from "./adr-lint.mjs";
-import { ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
+import { lint, manifestDrift, agentProblems, decisionSetProblems, marginWarnings } from "./adr-lint.mjs";
+import { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { basename } from "node:path";
 
@@ -339,4 +339,36 @@ test("manifestDrift: a drifted description fires", () => {
 test("manifestDrift: a field omitted from the marketplace entry is not drift (derive, don't mirror)", () => {
   const pairs = [{ name: "p", entry: {}, plugin: { description: "d", version: "1" } }];
   assert.deepEqual(manifestDrift(pairs), []);
+});
+
+// --- marginWarnings (ADR 0067): advisory drafting-margin WARN on NEW full ADRs only ---
+const marginFixture = (id, chars, lite = false) => ({
+  name: `${id}-x.md`,
+  text: `---\nid: ${id}\ntitle: "t"\nstatus: accepted\n${lite ? "tier: lite\n" : ""}summary: "s"\n---\n`
+    .padEnd(chars, "y"),
+});
+
+test("margin: a new full ADR past the margin warns, naming the file and the margin", () => {
+  const files = [marginFixture("0001", ADR_CHAR_MARGIN + 200)];
+  const warns = marginWarnings(["docs/decisions/0001-x.md"], files);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /0001-x\.md/);
+  assert.match(warns[0], /drafting margin/);
+});
+
+test("margin: at or under the margin, no warning", () => {
+  const files = [marginFixture("0001", ADR_CHAR_MARGIN)];
+  assert.deepEqual(marginWarnings(["0001"], files), []);
+});
+
+test("margin: a lite ADR is exempt (own cap, no Act machinery)", () => {
+  const files = [marginFixture("0001", ADR_CHAR_MARGIN + 200, true)];
+  assert.deepEqual(marginWarnings(["0001"], files), []);
+});
+
+test("margin: an over-margin ADR NOT in the new set stays quiet (legacy corpus not swept)", () => {
+  const files = [marginFixture("0001", ADR_CHAR_MARGIN + 200), marginFixture("0002", ADR_CHAR_MARGIN + 200)];
+  const warns = marginWarnings(["0002"], files);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /0002-x\.md/);
 });

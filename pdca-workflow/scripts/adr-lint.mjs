@@ -31,7 +31,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
 // location — see char-budget.mjs's header comment: a fixed offset from this file would break a
@@ -205,6 +205,21 @@ export function agentProblems(dirs = ["pdca-workflow/agents", ".claude/agents"])
   return out;
 }
 
+// Advisory drafting-margin WARN (ADR 0067): a NEW full ADR drafted past ADR_CHAR_MARGIN has no
+// room left for its `## Act` block at ship time. Warning-only, never a problem — and scoped to
+// the --new-adrs set so the legacy near-cap corpus stays quiet. Lite ADRs are exempt (own cap,
+// no Act machinery).
+export function marginWarnings(newEntries, files, margin = ADR_CHAR_MARGIN) {
+  const ids = new Set(newEntries
+    .map(e => e.match(/(\d{4})[^/\\]*\.md$/)?.[1] ?? e.match(/^(\d{4})$/)?.[1])
+    .filter(Boolean));
+  return files
+    .filter(({ name, text }) => ids.has(name.slice(0, 4))
+      && !/^tier:\s*lite\s*$/m.test(text)
+      && text.length > margin)
+    .map(({ name, text }) => `${name}: ${text.length} chars > ~${margin} drafting margin (adr-template.md) — no room for \`## Act\` at ship time`);
+}
+
 function main(argv) {
   const args = argv.slice(2);
   const dir = args.find(a => !a.startsWith("--")) ?? "docs/decisions";
@@ -234,7 +249,11 @@ function main(argv) {
 
   // One-decision-set-per-PR (ADR 0051): CI's PR-only step passes the diff-added ADR files.
   const newArg = args.find(a => a.startsWith("--new-adrs="));
-  if (newArg) problems.push(...decisionSetProblems(newArg.slice("--new-adrs=".length).split(",").map(s => s.trim()).filter(Boolean), files));
+  if (newArg) {
+    const entries = newArg.slice("--new-adrs=".length).split(",").map(s => s.trim()).filter(Boolean);
+    problems.push(...decisionSetProblems(entries, files));
+    for (const w of marginWarnings(entries, files)) console.error(`  WARN (advisory, ADR 0067): ${w}`);
+  }
 
   if (problems.length) {
     console.error(`adr-lint: ${problems.length} problem(s) in ${dir}/`);
