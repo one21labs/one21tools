@@ -1,38 +1,69 @@
 ---
 id: 0051
-title: "One decision-set per PR, gated by cite-graph connectivity"
+title: "The PR is the decision-batching unit; cite-connectivity is an advisory WARN"
 status: accepted
-summary: "The PR unit for ADRs is the decision-set: multiple new ADRs ship together iff their cites form one connected (undirected) graph — enforced by adr-lint --new-adrs in a PR-only CI step. Dangling-cite stays strict; revise-in-place unchanged."
+summary: "A PR ships one deliberately grouped work package of new ADRs — batching is declared by the PR itself, not inferred from cites. adr-lint --new-adrs reports cite-unconnected members as an advisory WARN (never a failure) so an accidental grab-bag is visible at review. Dangling-cite stays strict; revise-in-place unchanged."
 ---
 
-# 0051 — one decision-set per PR
+# 0051 — the PR is the decision-batching unit
 
-- Date: 2026-07-12
+- Date: 2026-07-12; amended 2026-07-15 (owner directive: work packages ship as single PRs;
+  cite-connectivity demoted from blocking gate to advisory)
 - Owner: PM
-- Panel: advisor evidence + options argued on issue #171; PM accepted. The pdca panel primitives were unavailable in the authoring session (plugin not loaded).
-- Context: issue #154. The template's one-ADR-per-PR rule collides with the dangling-cite guard (adr-lint.md check 4): ADRs that cite each other cannot ship in separate PRs, because whichever merges first cites a record that is not on disk. PR #151 shipped ADR 0047, ADR 0048, ADR 0049, ADR 0050 as one four-record set — a violation in letter that the lint and corpus absorbed cleanly, and the deliberation was the better for reviewing its trade-offs together.
+- Panel: advisor evidence + options argued on issue #171; PM accepted. Amendment: owner call,
+  no panel (ADR 0062 two-stage routing).
+- Context: issue #154. The template's one-ADR-per-PR rule collides with the dangling-cite guard
+  (adr-lint.md check 4): mutually-citing ADRs cannot ship in separate PRs. PR #151 shipped
+  0047-0050 as one entangled set, the better for reviewing together. The amendment's trigger:
+  cite-connectivity as a BLOCKING bar forced work package 1 (five deliberately-batched but
+  cite-independent decisions, 0064-0068) into five PRs — five CI cycles, two merge-skew
+  rebases, five retrospectives for one planned deliberation. Cohesion is a planning judgment;
+  a cite graph can only proxy it, with exactly that false negative.
 
 ## Decision
-1. **The PR unit is the decision-set, not the ADR.** A PR introduces one new ADR, or several whose cites entangle them into a single deliberation. The template rule (adr-template.md) is reworded in the same change.
-2. **Set membership = undirected connectivity.** The new ADRs in a change must form ONE connected component of the cite graph, where an edge exists when either record cites the other. Full mutual citation is NOT required: in the precedent set, 0048 and 0047 never cite each other — the four connect only through 0050's one-way cites — so a mutual-only bar would flag the very shape that motivated this decision.
-3. **The dangling-cite guard stays strict.** It is the mechanized protection for corpus integrity, and it is what makes the set boundary real: the records that must ship together are exactly those that guard would fail apart.
-4. **Mechanized, fail-open.** `adr-lint --new-adrs=<added files>` runs the connectivity check; a PR-only `gates.yml` step feeds it the diff-added ADR files. Flag absent, empty, or naming a single new ADR = check skipped, so push-to-main runs, consumer checkouts, and local runs are untouched.
-5. **Revise-in-place is unchanged** — a still-unmerged ADR gets edited, never accompanied by a sibling written to overrule it; that half of the old rule was never in question.
+1. **The PR is the batching unit.** One PR carries a single new ADR or a whole work package:
+   decisions grouped at planning time, listed in the PR body, judged at review. No separate
+   work-package entity is required. Splits follow ADR 0056's criteria (clean revert boundary,
+   keep main green) plus spend gates. Operational wording lives in adr-template.md.
+2. **Cite-connectivity is an advisory WARN.** `adr-lint --new-adrs` reports members outside
+   the largest connected component (edge = either record cites the other) as
+   `WARN (advisory, ADR 0051)` — never a failure. The WARN makes an ACCIDENTAL grab-bag
+   visible at review; it does not judge cohesion. Precedent fixture both ways, pinned in
+   adr-lint.test.mjs: 0047-0050 (entangled, quiet) and 0064-0068 (work package, warns, passes).
+3. **The dangling-cite guard stays strict.** Corpus integrity is mechanical, not advisory:
+   mutually-citing records still MUST ship together or the guard fails whichever lands alone.
+4. **Fail-open plumbing unchanged.** Flag absent, empty, or a single new ADR = nothing
+   reported; push-to-main, consumer checkouts, and local runs untouched.
+5. **Revise-in-place is unchanged** — a still-unmerged ADR gets edited, never accompanied by a
+   sibling written to overrule it.
 
 ## Justification
-Prose to machinery: recent process failures lived in prose rules while the mechanized guards held, and this converts the batching rule into a tested gate. Revert atomicity points the same way — rolling back one member of an entangled set would strand cites in the survivors, so the set IS the atomic unit the old rule assumed the single ADR was. At current merge cadence, serializing an entangled set also multiplies in-flight branches (the #164 merge-skew class) for zero review benefit.
+The gate's real job splits in two: corpus integrity (mechanical — stays blocking via
+dangling-cite) and batching cohesion (judgment — moved upstream to planning, where the work
+package is decided, and downstream to review, where the owner merges). CI keeps what it can
+verify; the WARN keeps machinery-not-prose visibility (the original prose-loses lesson)
+without the false-negative ceremony the blocking bar imposed on WP1.
 
 ## Assumptions
-- [checkable] The precedent shape passes and unrelated batching fails: the real 0047-0050 corpus files clear `decisionSetProblems`, while two new ADRs sharing no cite are flagged — owner: adr-lint.test.mjs decision-logic cases; result: verified in the shipping change.
-- [checkable] Fail-open is real: an absent/empty `--new-adrs` and a singleton list report nothing — owner: adr-lint.test.mjs; result: verified.
-- [unverifiable] Connectivity is strict enough in practice — a token cite could bridge genuinely unrelated decisions — REOPEN-IF a merged PR is found to have joined unrelated ADRs via a cite that exists only to satisfy the gate; tighten to a mutual edge per member.
+- [checkable] Both precedent shapes hold: 0047-0050 is quiet and 0064-0068 warns-but-passes —
+  owner: adr-lint.test.mjs decision-set cases; result: verified in the amending change.
+- [checkable] Fail-open is real: absent/empty `--new-adrs` and a singleton report nothing —
+  owner: adr-lint.test.mjs; result: verified.
+- [unverifiable] Review suffices to catch a genuine grab-bag once warned — REOPEN-IF a merged
+  PR is found to have batched unrelated decisions that reviewing the WARN should have split;
+  restore the blocking bar scoped to undeclared sets.
 
 ## Rejected alternatives
-- **Relax the dangling-cite guard for cross-PR forward cites** — trades a working mechanized guard for coordination prose; a forward cite whose PR never merges is permanent corpus damage.
-- **Require full mutual citation** — fails the precedent set (decision 2) and would push authors to write artificial cites to satisfy the gate.
-- **Discourage mutual citation** — severs real coupling future readers need.
-- **Delete the rule** — unbounded batching of unrelated decisions degrades review granularity; the set boundary keeps the rule's value.
+- **Relax the dangling-cite guard for cross-PR forward cites** — trades a working mechanized
+  guard for coordination prose; an unmerged forward cite is permanent corpus damage.
+- **A work-package entity (tracking issue / frontmatter field) as the connectivity edge** —
+  a second artifact restating what the PR body already declares; ceremony without new
+  information for a solo-owner repo.
+- **Keep blocking, allow token bridge-cites** — pushes authors to game the gate; the original
+  ADR's own REOPEN-IF named that failure.
+- **Delete the check entirely** — loses the accidental-grab-bag signal the WARN keeps for free.
 
 ## Revisit triggers
-- A gamed set merges (a bridge cite with no semantic content) -> tighten the bar per the assumption above.
-- The CI diff wiring proves brittle (shallow-fetch or rename misses) -> move new-file detection into the lint itself or adopt a merge queue (the open #164 finding-2 question).
+- The [unverifiable] above fires -> restore blocking for undeclared multi-ADR sets.
+- The CI diff wiring proves brittle (shallow-fetch or rename misses) -> move new-file
+  detection into the lint itself or adopt a merge queue (the open #164 finding-2 question).
