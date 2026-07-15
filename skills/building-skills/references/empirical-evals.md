@@ -95,8 +95,8 @@ Grading disciplines:
 - **Fresh grader, different model** (ADR 0013) — the bundled grader otherwise inherits the
   session model and its biases.
 - **Blind the arm** (ADR 0019) — stage each run under a neutral label (`arm-A`/`arm-B`) and
-  withhold the arm->config mapping from the grader; reveal it only at aggregation. A grader
-  that sees `with_skill` in the path grades with an expectation; blinding removes that cue.
+  withhold the arm->config mapping from the grader; reveal it only at aggregation.
+- One blind pool per unit (session/run) — a cross-unit pool lets a grader dedup across units.
 - Grade from the produced output/transcript, never from intent.
 
 ### Grading reliability under the Claude-only constraint (ADR 0019)

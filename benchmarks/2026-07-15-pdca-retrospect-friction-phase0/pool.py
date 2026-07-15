@@ -32,6 +32,9 @@ for sid, s in d.items():
 
     for spawn in s["curated_spawns"]:
         p = spawn["prompt"]
+        # KNOWN GAP (README Corrections log #3): format coverage was discovered iteratively
+        # (bullets, then inline "(N)" enumerations); untested against other curation formats —
+        # Phase 1 must not inherit this parser without decision-logic tests.
         # format A: markdown bullets / numbered lines
         for m in re.finditer(r"(?m)^(?:- |\d{1,2}\. )(.+(?:\n(?![-\d]|\n).+)*)", p):
             add(m.group(1))

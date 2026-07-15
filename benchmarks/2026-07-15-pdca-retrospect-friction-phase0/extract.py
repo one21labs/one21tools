@@ -70,6 +70,10 @@ for sid, path in SESSIONS:
                 if b.get("name") in ("Agent", "Task"):
                     st = str(inp.get("subagent_type", "")).lower()
                     pr = str(inp.get("prompt", ""))
+                    # KNOWN GAP (README Corrections log #2): this prompt-text heuristic
+                    # false-positived on two build-spec prompts; spawns were re-verified by
+                    # hand for the verdict. Untested — a Phase-1 extractor must not inherit
+                    # it without a decision-logic test (CLAUDE.md Never rule).
                     if "retrospect" in st or ("retrospect" in pr.lower()[:600] and "friction" in pr.lower()):
                         curated.append({"ts": rec.get("timestamp"), "prompt": pr})
             elif b.get("type") == "tool_result" and b.get("is_error"):
