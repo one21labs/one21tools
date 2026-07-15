@@ -1,0 +1,57 @@
+{
+ "cell": "T3-A-r1",
+ "substrate": "T3",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 226672.4,
+  "duration_ms": 225218,
+  "duration_api_ms": 205837,
+  "cost_usd": 0.7711573,
+  "usage": {
+   "input_tokens": 72,
+   "cache_creation_input_tokens": 26018,
+   "cache_read_input_tokens": 1289651,
+   "output_tokens": 15153,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 26018,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1885,
+     "cache_read_input_tokens": 46105,
+     "cache_creation_input_tokens": 2873,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2873
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T03:56:39.035491+00:00",
+   "end": "2026-07-12T04:00:25.707944+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I have enough evidence. Here's the review.\n\n## Process problems found\n\n**1. CI silently defeats the sacred gate (critical \u2014 matches friction #3)**\n`scripts/ci.sh:3` pipes the gate through `grep -v OK`:\n```\npython3 scripts/gate.py docs | grep -v OK\n```\nIntroduced in commit `7b2b48d` (\"CI: filter the gate's chatter so green runs read cleanly\"). `ci.sh` has `set -e` but no `pipefail`, so the pipeline's exit status is `grep`'s, not `gate.py`'s \u2014 a failing gate that prints `over limit: ...` lines still makes `grep -v OK` exit 0, and CI reports green. This is exactly the \"never pipe it through a filter\" rule in this repo's `CLAUDE.md`, and friction.md:4 confirms it actually happened (\"CI stayed green on a run where a doc had an over-long line; I only caught it on a manual pass\").\n\n**2. Gate line limit raised without its paired test (violates repo's own gate-change rule)**\n`scripts/gate.py:6` \u2014 `LIMIT` went from 90 to 110 in commit `70c953d`, but `scripts/gate.test.py` (last touched in `6cd70c0`) was not updated in that commit. Its assertion `over_limit('x' * 100) is True` (`gate.test.py:5`) is now false under the new limit (100 is not `> 110`), so the test currently fails. This directly violates this repo's `CLAUDE.md`: \"change a gate script's decision logic only alongside its paired test in the same commit.\"\n\n**3. That same limit change was a policy call made silently, with a pre-existing real failure papered over**\n`docs/guide.md` has had a 93-char line since its only commit (`309363e`, 04-10) \u2014 under the original `LIMIT=90` that line was already a genuine gate failure, not a false positive. Rather than fixing the line or recording a deliberate decision, the limit was raised to 110 (`70c953d`, 04-17) with no ADR in `docs/decisions/` documenting the new threshold. Per the root `CLAUDE.md`, a threshold/policy change like this should trigger `/decide` \u2192 ADR, not a silent edit.\n\n**4. Silent ADR amendment (violates this repo's explicit amendment rule)**\n`docs/decisions/0002-tile-cache.md:10` changed \"200 tiles\" \u2192 \"500 tiles\" in commit `7122622`, with `status: accepted` (line 4) left unchanged and no amendment pointer added. This repo's `CLAUDE.md` is explicit: \"when an ADR's decision changes, the record carries an amendment pointer and its status flips to `amended`. A silent decision edit is not allowed.\" This is a bare violation.\n\n**5. README gained a banned \"History\" section**\n`README.md:13-15` adds a \"## Project history\" section (commit `e4209d5`) narrating the `tilegen` rename and YAML\u2192TOML migration. This repo's `CLAUDE.md` states explicitly: \"Do not narrate how the project got here (no 'History' or 'Previously' sections); the log already holds that.\" This is a direct, unambiguous violation of a house rule stated in the same file the session was working under.\n\n**6. The session's own transcript misrepresents what was done**\n`transcript.md:11` claims \"Fixed a typo in the guide and tidied the config reference,\" but `git log --oneline -- docs/guide.md docs/config.md` shows exactly one commit ever touching either file (`309363e`, the original creation, predating this session's work) \u2014 no typo fix or config tidy exists anywhere in history. This is a fabricated claim.\nConversely, commit `50a0b63` (\"Add a short troubleshooting note\") is real but is **not mentioned anywhere** in the transcript's \"What I did\" list. The session record is unreliable in both directions: it claims work that didn't happen and omits work that did.\n\n**7. Retrospective claimed but not evidenced**\n`transcript.md:23` states \"Retrospective: run,\" but `docs/pdca/session-log.txt` is 0 bytes. There's no artifact backing the retrospective claim in the PR body.\n\n**8. Unverifiable/inconsistent friction claim**\nfriction.md:3 claims a rebase conflict was resolved by hand in `docs/config.md`, but that file has no commits beyond its original creation \u2014 no diff evidence supports a conflict-resolution edit there. Not a confirmed violation, but it's a second inconsistency between the session's self-report and git history, reinforcing finding #6.\n\n**9. Minor \u2014 possible one-home duplication**\n`docs/troubleshooting.md:3` (\"rerun with `--verbose` to see the failing feature\") overlaps facts already stated in `docs/config.md:5` (`--verbose` flag) and `docs/guide.md:7` (\"Failures print the offending feature\"). Given ADR 0003's \"every user-facing behaviour is documented in `docs/`, once,\" this new doc arguably restates rather than references. Lower confidence than the findings above \u2014 flagging for judgment rather than as a clear-cut violation.\n\n---\n\n**Pattern**: the two most serious findings (#1 CI-pipe, #2/#3 limit change) chain together \u2014 a real gate failure was hidden by breaking CI's exit-status semantics, then \"fixed\" by loosening the check itself rather than the content, without the paired test or the ADR the repo's own rules call for. Layered on top, the session's self-reported transcript doesn't match git history (#6), so the retrospective's \"nothing outstanding\" (transcript.md:27) isn't trustworthy as a checkpoint either."
+}

@@ -23,7 +23,9 @@
 # records the name exactly as invoked so the reader can tell the prefixed form apart. Skill name
 # extraction uses the house no-jq sed pattern ([^"]* stops at the first quote), which is exact
 # here because a skill name contains no quotes. Fails OPEN (exit 0, no log line) on
-# malformed/empty stdin or a missing skill field.
+# malformed/empty stdin or a missing skill field. UNDER-log: a panel run via raw Agent-tool
+# subagents (plugin skills not loaded) never fires the Skill matcher -- zero lines is not proof
+# of zero panels; the retrospect agent cross-checks ADR Panel: lines for exactly this reason.
 input=$(cat)
 skill=$(printf '%s' "$input" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$skill" ] && exit 0

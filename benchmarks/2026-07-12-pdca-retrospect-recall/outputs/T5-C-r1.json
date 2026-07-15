@@ -1,0 +1,57 @@
+{
+ "cell": "T5-C-r1",
+ "substrate": "T5",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 100341.1,
+  "duration_ms": 98864,
+  "duration_api_ms": 95040,
+  "cost_usd": 0.3289598,
+  "usage": {
+   "input_tokens": 26,
+   "cache_creation_input_tokens": 14676,
+   "cache_read_input_tokens": 419056,
+   "output_tokens": 7625,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 14676,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2596,
+     "cache_read_input_tokens": 37249,
+     "cache_creation_input_tokens": 396,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 396
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:34:56.184448+00:00",
+   "end": "2026-07-12T04:36:36.525566+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective \u2014 harborctl (`origin/main...HEAD`)\n\n**1. Gate threshold raised without its paired test \u2014 the gate now runs on a stale/broken test, and the threshold itself was never decided.**\n- Evidence: `33b4706` changes `scripts/gate.py:6` (`LIMIT = 100` \u2192 `140`) alone \u2014 `scripts/gate.test.py` untouched in that commit. `scripts/gate.test.py:5` still asserts `over_limit('x' * 110) is True`; under `LIMIT=140` that's now `False` \u2014 the paired test is silently wrong (would fail if ever run) and no CI/hook wires `gate.test.py` in at all, so nothing catches it. Directly violates this repo's own Sacred rule: \"*Gate logic: change a gate script's decision logic only alongside its paired test in the same commit*\" (`CLAUDE.md`). Also confirms friction #3 verbatim \u2014 the existing checks do **not** cover the new threshold.\n- Compounding: `LIMIT` is a threshold/judgment call. Root `CLAUDE.md`'s PDCA doctrine requires `/decide` before fixing any threshold; `docs/decisions/` has no ADR for it and `docs/pdca/session-log.txt` is 0 bytes in this range (`9f7ddd6`) \u2014 a worthy call with zero panel fire (a miss).\n- Improvement: fix `scripts/gate.test.py` to assert against the *current* `LIMIT` (e.g. `over_limit('x'*150) is True`, `over_limit('x'*110) is False`) in the same commit as any gate-logic change; add a cheap check (script or CI step) that fails a diff touching `scripts/gate.py`'s constants without also touching `scripts/gate.test.py`.\n- Home: `scripts/gate.test.py` (immediate fix); the \"paired commit\" enforcement \u2192 a script/CI check (executable gap), lowest home is `scripts/` alongside `gate.py`/`gate.test.py`.\n- Judgment call? **Yes** for the threshold value (100 vs 140) \u2014 needs `/decide` + an ADR before it ships, not after. The test-pairing enforcement itself is not a judgment call \u2014 it's already a written rule, just unenforced; that part is advice.\n\n**2. README ships git-tellable backstory the repo's own doc rule forbids.**\n- Evidence: `262ad57`, `README.md:12-15` \u2014 new \"## Project history\" section: \"*Harborctl began as `dockman`... old `--pull-always` flag was dropped after the spring rewrite...*\". This is exactly what harborctl's `CLAUDE.md` names and bans: \"*Do not narrate how the project got here (no 'History' or 'Previously' sections); the log already holds that*\" \u2014 and matches root `CLAUDE.md`'s muda cut-on-sight list.\n- Improvement: delete the \"Project history\" section; git log already holds it.\n- Home: `README.md` (the fact's only home is git history, not the doc).\n- Judgment call? No \u2014 advice; enforcing an existing explicit, inviolable rule, not a new policy question.\n\n**Omitted (one-offs, no recurrence signal):**\n- Friction #1 (flaky manifest-line integration test) \u2014 no such test exists anywhere in this repo's tree (not git-visible), rerun-clean single occurrence; nothing to fix without a second data point.\n- Friction #2 (rebase conflict in `docs/config.md`) \u2014 `docs/config.md` has exactly one commit in history (`e649220`); this branch never touched it, so the conflict came from unrelated concurrent main-branch work, not a repeated hotspot. No file-touched-repeatedly signal.\n\nOrdered by recurrence cost: #1 (silently-broken safety gate + undecided threshold) outranks #2 (single doc-rule lapse, cosmetic)."
+}

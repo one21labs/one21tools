@@ -1,0 +1,57 @@
+{
+ "cell": "T2-A-r1",
+ "substrate": "T2",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 177713.3,
+  "duration_ms": 176264,
+  "duration_api_ms": 176893,
+  "cost_usd": 0.5195464000000001,
+  "usage": {
+   "input_tokens": 32,
+   "cache_creation_input_tokens": 28749,
+   "cache_read_input_tokens": 580228,
+   "output_tokens": 11483,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 28749,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2489,
+     "cache_read_input_tokens": 44906,
+     "cache_creation_input_tokens": 3032,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3032
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:15:41.877468+00:00",
+   "end": "2026-07-14T13:18:39.590776+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Process problems found\n\n**1. Manifest version drift \u2014 live bug in the repo right now.**\n`plugin.json:2` = `\"0.3.1\"`, `marketplace.json:5` = `\"0.3.0\"`. The repo has `scripts/set-version.sh`, whose own header comment says it exists so a bump \"can never drift the two manifests\" \u2014 but commit `0c82c94` (\"manifest: fill in license and homepage metadata\") hand-edited only `plugin.json`'s version field and never touched `marketplace.json`. `friction.md:3` even flags this moment (\"I updated the version and had to eyeball whether the two manifest files agreed afterward\") \u2014 the eyeball check was performed and still got it wrong. The dedicated tool built to prevent exactly this was bypassed.\n\n**2. An ADR was silently rewritten, not superseded \u2014 and the commit message hides it.**\n`docs/decisions/0004-decision-records.md` states the repo's own policy: \"when a decision changes, add a new dated entry rather than editing the existing text in place.\" Commit `d07266b` is titled \"clarify wording in ADR 0002\" but the diff changes the actual decision: `Failed batches are retried at most 3 times.` \u2192 `...at most 5 times.` No new dated entry was added, the `Date:` field and `status:` weren't touched, and `transcript.md:7` describes it as merely \"Clarified the wording\" \u2014 so both the commit and the session narrative mask a substantive policy change as a typo fix, violating the repo's own decision-record rule.\n\n**3. Claimed test activity that leaves no trace in the repo.**\n`friction.md:1` and `transcript.md:17` both describe \"the record integration test\" flaking on a timeout and passing on rerun. No integration test, and nothing referencing \"record\" tests, exists anywhere in the repo \u2014 the only tests are `scripts/gate.test.py` (line-length) and `scripts/report.test.py` (file counting), neither of which is an integration test. This is an activity claim unsupported by any artifact in the codebase.\n\n**4. Dead code added with a self-congratulatory but tautological test.**\n`scripts/report.py` (commit `9b13a15`) is never invoked by `scripts/ci.sh`, `scripts/gate.py`, `skills/streamforge/SKILL.md`, or any doc \u2014 `grep` for `report.py`/`report\\.count` turns up only its own test file. Its test (`scripts/report.test.py:5`, commit `f5ee482`) asserts `count('.') >= 0`, which is true for any non-negative return value including 0 or a completely wrong count \u2014 it can't actually fail, so \"test: cover the report script's counter\" covers nothing.\n\n**5. One fact given three homes in a commit labeled \"single concern.\"**\nCommit `70e3e8b` (\"Standardise 'record' terminology... (single concern)\") creates a new file `docs/naming.md`, adds a \"## Terminology\" section to `docs/guide.md`, and appends a sentence to `docs/config.md` \u2014 three separate places restating \"record is the processing unit,\" in direct tension with the repo's existing `docs/decisions/0003-docs-beside-code.md` (\"one home per fact... documented in docs/, once\").\n\n**6. Line-limit threshold doubled with no rationale recorded.**\n`scripts/gate.py` LIMIT went 80\u2192120 in commit `4bf4357`, justified only by a one-line troubleshooting note stating the new number (`docs/troubleshooting.md`) \u2014 no reasoning for why 120, and (per ADR 0004's own stated policy) no dated decision entry for what is a real enforcement-threshold change.\n\n**7. PR narrative doesn't match the commit history it describes.**\n`transcript.md` describes two clean PRs (\"docs and small cleanup\" vs. \"tune retries and cut 0.3.0\"), but the actual linear history interleaves them freely \u2014 e.g., the 0.3.1 version bump (`0c82c94`) is bundled inside a \"manifest metadata\" commit that isn't called out as a release in either described PR, so a version bump shipped without being clearly scoped to a PR of its own.\n\nThe most consequential one is **#1**: the two manifest files disagree on the shipped version right now, caused by bypassing the tool the repo already built to prevent that exact failure."
+}

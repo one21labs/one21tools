@@ -24,12 +24,19 @@ The differentiating idea: manufacturing quality principles translate directly to
 
 ## The skill-improvement loop
 
-Skills here are not shipped on faith — each one carries an eval set and gets measured, and the
-measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
+Skills here are not shipped on faith — the dev/engineering skills carry eval sets and paired
+benchmarks, and pdca-workflow's flagship skills (`/decide`, `/retrospect`) carry outcome-level
+instruments (`benchmarks/2026-07-1{2,3,4}-pdca-*`, six of them: rubric-quality nulls vs
+cost-matched baselines everywhere — recorded, not spun — judge-robust for both cheap panel
+replacements; the measured values are the process guarantees, retrospect's FP discipline, and
+the independent-perspectives failure-anticipation edge; ADR 0057/0061 route the program).
+Measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
 The loop (method home: `skills/building-skills/references/empirical-evals.md`; decision records:
 ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 
-1. **Evals** — each of the four skills above carries `evals/evals.json` (3+ cases, schema-gated by `validate.py`).
+1. **Evals** — each measured dev/engineering skill has `evals/evals.json` (3+ cases,
+   schema-gated by `validate.py`); pdca-workflow skills are measured by the outcome
+   instruments above instead.
 2. **Hermetic paired benchmark** — each eval runs with and without the skill under a hermetic
    executor (no installed plugins, no repo file access; ADR 0023 — a non-hermetic run is a
    recorded confounded null, never a verdict).
@@ -55,7 +62,7 @@ depends on skill-creator (ADR 0033).
 | `validate.py` | `skills/building-skills/scripts/` | Skill shape: frontmatter, char budgets, emoji ban, eval schema. Run on every skill in CI. |
 | `eval_verdict.py` | `skills/building-skills/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
 | `run_eval.py` | `skills/building-skills/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033). |
-| `benchmarks/lib/` | repo root | Shared benchmark IO + verdict math (`bench_io.py`, `verdict.py`), unit-tested. |
+| `skill-bench/scripts/lib/` | `skill-bench` plugin | Shared benchmark harness: IO + verdict math + hermetic driver + blind grading + cost gate + cross-family judge (`bench_io.py`, `verdict.py`, `judge.py`, ...), unit-tested. |
 | `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity (frontmatter, ids, cites, char budgets) plus agent char budgets and marketplace/plugin.json manifest drift. |
 | `check-workflow.mjs` | `scripts/` | Benchmark workflow files: syntax + explicit `model:` on every agent call (ADR 0029). |
 | `check-pr-body.mjs` | `scripts/` | Required `Retrospective:` line on every PR (ADR 0030). |

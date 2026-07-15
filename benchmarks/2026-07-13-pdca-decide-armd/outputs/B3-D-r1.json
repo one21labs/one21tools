@@ -1,0 +1,145 @@
+{
+ "cell": "B3-D-r1",
+ "scenario": "B3",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 180552.9,
+  "duration_ms": 178488,
+  "duration_api_ms": 179338,
+  "cost_usd": 0.5678493,
+  "usage": {
+   "input_tokens": 30,
+   "cache_creation_input_tokens": 29638,
+   "cache_read_input_tokens": 635321,
+   "output_tokens": 13162,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 29638,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 70,
+     "cache_read_input_tokens": 54881,
+     "cache_creation_input_tokens": 490,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 490
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:30:10.028102+00:00",
+   "end": "2026-07-14T13:33:10.581009+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.8043363
+ },
+ "response": "I'll ask before running the lint since it needs explicit approval \u2014 want me to run `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` to verify the new ADR passes the gate?",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 43464.3,
+   "duration_ms": 42006,
+   "duration_api_ms": 43984,
+   "cost_usd": 0.1490526,
+   "usage": {
+    "input_tokens": 8,
+    "cache_creation_input_tokens": 12014,
+    "cache_read_input_tokens": 108282,
+    "output_tokens": 2915,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 12014,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2364,
+      "cache_read_input_tokens": 30055,
+      "cache_creation_input_tokens": 2087,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2087
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:29:26.563339+00:00",
+    "end": "2026-07-14T13:30:10.027711+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Three failure classes, most plausible first:\n\n**1. Prose rule recurs like #107's metric drift \u2014 no forcing function, so compliance decays under dispatch pressure.** ADR 0042 (docs/decisions/0042-experiment-methodology-and-prespend-discipline.md:13) documents that a prose-only fix for pre-registration metrics *still* floored a third time even after ADR 0025 had settled it \u2014 the ADR's own revisit trigger admits \"a grid again runs past a decidable cost gate \u2192 cost-pilot needs a hard stop (a gate script)\" (line 38). Sync-before-spend is the same shape: a rule living in CLAUDE.md's Shipping section that a dispatched session must remember to re-apply mid-execution, with nothing structural checking it happened. ISSUE-106.md itself names this (\"same enforcement weakness as any prose rule,\" line 14). If the eventual decision ships prose-only, the failure mode isn't hypothetical \u2014 it's the exact pattern that already burned #107 three times.\n\n**2. The claim protocol silently degrades to sync-only because dispatch prompts withhold issue-write permission.** ISSUE-106.md:15 states as fact, not speculation, that \"dispatch instructions sometimes withhold\" permission to touch issues (\"don't change the issues\"). If the decision selects \"claim\" or \"both,\" any session dispatched under one of those existing withholding prompts simply can't post the in-progress marker \u2014 and because the failure is an absence (no comment posted) rather than an error, nobody notices until the next collision. The decision's design would implicitly assume issue-write access is available, but that precondition is not something the decision controls \u2014 it's set per-dispatch by prompts outside this repo's own enforcement, so the mechanism has a known bypass baked in before it even ships.\n\n**3. Point-in-time sync checks don't cover a continuous spend window, so detection replaces prevention rather than eliminating it.** The observed incident (ISSUE-106.md:6) already had an effective sync check \u2014 \"the session's clone was fresh-at-start\" \u2014 and it still failed, because staleness accrued *during* the ~$5-8 nested-call execution, not at start. The candidate rule adds a second checkpoint (\"repeat before the final push,\" line 14), but a session whose entire body is one long spend (matching the observed shape) still has an open window between the two checkpoints exactly as wide as the original incident's window. If a second session's full dispatch-to-merge cycle fits inside that gap \u2014 which is precisely what happened with PR #97 \u2014 bracketing the spend with two point-in-time checks catches it post-hoc (as the original `git fetch` did) rather than preventing the spend, and six months later the postmortem reads \"we added the check the incident already had.\""
+  },
+  "assumption": {
+   "duration_ms_wall": 15022.0,
+   "duration_ms": 13409,
+   "duration_api_ms": 14263,
+   "cost_usd": 0.0874344,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 9948,
+    "cache_read_input_tokens": 48778,
+    "output_tokens": 824,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 9948,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 629,
+      "cache_read_input_tokens": 28650,
+      "cache_creation_input_tokens": 1426,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1426
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:29:26.563765+00:00",
+    "end": "2026-07-14T13:29:41.585795+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Three options are named in the issue; here's the load-bearing dependency for each.\n\n**1. Sync-before-spend rule (prose only)**\nLoad-bearing premise: sessions actually execute the sync step every time, unprompted, before spending.\n- If X is false \u2014 if sessions skip or forget the prose step under normal dispatch pressure (as this incident shows: the session *did* start fresh but staleness crept in mid-session with no re-check) \u2014 option 1 flips: a rule nobody re-runs mid-session doesn't prevent a repeat of exactly this incident.\n\n**2. Claim protocol (visible in-progress marker)**\nLoad-bearing premise: dispatch instructions grant the session permission to write to the issue (comment/assign).\n- If X is false \u2014 if dispatch instructions withhold issue-write permission (the issue itself flags this: `\"don't change the issues\"`) \u2014 option 2 flips: the claim can't be posted, so the mechanism is unavailable exactly when the backlog-dispatch mode that caused this incident is in use.\n\n**3. Both (sync + claim)**\nLoad-bearing premise: the two failure modes are actually distinct \u2014 unclaimed short collisions (needs sync) vs. long-running claimed work (needs claim) \u2014 so stacking them buys coverage rather than duplicate-enforcing the same gap.\n- If X is false \u2014 if in practice all collisions are the short/unclaimed kind (single-issue dispatch runs, no long-running claims ever observed) \u2014 option 3 flips: the claim half is dead weight, and it's just option 1 with extra process machinery (which CLAUDE.md's muda section calls out: \"don't gold-plate\").\n\nNo fourth option (e.g., a locking/queue mechanism) is proposed in the source material, so it's out of scope here."
+  }
+ },
+ "artifacts": {
+  "docs/decisions/0045-multi-session-claim-protocol.md": "---\nid: 0045\ntitle: \"Multi-session dispatch: claim protocol, not sync-before-spend\"\nstatus: accepted\nsummary: \"Issue #30 ran twice in parallel (~$5-8 wasted, ISSUE-106.md:6) because a session had no way to see another session was already working the issue. Prevention: a visible claim marker (comment/assign) posted when execution starts, cleared on completion \u2014 houses as a CLAUDE.md Shipping-section bullet. Sync-before-spend (prose re-fetch) and 'both' rejected: sync only detects post-spend, and prose-only rules have a proven repo-local decay track record (ADR 0042/#107, floored 3x).\"\n---\n\n# 0045 \u2014 Multi-session dispatch: claim protocol, not sync-before-spend\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: lean-process-engineer, process-economist, session-operator.\n- Context: A backlog-dispatched session executed issue #30 in full (~$5-8 nested `claude -p` + agent\n  time) while PR #97 concurrently closed the same issue on main; the session's clone was\n  fresh-at-start but stale-by-use, and the duplicate surfaced only at end-of-session `git fetch`\n  (ISSUE-106.md:6). Gap: nothing forces a session to signal it's working an issue, or to detect a\n  concurrent claim before spending (ISSUE-106.md:10). Three candidates on the table (ISSUE-106.md:14-16):\n  sync-before-spend (prose re-fetch+re-read), claim protocol (visible marker), or both.\n\n## Decision\nClaim protocol only: on execution start, post a one-line \"in progress (session X)\" issue comment\n(or assign); clear it on completion. Houses as a new CLAUDE.md Shipping-section bullet, paired with\nthe foreground-wait session-ops lesson (ISSUE-106.md:18). Sync-before-spend is NOT added, alone or\nalongside claim.\n\n## Justification\nClaim is the only one of the three that can PREVENT the spend rather than detect it after: a second\nsession checking for an existing claim before dispatch stops before spending anything, closing the\nrace at its narrowest point (the gap between session A starting and A's comment posting) instead of\nits widest (session A's full ~$5-8 run). Sync-before-spend re-checks at fixed points (dispatch-time,\npre-push) but the observed incident's actual failure was a race that opened AFTER a clean\ndispatch-time check (#30 read `open`) and closed only via an end-of-session `git fetch` \u2014 i.e., the\nad hoc practice ISSUE-106 wants formalized already caught this incident, post-spend; formalizing it\nsaves the wasted PR, not the wasted money (premortem #3). Prose-only rules also have a proven\nrepo-local decay track record: ADR 0042 (docs/decisions/0042-experiment-methodology-and-prespend-discipline.md:13,\n:38) shows a prose-only pre-reg fix still floored a THIRD time even after ADR 0025 had settled it \u2014\nsync-before-spend is the same shape (a rule a dispatched session must remember to re-apply\nmid-execution, nothing structural checking it happened; ISSUE-106.md:14 names this itself). Adding\nsync on top of claim (\"both\") stacks that already-weak, detect-only layer for a failure mode (a\nshort, unclaimed collision) not yet evidenced anywhere in this corpus \u2014 the one recorded incident is\nthe long-running/claimed shape claim already covers \u2014 so \"both\" is process weight ahead of a second\nconfirmed failure mode, the gold-plating CLAUDE.md's muda section warns against.\n\n## Assumptions\n- [verified] incident anatomy: dispatch-time read `open`, ~$5-8 long-running spend, duplicate\n  surfaced only at end-of-session `git fetch` \u2014 ISSUE-106.md:6.\n- [verified] prose-only fix decay precedent in this repo: pre-reg metric rule floored a 3rd time\n  post-settlement \u2014 docs/decisions/0042-experiment-methodology-and-prespend-discipline.md:13,38.\n- [checkable] CLAUDE.md gains the claim-protocol bullet + foreground-wait lesson; `adr-lint` and\n  `validate.py` stay green post-edit \u2014 owner: verifier at implementation.\n- [unverifiable] WEAKEST \u2014 dispatch instructions grant the session issue-write permission in the\n  backlog-dispatch mode that caused this incident, so the claim can actually be posted/checked \u2014\n  ISSUE-106.md:15 states dispatch instructions \"sometimes withhold\" this (\"don't change the\n  issues\"). REOPEN-IF a backlog-dispatch session is denied issue-write permission and a collision\n  recurs inside that gap \u2014 the failure is silent (no comment posted, no error), so it surfaces only\n  as a repeat duplicate-spend incident, not a visible break.\n\n## Rejected alternatives\n- Sync-before-spend alone \u2014 detects after the spend, not before (premortem #3); same\n  enforcement shape as the pre-reg rule that already decayed 3x (ADR 0042).\n- Both (sync + claim) \u2014 the one observed incident is long-running/claimed, not\n  short/unclaimed; stacking sync buys coverage for an unconfirmed second failure mode, which is\n  gold-plate, not defense-in-depth, until a short/unclaimed collision is actually observed.\n\n## Revisit triggers\n- A backlog-dispatch session is denied issue-write permission AND a collision recurs in that gap \u2192\n  add sync-before-spend as a fallback second layer (graduate to \"both\").\n- A future collision is the short/unclaimed shape (not long-running) \u2192 re-examine whether\n  sync-before-spend should be added for that distinct failure mode.\n"
+ }
+}

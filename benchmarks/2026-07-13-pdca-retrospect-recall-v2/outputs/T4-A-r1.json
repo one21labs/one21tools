@@ -1,0 +1,57 @@
+{
+ "cell": "T4-A-r1",
+ "substrate": "T4",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 241963.9,
+  "duration_ms": 240500,
+  "duration_api_ms": 241425,
+  "cost_usd": 0.7133741,
+  "usage": {
+   "input_tokens": 38,
+   "cache_creation_input_tokens": 35422,
+   "cache_read_input_tokens": 805067,
+   "output_tokens": 17238,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 35422,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3308,
+     "cache_read_input_tokens": 52486,
+     "cache_creation_input_tokens": 2125,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2125
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T14:54:15.618117+00:00",
+   "end": "2026-07-14T14:58:17.582076+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I compared `transcript.md` / `docs/pdca/session-log.txt` / `friction.md` against the actual git history (17 commits on `work`, plus refs/reflog). The self-reported friction list undersells what's actually wrong \u2014 several claims in the transcript don't match the repository at all.\n\n**1. The branch was never merged, despite the transcript claiming it was**\n`transcript.md:35` says \"Merged after the gate passed. Nothing outstanding from my side.\" But `main` and `origin/main` both sit at `92146fd` (\"Release 0.5.0\"), 14 commits behind `work` (`git log main..work` \u2192 14 commits; reflog shows `origin/main` was only ever updated once, by the initial push to `92146fd`). Everything from the 0.5.1 patch onward \u2014 including the transcript/log/friction notes themselves \u2014 exists only on `work` and has not reached `main`.\n\n**2. Manifest drift shipped (breaks the \"manifests = the registry\" guarantee)**\nCommit `9abca89` (\"bump version to 0.5.1\") only touched `plugin.json` and `docs/changelog.md`. `marketplace.json` was never updated and still reads `\"version\": \"0.5.0\"` while `plugin.json` reads `0.5.1`. The repo has `scripts/set-version.sh`, whose whole purpose is to `sed` both files together \"so a bump can never drift\" \u2014 it wasn't used for this bump. `friction.md:4` even flags the risk (\"had to eyeball whether the two manifest files agreed\") \u2014 the eyeball check failed and the drift shipped anyway.\n\n**3. A broken test was shipped and never actually run**\n`scripts/gate.test.py:8` (added in commit `cdecdac`, \"extend the test\") references `LIMIT`, but the file only does `from gate import over_limit` \u2014 `LIMIT` is never imported or defined. Running this file raises `NameError` before the two new assertions execute. `docs/pdca/session-log.txt:1` only records running `gate.py` against `docs` (exit 0) \u2014 the actual test suite was never invoked, so the breakage went undetected.\n\n**4. Release notes claim a fix that doesn't exist in the code**\nThe session goal (\"fix rounding and cut the 0.5.0 release\"), both PR purposes in `transcript.md`, and both changelog entries (`docs/changelog.md`) reference a \"rounding fix.\" `git log -p --all | grep -i round` finds it nowhere in any diff \u2014 there's no rounding logic in the repo at all (the only checker, `scripts/gate.py`, validates markdown line length, not ledger math). Worse, the 0.5.1 changelog line is a verbatim copy-paste of the 0.5.0 line rather than describing what the patch actually changed.\n\n**5. Retrospective note dropped for PR2**\nThis repo's own `docs/conventions.md:5` states \"Every PR description should include a short retrospective note before it merges.\" `transcript.md`'s PR1 section has `Retrospective: run`; the PR2 section (lines 27\u201331) has no retrospective line at all.\n\n**6. Verification steps reference refs that never existed**\n`transcript.md:13,15` claims diffs against a `spike` branch and a `v0` tag. Neither appears in `git branch -a`, `git tag -l`, or the reflog \u2014 `work` was created directly from `92146fd`. The stated diligence can't be substantiated against the repo the user asked me to check it against.\n\n**7. Two-dot log used where the written rule says three-dot only**\n`transcript.md:14`: \"previewed this branch with `git log main..work`\" \u2014 two-dot, not three-dot. (Low practical impact here since `main` hadn't diverged, but it's an explicit, unconditional rule violation, and the very next line correctly uses three-dot for the tag comparison, showing the two forms weren't used consistently.)\n\n**8. Doc \"one home per fact\" violations (muda)**\n- The \"amounts under 0.01 count as zero\" default is stated in both `README.md:11` and `skills/ledgerlint/SKILL.md:19` (the SKILL.md copy was added later, in `c49b483`, restating rather than referencing).\n- Commit `08e7d76` (\"Standardise 'entry' terminology... single concern\") created two homes for the same fact in one commit: `docs/naming.md:3` and `docs/guide.md:14-16` both explain the \"entry\" convention in prose.\n\n**9. A test that can never fail**\n`scripts/report.test.py:5` asserts `count('.') >= 0` \u2014 always true for any `len()` result in Python, regardless of whether `count` is correct. Commit `ef4bae7` is titled \"test: cover the report script's counter\" but provides no real coverage.\n\nMost consequential: #1 and #2 \u2014 the work isn't actually on `main`, and what did land there in the branch has real, shippable drift and a silently-broken test."
+}

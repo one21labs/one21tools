@@ -1,0 +1,56 @@
+{
+ "cell": "S4-C-r1",
+ "scenario": "S4",
+ "arm": "C",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 938212.5,
+  "duration_ms": 936774,
+  "duration_api_ms": 968590,
+  "cost_usd": 2.8151945,
+  "usage": {
+   "input_tokens": 16,
+   "cache_creation_input_tokens": 19721,
+   "cache_read_input_tokens": 289620,
+   "output_tokens": 6114,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 19721,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1407,
+     "cache_read_input_tokens": 42742,
+     "cache_creation_input_tokens": 229,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 229
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T21:11:30.058524+00:00",
+   "end": "2026-07-14T21:27:08.271002+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 2.8151945
+ },
+ "response": "The decision has been made and recorded. The `/decide` process ran end-to-end: verified the checkable facts in the memo, ran an opposing-counsel advisor panel, made the call, red-teamed it (all 10 breaks folded in), and independently verified the load-bearing claims. The record is saved at `docs/decisions/0001-v1-geocoding-sunset.md`.\n\n**Notably, the verification step caught two problems in the memo itself**: the CSV only covers 14 days, not a full month as claimed, and the true v1 volume is ~88k/month (not 41k) \u2014 the memo understated it by roughly 2x. The 0.4% share figure itself checks out.\n\n---\n\n# ADR 0001 \u2014 Sunset of the v1 geocoding API\n\n## Decision\n\nSynthesis of **Option A** (firm date + segmentation). Rejects **B** (indefinite \u2014 dual-maintenance is a standing correctness liability) and **C** (60-day \u2014 NorthRoute's live dispatcher maps make this an operational-harm risk with no data saying 60 days is safe).\n\n- **Firm sunset date: 2027-02-15** (~7 months out); at cutover v1 returns explicit `410 Gone`.\n- 7 months is a generous *envelope*, not a cost guess: confirmed or moved **once**, at day 30, against real migration-cost estimates \u2014 never silently.\n\n## Precondition P0 (hard gate)\n\nThe CSV is aggregate-only \u2014 it can't see which integrations would break, so volume is not a harm proxy and broadcast notice misses dead-inbox, still-live integrations. Until per-API-key attribution exists and every remaining v1 account is attributed to a warned owner, every trigger, escalation, and the cutover itself are **mechanically blocked**.\n\n## Closing the missing-cost gap\n\nWeek 1 \u2192 day 30 is a **Discovery** phase: written migration plans requested from the three named accounts and every attributed account still on v1. At day 30, the date is confirmed or moved once against real estimates \u2014 converting \"deciding in the dark\" into a data-tightened commitment instead of a guess.\n\n## Notice schedule\n\n- **2026-07-21 (wk 1):** verify P0; personal outreach to NorthRoute, Tavo, Ferrymark; broadcast deprecation (banner, `Sunset`/`Deprecation` headers, docs, email to attributed owners).\n- **2026-08-14 (day 30):** plan deadline; date confirmed or moved once; extension ceilings set.\n- **October 2026 (off-peak):** allow-list-aware flush of unidentified/unresponsive keys only \u2014 fail-loud errors, repeated across weekdays + a weekend. Identified live accounts exempt.\n- **2027-01-16 (T-30):** final warning to any account still on v1.\n- **2027-02-08 (T-7):** last call.\n- **2027-02-15:** cutover to `410`; code kept dark-but-revertible \u226560 days, then deleted.\n\n## The three named customers\n\n- **NorthRoute** \u2014 verified hard dependency (flat response shape parsed live by dispatchers). Dedicated migration help, flush-exempt, extension ceiling from its day-30 estimate. Any compatibility shim is NorthRoute's own client-side adapter, not Meridian-maintained.\n- **Ferrymark** \u2014 treated as a hard-dependency candidate, not auto-low-risk, until it confirms in writing its nightly batch fails loud (rather than silently corrupting) on a `410`.\n- **Tavo** \u2014 bandwidth constraint, not technical infeasibility. The firm date is the forcing function; not extension-eligible on bandwidth alone, but given proportionate hands-on help.\n\n## Residual risks accepted\n\n1. A low-cadence integration P0 can't attribute could still break at cutover \u2014 bounded by P0-gating, the flush, and the \u226560-day revert window.\n2. NorthRoute's true cost could exceed even the day-30 extension ceiling.\n3. Concierge effort spent on accounts that turn out to be abandoned.\n\n**Reopen if:** attribution proves unbuildable; day-30 estimates show most v1 traffic is genuine hard dependencies; or v1 traffic materially grows.",
+ "poker": {},
+ "artifacts": {
+  "docs/decisions/0001-v1-geocoding-sunset.md": "---\nid: 0001\ntitle: Sunset of the v1 geocoding API\nstatus: Accepted\ndate: 2026-07-14\nsummary: Firm 2027-02-15 v1 sunset with segmented accommodation, gated on per-API-key attribution and a day-30 estimate review; rejects both indefinite support and a 60-day cut.\ntags: [product, deprecation, contradiction, checkable]\n---\n\n# ADR 0001 \u2014 Sunset of the v1 geocoding API\n\n## Decision\n\nSynthesis of **Option A** (firm date + segmentation). Reject **B** (indefinite \u2014 the memo is tired of\n\"circling back,\" and dual-maintenance is a standing correctness liability) and **C** (60-day \u2014\nNorthRoute's live dispatcher maps make it operational-harm risk with no data saying 60 is safe).\n\n- **Firm sunset date: 2027-02-15** (~7 months); at cutover v1 returns explicit `410 Gone`.\n- 7 months is a generous *envelope*, not a cost guess: **confirmed or moved once** at day 30 against\n  real estimates. It moves only *later*, only via the triggers below \u2014 never silently.\n\n## Key assumptions (falsifiable)\n\n- [checkable] P0: per-API-key v1 attribution is queryable \u2014 falsify in week 1; if the query returns no per-key v1 counts, P0 fails and the `410` cutover is void until attribution is built.\n- [contradiction] The memo treats the 0.4%/41k aggregate as decision-grade, but it is account-blind \u2014 it cannot see which integrations break, so it is not a safe basis for a hard cutover.\n- [unverifiable] The silent v1 tail is mostly abandoned, not live-critical (no per-customer data exists) \u2014 see REOPEN-IF; the October flush is designed to test it before the point of no return.\n\n## Precondition P0 (poka-yoke)\n\nSafety rests on per-API-key attribution: the CSV is aggregate-only and the tail is \"integrations nobody\nupdated,\" so volume is **not** a harm proxy and broadcast notice misses dead-inbox, header-ignoring,\nstill-live integrations. Until P0 holds AND all remaining v1 traffic is attributed to a warned owner,\nevery trigger, escalation, early-retire gate, and the cutover is **mechanically blocked**.\n\n## Verified facts (verifier PASS)\n\n- CSV covers **14 days** (2026-05-16..05-29), not a month; the memo mislabels it \"full month.\"\n- v1 = 41,160 / 10,300,360 = **0.40%** (the one sound headline number).\n- v1 \u2248 2,940/day \u2192 **~88k/month**; the memo's \"41k/month\" understates true monthly v1 ~2x.\n- No per-customer breakdown in the CSV; \"no single large customer\" is **unverified** by this file.\n\n## Closing the missing-cost gap\n\nDo not guess cost \u2014 **close the gap.** Week 1 \u2192 day 30 is **Discovery**: request written migration plans\nfrom the three named accounts and every attributed account still on v1 (needs P0). **At day 30 the PM\nconfirms/moves the date once** against real estimates \u2014 a bounded envelope tightened with data.\n\n## Triggers\n\n- **Early retirement (safety-gated, NOT volume):** pull the date in on 30 days' notice **only when every\n  account still on v1 is attributed AND confirmed migrated/abandoned by its owner.** A volume floor is\n  rejected \u2014 a 300-req/day dispatch integration is invisible to volume, maximal harm to break. Void if P0 unmet.\n- **Extension guard (data-derived):** a **verified** hard-dependency account submitting a plan showing\n  genuine infeasibility gets **one** extension, ceiling **set at day 30 to its estimate + 30-day buffer**,\n  not a pre-committed flat cap. Bandwidth alone does **not** qualify.\n\n## Notice schedule\n\n- **By 2026-07-21 (wk 1):** verify P0; personal outreach to NorthRoute, Tavo, Ferrymark (date, offer, 30-day\n  plan request); internal revenue/tier check; broadcast deprecation (banner, RFC 8594 `Sunset`/`Deprecation`\n  headers, email to attributed owners, docs) \u2014 **necessary-not-sufficient**.\n- **2026-08-14 (day 30):** plan deadline; PM confirms/moves date once; sets extension ceilings.\n- **October 2026 (off-peak, avoiding the mid-Nov\u2013Dec logistics peak):** allow-list-aware **flush** of only\n  *unidentified/unresponsive* keys \u2014 short explicit-error (`410`/`503`, never `200` with empty/degraded\n  coordinates) windows, **repeated across weekdays + a weekend** to catch weekly/monthly jobs. Identified\n  live accounts and Discovery responders are **exempt** \u2014 flushes must not re-create the live-dispatch harm.\n- **2027-01-16 (T-30):** final warning + direct escalation to any account still on v1.\n- **2027-02-08 (T-7):** last call.\n- **2027-02-15:** cutover to `410`; code kept **dark-but-revertible \u226560 days (to 2027-04-16)** to cover a\n  monthly batch cycle, then deleted.\n\n## The three named customers\n\n- **NorthRoute** \u2014 verified hard dependency (flat `lat`/`lng`/`label` parsed live in dispatcher panels).\n  Dedicated migration eng; **flush-exempt**; extension ceiling from its day-30 estimate. Any shim is a\n  **client-side adapter NorthRoute owns** with an end-of-support date \u2014 **no Meridian-maintained v1 shape**.\n- **Ferrymark** \u2014 self-described \"load-bearing\" nightly routing. **Not** auto low-risk: hard-dependency\n  candidate until it confirms in writing its batch **fails loud** (aborts, no partial file) on `410` \u2014 an\n  empty/(0,0) geocode is a wrong-record hazard. Then help + a v2-vs-v1 test harness; firm date applies.\n- **Tavo** (2-person, no bandwidth) \u2014 bandwidth, not feasibility; firm date is the forcing function, not\n  extension-eligible on bandwidth. The flat\u2192nested change is **uniform**, so default is \"parsing change\n  required,\" not \"drop-in\"; help sized to Tavo's actual integration depth (verified in Discovery).\n\n## Residual risks accepted\n\n1. A silent, low-cadence integration P0 cannot attribute could break at cutover \u2014 bounded by P0-gating,\n   flushes, and the \u226560-day revert window.\n2. NorthRoute's cost could exceed even the day-30 extension \u2014 one named, visible account, case-by-case.\n3. Concierge effort on accounts that prove abandoned \u2014 bounded to Discovery responders.\n\n**REOPEN-IF:** P0 proves un-buildable within Discovery; OR day-30 estimates show most v1 traffic is genuine\nlive hard dependencies (falsifies segmentation \u2192 longer envelope); OR v1 traffic materially grows.\n"
+ }
+}

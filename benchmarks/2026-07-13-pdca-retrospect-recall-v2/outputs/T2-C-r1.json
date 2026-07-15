@@ -1,0 +1,57 @@
+{
+ "cell": "T2-C-r1",
+ "substrate": "T2",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 139224.3,
+  "duration_ms": 137707,
+  "duration_api_ms": 138151,
+  "cost_usd": 0.403258,
+  "usage": {
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 25452,
+   "cache_read_input_tokens": 335010,
+   "output_tokens": 9951,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 25452,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1009,
+     "cache_read_input_tokens": 42145,
+     "cache_creation_input_tokens": 2505,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2505
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T14:15:10.495143+00:00",
+   "end": "2026-07-14T14:17:29.719442+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective findings\n\n**1. Manifest version drift is live on disk right now** \u2014 `plugin.json:3` says `0.3.1`, `marketplace.json:6` still says `0.3.0`. Cause: commit `0c82c94` (\"manifest: fill in license and homepage metadata\") hand-bumped `plugin.json`'s version instead of running `scripts/set-version.sh`, the writer added in `8d0c95a` specifically \"so a bump can never drift the two manifests.\" The poka-yoke exists but nothing stops someone from bypassing it. Matches friction #3 exactly (\"had to eyeball whether the two manifest files agreed\") \u2014 and in this case the eyeball check wasn't done, or was wrong.\n\u2192 Improvement: add a version-match check to `scripts/gate.py` (fail if `plugin.json` version \u2260 `marketplace.json` version) \u2014 the gate already runs pre-ship, so this is a one-function addition, not a new tool.\n\u2192 Home: `scripts/gate.py`\n\u2192 Judgment call? No \u2014 enforces a policy this repo already decided (`set-version.sh`'s own commit message states the intent); closing an enforcement gap, not opening a new debate.\n\n**2. Threshold change shipped with no ADR and no panel fire** \u2014 `4bf4357` raised the gate's line-limit threshold 80\u2192120 directly in code. `docs/pdca/session-log.txt` is present but empty for this range, and neither `docs/decisions/0001\u2026` nor `0002\u2026` has a `Panel:` line covering it \u2014 so this is a genuine judgment call (a threshold) that never went through `/decide`, a \"miss\" not a \"misfire.\"\n\u2192 Improvement: record a retroactive ADR for the line-limit threshold (or revert to /decide before merging next threshold change).\n\u2192 Home: `docs/decisions/` (new ADR), referenced from this repo's `CLAUDE.md`.\n\u2192 Judgment call? Yes \u2014 needs `/decide` + an ADR (both whether 120 is right and that thresholds require ADRs going forward).\n\n**3. (minor, not promoted) `report.test.py`'s assertion is unfalsifiable** \u2014 `f5ee482` adds `assert count('.') >= 0`; `count()` returns `len(...)`, which can never be negative, so the test passes regardless of any bug in `count`. Cheap fix if touched again (assert an exact/non-zero count), but one-off and low-cost \u2014 not worth a rule.\n\n**Omitted (checked, not promoted):**\n- Friction #1 (flaky \"record integration test\") \u2014 no such test exists anywhere in this repo (`grep -r integration` found nothing); only mentioned in `transcript.md` narration, not git-verifiable, so nothing to fix here.\n- Friction #2 (rebase conflict in `docs/config.md`) \u2014 real churn signal (`027f999`, `70e3e8b`, `9349e96` all touch it), but each edit was a single added line; cost is one resolved conflict, not yet a recurring pattern worth a batching rule."
+}

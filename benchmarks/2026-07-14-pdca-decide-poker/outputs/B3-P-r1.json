@@ -1,0 +1,224 @@
+{
+ "cell": "B3-P-r1",
+ "scenario": "B3",
+ "arm": "P",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 256349.7,
+  "duration_ms": 254995,
+  "duration_api_ms": 255318,
+  "cost_usd": 1.0377125,
+  "usage": {
+   "input_tokens": 66,
+   "cache_creation_input_tokens": 44943,
+   "cache_read_input_tokens": 1589265,
+   "output_tokens": 19256,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 44943,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2420,
+     "cache_read_input_tokens": 64895,
+     "cache_creation_input_tokens": 176,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 176
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:59:24.409663+00:00",
+   "end": "2026-07-14T20:03:40.759423+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.4467402666666667
+ },
+ "response": "## Decision: Adopt O1 (sync-before-spend rule) only. Reject O2, O3, and O4.\n\nRecorded as `docs/decisions/0045-sync-before-spend-coordination-rule.md`.\n\n**What ships:** a CLAUDE.md Shipping/PDCA rule \u2014 `git fetch origin main` + re-read the target issue and search PRs referencing it, immediately before executing spend on an issue, and again before the final push. The related session-ops lesson (subagent dispatch prompts must mandate foreground waits on long child runs, ISSUE-106.md:18) rides along in the same edit as a separate bullet.\n\n**Why not the claim protocol (O2), alone or bundled (O3):**\n- The incident's actual mechanism was staleness accumulated *during* a session's run \u2014 \"fresh-at-start but stale-by-use\" (ISSUE-106.md:6) \u2014 not a proven simultaneous double-start. A pre-spend re-check targets that exact gap at near-zero cost with no new permission.\n- The claim protocol depends on issue-write permission that dispatch instructions \"sometimes withhold\" (ISSUE-106.md:15) \u2014 a disclosed, current constraint, not a hypothetical. That makes it unenforceable in exactly the high-concurrency dispatch runs where it would matter most, and a missing claim becomes ambiguous (unclaimed vs. claimed-but-no-permission) \u2014 a second prose-shaped rule with a silent-failure mode, not a real poka-yoke.\n- Advisor scores back this: O1 averages 3.33 with no advisor below 3 and no external dependency; O2 averages 2.67, dragged down by exactly the permission gap; O3's 3.67 average inherits O2's unproven half, and its own advisor 3 (plus O1's advisor 3) both flag the same tension \u2014 stacking an unenforceable mechanism onto a single incident is process weight ahead of demonstrated need, which conflicts with CLAUDE.md's explicit anti-gold-plating stance.\n\n**Why not nothing (O4):** the issue's own text disqualifies \"tolerable, isolated cost\" \u2014 the redundant run \"happened to pay for itself... but that was luck, not design\" (ISSUE-106.md:6). Lowest scores across all three advisors (avg 1.33).\n\n**Conceded weakness, with an explicit escalation path:** O1 is still prose, and CLAUDE.md itself prefers forcing functions over prose reminders \u2014 advisors 1\u20132 flagged this. No forcing-function alternative was on the table, so among prose-only options O1 is the correct floor (zero external dependency). The ADR's revisit triggers cover this directly: if duplicate-spend recurs after this rule ships, first determine whether the sync was actually performed (\u2192 needs a forcing function) or was performed and still collided (\u2192 needs the claim protocol, once the permission blocker is resolved).\n\nThe ADR is `accepted`, no `## Act` yet (decided, not shipped) \u2014 the CLAUDE.md rule text itself is the implementation step for a follow-up PR.",
+ "poker": {
+  "options": [
+   {
+    "id": "O1",
+    "label": "Prose sync-before-spend rule",
+    "summary": "Add a CLAUDE.md rule requiring git fetch + re-read of the issue/PRs before executing and again before final push."
+   },
+   {
+    "id": "O2",
+    "label": "Claim protocol via issue comment/assignee",
+    "summary": "Sessions post an 'in progress' comment or self-assign on the issue when starting work, clearing it on completion."
+   },
+   {
+    "id": "O3",
+    "label": "Both sync rule and claim protocol",
+    "summary": "Combine the prose sync-before-spend rule with the claim protocol to cover both unclaimed and long-running collisions."
+   },
+   {
+    "id": "O4",
+    "label": "No new mechanism",
+    "summary": "Leave coordination as-is, treating the duplicate-spend incident as an isolated, tolerable cost of the current workflow."
+   }
+  ],
+  "usable_advisors": 3,
+  "round1": [
+   {
+    "O1": {
+     "score": 4,
+     "crux": "The incident's actual mechanism was re-checking issue state at dispatch but not again immediately before spend \u2014 a sync-before-spend rule targets that exact gap, cheaply.",
+     "dependency": "If prose-only rules in CLAUDE.md are not reliably followed under autonomous/backlog dispatch (no forcing function checks it), the rule doesn't actually prevent recurrence and the score should drop."
+    },
+    "O2": {
+     "score": 2,
+     "crux": "Claim protocol addresses a different failure mode (long-running concurrent collisions) than the one observed, where the issue was already re-closed by a merged PR before this session spent.",
+     "dependency": "If dispatch instructions reliably grant permission to comment/assign on issues (the doc notes they 'sometimes withhold' this), claim visibility becomes actionable rather than an unenforceable protocol, and the score should rise."
+    },
+    "O3": {
+     "score": 4,
+     "crux": "Since the sync rule is nearly free to add, bundling it with claim protocol covers both unclaimed and long-running collisions without much extra cost beyond O2's own weaknesses.",
+     "dependency": "If the claim protocol's permission gap makes it unreliable in practice, O3 reduces to O1 plus unused process weight, which conflicts with the repo's explicit anti-gold-plating stance and should lower the score toward O1's."
+    },
+    "O4": {
+     "score": 1,
+     "crux": "The issue itself states the redundant run 'happened to pay for itself... but that was luck, not design,' directly undercutting a rationale of tolerable isolated cost.",
+     "dependency": "If duplicate-spend events are rare enough and consistently self-correcting (as this one was) that expected recurrence cost stays below the cost of any mechanism, leaving things as-is becomes defensible and the score should rise."
+    }
+   },
+   {
+    "O1": {
+     "score": 3,
+     "crux": "Cheap and directly targets the stale-read failure mode, but ISSUE-106.md itself flags it as 'same enforcement weakness as any prose rule.'",
+     "dependency": "If prose reminders don't actually change autonomous-session behavior (no forcing function, per CLAUDE.md's stated preference for forcing functions over prose), the rule won't prevent recurrence and the score should drop."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "Directly matches the incident's real failure (a concurrent session actively working #30 with no visible signal), but the issue notes dispatch instructions 'sometimes withhold' permission to touch issues.",
+     "dependency": "If sessions in this repo's dispatch flow generally lack permission to comment/assign on issues, the claim protocol is non-implementable and the score should fall toward 1-2."
+    },
+    "O3": {
+     "score": 4,
+     "crux": "Matches the issue's own stated rationale ('sync rule catches unclaimed collisions; claim catches long-running ones') so it's the most complete coverage of the two failure modes described.",
+     "dependency": "If the claim-protocol half is blocked by withheld issue-write permission (per O2's dependency), O3 degrades to O1 alone while adding process overhead, which would reverse the score down."
+    },
+    "O4": {
+     "score": 1,
+     "crux": "The issue explicitly frames the outcome as 'luck, not design,' signaling the repo owner already judges leaving it unmechanized as unacceptable.",
+     "dependency": "If parallel backlog dispatch is rare enough that this collision type is a one-off edge case rather than a recurring pattern, tolerating it as-is could be reasonable and the score should rise."
+    }
+   },
+   {
+    "O1": {
+     "score": 3,
+     "crux": "Cheap and matches how the incident was actually caught (an out-of-date fetch), but a snapshot check before spend can't stop two sessions that both check before either has merged",
+     "dependency": "If most future collisions come from stale reads over a long gap (not true near-simultaneous dispatch), a repeated fetch-and-reread suffices and this becomes clearly right; if collisions are genuinely concurrent starts, sync alone won't have prevented issue #30's own duplication"
+    },
+    "O2": {
+     "score": 3,
+     "crux": "A visible claim is the only mechanism that blocks the actual failure mode described (two sessions starting on the same open issue before either's PR merges), but it depends on issue-write permission that dispatch instructions sometimes withhold",
+     "dependency": "If backlog-dispatch instructions reliably grant issue-comment/assign permission, this is clearly right; if they withhold it in exactly the high-concurrency dispatch runs where duplication risk is highest, the protocol goes unenforced and the score drops"
+    },
+    "O3": {
+     "score": 3,
+     "crux": "Covers both the unclaimed and long-running collision cases the issue itself distinguishes, but stacks two mechanisms on a single incident that 'happened to pay for itself' \u2014 tension with CLAUDE.md's explicit don't-gold-plate rule",
+     "dependency": "If duplicate-spend recurs or backlog dispatch scales to more concurrent sessions, combined coverage is justified; if this stays a one-off near-$0-net-cost event, building both is over-engineering for one data point"
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue discloses a real ~$5-8 wasted spend caught only by luck at end-of-session, directly at odds with the repo's 'quality output, autonomously' goal \u2014 treating it as tolerable ignores a disclosed, recurring-risk gap rather than citing one",
+     "dependency": "If backlog dispatch rarely runs multiple concurrent sessions against the same issue set (this was a rare/one-off concurrency window), the tolerable-cost framing holds and the score should rise"
+    }
+   }
+  ],
+  "reveal_spread": {
+   "O1": 1,
+   "O2": 1,
+   "O3": 1,
+   "O4": 1
+  },
+  "divergent": [],
+  "round2": [],
+  "final": [
+   {
+    "O1": {
+     "score": 4,
+     "crux": "The incident's actual mechanism was re-checking issue state at dispatch but not again immediately before spend \u2014 a sync-before-spend rule targets that exact gap, cheaply.",
+     "dependency": "If prose-only rules in CLAUDE.md are not reliably followed under autonomous/backlog dispatch (no forcing function checks it), the rule doesn't actually prevent recurrence and the score should drop."
+    },
+    "O2": {
+     "score": 2,
+     "crux": "Claim protocol addresses a different failure mode (long-running concurrent collisions) than the one observed, where the issue was already re-closed by a merged PR before this session spent.",
+     "dependency": "If dispatch instructions reliably grant permission to comment/assign on issues (the doc notes they 'sometimes withhold' this), claim visibility becomes actionable rather than an unenforceable protocol, and the score should rise."
+    },
+    "O3": {
+     "score": 4,
+     "crux": "Since the sync rule is nearly free to add, bundling it with claim protocol covers both unclaimed and long-running collisions without much extra cost beyond O2's own weaknesses.",
+     "dependency": "If the claim protocol's permission gap makes it unreliable in practice, O3 reduces to O1 plus unused process weight, which conflicts with the repo's explicit anti-gold-plating stance and should lower the score toward O1's."
+    },
+    "O4": {
+     "score": 1,
+     "crux": "The issue itself states the redundant run 'happened to pay for itself... but that was luck, not design,' directly undercutting a rationale of tolerable isolated cost.",
+     "dependency": "If duplicate-spend events are rare enough and consistently self-correcting (as this one was) that expected recurrence cost stays below the cost of any mechanism, leaving things as-is becomes defensible and the score should rise."
+    }
+   },
+   {
+    "O1": {
+     "score": 3,
+     "crux": "Cheap and directly targets the stale-read failure mode, but ISSUE-106.md itself flags it as 'same enforcement weakness as any prose rule.'",
+     "dependency": "If prose reminders don't actually change autonomous-session behavior (no forcing function, per CLAUDE.md's stated preference for forcing functions over prose), the rule won't prevent recurrence and the score should drop."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "Directly matches the incident's real failure (a concurrent session actively working #30 with no visible signal), but the issue notes dispatch instructions 'sometimes withhold' permission to touch issues.",
+     "dependency": "If sessions in this repo's dispatch flow generally lack permission to comment/assign on issues, the claim protocol is non-implementable and the score should fall toward 1-2."
+    },
+    "O3": {
+     "score": 4,
+     "crux": "Matches the issue's own stated rationale ('sync rule catches unclaimed collisions; claim catches long-running ones') so it's the most complete coverage of the two failure modes described.",
+     "dependency": "If the claim-protocol half is blocked by withheld issue-write permission (per O2's dependency), O3 degrades to O1 alone while adding process overhead, which would reverse the score down."
+    },
+    "O4": {
+     "score": 1,
+     "crux": "The issue explicitly frames the outcome as 'luck, not design,' signaling the repo owner already judges leaving it unmechanized as unacceptable.",
+     "dependency": "If parallel backlog dispatch is rare enough that this collision type is a one-off edge case rather than a recurring pattern, tolerating it as-is could be reasonable and the score should rise."
+    }
+   },
+   {
+    "O1": {
+     "score": 3,
+     "crux": "Cheap and matches how the incident was actually caught (an out-of-date fetch), but a snapshot check before spend can't stop two sessions that both check before either has merged",
+     "dependency": "If most future collisions come from stale reads over a long gap (not true near-simultaneous dispatch), a repeated fetch-and-reread suffices and this becomes clearly right; if collisions are genuinely concurrent starts, sync alone won't have prevented issue #30's own duplication"
+    },
+    "O2": {
+     "score": 3,
+     "crux": "A visible claim is the only mechanism that blocks the actual failure mode described (two sessions starting on the same open issue before either's PR merges), but it depends on issue-write permission that dispatch instructions sometimes withhold",
+     "dependency": "If backlog-dispatch instructions reliably grant issue-comment/assign permission, this is clearly right; if they withhold it in exactly the high-concurrency dispatch runs where duplication risk is highest, the protocol goes unenforced and the score drops"
+    },
+    "O3": {
+     "score": 3,
+     "crux": "Covers both the unclaimed and long-running collision cases the issue itself distinguishes, but stacks two mechanisms on a single incident that 'happened to pay for itself' \u2014 tension with CLAUDE.md's explicit don't-gold-plate rule",
+     "dependency": "If duplicate-spend recurs or backlog dispatch scales to more concurrent sessions, combined coverage is justified; if this stays a one-off near-$0-net-cost event, building both is over-engineering for one data point"
+    },
+    "O4": {
+     "score": 2,
+     "crux": "The issue discloses a real ~$5-8 wasted spend caught only by luck at end-of-session, directly at odds with the repo's 'quality output, autonomously' goal \u2014 treating it as tolerable ignores a disclosed, recurring-risk gap rather than citing one",
+     "dependency": "If backlog dispatch rarely runs multiple concurrent sessions against the same issue set (this was a rare/one-off concurrency window), the tolerable-cost framing holds and the score should rise"
+    }
+   }
+  ]
+ },
+ "artifacts": {
+  "docs/decisions/0045-sync-before-spend-coordination-rule.md": "---\nid: 0045\ntitle: \"Sync-before-spend rule for multi-session issue coordination; claim protocol deferred\"\nstatus: accepted\nsummary: \"Add a CLAUDE.md Shipping/PDCA rule: git fetch origin main + re-read the target issue and search PRs referencing it immediately before executing spend on an issue, and again before the final push (closes #106). Do NOT adopt the claim-protocol or combined option now \u2014 it depends on issue-write permission dispatch instructions sometimes withhold, an unproven, unenforceable half for a single incident whose actual mechanism (stale-by-use, not a true simultaneous collision) the sync rule alone targets. House the related foreground-wait session-ops lesson in the same edit.\"\n---\n\n# 0045 \u2014 Sync-before-spend rule for multi-session issue coordination; claim protocol deferred\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: lean-process-engineer, process-economist, session-operator.\n- Context: A backlog-dispatched session executed issue #30 in full (~$5-8 spend) while main already\n  carried PR #97's merged fix \u2014 the issue read `open` at dispatch, and the session's clone was\n  \"fresh-at-start but stale-by-use\" (ISSUE-106.md:6). Nothing forces a re-sync immediately before\n  spend, or leaves a visible claim (ISSUE-106.md:10). The redundant run happened to pay for itself,\n  but \"that was luck, not design\" (ISSUE-106.md:6) \u2014 raising whether prose is enough or coordination\n  needs mechanizing now.\n\n## Decision\nAdopt the sync-before-spend rule only. Add to CLAUDE.md's Shipping/PDCA section: before executing\nspend work on an issue, `git fetch origin main` + re-read the issue and search PRs referencing it;\nrepeat immediately before the final push. Do NOT adopt the claim protocol (comment/self-assign) or\nthe combined option now. House the related lesson from ISSUE-106.md:18 (subagent dispatch prompts\nmust mandate foreground waits on long child runs) as a separate bullet in the same edit \u2014 distinct\nrule, not conflated with sync-before-spend.\n\n## Justification\nRoot-cause match: the incident's actual mechanism was staleness accumulated DURING a session's run\n(fresh-at-start, stale-by-use), not a proven simultaneous double-start \u2014 a re-check immediately\nbefore spend targets exactly that gap, at near-zero cost, with no new permission. The claim\nprotocol's half depends on issue-write permission dispatch instructions \"sometimes withhold\"\n(ISSUE-106.md:15) \u2014 a disclosed, current constraint, not hypothetical \u2014 so it goes unenforced in\nexactly the high-concurrency dispatch runs where it would matter most, and a missing claim is\nambiguous (unclaimed vs. claimed-but-no-permission): a second prose-shaped rule with a silent-failure\nmode, not a reliable poka-yoke. Advisor scores back this: sync-alone averages 3.33 (no advisor\nbelow 3, no permission dependency); claim-alone averages 2.67 (one advisor at 2, gated on a\nwithheld permission); combined averages 3.67 but inherits claim's unproven half \u2014 its own advisor 3\nand sync-alone's advisor 3 both flag the same tension: stacking an unenforceable mechanism onto one\nincident is process weight ahead of demonstrated need (Muda: don't gold-plate). Doing nothing is\nrejected outright (avg 1.33) \u2014 the issue's own text already disqualifies a tolerable-isolated-cost\nframing. This still concedes the weakness advisors 1-2 raised against sync-alone: prose carries no\nforcing function, the repo's stated preference (CLAUDE.md Muda: poka-yoke > prose). No\nforcing-function alternative was scored; among prose options, sync-alone is the only one with zero\nexternal dependency, so it is the correct floor, with an explicit escalation path below if it proves\ninsufficient.\n\n## Assumptions\n- [verified] the incident account states the dispatch-time check passed but the clone went\n  \"stale-by-use\" during execution \u2014 ISSUE-106.md:6 \u2014 read 2026-07-14.\n- [verified] the claim protocol's permission dependency is a stated current constraint, not\n  hypothetical \u2014 ISSUE-106.md:15 \u2014 read 2026-07-14.\n- [checkable] the new CLAUDE.md rule (sync-before-spend + the foreground-wait lesson) is present in\n  the Shipping/PDCA section post-edit \u2014 owner: verifier; grep CLAUDE.md for the two rules.\n- [unverifiable] a prose-only rule changes behavior in autonomous/backlog-dispatch sessions absent a\n  forcing function \u2014 REOPEN-IF a duplicate-spend collision recurs after this rule ships.\n\n## Rejected alternatives\n- Claim protocol alone \u2014 targets a different failure mode (long-running true collisions) than the\n  one evidenced, and is gated on a permission the issue itself says is sometimes withheld \u2014\n  unenforced in the runs where it matters most.\n- Both (sync + claim) \u2014 inherits the claim half's permission gap while adding process weight for a\n  single incident the sync rule alone would have caught; gold-plating on one data point.\n- No new mechanism \u2014 the issue's own text disqualifies \"tolerable, isolated cost\" (\"that was luck,\n  not design\"); lowest advisor scores of all four options.\n\n## Revisit triggers\n- A duplicate-spend collision recurs after the sync rule ships \u2192 first determine whether the acting\n  session actually performed the pre-spend sync (enforcement failure \u2192 needs a forcing function) or\n  performed it and still collided (true-concurrency the sync rule structurally can't catch \u2192 needs\n  the claim protocol) \u2014 the two point to different fixes.\n- Dispatch instructions are confirmed to reliably grant issue-comment/assign permission \u2192 re-open the\n  claim protocol with its current blocker resolved.\n- Backlog dispatch scales to routinely running multiple concurrent sessions over the same issue set \u2192\n  the single-incident/gold-plate objection to the combined option weakens; re-score.\n"
+ }
+}

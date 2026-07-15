@@ -1,0 +1,267 @@
+{
+ "cell": "B1-P-r1",
+ "scenario": "B1",
+ "arm": "P",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 44685.6,
+  "duration_ms": 43377,
+  "duration_api_ms": 45479,
+  "cost_usd": 0.20599679999999998,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 19876,
+   "cache_read_input_tokens": 119996,
+   "output_tokens": 3217,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 19876,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2740,
+     "cache_read_input_tokens": 34980,
+     "cache_creation_input_tokens": 5024,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 5024
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:27:27.918645+00:00",
+   "end": "2026-07-14T19:28:12.604233+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.0402793
+ },
+ "response": "## Decision: Adopt O4 \u2014 defer both adoption and the benchmark run until the three owner calls are settled\n\n**Scores:** O1 = 1/1/1, O2 = 3/3/3, O3 = 2/2/2, O4 = 5/4/5. O4 wins outright; O1 and O3 are eliminated as symmetric assertion-based moves.\n\n### Rationale\n\n**O1 and O3 are both ruled out on the same ground.** ISSUE-41.md L15 states plainly under ADR 0024: \"Do NOT adopt on assertion.\" O1 (adopt tiering now) violates this directly \u2014 no benchmark has run. O3 (reject tiering outright, stop pursuing it) is the mirror-image violation: ADR 0024 requires testing before either adopting *or discarding*, and rejecting forecloses an already-designed, cheap (~250-300 invocation) test with zero negative evidence in hand. Neither has a live reversing premise \u2014 all three advisors on each option confirm no such evidence exists in the materials.\n\n**O2 vs O4 is the real fork, and it turns on CLAUDE.md's PDCA-trigger rule**, not on the merits of the benchmark design (which is sound and ready). Comment 3 (L73) explicitly frames three items as \"Owner calls before spend\": (1) grader independence is structurally unsolvable across only 3 tiers \u2014 accept the Sonnet-grades-Sonnet residual or defer; (2) which hermetic controls (ADR 0023) carry over to a tool-using implementation task; (3) retry-cap and validator\u2192worker feedback format for the new orchestration script. These are exactly the \"threshold, scope, or policy question\" class CLAUDE.md's Feedback-triggers-PDCA rule requires to go through `/decide` \u2014 \"Never fix a judgment call directly before deciding it.\" Running O2's ~250-300-invocation benchmark now would mean fixing those three calls ad hoc, mid-execution, which is precisely the bypass the rule forbids. No ADR currently resolves them: ADR 0019 pre-approves *accepting* the Sonnet-grades-Sonnet residual as one available option for call (1), but that's a menu item, not a decision that this instance takes it \u2014 and it says nothing about (2) or (3).\n\n**Why not weight this down to O2 anyway (per Advisor 2's dissent):** the objection that the calls \"might be trivial/fast to settle\" doesn't argue for skipping `/decide` \u2014 it argues for running `/decide` *quickly*, which O4 already accommodates. It's not a reason to spend the ~250-300 invocations before the calls are recorded.\n\n### What O4 means concretely\n1. No adoption, no benchmark spend, yet.\n2. Route the three owner calls through `/decide` as their own judgment call(s) \u2014 grader independence (accept Sonnet-grades-Sonnet residual per ADR 0019 precedent, or defer), hermetic-control carryover to tool-using tasks, and the tiered script's retry-cap/feedback format.\n3. Once those are settled (ADR-recorded), O2's pre-registered 4-arm benchmark (Comment 1/3) is ready to execute as designed \u2014 nothing else blocks it.\n4. Adopt tiering only if the benchmark meets the pre-set decision rule (delta \u2265 -0.05 vs Sonnet-solo AND tokens \u2264 0.7x); record the result either way (ADR 0024, append-only).\n\n### Revisit trigger\nIf, when drafted, the three owner calls turn out trivially settled by existing precedent (e.g., ADR 0019 already covers grader independence) with no new ADR content needed, escalate directly to running O2 rather than treating the settling as a separate multi-day gate \u2014 the point is sequencing, not manufactured delay.",
+ "poker": {
+  "options": [
+   {
+    "id": "O1",
+    "label": "Adopt now, defer test",
+    "summary": "Make Sonnet-plans/Haiku-implements the default Do-phase pattern immediately, without waiting for the pre-registered 4-arm benchmark to run."
+   },
+   {
+    "id": "O2",
+    "label": "Run pre-registered benchmark, decide by result",
+    "summary": "Execute the registered 4-arm test (Haiku/Sonnet/Opus-solo + Tiered) and adopt only if it meets the pre-set quality/cost decision rule."
+   },
+   {
+    "id": "O3",
+    "label": "Reject tiering, keep single-model",
+    "summary": "Keep Sonnet-solo (or configurable single top-tier model) as the Do-phase executor; do not pursue tiered orchestration further."
+   },
+   {
+    "id": "O4",
+    "label": "Defer decision, no spend yet",
+    "summary": "Postpone both adoption and the benchmark run until the three unresolved owner calls (grader independence, hermetic controls, retry/feedback format) are settled."
+   }
+  ],
+  "usable_advisors": 3,
+  "round1": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "ISSUE-41.md L15 ('Do NOT adopt on assertion') directly forbids adopting before the pre-registered benchmark runs.",
+     "dependency": "Reverses only if ADR 0024's empirical-test mandate is judged not to apply to this change (e.g., it's deemed trivially reversible/low-stakes) \u2014 nothing in the materials supports that."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "It's the exact pre-registered method (L25-59), but Comment 3 (L73) lists three owner calls (grader independence, hermetic controls, retry/feedback format) explicitly gating 'spend,' and CLAUDE.md bars fixing/bypassing an open judgment call before deciding it.",
+     "dependency": "Reverses to 5 if the three owner calls are already resolved elsewhere (e.g., an ADR not shown here) \u2014 then running the registered test immediately is simply correct."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting outright forecloses an already-designed, lean (~250-300 invocation) test (L59, L71) without evidence \u2014 a symmetric assertion-based decision to O1, and ADR 0024 requires testing before either adopting or discarding.",
+     "dependency": "Reverses upward if the benchmark's cost/value is judged not worth it given competing priorities (e.g., the plugin's Do-phase is deprioritized) \u2014 nothing here states that, but it's the plausible reversing premise."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 (L73) explicitly states 'Owner calls before spend' for three unresolved judgment calls, and CLAUDE.md requires '/decide immediately... Never fix a judgment call directly before deciding it' \u2014 O4 is the only option that sequences correctly.",
+     "dependency": "Reverses downward if those three owner calls turn out trivial/already-settled by precedent (grader independence partially precedented by ADR 0019, L44/L73) \u2014 then deferring further adds needless delay and O2 becomes preferable."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "ADR 0024 and the issue's own header ('Do NOT adopt on assertion') directly forbid adopting before the pre-registered test runs.",
+     "dependency": "If the pre-registered benchmark had already been run and met the decision rule, adopting would be justified \u2014 but no run has happened yet."
+    },
+    "O2": {
+     "score": 5,
+     "crux": "This is exactly the falsifiable, pre-registered, cheap (~250-300 invocations) test the issue and ADR 0024 call for \u2014 running it is the designed path to a real decision.",
+     "dependency": "If the three unresolved owner calls (grader independence, hermetic controls, retry/feedback format) can't be settled without changing what's measured, running now yields results the pre-registration can't actually support."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering now discards a cheap, already-designed test that could show Opus-level quality at sub-Opus cost \u2014 the 'real prize' the pre-registration names.",
+     "dependency": "If grader independence is truly unsolvable across only 3 tiers (Comment 3's owner call) such that the benchmark can never produce a trustworthy verdict, rejecting without running becomes the rational floor."
+    },
+    "O4": {
+     "score": 4,
+     "crux": "Comment 3 explicitly lists three owner calls to settle 'before spend'; running the benchmark ahead of those risks burning invocations on an ill-specified script.",
+     "dependency": "If those three calls are fast, low-stakes decisions that don't change the test's design or cost, deferring further just delays a decision that's otherwise ready to run now."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Issue line 15 states plainly under ADR 0024: 'Do NOT adopt on assertion' \u2014 O1 does exactly that.",
+     "dependency": "If ADR 0024's no-adopt-on-assertion mandate didn't bind here (e.g., prior empirical evidence already existed for this exact config), O1 would be defensible \u2014 but no such evidence is cited anywhere in the issue."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "It's the methodologically sound, pre-registered path, but Comment 3 gates the ~250-300-invocation spend behind three owner calls (grader independence, hermetic-control carryover, retry/feedback format) that are still open as of the latest comment.",
+     "dependency": "If those three owner calls were already settled (Comment 3 even notes call (1) may already be covered by ADR 0019 precedent), O2 becomes the clearly-correct next step and would score 5."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering outright forecloses a cheap, already-designed test that could reveal a materially cheaper config, with no negative evidence yet in hand to justify skipping it.",
+     "dependency": "If existing evidence (e.g., from the prior skills/agents benefit-benchmark batch) already showed Haiku-tier implementation quality is fundamentally inadequate for this task class, rejection without further spend would be justified."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly says 'Owner calls before spend' and lists three unresolved ones \u2014 deferring both adoption and the benchmark run until they're settled is exactly what the execution design itself requires.",
+     "dependency": "If those three owner calls are trivial or effectively already resolved (per Comment 3's own note that ADR 0019 already accepts the grader-independence residual), further deferral adds delay without reducing risk, and O2 would be equally or more correct."
+    }
+   }
+  ],
+  "reveal_spread": {
+   "O1": 0,
+   "O2": 2,
+   "O3": 0,
+   "O4": 1
+  },
+  "divergent": [
+   "O2"
+  ],
+  "round2": [
+   {
+    "advisor": 0,
+    "parsed": true,
+    "deltas": {
+     "O2": 0
+    },
+    "estimates": {
+     "O2": {
+      "score": 3,
+      "crux": "File confirms Comment 3's three owner calls (grader independence, hermetic-control carryover, retry/feedback format) are still open \u2014 no ADR resolves them (ADR 0019 only pre-approves accepting the Sonnet-grades-Sonnet residual as *one* option, not a decision); CLAUDE.md bars spending on/bypassing an open judgment call before deciding it.",
+      "dependency": "Checked docs/decisions/ for an ADR resolving these three calls \u2014 none exists. The reversal condition (calls resolved elsewhere) does not hold as of 2026-07-14, so score stays at 3 rather than 5."
+     }
+    }
+   },
+   {
+    "advisor": 1,
+    "parsed": true,
+    "deltas": {
+     "O2": -2
+    },
+    "estimates": {
+     "O2": {
+      "score": 3,
+      "crux": "Comment 3 (L73) explicitly labels the three items 'Owner calls before spend' \u2014 grader independence, hermetic-control carryover, and retry/feedback format all gate the ~250-300-invocation run, and CLAUDE.md requires deciding a judgment call before acting on it, not resolving it ad hoc mid-execution.",
+      "dependency": "If those three calls can be settled as quick/non-controversial defaults (e.g. accept the Sonnet-grades-Sonnet residual per existing ADR 0019 precedent) without materially changing what's measured, the score should move back toward 5 since the pre-registration itself would be unaffected."
+     }
+    }
+   },
+   {
+    "advisor": 2,
+    "parsed": true,
+    "deltas": {
+     "O2": 0
+    },
+    "estimates": {
+     "O2": {
+      "score": 3,
+      "crux": "Comment 3's own 'Owner calls before spend' framing gates the ~250-300-invocation run behind three still-open threshold/scope/policy questions (grader independence, hermetic-control carryover, retry/feedback format) \u2014 exactly the kind of judgment call CLAUDE.md says must go through /decide before being acted on, not bypassed by just running the pre-registered test.",
+      "dependency": "The moment those three owner calls are settled (via /decide, not by assumption), O2 stops being blocked and becomes the clearly-correct next step at score 5 \u2014 the pre-registration and hermetic harness are otherwise ready to go."
+     }
+    }
+   }
+  ],
+  "final": [
+   {
+    "O1": {
+     "score": 1,
+     "crux": "ISSUE-41.md L15 ('Do NOT adopt on assertion') directly forbids adopting before the pre-registered benchmark runs.",
+     "dependency": "Reverses only if ADR 0024's empirical-test mandate is judged not to apply to this change (e.g., it's deemed trivially reversible/low-stakes) \u2014 nothing in the materials supports that."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "File confirms Comment 3's three owner calls (grader independence, hermetic-control carryover, retry/feedback format) are still open \u2014 no ADR resolves them (ADR 0019 only pre-approves accepting the Sonnet-grades-Sonnet residual as *one* option, not a decision); CLAUDE.md bars spending on/bypassing an open judgment call before deciding it.",
+     "dependency": "Checked docs/decisions/ for an ADR resolving these three calls \u2014 none exists. The reversal condition (calls resolved elsewhere) does not hold as of 2026-07-14, so score stays at 3 rather than 5."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting outright forecloses an already-designed, lean (~250-300 invocation) test (L59, L71) without evidence \u2014 a symmetric assertion-based decision to O1, and ADR 0024 requires testing before either adopting or discarding.",
+     "dependency": "Reverses upward if the benchmark's cost/value is judged not worth it given competing priorities (e.g., the plugin's Do-phase is deprioritized) \u2014 nothing here states that, but it's the plausible reversing premise."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 (L73) explicitly states 'Owner calls before spend' for three unresolved judgment calls, and CLAUDE.md requires '/decide immediately... Never fix a judgment call directly before deciding it' \u2014 O4 is the only option that sequences correctly.",
+     "dependency": "Reverses downward if those three owner calls turn out trivial/already-settled by precedent (grader independence partially precedented by ADR 0019, L44/L73) \u2014 then deferring further adds needless delay and O2 becomes preferable."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "ADR 0024 and the issue's own header ('Do NOT adopt on assertion') directly forbid adopting before the pre-registered test runs.",
+     "dependency": "If the pre-registered benchmark had already been run and met the decision rule, adopting would be justified \u2014 but no run has happened yet."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "Comment 3 (L73) explicitly labels the three items 'Owner calls before spend' \u2014 grader independence, hermetic-control carryover, and retry/feedback format all gate the ~250-300-invocation run, and CLAUDE.md requires deciding a judgment call before acting on it, not resolving it ad hoc mid-execution.",
+     "dependency": "If those three calls can be settled as quick/non-controversial defaults (e.g. accept the Sonnet-grades-Sonnet residual per existing ADR 0019 precedent) without materially changing what's measured, the score should move back toward 5 since the pre-registration itself would be unaffected."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering now discards a cheap, already-designed test that could show Opus-level quality at sub-Opus cost \u2014 the 'real prize' the pre-registration names.",
+     "dependency": "If grader independence is truly unsolvable across only 3 tiers (Comment 3's owner call) such that the benchmark can never produce a trustworthy verdict, rejecting without running becomes the rational floor."
+    },
+    "O4": {
+     "score": 4,
+     "crux": "Comment 3 explicitly lists three owner calls to settle 'before spend'; running the benchmark ahead of those risks burning invocations on an ill-specified script.",
+     "dependency": "If those three calls are fast, low-stakes decisions that don't change the test's design or cost, deferring further just delays a decision that's otherwise ready to run now."
+    }
+   },
+   {
+    "O1": {
+     "score": 1,
+     "crux": "Issue line 15 states plainly under ADR 0024: 'Do NOT adopt on assertion' \u2014 O1 does exactly that.",
+     "dependency": "If ADR 0024's no-adopt-on-assertion mandate didn't bind here (e.g., prior empirical evidence already existed for this exact config), O1 would be defensible \u2014 but no such evidence is cited anywhere in the issue."
+    },
+    "O2": {
+     "score": 3,
+     "crux": "Comment 3's own 'Owner calls before spend' framing gates the ~250-300-invocation run behind three still-open threshold/scope/policy questions (grader independence, hermetic-control carryover, retry/feedback format) \u2014 exactly the kind of judgment call CLAUDE.md says must go through /decide before being acted on, not bypassed by just running the pre-registered test.",
+     "dependency": "The moment those three owner calls are settled (via /decide, not by assumption), O2 stops being blocked and becomes the clearly-correct next step at score 5 \u2014 the pre-registration and hermetic harness are otherwise ready to go."
+    },
+    "O3": {
+     "score": 2,
+     "crux": "Rejecting tiering outright forecloses a cheap, already-designed test that could reveal a materially cheaper config, with no negative evidence yet in hand to justify skipping it.",
+     "dependency": "If existing evidence (e.g., from the prior skills/agents benefit-benchmark batch) already showed Haiku-tier implementation quality is fundamentally inadequate for this task class, rejection without further spend would be justified."
+    },
+    "O4": {
+     "score": 5,
+     "crux": "Comment 3 explicitly says 'Owner calls before spend' and lists three unresolved ones \u2014 deferring both adoption and the benchmark run until they're settled is exactly what the execution design itself requires.",
+     "dependency": "If those three owner calls are trivial or effectively already resolved (per Comment 3's own note that ADR 0019 already accepts the grader-independence residual), further deferral adds delay without reducing risk, and O2 would be equally or more correct."
+    }
+   }
+  ]
+ },
+ "artifacts": {}
+}

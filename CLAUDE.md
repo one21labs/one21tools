@@ -44,8 +44,8 @@ deterministic logic; a doc that restates them rots).
 - emoji in any skill content
 
 ## Shipping — PR
-- **One concern per PR**; a cross-cutting cleanup gets its own branch (e.g. skills-SSoT vs the
-  plugin). Version bumps get their own PR per plugin via `set-version.mjs` (ADR 0048).
+- **Size PRs for reviewability, not one-concern (ADR 0056)**: ship cohesive work together across
+  files; split only for a clean revert boundary or to keep main green. Version bumps get their own PR (`set-version.mjs`, ADR 0048).
 - **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion.

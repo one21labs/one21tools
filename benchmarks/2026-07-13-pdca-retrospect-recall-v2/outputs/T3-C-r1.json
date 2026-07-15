@@ -1,0 +1,57 @@
+{
+ "cell": "T3-C-r1",
+ "substrate": "T3",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 310966.5,
+  "duration_ms": 309608,
+  "duration_api_ms": 310403,
+  "cost_usd": 0.8047152000000002,
+  "usage": {
+   "input_tokens": 60,
+   "cache_creation_input_tokens": 31595,
+   "cache_read_input_tokens": 1182314,
+   "output_tokens": 17303,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 31595,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5398,
+     "cache_read_input_tokens": 49383,
+     "cache_creation_input_tokens": 1410,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1410
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T14:35:16.371660+00:00",
+   "end": "2026-07-14T14:40:27.338192+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective findings \u2014 `origin/main...HEAD`\n\n**1. CI's own gate check can never fail \u2014 directly explains friction #3**\nEvidence: `scripts/ci.sh:9` \u2014 `python3 scripts/gate.py docs 2>&1 | tee ci-gate.log | sort -u`, introduced in `152e913`. `#!/bin/sh` (line 1) is dash on Debian: no `pipefail`, and `set -e` only sees the exit status of the *last* pipeline stage (`sort -u`, which always succeeds). So `gate.py`'s exit code \u2014 the whole point of the script \u2014 is silently discarded. This is friction #3 (\"CI stayed green on a run where a doc had an over-long line\"), not a fluke: it's structural, will misfire every time, on every future PR.\n\u2192 Improvement: change shebang to `#!/bin/bash` and add `set -o pipefail` after `set -e` (2-line diff); or simpler, drop the pipe and `tee` gate output to the log with `>`, checking `$?` explicitly.\n\u2192 Home: `scripts/ci.sh`\n\u2192 Judgment call? No \u2014 bug fix, not a policy question. Advice for the orchestrator to apply.\n\n**2. Two threshold changes shipped with no decision record \u2014 one hidden behind a misleading commit message (not in supplied friction list)**\nEvidence: `ac81433` changes `gate.py`'s `LIMIT` 90\u2192110 (transparent, at least \u2014 message says \"raise the line limit\"). `28943eb`, titled **\"docs: copy-edit ADR 0002 for readability\"**, actually changes the accepted decision itself: render cache 200\u2192500 tiles (`docs/decisions/0002-tile-cache.md`). Both are threshold/policy calls made directly, no new ADR, no `docs/pdca/session-log.txt` entry (file is 0 lines) \u2014 and the second one is mislabeled, so `git log --oneline` alone won't surface it as a decision change.\n\u2192 Improvement: a one-line rule \u2014 changing a *value* in an `accepted` ADR requires a new dated entry (or new ADR), never a silent edit under an unrelated commit message.\n\u2192 Home: this repo's `CLAUDE.md` (currently silent on how decisions get amended) or wherever the decision-log convention for cartostatic is documented.\n\u2192 Judgment call? Yes \u2014 it's a process/policy rule about ADR amendment, needs `/decide` + an ADR.\n\n**3. Same commit that claims to fix terminology drift creates a duplicate-fact violation (not in supplied friction list)**\nEvidence: `a877e3c` (\"Standardise 'feature' terminology across the docs \u2014 single concern\") adds *both* `docs/naming.md` (\"The processing unit is called a feature throughout the docs and the code\") *and* a `## Terminology` section in `docs/guide.md` (\"We use 'feature' consistently for the unit of work\") \u2014 same fact, two homes, directly violating this repo's own \"one home per fact\" rule.\n\u2192 Improvement: keep `docs/naming.md` as the single home; delete the `## Terminology` section from `docs/guide.md` (or replace with a one-line reference).\n\u2192 Home: `docs/guide.md`\n\u2192 Judgment call? No \u2014 direct application of an existing rule, advice not a directive.\n\n**4. Git-tellable backstory narration added to docs (explicit cut-on-sight violation, not in supplied friction list)**\nEvidence: `docs/guide.md:21` (added in `0360d49`): \"(Cartostatic was called `tilegen` before an early rename; the old `--zoom` flag from that era is gone.)\" \u2014 exactly the \"how-it-got-here narration\" both CLAUDE.md files call out to cut on sight.\n\u2192 Improvement: delete the parenthetical; git history already owns that fact.\n\u2192 Home: `docs/guide.md`\n\u2192 Judgment call? No.\n\n**Minor (cite-only, not worth its own process fix):** `scripts/__pycache__/gate.cpython-313.pyc` sits untracked because `ci.sh:5`'s `py_compile` step has no matching `.gitignore` entry. Add `__pycache__/` to a new `.gitignore` \u2014 one line, no judgment call.\n\n**Omitted one-offs (checked, not systemic):**\n- Friction #1 (flaky integration test) \u2014 no such test exists anywhere in this repo (`grep -ril integration` only hits `transcript.md`/`friction.md`); not reproducible or git-visible here, can't be tied to a fix.\n- Friction #2 (rebase conflict in `docs/config.md`) \u2014 `origin/main` has only the original commit for that file; the 3 in-branch commits are sequential tail-appends to the same file, a one-time ordering artifact, not a recurring pattern worth a rule.\n\nOrdered by recurrence-cost: #1 (active safety-net failure) > #2 (recurring, disguised) > #3/#4 (single-instance rule violations, cheap fixes)."
+}

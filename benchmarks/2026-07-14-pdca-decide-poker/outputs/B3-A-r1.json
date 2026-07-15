@@ -1,0 +1,56 @@
+{
+ "cell": "B3-A-r1",
+ "scenario": "B3",
+ "arm": "A",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 335357.0,
+  "duration_ms": 333895,
+  "duration_api_ms": 335630,
+  "cost_usd": 1.2815347,
+  "usage": {
+   "input_tokens": 84,
+   "cache_creation_input_tokens": 53824,
+   "cache_read_input_tokens": 2017799,
+   "output_tokens": 23486,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 53824,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 897,
+     "cache_read_input_tokens": 73615,
+     "cache_creation_input_tokens": 337,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 337
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:56:56.127664+00:00",
+   "end": "2026-07-14T20:02:31.484650+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.2815347
+ },
+ "response": "## Decision\n\n**ADR 0045 \u2014 Sync-before-spend stays prose (strengthened, two checkpoints); claim protocol deferred.** Full record: `docs/decisions/0045-sync-before-spend-not-claim-protocol.md`. Rule shipped in `CLAUDE.md` under a new `## Session ops` section.\n\n**Verdict:** the prose rule is enough for now \u2014 but not as originally drafted. A single checkpoint (\"sync before executing\") doesn't close the gap the incident actually showed: the clone was fresh-at-*dispatch*, stale-by-*use* across the run. The rule now has two checkpoints \u2014 resync + re-read the issue/linked PRs immediately before executing, **and again immediately before the final push**. I did not build the claim protocol.\n\n**Why not mechanize now:**\n- One observed incident, bounded cost (~$5-8), and it self-corrected via the session's own end-of-run `git fetch` \u2014 this is a rare, not-yet-recurring failure mode, not a standing pattern.\n- The claim protocol is asymmetric-worse, not just more expensive: it needs issue-write permission that dispatch instructions sometimes withhold (per the issue itself), so mandating it fails exactly in the sessions where isolation is weakest; and a session that dies mid-run leaves a stale \"in progress\" claim that blocks *legitimate* future work \u2014 a worse, harder-to-notice failure than the one it prevents.\n- There's no dispatch/backlog skill in this repo today to host a scripted gate \u2014 mechanizing the sync check has nowhere shipped to live yet (verified: no `dispatch` hit anywhere in `skills/*/SKILL.md` or `README.md`).\n- Matches this repo's own \"don't gold-plate \u2014 premature process machinery is itself muda\" (`CLAUDE.md:21`).\n\n**Revisit triggers** (recorded in the ADR): a second duplicate-spend despite both checkpoints; multi-session dispatch becoming a standing frequent practice rather than incidental; or a dispatch skill landing that gives the check a natural shipped home to graduate into a real gate.\n\nThe related foreground-wait lesson (detached subagent runs stalling) is housed in the same `## Session ops` section per the issue's request.\n\nOne loose end: `ISSUE-106.md` at the repo root now duplicates what's captured in ADR 0045 (decision-state) and presumably a real GitHub issue #106 (work-state) \u2014 `CLAUDE.md`'s own rule bars handoff/TODO files in the repo. I left it in place since it's your input artifact, not mine to remove unilaterally \u2014 let me know if you want it deleted now that the decision is recorded.",
+ "poker": {},
+ "artifacts": {
+  "docs/decisions/0045-sync-before-spend-not-claim-protocol.md": "---\nid: 0045\ntitle: \"Sync-before-spend stays prose, two checkpoints; claim protocol deferred\"\nstatus: accepted\nsummary: \"Issue #106's duplicate-spend (issue #30 executed twice in parallel, ~$5-8) gets a\nstrengthened prose sync-before-spend rule (CLAUDE.md, two checkpoints: before executing AND\nbefore final push) rather than a mechanized issue-claim protocol. One observed incident,\nself-detected via existing fetch, bounded cost; the claim protocol trades a rare bounded loss for\na worse one (permission-gated, stale-lock risk) with no shipped dispatch surface to host a gate.\nRevisit on recurrence or a dispatch skill landing.\"\n---\n\n# 0045 \u2014 Sync-before-spend stays prose, two checkpoints; claim protocol deferred\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: lean-process-engineer (waste vs poka-yoke), process-economist (cost-per-decision),\n  session-operator (live-session realism) \u2014 unanimous accept.\n- Context: ISSUE-106.md:6 \u2014 a backlog session executed issue #30 in full (~$5-8 nested-call +\n  agent spend) while `main` already carried PR #97's merged fix; the clone was fresh-at-start but\n  stale-by-use, only caught at end-of-session `git fetch`. ISSUE-106.md:8-10 names the gap: nothing\n  forces a re-sync immediately before spend, and no visible claim marks an issue in-progress.\n  ISSUE-106.md:12-18 offers three candidates: prose sync rule, a claim protocol (issue comment),\n  or both.\n\n## Decision\nStrengthen the sync-before-spend rule and ship it as prose in CLAUDE.md now (`## Session ops`,\nthis ADR); do not build a claim protocol. The rule gets two checkpoints, not one: re-sync +\nre-read the issue/linked PRs immediately before executing (not just at dispatch) AND again\nimmediately before the final push \u2014 closing the exact gap the incident showed (stale-by-use\nduring a run, not stale-at-start). House the related foreground-wait lesson\n(ISSUE-106.md:18) in the same section, per the issue's own request.\n\n## Justification\nCost\u00d7risk\u00d7value: one observed incident to date, cost bounded (~$5-8) and self-correcting (the\nsession's own end-of-run `git fetch` caught it, and the redundant run paid for itself per\nISSUE-106.md:6). The claim protocol's cost is asymmetric-worse: it needs issue-write permission\n\"dispatch instructions sometimes withhold\" (ISSUE-106.md:15) \u2014 mandating it fails exactly where\nsession isolation is weakest \u2014 and a session that dies mid-run leaves a stale claim, blocking\nlegitimate work with a *worse*, harder-to-notice failure than the rare duplicate spend it\nprevents. CLAUDE.md:21 (\"don't gold-plate \u2014 premature process machinery is itself muda\") argues\nagainst building it on a single-incident base rate. Extending the existing precedent\n(CLAUDE.md's post-merge fetch-before-ranging rule, now CLAUDE.md:53-57) to a second checkpoint is\nnear-zero marginal cost and needs no new mechanism, permission, or artifact lifecycle.\n\n## Assumptions\n- [verified] single incident to date, bounded/self-correcting cost \u2014 ISSUE-106.md:6.\n- [verified] no dispatch/backlog skill exists in this repo to host a scripted sync gate \u2014 grep of\n  `skills/*/SKILL.md` and README.md turned up no dispatch surface; the mechanism has no shipped\n  home today (distinct from ADR 0038's shipped-vs-repo-only axis: this rule governs how sessions\n  work *this* repo, the same category as the existing PR-shipping bullets already in CLAUDE.md,\n  not a portable skill behavior).\n- [checkable] CLAUDE.md stays under its 6,000-char budget after the addition \u2014 result: verified,\n  5,979 chars (`wc -m`).\n- [unverifiable] the strengthened two-checkpoint prose rule actually prevents recurrence (depends\n  on session compliance, same as every other CLAUDE.md rule) \u2014 REOPEN-IF: a second duplicate-spend\n  incident occurs despite both checkpoints.\n\n## Rejected alternatives\n- **Claim protocol** (issue comment on start/clear on completion) \u2014 permission-gated per\n  ISSUE-106.md:15, and a crashed session's stale claim is a worse failure mode (false lock on\n  legitimate work) than the incident it prevents.\n- **Both** (sync + claim) \u2014 inherits the claim protocol's risk for no added benefit over the\n  strengthened sync rule alone at current (single-incident) frequency.\n- **New in-repo lock file/artifact** (not in ISSUE-106.md's list, considered here) \u2014 same\n  create/clear lifecycle risk as the claim protocol, plus a net-new artifact class this repo\n  doesn't otherwise track; work-state belongs in issues, not a repo-local mirror.\n\n## Revisit triggers\n- A second duplicate-spend incident occurs despite the two-checkpoint sync rule.\n- Multi-session backlog dispatch becomes a standing, frequent practice rather than incidental \u2014\n  at that volume the claim protocol's prevention value likely outweighs its permission/staleness\n  cost.\n- A dispatch/backlog skill is added to this repo, giving the sync check a natural shipped home to\n  graduate from prose reminder to an actual scripted gate.\n"
+ }
+}
