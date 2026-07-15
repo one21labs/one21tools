@@ -61,14 +61,12 @@ machinery:
     `.claude/agents` stays under `AGENT_CHAR_BUDGET`, and its frontmatter `name:` matches its
     filename.
 11. **Named-doc budget** (`oversizeDocs`) — char-checks `CLAUDE.md` against `DOC_BUDGETS`.
-12. **Decision-set connectivity** (`decisionSetProblems`, ADR 0051; opt-in via
-    `--new-adrs=<ids-or-paths>`) — when a change adds MORE THAN ONE new ADR, they must be one
-    connected component of the undirected cite graph (an edge = either record cites the other):
-    entangled records ship together, unrelated decisions ship separately. Flag absent or a single
-    new ADR = skipped, so only the PR-context CI step (which passes the diff-added files) can fire it.
-    Because CI fires this only at PR time, a long-lived branch gets no connectivity feedback while
-    it accumulates ADRs — before opening a PR that adds more than one, run it locally:
-    `adr-lint.mjs docs/decisions --new-adrs=<the added ids>`.
+12. **Decision-set advisory** (`decisionSetWarnings`, ADR 0051 as amended; opt-in via
+    `--new-adrs=<ids-or-paths>`) — when a change adds MORE THAN ONE new ADR, cite-unconnected
+    members (edge = either record cites the other) get a WARN, never a failure: the PR is the
+    batching unit (a deliberate work package is fine); the WARN surfaces an accidental
+    grab-bag at review. Flag absent or a single new ADR = nothing reported; only the
+    PR-context CI step (which passes the diff-added files) emits it.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 

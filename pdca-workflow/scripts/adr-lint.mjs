@@ -25,7 +25,7 @@
  * Usage:
  *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N] [--new-adrs=<ids-or-paths,comma-sep>]
  *   decisionsDir default: docs/decisions   ·   --budget default: ADR_CHAR_BUDGET (char-budget.mjs)
- *   --new-adrs: the change's ADDED ADR files (CI passes the PR diff) — decision-set check, ADR 0051
+ *   --new-adrs: the change's ADDED ADR files (CI passes the PR diff) — advisory set/margin WARNs, ADR 0051/0067
  *   Exit: 0 = corpus OK · 1 = problems found · 2 = cannot read decisionsDir.
  */
 import { readFileSync, readdirSync } from "node:fs";
@@ -133,19 +133,20 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
 }
 
 /**
- * Pure decision logic for one-decision-set-per-PR (ADR 0051): when a change introduces more
- * than one new ADR, they must form ONE connected component of the undirected cite graph — an
- * edge exists when either record cites the other (`ADR NNNN` or `[NNNN]`). Entangled records
- * are exactly those the dangling-cite guard would fail if shipped apart; unrelated decisions
- * belong in separate PRs. `newEntries` are 4-digit ids or `NNNN-*.md` paths; `files` is the
- * corpus [{ name, text }]. Fewer than two new ADRs = nothing to check (fail open).
+ * Advisory decision-set note (ADR 0051 as amended): when a change introduces more than one new
+ * ADR, report — WARN, never fail — any that sit outside the largest connected component of the
+ * undirected cite graph (an edge = either record cites the other, `ADR NNNN` or `[NNNN]`). The
+ * PR itself is the batching unit (a deliberately grouped work package is legitimate even when
+ * its members share no cite — WP1's 0064-0068 is the precedent); the note exists so an
+ * ACCIDENTAL grab-bag is visible at review, not to judge cohesion. `newEntries` are 4-digit
+ * ids or `NNNN-*.md` paths; `files` is the corpus. Fewer than two new ADRs = nothing to report.
  */
 // `--new-adrs` entries are 4-digit ids or `NNNN-*.md` paths; one home for the parse.
 const parseNewAdrIds = (newEntries) => [...new Set(newEntries
   .map(e => e.match(/(\d{4})[^/\\]*\.md$/)?.[1] ?? e.match(/^(\d{4})$/)?.[1])
   .filter(Boolean))];
 
-export function decisionSetProblems(newEntries, files) {
+export function decisionSetWarnings(newEntries, files) {
   const ids = parseNewAdrIds(newEntries);
   if (ids.length < 2) return [];
   const byId = new Map(files.map(({ name, text }) => [name.slice(0, 4), text]));
@@ -162,7 +163,7 @@ export function decisionSetProblems(newEntries, files) {
   while (queue.length) for (const next of adj.get(queue.shift())) if (!seen.has(next)) { seen.add(next); queue.push(next); }
   const stranded = ids.filter(id => !seen.has(id));
   return stranded.length
-    ? [`new ADRs ${ids.join(", ")} are not one connected decision set (unconnected: ${stranded.join(", ")}) — one decision-set per PR (ADR 0051)`]
+    ? [`new ADRs ${ids.join(", ")} are cite-unconnected (${stranded.join(", ")}) — fine for a deliberate work package; confirm this isn't an accidental grab-bag (ADR 0051)`]
     : [];
 }
 
@@ -248,11 +249,11 @@ function main(argv) {
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));
 
-  // One-decision-set-per-PR (ADR 0051): CI's PR-only step passes the diff-added ADR files.
+  // PR-scoped advisories: CI's PR-only step passes the diff-added ADR files (ADR 0051/0067).
   const newArg = args.find(a => a.startsWith("--new-adrs="));
   if (newArg) {
     const entries = newArg.slice("--new-adrs=".length).split(",").map(s => s.trim()).filter(Boolean);
-    problems.push(...decisionSetProblems(entries, files));
+    for (const w of decisionSetWarnings(entries, files)) console.error(`  WARN (advisory, ADR 0051): ${w}`);
     for (const w of marginWarnings(entries, files)) console.error(`  WARN (advisory, ADR 0067): ${w}`);
   }
 
