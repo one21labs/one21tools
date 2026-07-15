@@ -49,6 +49,11 @@ export const DOC_BUDGETS = {
 // rewrite-under-budget over a grandfather allowlist for this small corpus).
 export const ADR_CHAR_BUDGET = 6000;
 
+// Advisory drafting margin for a full ADR (adr-template.md: draft to ~5,000 so the `## Act`
+// block appended at ship time still fits the cap). adr-lint WARNs — never fails — when a
+// PR-ADDED full ADR (--new-adrs) exceeds it (ADR 0067); the legacy near-cap corpus is not swept.
+export const ADR_CHAR_MARGIN = 5000;
+
 // Lite-tier ADR cap (`tier: lite` frontmatter): a SETTLED decision — decision + why + where it's
 // enforced, no panel/assumptions/revisit machinery. A quarter page keeps the tier honest: anything
 // needing more argument than this likely has a live trade-off and belongs in a full ADR.
