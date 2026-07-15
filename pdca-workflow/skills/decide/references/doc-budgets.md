@@ -52,7 +52,8 @@ the same way, minus any text it replaces. Measure in the GATE'S unit: every enfo
 validate.py's (`skills/**/references/*.md`, SKILL.md) AND `char-budget.mjs`'s (CLAUDE.md, ADRs,
 agent prompts) — counts unicode CODEPOINTS, not bytes (`wc -c` over-reads every em-dash by 2), so
 measure with the gate itself or
-`python3 -c "print(len(open(f,encoding='utf-8').read()))"`. If the
+`python3 -c "print(len(open(f,encoding='utf-8').read()))"`. Edit budgeted docs via the
+Edit/Write tools only — Bash writes bypass the budget-edit-guard hook (ADR 0060). If the
 addition exceeds the headroom, do NOT word-golf the new line into mush and do NOT edit-validate-trim
 in a loop: review the WHOLE file for muda and drift (restatements of another home, narration,
 dead references) and cut there first — a file living at its cap is itself a smell that it carries
