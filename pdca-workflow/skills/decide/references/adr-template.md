@@ -36,7 +36,9 @@ Rules:
 - **Rationalize in place.** Correct, re-sequence, or fold an amendment into the ADR it touches — on
   the next PR that works that area. Don't spawn a new ADR to amend / correct / re-sequence an
   existing one (an "amends NNNN" ADR folds into NNNN). Reserve `status: superseded by NNNN` for a
-  decision *wholly retired* by a separate one.
+  decision *wholly retired* by a separate one. After amending, `grep -rn "ADR NNNN"` the repo:
+  any hit still describing the retired behavior (a CI step name, a script header) changes in the
+  same PR.
 - **No version numbers in an ADR** (version-agnostic): name the feature / cut / relationship
   ("Cut 1a", "before the export feature"), never a release. The ADR carries no release version;
   sequence is the dependency order among the unshipped accepted ADRs and ship-state derives from
