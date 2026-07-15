@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
-"""Shared KEEP/HARMFUL/CUT-CANDIDATE/INCONCLUSIVE verdict rule (ADR 0024), one home instead of the
-duplicate verbatim in each harness's aggregate.py (github-code-quality finding, #57; dedup tracked
-on #43).
+"""Shared KEEP/HARMFUL/CUT-CANDIDATE/INCONCLUSIVE verdict rule (ADR 0024) — the one home; a
+harness's aggregate.py imports it, never restates it.
 """
 
 

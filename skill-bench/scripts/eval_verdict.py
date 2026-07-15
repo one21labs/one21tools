@@ -6,7 +6,8 @@ Execution is DELEGATED to Anthropic's skill-creator harness (benchmark mode: pai
 with_skill/without_skill runs, graded assertions, aggregate_benchmark.py). This script owns
 only the thin layer upstream lacks: pairs each eval's runs across the two configurations,
 computes the win rate with a Wilson 95% CI, the mean pass-rate delta, and the verdict metric
-- mean delta per 1,000 chars of SKILL.md body (does the content EARN its context cost?).
+- mean delta per 1,000 chars of loaded context (default SKILL.md body; --include-references /
+--loaded-chars vary the basis, ADR 0019 - does the content EARN its context cost?).
 
 NOT a CI gate (upstream runs are non-deterministic; this only post-processes their output).
 Decision logic is pure and unit-tested in eval_verdict_test.py; main() is the IO wrapper.

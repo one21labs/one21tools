@@ -5,7 +5,8 @@
 # .claude/agents/*.md), or a manifest (plugin.json / marketplace.json, which adr-lint cross-checks
 # for drift). Detect-at-creation rung of the latency ladder, same shape as the repo's
 # post-edit-gate.sh. On gate failure: exit 2 with the gate's stderr (fed back to Claude
-# in-session). No jq (git-bash safe).
+# in-session). No jq (git-bash safe). Fails OPEN (exit 0) on malformed/empty stdin, a missing
+# file_path, or an unenterable project dir -- a broken hook must never block edits.
 #
 # GRACEFUL DEGRADATION (required for a generic plugin hook): adr-lint.mjs itself hard-exits(2)
 # only when its PRIMARY argument dir (docs/decisions) is missing -- every other input it reads

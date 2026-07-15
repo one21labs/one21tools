@@ -5,6 +5,7 @@
  * pdca-init's SKILL.md vendors into a temp dir shaped like a consumer repo, then runs
  * `adr-lint.mjs` there via `node`, the same way the SKILL.md tells the user to — pinning the
  * contract so it can't silently break.
+ * Runs with the other gate tests: `node --test pdca-workflow/scripts/*.test.mjs` (gates.yml).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

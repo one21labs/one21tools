@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Decision-logic test for plugin-hooks/adr-lint-post-edit.sh. Runnable on git-bash:
+# Decision-logic test for the sibling adr-lint-post-edit.sh (CI runs every hooks/test-*.sh via
+# .github/workflows/gates.yml). Runnable on git-bash:
 # `bash test-adr-lint-post-edit.sh`. Builds a synthetic consumer-project fixture under mktemp -d
 # (never touches the real repo) and points CLAUDE_PLUGIN_ROOT at this repo's real
 # pdca-workflow/ so the gate script under test is the genuine adr-lint.mjs, not a stub.

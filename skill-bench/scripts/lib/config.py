@@ -3,7 +3,8 @@
 
 Keeps consumer-tunable defaults out of the code so the plugin isn't one21tools-shaped. Precedence:
 explicit CLI arg > $SKILL_BENCH_* env var > $SKILL_BENCH_CONFIG JSON file > built-in default.
-Pure/stdlib; deterministic given the environment passed in (inject `env` for tests)."""
+Stdlib only; the sole I/O is reading the optional $SKILL_BENCH_CONFIG file — output is
+determined by the passed `env` plus that file (inject `env` for tests)."""
 import json, os
 
 DEFAULTS = {

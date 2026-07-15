@@ -8,9 +8,11 @@
  *
  * Mechanism: normalized word shingles (WINDOW consecutive words, code fences stripped,
  * lowercased) shared across two distinct .md files, merged into maximal spans. ALLOW_PAIRS is
- * the only exemption list: permanent structural cases (generated-from-template files,
+ * the only pair-exemption list: permanent structural cases (generated-from-template files,
  * append-only twin records) where duplication is intentional or immutable. Everything else
- * fails the gate — the corpus stays clean, there is no debt register.
+ * fails the gate — the corpus stays clean, there is no debt register. Corpus: every .md under
+ * root except .git, node_modules, and dated benchmarks/20YY-* run archives (immutable run
+ * records, not living docs).
  *
  * DESIGN CONSTRAINTS: zero dependencies (plain node .mjs, same as adr-lint.mjs); detect() is
  * PURE (no fs) so the decision logic is unit-testable ("no process-gating script without a

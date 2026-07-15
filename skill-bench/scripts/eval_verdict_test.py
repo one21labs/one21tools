@@ -4,7 +4,7 @@ eval_verdict_test.py -- decision-logic test for eval_verdict.py (ADR 0013; "neve
 process-gating script without a test of its decision logic"). Zero-dependency: stdlib unittest.
 Run: python eval_verdict_test.py  (or: python -m unittest eval_verdict_test) from this dir.
 
-Covers the pure layer only (pairing, Wilson CI, aggregation, token cost, report shape);
+Covers the pure decision layer only (the verdict math and the ADR 0023 audit-sample tripwire);
 main() is a thin IO wrapper over these.
 """
 import unittest

@@ -2,7 +2,7 @@
 """Shared output-blinding layer (ADR 0052 decision 4): one lib home imported by new harnesses
 instead of a 10th dated-dir copy (the 9 existing copies are frozen snapshots, ADR 0041).
 
-Two jobs, both arm-blinding (ADR 0019 item 5):
+Three jobs (the first two are arm-blinding, ADR 0019 item 5):
   - assign_bids/write_blinded: deterministic blind ids, per-item payload files WITHOUT the arm
     field, plus the arm map the aggregator joins back on (flat records -> ADR 0026 formats are
     the caller's job via bench_io).
@@ -10,6 +10,8 @@ Two jobs, both arm-blinding (ADR 0019 item 5):
     grading workflow runs as its FIRST stage, because output FORMAT is itself an arm tell
     (a retrospect agent's routed-fragments shape, an ADR-formatted decision) — issue #172's
     pre-registrations; blinding validated per-benchmark by a guess-the-arm audit.
+  - capture_symmetry: pre-blinding per-arm capture-skew sweep (#191 item 2); contract in its
+    docstring.
 """
 import hashlib
 import json

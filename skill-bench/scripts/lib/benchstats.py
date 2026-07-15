@@ -2,7 +2,9 @@
 """Verdict math + judge-divergence diagnostics for skill-bench (ADR 0019/0025 shape). Stdlib only.
 
 Pure functions, fully unit-testable offline. `cells` everywhere is a list of dicts:
-  {"bid","arm","scenario","met":{1:bool,2:bool,3:bool,4:bool}}
+  {"bid","arm","scenario","met":{<expectation id>: bool}}
+`met` arity is variable (fraction_met, clustered_delta); per_expectation and divergence assume
+the fixed 4-expectation decision rubric (EXP_IDS) and KeyError on any other arity.
 """
 import math, statistics
 from collections import defaultdict

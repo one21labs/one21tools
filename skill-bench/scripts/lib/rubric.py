@@ -4,6 +4,8 @@
 One home for the rubric text so every judge backend and re-grade path builds an IDENTICAL
 prompt — the invariant that makes a cross-family judge swap (opus <-> grok) a clean measurement
 rather than a prompt-difference confound. Mirrors grade_i2.workflow.js verbatim. Stdlib only.
+The #172 prototype (crossfamily_judge.py) predates this module and keeps its own verbatim copy
+as an append-only snapshot.
 """
 import json
 

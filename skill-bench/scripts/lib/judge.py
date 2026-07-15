@@ -2,9 +2,9 @@
 """Pluggable judge backends for skill-bench — the cross-family judge substrate (ADR 0055).
 
 A Judge takes a text prompt + JSON schema and returns a validated object. Two families ship so a
-grader swap measures self-preference bias directly (the #172 prototype: opus met-rate 0.747 vs
-grok 0.552, and the C-B verdict flipped +0.010 -> +0.125). Stdlib only; each backend shells its
-CLI headless with tools denied so grading is pure-text and hermetic.
+grader swap measures self-preference bias directly (the #172 prototype changed the verdict —
+findings table in skill-bench/README.md, "The cross-family judge"). Stdlib only; each backend
+shells its CLI headless with tools denied so grading is pure-text and hermetic.
 
 Backends:
   GrokJudge   -> grok -p --json-schema        (default; grok.com subscription = zero marginal cost)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Bash) for THIS REPO's .claude/settings.json: DENY running a
-# repo-local gate script piped into a filter, which hides its exit code (CLAUDE.md: "Never pipe
-# a gate through a filter that hides its exit code"). `||` and `&&` are allowed; a true `|` after
+# repo-local gate script piped into a filter -- a pipe reports the filter's exit status, not the
+# gate's, so gate failures pass silently. `||` and `&&` are allowed; a true `|` after
 # the invocation is always denied -- no tee/cat carve-out, since those also swallow the exit code
 # without `set -o pipefail`.
 #
@@ -10,8 +10,8 @@
 # active here because pdca-workflow is enabled in .claude/settings.json) already guards it. Also
 # listing it here would run the SAME decision twice on the same command -- duplicated gate logic,
 # cut on sight per CLAUDE.md muda rules. This script owns only the gates that are repo-local
-# tooling: scripts/*.mjs and skills/building-skills/scripts/{validate.py,run_eval.py} (that
-# skill's own dev-skills plugin ships no gate-pipe guard of its own).
+# tooling: scripts/*.mjs, skills/building-skills/scripts/validate.py, and the vendored
+# skill-bench/scripts/run_eval.py (ADR 0033) -- none shipped with a gate-pipe guard of their own.
 #
 # INVOCATION ANCHOR / PIPE CHECK: identical decision logic to the plugin's gate-pipe-guard.sh --
 # see that file's header for the full rationale (word-boundary interpreter+gate match; &&/||
@@ -41,7 +41,7 @@ for gate in $GATES; do
   first_op=$(printf '%s' "$folded" | grep -oE '@@AND@@|@@OR@@|;|\|' | head -1)
 
   if [ "$first_op" = "|" ]; then
-    reason="Denied: $gate is a gate; piping it hides its exit code (CLAUDE.md: never pipe a gate through a filter). Run it bare and read the output directly."
+    reason="Denied: $gate is a gate; piping it hides its exit code (a pipe reports the filter's exit status, not the gate's). Run it bare and read the output directly."
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
     exit 0
   fi

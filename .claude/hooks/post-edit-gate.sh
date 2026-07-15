@@ -14,18 +14,11 @@
 # plugin (skills/building-skills/scripts/validate.py and scripts/*.mjs live in scripts/ or a
 # sibling plugin, per ADR 0046's "instance tooling" distinction).
 #
-# check-restatement SCOPING (required fix): check-restatement.mjs takes no --file argument -- it
-# always full-tree-scans for cross-file restatement (ADR 0046). Running a full-corpus scan on
-# EVERY .md edit is disproportionate to a single-file edit. Two options were weighed: (a) scope
-# the TRIGGER to the file classes the tool has actually caught violations in so far (README.md,
-# docs/**, benchmarks/**, per ADR 0046 and the #141/#88 fix history), or (b) add a --file mode to
-# check-restatement.mjs so it only compares the edited file against the corpus. (b) is a repo
-# script change and is out of scope for a hook-only patch, plus it complicates the pure detect()
-# signature that adr-lint.test.mjs-style testing relies on; a PROPOSAL patch for it is included
-# separately (repo-hooks/check-restatement-file-mode.patch) for the PR agent to evaluate, NOT
-# applied here. (a) needs no script change and is the cheaper sound option: it doesn't reduce the
-# cost of any individual run, but it cuts how OFTEN a full-tree run fires -- editing a SKILL.md or
-# an ADR (already linted elsewhere) no longer triggers it. Chosen: (a).
+# check-restatement SCOPING: check-restatement.mjs takes no --file argument -- every run is a
+# full-tree scan for cross-file restatement (ADR 0046). Scoping the TRIGGER to the file classes
+# with a violation history (README.md, docs/**, benchmarks/**, per ADR 0046) keeps a full-tree
+# run from firing on every .md edit. A per-file mode would need a check-restatement.mjs change
+# and would complicate the pure detect() signature its tests rely on.
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$fp" ] && exit 0
@@ -33,6 +26,7 @@ fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([
 fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
 root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
+PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 
 run_gate() {
   out=$("$@" 2>&1) || { printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2; }
@@ -41,7 +35,7 @@ run_gate() {
 case "$fp" in
   */skills/*)
     skilldir=$(printf '%s' "$fp" | sed -n 's/.*\(skills\/[^/]*\)\/.*/\1/p')
-    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate python "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
+    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in
   */benchmarks/*.workflow.js) run_gate node "$root/scripts/check-workflow.mjs" ;;

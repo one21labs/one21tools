@@ -9,7 +9,7 @@ a code module), the check assumes the caller has already isolated that file's
 content from the surrounding transcript prose (e.g. the text between a
 "```...```" fence or a "outputs/x/SKILL.md" marker and the next file marker).
 This isolation step is itself a small amount of glue code, not covered here --
-documented as a limitation in report.md. Where isolation is unreliable (e.g.
+a known limitation. Where isolation is unreliable (e.g.
 distinguishing a "before" vs "after" frontmatter block), a documented heuristic
 is used (usually: take the LAST frontmatter block in the transcript).
 

@@ -1,8 +1,8 @@
 /*
  * adr-lint.test.mjs — proves adr-lint's decision logic (the poka-yoke for the poka-yoke).
  * Zero-dependency: node's built-in test runner + assert, so it runs with
- * `node --test pdca-workflow/scripts/*.test.mjs` (repo root) on any stack. Each case plants exactly one corpus defect
- * (or a clean corpus) and asserts the matching guard fires.
+ * `node --test pdca-workflow/scripts/*.test.mjs` (repo root) on any stack. Each case plants targeted
+ * defect(s) — or runs a clean/real corpus — and asserts exactly the matching guard(s) fire.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

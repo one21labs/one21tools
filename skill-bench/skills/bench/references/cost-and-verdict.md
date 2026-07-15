@@ -12,6 +12,11 @@ $0 marginal, not $0 real.
 `notional_cost_usd` in the report carries the judge call count and the priced total. Cached
 re-analysis reports zero (no live calls).
 
+A pre-registration states a NUMERIC judge/grading-cost estimate on this same notional basis
+(generation spend already has cost-pilot-first + cost_gate; grading had no analogous
+checkpoint, ADR 0066). When the measured figure exceeds the estimate by more than 2x, record
+the gap in the verdict README and the routing ADR's Act.
+
 ## Scoring
 
 Each cell scores the fraction of its expectations met, after the grade-then-prosecute min rule (see
