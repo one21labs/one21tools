@@ -15,16 +15,12 @@
  *
  * Mechanism, bash hooks: parse pdca-workflow/hooks/hooks.json and any .claude/settings*.json for
  * a "hooks" block's `command` strings ending in .sh (resolving ${CLAUDE_PLUGIN_ROOT} /
- * ${CLAUDE_PROJECT_DIR}) to get the registered set. TWO test conventions coexist in the corpus,
- * and either satisfies this gate — in both cases the standard is a CI-verified invocation, not
- * mere file existence:
- *   (a) a `<basename>.test.mjs` beside the hook or in the plugin's sibling scripts/ dir that
- *       spawns the real .sh (explicit-model-guard, retrospect-reminder), covered by a
- *       `node --test` glob in gates.yml;
- *   (b) a self-contained `test-<basename>.sh` sibling suite (the hooks-wave hooks:
- *       gate-pipe-guard, adr-lint-post-edit, spawn-log), matched by a .sh path/glob appearing in
- *       a gates.yml run: line (e.g. the `for t in pdca-workflow/hooks/test-*.sh` step).
- * Unifying on one convention is a possible follow-up; this lint accepts both and forces neither.
+ * ${CLAUDE_PROJECT_DIR}) to get the registered set. The standard (ADR 0064) is a self-contained
+ * sibling `test-<basename>.sh` suite matched by a .sh path/glob appearing in a gates.yml run:
+ * line (e.g. the `for t in pdca-workflow/hooks/test-*.sh` step) — a CI-verified invocation, not
+ * mere file existence. The two pre-0064 hooks tested via a `<basename>.test.mjs` that spawns the
+ * real .sh (MJS_GRANDFATHERED_HOOKS) keep that path, covered by a `node --test` glob; every
+ * other hook must carry the .sh suite.
  *
  * DESIGN CONSTRAINTS: zero dependencies; findMissingTests() is PURE (no fs — takes gatesYml text,
  * hook-registration texts, and an `existingFiles.has(path)` duck-typed lookup) so the decision
@@ -39,6 +35,13 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const GATES_WORKFLOW = ".github/workflows/gates.yml";
+
+/** Hooks predating ADR 0064 whose decision-logic tests stay `<basename>.test.mjs`; every other
+ *  registered hook must carry a gates.yml-invoked sibling `test-<basename>.sh` (ADR 0064). */
+export const MJS_GRANDFATHERED_HOOKS = new Set([
+  "pdca-workflow/hooks/explicit-model-guard.sh",
+  "pdca-workflow/hooks/retrospect-reminder.sh",
+]);
 const HOOK_REGISTRATIONS = [
   { path: "pdca-workflow/hooks/hooks.json", pluginRoot: "pdca-workflow" },
   { path: ".claude/settings.json", pluginRoot: "." },
@@ -140,17 +143,27 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
     const slash = hook.lastIndexOf("/");
     const dir = slash === -1 ? "." : hook.slice(0, slash);
     const base = (slash === -1 ? hook : hook.slice(slash + 1)).replace(/\.sh$/, "");
-    const scriptsDir = dir.replace(/\/hooks$/, "/scripts");
-    const mjsCandidates = [...new Set([`${dir}/${base}.test.mjs`, `${scriptsDir}/${base}.test.mjs`])];
-    const mjsHit = mjsCandidates.find((c) => existingFiles.has(c) && testGlobs.some((g) => globCoversPath(g, c)));
     const shCandidate = `${dir}/test-${base}.sh`;
     const shHit = existingFiles.has(shCandidate) && shInvocations.some((g) => globCoversPath(g, shCandidate));
-    if (!mjsHit && !shHit) {
+    if (shHit) continue;
+    if (MJS_GRANDFATHERED_HOOKS.has(hook)) {
+      const scriptsDir = dir.replace(/\/hooks$/, "/scripts");
+      const mjsCandidates = [...new Set([`${dir}/${base}.test.mjs`, `${scriptsDir}/${base}.test.mjs`])];
+      if (mjsCandidates.some((c) => existingFiles.has(c) && testGlobs.some((g) => globCoversPath(g, c)))) continue;
       missing.push({
         kind: "hook",
         path: hook,
         expected: [...mjsCandidates, shCandidate].join(" or "),
-        reason: "no CI-visible <basename>.test.mjs or gates.yml-invoked test-<basename>.sh",
+        reason: "no CI-visible <basename>.test.mjs (grandfathered) or gates.yml-invoked test-<basename>.sh",
+      });
+    } else {
+      missing.push({
+        kind: "hook",
+        path: hook,
+        expected: shCandidate,
+        reason: existingFiles.has(shCandidate)
+          ? "test-<basename>.sh exists but no gates.yml run line invokes it"
+          : "hook tests standardize on a gates.yml-invoked sibling test-<basename>.sh (ADR 0064)",
       });
     }
   }
