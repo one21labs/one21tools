@@ -7,10 +7,10 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/adr-lint-post-edit.sh"
-# The real pdca-workflow/ (fixed, known path in this environment) supplies the genuine
-# adr-lint.mjs under test; CLAUDE_PROJECT_DIR below always points at a synthetic mktemp fixture,
-# never at the real repo, so this test cannot mutate or depend on real repo state.
-REAL_PLUGIN_ROOT="C:/Users/ajmcc/projects/one21tools/pdca-workflow"
+# The real pdca-workflow/ (derived from this file's location, never hard-coded — ADR 0069)
+# supplies the genuine adr-lint.mjs under test; CLAUDE_PROJECT_DIR below always points at a
+# synthetic mktemp fixture, never at the real repo, so this test cannot mutate real repo state.
+REAL_PLUGIN_ROOT="$(cd "$HERE/.." && pwd)"
 [ -f "$REAL_PLUGIN_ROOT/scripts/adr-lint.mjs" ] || { echo "SKIP: real pdca-workflow/scripts/adr-lint.mjs not found at $REAL_PLUGIN_ROOT"; exit 0; }
 
 pass=0; fail=0

@@ -10,6 +10,9 @@ import {
   extractShInvocations,
   globCoversPath,
   extractRegisteredHooks,
+  extractPyGates,
+  extractPyTestExecutions,
+  selfSkipLines,
   findMissingTests,
 } from "./check-gate-tests.mjs";
 
@@ -227,4 +230,93 @@ test("grandfathered hook may also satisfy the gate with a test-<basename>.sh sui
     existingFiles,
   });
   assert.deepEqual(missing, []);
+});
+
+// ---- ADR 0069: python gate-has-test + vacuous-test (literal-path self-skip) predicates ----
+
+const PY_GATES_YML = [
+  '          for d in dev-skills/skills/*/; do',
+  '            python3 dev-skills/skills/building-skills/scripts/validate.py "$d"',
+  "          done",
+  "      - run: cd dev-skills/skills/building-skills/scripts && python3 validate_test.py",
+  "      - run: |",
+  "          python3 skill-bench/scripts/lib/check_reachability.py skill-bench/scripts skill-bench/scripts/lib",
+  "          for t in skill-bench/scripts/*_test.py skill-bench/scripts/lib/*_test.py; do",
+  '            python3 "$t"',
+  "          done",
+].join("\n");
+
+test("extractPyGates keeps gate invocations, drops test files, globs, and loop variables", () => {
+  assert.deepEqual(extractPyGates(PY_GATES_YML), [
+    "dev-skills/skills/building-skills/scripts/validate.py",
+    "skill-bench/scripts/lib/check_reachability.py",
+  ]);
+});
+
+test("extractPyTestExecutions collects glob tokens and direct python3 test invocations", () => {
+  const { globs, direct } = extractPyTestExecutions(PY_GATES_YML);
+  assert.deepEqual(globs, ["skill-bench/scripts/*_test.py", "skill-bench/scripts/lib/*_test.py"]);
+  assert.deepEqual(direct, ["validate_test.py"]);
+});
+
+test("python gates with executed siblings pass: glob coverage and cd-then-direct-invocation both count", () => {
+  const existingFiles = new Set([
+    "dev-skills/skills/building-skills/scripts/validate_test.py",
+    "skill-bench/scripts/lib/check_reachability_test.py",
+  ]);
+  assert.deepEqual(findMissingTests({ gatesYml: PY_GATES_YML, hookRegistrations: [], existingFiles }), []);
+});
+
+test("deleting a python gate's sibling test reds the corpus", () => {
+  const existingFiles = new Set(["dev-skills/skills/building-skills/scripts/validate_test.py"]);
+  const missing = findMissingTests({ gatesYml: PY_GATES_YML, hookRegistrations: [], existingFiles });
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].path, "skill-bench/scripts/lib/check_reachability.py");
+  assert.match(missing[0].reason, /no sibling _test\.py/);
+});
+
+test("a python gate whose sibling exists but is never executed fails", () => {
+  const gatesYml = 'run: python3 scripts/some-gate.py\n'; // no glob, no direct invocation
+  const existingFiles = new Set(["scripts/some-gate_test.py"]);
+  const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles });
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].reason, /no gates\.yml line executes it/);
+});
+
+test("selfSkipLines flags literal absolute path-root assignments, spares derived ones", () => {
+  assert.deepEqual(selfSkipLines('REPO="C:/Users/x/proj"\n'), [1]);
+  assert.deepEqual(selfSkipLines('REAL_ROOT="/home/user/projects/x"\n'), [1]);
+  assert.deepEqual(selfSkipLines('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'), []);
+  assert.deepEqual(selfSkipLines('ROOT="${CLAUDE_PROJECT_DIR}/x"\nHOOK="$HERE/x.sh"\n'), []);
+  assert.deepEqual(selfSkipLines('echo "/home/user is not an assignment"\n'), []);
+});
+
+test("a hook whose CI-invoked test-<basename>.sh hard-codes an absolute path fails as vacuous", () => {
+  const gatesYml = [
+    "run: node --test pdca-workflow/scripts/*.test.mjs",
+    'run: for t in pdca-workflow/hooks/test-*.sh; do bash "$t"; done',
+  ].join("\n");
+  const existingFiles = new Set(["pdca-workflow/hooks/test-gate-pipe-guard.sh"]);
+  const readFile = (p) =>
+    p === "pdca-workflow/hooks/test-gate-pipe-guard.sh"
+      ? 'HERE="$(cd x && pwd)"\nREAL_ROOT="C:/Users/ajmcc/projects/one21tools"\n'
+      : null;
+  const missing = findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles, readFile });
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].kind, "hook");
+  assert.match(missing[0].reason, /self-skips via hard-coded absolute path .*:2, ADR 0069/);
+});
+
+test("the same hook passes once the path root is derived (and without readFile the check is skipped)", () => {
+  const gatesYml = 'run: for t in pdca-workflow/hooks/test-*.sh; do bash "$t"; done\n';
+  const existingFiles = new Set(["pdca-workflow/hooks/test-gate-pipe-guard.sh"]);
+  const readFile = () => 'REAL_ROOT="$(cd "$HERE/.." && pwd)"\n';
+  assert.deepEqual(
+    findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles, readFile }),
+    []
+  );
+  assert.deepEqual(
+    findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles }),
+    []
+  );
 });
