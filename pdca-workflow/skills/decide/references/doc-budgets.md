@@ -47,10 +47,11 @@ correct altitude) adds its own entry to `DOC_BUDGETS` with a bigger number — e
 
 ## Editing a budgeted doc — measure first, never iterate against the gate
 
-Before ANY edit to a capped file: `wc -c <file>` -> headroom = cap − current; size the planned
-addition the same way (`printf '%s' "<text>" | wc -c`, minus any text it replaces). Exception —
-`skills/**/references/*.md`: validate.py's caps count unicode CODEPOINTS, not bytes (`wc -c`
-over-reads every em-dash by 2), so measure with the validator itself or
+Before ANY edit to a capped file, measure headroom = cap − current, and size the planned addition
+the same way, minus any text it replaces. Measure in the GATE'S unit: every enforced cap —
+validate.py's (`skills/**/references/*.md`, SKILL.md) AND `char-budget.mjs`'s (CLAUDE.md, ADRs,
+agent prompts) — counts unicode CODEPOINTS, not bytes (`wc -c` over-reads every em-dash by 2), so
+measure with the gate itself or
 `python3 -c "print(len(open(f,encoding='utf-8').read()))"`. If the
 addition exceeds the headroom, do NOT word-golf the new line into mush and do NOT edit-validate-trim
 in a loop: review the WHOLE file for muda and drift (restatements of another home, narration,
