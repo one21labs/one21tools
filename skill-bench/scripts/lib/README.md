@@ -1,6 +1,7 @@
-# benchmarks/lib
+# skill-bench/scripts/lib
 
-Shared helpers for benchmark harnesses (ADR 0026). Stdlib only.
+Shared helpers for benchmark harnesses (ADR 0026; moved from `benchmarks/lib`, #170 M1).
+Stdlib only. Run any module's tests from this dir: `python3 <module>_test.py`.
 
 Convention: a derived/regenerable intermediate (a prep script's output that duplicates committed
 substrate data) gets a `.gitignore` entry in its benchmark dir BEFORE first commit (ADR 0026) —
@@ -16,7 +17,6 @@ its home is the script that regenerates it, not git.
   sorted-order sample of raw output files per group in place, gzip-archive the rest into one
   `all.tar.gz` (ADR 0023's sample rule + ADR 0026's raw-retention amendment).
 
-Test: `cd benchmarks/lib && python -m unittest bench_io_test`
 
 ## verdict.py
 
@@ -34,7 +34,6 @@ Test: `cd benchmarks/lib && python -m unittest bench_io_test`
   cost prong says NO MERGE, `benchmarks/2026-07-09-bs-iter2-remeasure/README.md`) was exactly this
   class of drift.
 
-Test: `cd benchmarks/lib && python -m unittest verdict_test`
 
 ## hermetic_driver.py
 
@@ -43,10 +42,20 @@ Test: `cd benchmarks/lib && python -m unittest verdict_test`
   reads it too: `mapfile -t DENY < lib/deny_tools.txt`, ADR 0041), `NEUTRAL_FRAME`,
   `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
   (one retry on timeout/nonzero exit) and `summarize_call(call)` (envelope figures + wall-clock +
-  start/end timestamps). New harnesses import this; never copy it. The two pre-#110 harnesses keep
-  their copies as append-only snapshots.
+  start/end timestamps), plus the per-cell grid mechanics `fresh_copy(src, tag)` and
+  `capture_artifacts(workdir, src)` (#191: capture for EVERY arm, never pre-existing corpus
+  files). New harnesses import this; never copy it — start from `skill-bench/templates/grid.py`.
+  The two pre-#110 harnesses keep their copies as append-only snapshots.
 
-Test: `cd benchmarks/lib && python -m unittest hermetic_driver_test`
+## artifact_check.py / blind.py / benchstats.py (#191 hardening)
+
+- `artifact_check.check_artifact/classify_cells` — the ERROR-cell rule: a cell whose graded
+  artifact fails the mechanical shape check is infrastructure, never a quality 0.
+- `blind.capture_symmetry(records, response_fn)` — per-arm emptiness/length sweep run BEFORE
+  blinding; `skewed: true` means fix the harness, not grade the skew.
+- `benchstats.top_cell_attribution(cells, x, y)` — leave-one-out per-cell contributors to the
+  clustered delta; `inspect: true` (verdict flips or halves without the top cells) sends the
+  reader to those cells before interpreting the bar.
 
 ## Workflow-pipeline persist step
 
