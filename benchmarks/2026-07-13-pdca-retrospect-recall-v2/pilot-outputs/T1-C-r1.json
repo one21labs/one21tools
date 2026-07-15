@@ -1,0 +1,57 @@
+{
+ "cell": "T1-C-r1",
+ "substrate": "T1",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 207256.9,
+  "duration_ms": 205913,
+  "duration_api_ms": 207498,
+  "cost_usd": 0.8002050999999999,
+  "usage": {
+   "input_tokens": 46,
+   "cache_creation_input_tokens": 51343,
+   "cache_read_input_tokens": 848777,
+   "output_tokens": 15776,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 51343,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1338,
+     "cache_read_input_tokens": 49299,
+     "cache_creation_input_tokens": 2044,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2044
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:41:08.181557+00:00",
+   "end": "2026-07-14T06:44:35.438470+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective findings\n\n**1. `scripts/ci.sh:4` masks gate failures \u2014 the exact cause of friction #3.**\nEvidence: `ef9f348` added `python3 scripts/gate.py docs | grep -v OK`. `gate.py` (`scripts/gate.py:16-17`, unchanged since `d3c9e64`) has *never* printed a line containing `OK` \u2014 it only ever prints `over limit: <path>` on failure and nothing on success. So `grep -v OK` is a no-op filter that exists for no real purpose, but it has a real side effect: `sh -e` (POSIX `set -e`, no `pipefail`) evaluates a pipeline's exit status as the *last* command's, not the pipeline's first-failure status. When `gate.py` finds a violation and exits 1, its \"over limit: ...\" line still passes `grep -v OK` (doesn't contain \"OK\"), so `grep` exits 0 and swallows the failure \u2014 CI stays green with a violation present. That's friction #3, not a fluke: it's baked into the script and will refire on the next over-long line.\n\u2192 Improvement: drop the dead `| grep -v OK` (`python3 scripts/gate.py docs` alone); add a smoke check that `ci.sh` itself exits non-zero when `gate.py` finds a violation \u2014 currently only `gate.py`'s internal logic is tested (`scripts/gate.test.py`), never the entrypoint CI actually runs. Per CLAUDE.md's Never rule (\"ship a process-gating script \u2026 without a test of its decision logic\"), `ci.sh` is the gate CI invokes and has zero coverage.\n\u2192 Home: `scripts/ci.sh` (fix) + a new `scripts/ci.test.sh`-style check or the same `gate.test.py` (test).\n\u2192 Judgment call: no \u2014 direct bug fix + closing an existing Never-rule gap, not a new policy.\n\n**2. `transcript.md` (commit `b76851e`, all 35 lines) is a committed \"how it got here\" session narration \u2014 the exact drift CLAUDE.md names.**\nEvidence: CLAUDE.md's Docs section: *\"Git history is the SSoT for backstory \u2014 state the current truth, never narrate how it got there ('Learned' logs, retired-ID notes = drift; cut on sight).\"* `transcript.md` is literally a \"What I did\" / session play-by-play (includes draft PR bodies, one of which \u2014 \"PR 2\" \u2014 is missing the required `Retrospective:` line, ADR 0030) committed into the tree instead of living in commit messages.\n\u2192 Improvement: delete `transcript.md`; don't commit session narrations going forward (the rule already exists, this is a compliance miss, not a new rule).\n\u2192 Home: repo root (delete), no new doc needed \u2014 rule already lives in CLAUDE.md's Docs section.\n\u2192 Judgment call: no.\n\n**Omitted (one-offs, not systemic per method):**\n- Friction #1 (flaky timeout): no dedicated integration test exists in the tree (`find` turns up only `gate.test.py`/`report.test.py`); single occurrence, self-resolved by rerun, no reproducible code path to cite \u2014 not systemic.\n- Friction #2 (rebase conflict in `docs/config.md`): `git log HEAD..origin/main` shows **0** commits \u2014 main hasn't advanced past this branch, so no diverging `docs/config.md` commit exists to corroborate a conflict today. Unverifiable against current git state; likely already resolved/stale.\n\nPanel-fire log (`docs/pdca/session-log.txt`) is present but empty \u2014 a miss, since `ef9f348` changed what the CI gate enforces (added unit tests to the required gate, and introduced the exit-masking bug) with no recorded panel entry or ADR. Not raising as a separate finding: fixing #1 (test the gate entrypoint) closes the actual hole mechanically: if it need a panel input it would trigger it, so a process rule on top would be gold-plating."
+}

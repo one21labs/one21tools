@@ -1,0 +1,143 @@
+{
+ "cell": "B1-D-r1",
+ "scenario": "B1",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 140038.3,
+  "duration_ms": 138678,
+  "duration_api_ms": 139440,
+  "cost_usd": 0.41693949999999996,
+  "usage": {
+   "input_tokens": 20,
+   "cache_creation_input_tokens": 23698,
+   "cache_read_input_tokens": 402315,
+   "output_tokens": 10124,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 23698,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6153,
+     "cache_read_input_tokens": 48041,
+     "cache_creation_input_tokens": 1367,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1367
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:28:40.854186+00:00",
+   "end": "2026-07-14T13:31:00.892534+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.7702221
+ },
+ "response": "Grounded in `ISSUE-41.md`, ADRs 0019/0023/0024/0029, and `scripts/check-workflow.mjs` + `gates.yml`. One correction to the premortem probe's material: **Comment 2/3's \"advisory, #54 undecided\" is stale** \u2014 ADR 0029 (2026-07-09) already made `check-workflow.mjs` a required CI gate (`gates.yml:40-41`), but it only walks `benchmarks/` by default; the eventual production Do-phase script would live under `pdca-workflow/scripts/`, outside that scan. So the model-key gate protects the *test's* new orchestration script but not yet a *production* one \u2014 a real residual gap, not the closed one the probe assumed. I also confirmed via `git log` that the \"skills + agents benefit-benchmark batch\" ISSUE-41 is gated behind (line 21) has wound down \u2014 recent merges (#96\u2013#100) are wrap-up/polish (ADR 0034, README refresh, description trims, audit-sample completeness), not open benchmark cells.\n\n## Decision\n\n**Adopt Option 3: run the pre-registered test (Comment 1/3) now, decide strictly by its pre-registered rule.** Do not adopt Tiered on assertion (Option 1 \u2014 ADR 0024 line 15 forbids this outright). Do not reject without measurement (Option 2 \u2014 its load-bearing premise, \"no Haiku\u2194Opus gradient exists,\" is itself an unmeasured assertion the same ADR bars acting on, and industry-prior favors a gradient existing). Defer Opus-main (Option 4) per Comment 3's own sequencing until Sonnet-main is characterized.\n\nTwo amendments to the pre-registration, driven directly by the premortem's strongest finding:\n\n1. **Validator fidelity becomes a co-gate, not just a reported metric.** Comment 1 already collects false-accept/false-reject vs the blind grader as a threat-control; the decision rule (Comment 1, \"Adopt Tiered if delta \u2265 -0.05 AND tokens \u2264 0.7x\") does not currently condition on it. Add: adoption is blocked if the validator's false-accept rate against the blind grader exceeds a small tolerance (e.g., materially above its false-reject rate), even if pass-rate delta and cost clear their thresholds \u2014 because a rubber-stamping validator can pass the benchmark by construction (the blind grader catches what the validator misses *in the benchmark*, but nothing catches it in production).\n2. **Before any production Do-phase script ships**, extend `check-workflow.mjs`'s scan path (or file a follow-up issue) to cover wherever that script lands, not just `benchmarks/` \u2014 closing the gap the correction above identified, so the #53 defect class can't reappear in production untested.\n\nThe curated 8-task Haiku\u2192Opus gradient (Premortem #3) is accepted as an inherent property of a signal-seeking pre-screen, not a blocker \u2014 but it's recorded below as a live risk with its own revisit trigger rather than left implicit.\n\n## The load-bearing assumption\n\n**A Sonnet main-agent's validation of Haiku-worker output is a reliably accurate proxy for true correctness (low false-accept rate).** The whole tiered mechanism \u2014 plan, dispatch, validate, re-dispatch \u2014 depends on the validator actually catching bad worker output; if it instead tends to rubber-stamp, the loop is not \"cheap workers supervised by a competent judge,\" it's \"cheap workers whose mistakes go uncaught,\" and every benefit (quality-neutral at lower cost) evaporates regardless of what the benchmark's pass-rate delta shows. This is a mechanism premise, not a measurement one: it's about whether Sonnet *can* competently judge Haiku's work in the real Do-phase, independent of how well any given test measures it.\n\n## The failure class being accepted\n\n**Silent production quality drift via validator self-grading bias, undetected because production has no independent blind grader.** The benchmark's blind grader (ADR 0019's mitigation stack) exists only in the test; once adopted, the Sonnet validator is the only judge of Haiku's work in the live Do-phase. If validator fidelity was marginal-but-passing at benchmark time (or degrades later \u2014 e.g., under task types the 8-task set didn't cover), nothing downstream re-checks it, and quality erodes below the benchmarked margin with no alarm. This mirrors ADR 0019's already-named residual (\"Claude-grades-Claude family bias\") and Comment 3's owner-call #1, which explicitly accepted \"the Sonnet-grades-Sonnet residual\" rather than solving it \u2014 I'm inheriting that same accepted residual here, now made an explicit gating input (amendment 1) rather than a passive report.\n\n## Rejected alternatives\n\n- **Option 1 (adopt now, skip the test)** \u2014 forbidden by ADR 0024 line 15; no new information changes that.\n- **Option 2 (reject, keep solo)** \u2014 its load-bearing premise (no real gradient) is unmeasured; rejecting on that assertion violates the same \"don't decide on assertion\" principle Option 1 fails, just in the opposite direction.\n- **Option 4 (test/adopt Opus-main first)** \u2014 premature per Comment 3's own sequencing; Sonnet-main isn't characterized yet, so there's nothing yet to compare Opus-main against.\n\n## Revisit triggers\n\n- Validator false-accept rate materially exceeds false-reject rate against the blind grader \u2192 adoption blocked regardless of pass-rate/cost numbers (amendment 1).\n- A production Do-phase script ships before `check-workflow.mjs`'s scan path covers its location \u2192 treat as a #53-class defect waiting to happen; block merge until amendment 2 lands.\n- Post-adoption production pass rate or token spend on real (non-curated) Do-phase tasks diverges materially from the benchmarked numbers \u2192 the curated 8-task set (Premortem #3) failed to represent production variance; re-open with a broader/unscreened task sample.\n- Sonnet-main clears the bar \u2192 Opus-main (Option 4) becomes live per its own deferred sequencing.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 54485.9,
+   "duration_ms": 52132,
+   "duration_api_ms": 53218,
+   "cost_usd": 0.229067,
+   "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 20345,
+    "cache_read_input_tokens": 182840,
+    "output_tokens": 3426,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 20345,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2522,
+      "cache_read_input_tokens": 38911,
+      "cache_creation_input_tokens": 1562,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1562
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:27:46.367608+00:00",
+    "end": "2026-07-14T13:28:40.853541+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read `ISSUE-41.md` plus the referenced ADRs (0019, 0023, 0024) and `scripts/check-workflow.mjs` to ground this in the actual materials.\n\n## Premortem: tiered-agent Do-phase execution, failed 6 months post-adoption\n\n**1. The validator's rubber-stamp goes undetected because production has no blind grader.** The pre-registration's own threats list names this: *\"Validator fidelity \u2014 measure the main-agent validator's false-accept / false-reject vs the final grader; a validator that rubber-stamps bad work invalidates the loop\"* (ISSUE-41.md Comment 1). Worse, Comment 3's owner-call #1 admits *\"grader independence is unsolvable with 3 tiers... accept the Sonnet-grades-Sonnet residual\"* \u2014 the same Sonnet tier plans, validates, *and* is one of the solo arms being compared against, echoing ADR 0019's already-named residual \"Claude-grades-Claude family bias.\" The benchmark's safety net is an independent blind grader (ADR 0019 item 5); production has no such grader \u2014 only the Sonnet validator judging its own Haiku workers. If the decision ships on a measured pass rate that depended on that external grader catching validator false-accepts, production quality can quietly drift below the benchmarked -0.05 margin because nothing downstream re-checks the validator's own accept decisions.\n\n**2. Silent tier collapse via a missing `model:` key re-inflates cost with no alarm.** Comment 2 documents that this exact failure already happened once: *\"5 merged `*.workflow.js` still omit `model:` on their grader/worker `agent()` calls, so a rerun silently executes on the session model (Opus)\"* (issue #53). The tiered orchestrator is precisely this shape of script \u2014 main/worker/validator roles each needing their own `model:` (Comment 3: *\"New code: one tiered-orchestration Workflow script with model: set per role (the #53 lesson)\"*). `scripts/check-workflow.mjs` catches this, but it's explicitly *advisory* \u2014 *\"Runs manually before a PR... the exit code is gate-ready if #54 later decides to wire it\"* \u2014 and #54 (whether to make it a hard gate) is undecided. If it stays advisory, a future edit to the production Do-phase script can drop a `model:` key, silently fall back to the session's top-tier model, and erase the cost savings the adoption decision was justified on \u2014 while pass rate looks fine (because it's secretly running at higher tier), so nothing trips until someone audits token spend.\n\n**3. The 8-task pre-screened gradient doesn't represent real Do-phase task variance.** The test deliberately curates *\"8 implementation tasks... chosen for a Haiku->Opus quality gradient... Pre-screen with a 1-rep Haiku-solo vs Opus-solo pass; drop saturated tasks\"* (Comment 1), and names its own threat: *\"Task gradient \u2014 without a Haiku<Opus gap the test is uninformative; the pre-screen enforces it.\"* That curation optimizes for signal, not for representativeness of the actual Do-phase task mix. If real tech-lead\u2192implementation tasks skew toward the harder end (where Haiku fails often and needs multiple `<=3` retry cycles), the honest-denominator token sum \u2014 *\"sum tokens across main + workers + every validation/retry; the orchestration overhead IS the tax under test\"* \u2014 blows past the pre-registered `<=0.7x` cost threshold in production even though the curated benchmark cleared it, because the decision rule was validated on a distribution engineered to show divergence, not sampled from the live task population."
+  },
+  "assumption": {
+   "duration_ms_wall": 37386.3,
+   "duration_ms": 35038,
+   "duration_api_ms": 36291,
+   "cost_usd": 0.12421560000000001,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11391,
+    "cache_read_input_tokens": 48692,
+    "output_tokens": 2703,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11391,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2607,
+      "cache_read_input_tokens": 28564,
+      "cache_creation_input_tokens": 2955,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2955
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:27:46.368647+00:00",
+    "end": "2026-07-14T13:28:23.754948+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read the issue. Four realistic options for \"adopt tiered-agent execution?\", each with its single load-bearing premise:\n\n1. **Adopt Tiered now, skip the test** \u2014 load-bearing: the hypothesis that Tiered is non-inferior (delta \u2265 -0.05) at \u226530% lower tokens (line 31) is true without measurement. If false, option 1 flips to reject \u2014 and ADR 0024 already forbids taking this shortcut (line 15: \"Do NOT adopt on assertion\").\n\n2. **Reject Tiered, keep solo-model Do phase** \u2014 load-bearing: no Haiku\u2194Opus quality gradient exists on real implementation tasks, so tiering has nothing to gain from (line 54: \"without a Haiku<Opus gap the test is uninformative\"). If a gradient does exist, option 2 flips \u2014 the test/adopt path becomes live.\n\n3. **Run the pre-registered test, decide by its rule afterward** (the plan as drafted) \u2014 load-bearing: the current skills/agents benefit-benchmark batch has already completed, since this work is explicitly scoped to start only \"AFTER\" it (lines 4, 21). If that batch is still running, option 3 isn't executable yet.\n\n4. **Test/adopt the Opus-main variant** (vs Sonnet-main) \u2014 load-bearing: Sonnet-main has already been characterized (and found insufficient), since Comment 3 defers Opus-main \"per the pre-reg's own sequencing\" (line 67) until Sonnet-main is done. If Sonnet-main is uncharacterized or already clears the bar, option 4 is premature/moot.\n\nNo decision made \u2014 this is assumption-hunt only."
+  }
+ },
+ "artifacts": {}
+}

@@ -1,0 +1,57 @@
+{
+ "cell": "T3-C-r1",
+ "substrate": "T3",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 181292.3,
+  "duration_ms": 179770,
+  "duration_api_ms": 169987,
+  "cost_usd": 0.44563030000000003,
+  "usage": {
+   "input_tokens": 30,
+   "cache_creation_input_tokens": 18765,
+   "cache_read_input_tokens": 529481,
+   "output_tokens": 11559,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 18765,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3487,
+     "cache_read_input_tokens": 41529,
+     "cache_creation_input_tokens": 205,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 205
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:00:25.708561+00:00",
+   "end": "2026-07-12T04:03:27.000861+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective \u2014 origin/main...HEAD (6 commits)\n\n**1. `scripts/ci.sh:3` pipes the gate through a filter, silently swallowing gate failures \u2014 root cause of friction #3.**\nEvidence: `7b2b48d` changed `python3 scripts/gate.py docs` to `python3 scripts/gate.py docs | grep -v OK`, directly violating this repo's CLAUDE.md: *\"Never pipe it through a filter \u2014 a pipe reports the filter's status, not the gate's.\"* Verified mechanically: without `set -o pipefail`, `set -e` only checks the last command in a pipe. `gate.py` never prints \"OK\" \u2014 on failure it prints `over limit: <path>` lines, which don't match `OK`, so `grep -v OK` selects and prints them and exits **0**, masking a nonzero gate exit. This is exactly friction #3 (\"CI stayed green on a run where a doc had an over-long line; I only caught it on a manual pass\") \u2014 not a one-off miss, it's a structural defect in `ci.sh` that will mask every future gate failure.\nImprovement: revert `ci.sh` to `python3 scripts/gate.py docs` bare, per the Sacred rule. If CI noise is a real problem, fix it inside `gate.py`'s own output (e.g. only print on failure \u2014 it already does), never via an external filter on the invocation.\nHome: `scripts/ci.sh` (behavior rule, already stated in CLAUDE.md \u2014 this is a compliance fix, not a new rule).\nJudgment call: no \u2014 restores an existing Sacred rule; execute directly.\nDetection-latency promotion: this class of bug (pipe defeats exit code) is invisible to a human skim of green CI. Add a one-line executable check \u2014 e.g. a test asserting `ci.sh` contains no `|` after the gate invocation, or CI running `scripts/gate.py` a second time bare and diff-checking exit codes \u2014 so it's caught by a script, not \"a manual pass\" next time. Home: `scripts/gate.test.py` or a new `scripts/ci.test.sh`.\n\n**2. `README.md:13-15` adds a \"Project history\" section \u2014 git-tellable backstory in a doc, and the actual over-long line that #1 masked.**\nEvidence: `e4209d5` added *\"Cartostatic began as `tilegen` before the big rename... Kept here so newcomers understand how we arrived at today's layout.\"* This directly violates this repo's CLAUDE.md: *\"Do not narrate how the project got here (no 'History' or 'Previously' sections); the log already holds that.\"* It's also mechanically the trigger for friction #3: `wc -L README.md` \u2192 225 chars, well over the 110-char gate limit, and it's the only line in the tree that fails the gate.\nImprovement: delete the \"Project history\" section entirely (git log is the SSoT for backstory).\nHome: `README.md` (Sacred rule already stated in CLAUDE.md \u2014 compliance fix).\nJudgment call: no.\n\n**3. `scripts/gate.py:6` raised the line-limit threshold without its paired test, and without going through /decide.**\nEvidence: `70c953d` changed `LIMIT = 90` \u2192 `110` touching only `gate.py`, not `scripts/gate.test.py`. This violates this repo's explicit rule: *\"change a gate script's decision logic only alongside its paired test in the same commit.\"* Consequence verified: `scripts/gate.test.py:5` still asserts `over_limit('x' * 100) is True` \u2014 with `LIMIT=110`, a 100-char line is no longer over limit, so that assertion is now **false**; the paired test is silently broken. Separately, a threshold change is exactly the kind of judgment call the top-level CLAUDE.md says must trigger `/decide` immediately (\"a threshold, scope, or policy question \u2014 even meta/tooling\"); `docs/pdca/session-log.txt` is empty and no ADR carries a `Panel:` line for this, so it shipped with no panel fire at all \u2014 a miss, not a misfire.\nImprovement: fix `gate.test.py` to match whatever limit is actually decided (e.g. `'x' * 111`), in the same commit as any future `LIMIT` change.\nHome: `scripts/gate.test.py` (executable gap) + the `/decide` skill process (structural rule: threshold changes to a Sacred gate need a fire).\nJudgment call: yes \u2014 retroactively run `/decide` on the 90\u2192110 threshold (keep, revert, or pick a different value) and record it as an ADR in `docs/decisions/`.\n\n**4. `docs/decisions/0002-tile-cache.md:11` \u2014 silent ADR decision edit, no amendment pointer, status never flipped.**\nEvidence: `7122622` changed the decision text from \"keeps the last 200 tiles\" to \"500 tiles\" in place; `status:` frontmatter is still `accepted`, no amendment pointer added. This repo's CLAUDE.md: *\"when an ADR's decision changes, the record carries an amendment pointer and its status flips to `amended`. A silent decision edit is not allowed.\"*\nImprovement: either add an amendment pointer + flip `status: amended` on 0002, or (if this was meant as a fresh decision) file a new ADR that supersedes 0002 instead of hand-editing it.\nHome: `docs/decisions/0002-tile-cache.md` + `/decide` skill (amendment procedure).\nJudgment call: yes \u2014 the cache-size change itself is a policy question; needs `/decide` to produce the amendment properly.\n\n**Friction cross-check / omitted one-offs:**\n- Friction #1 (flaky integration test, timeout, clean rerun): no git-visible defect, generic flake \u2014 omitted as non-systemic.\n- Friction #2 (rebase conflict in `docs/config.md`): `docs/config.md` is byte-identical to `origin/main` \u2014 the conflict resolution left no trace and no evidence of a wrong resolution. Omitted as a one-off.\n\nOrdered by recurrence cost: #1 (defeats the gate for *all* future violations) > #2 (the concrete instance it masked, plus a standing Sacred-rule violation) > #3 (broken test + missing panel fire, recurs on next threshold edit) > #4 (recurs on next ADR edit)."
+}

@@ -1,0 +1,56 @@
+{
+ "cell": "B1-A-r1",
+ "scenario": "B1",
+ "arm": "A",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 139208.8,
+  "duration_ms": 137410,
+  "duration_api_ms": 138783,
+  "cost_usd": 0.6108034,
+  "usage": {
+   "input_tokens": 40,
+   "cache_creation_input_tokens": 31949,
+   "cache_read_input_tokens": 869188,
+   "output_tokens": 10503,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 31949,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 835,
+     "cache_read_input_tokens": 51772,
+     "cache_creation_input_tokens": 305,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 305
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T19:32:45.178886+00:00",
+   "end": "2026-07-14T19:35:04.387698+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.6108034
+ },
+ "response": "I've drafted and saved the decision as an ADR. Note: `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` keeps requiring approval in this session and I haven't been able to run it \u2014 please approve or run it yourself to confirm the new ADR passes lint before merging.\n\n## Decision: defer adoption, authorize the pre-registered test\n\nRecorded as `docs/decisions/0035-tiered-agent-do-phase-defer-pending-test.md`:\n\n**Do not adopt tiered-agent execution now.** No empirical data exists \u2014 I searched `benchmarks/` and found no tiered-execution run has ever been done. ADR 0024 already commits this repo to \"do not adopt a cost-side artifact on assertion,\" and a tiered execution architecture (Sonnet plans/validates, Haiku implements) is exactly that kind of claim (\"a validator catches the cheap worker's drift\") in a different shape \u2014 it inherits the same empirical bar.\n\n**What I did authorize instead**, resolving the three \"owner calls before spend\" that issue #41 Comment 3 left open:\n1. **Grader independence** \u2014 accept the Sonnet-grades-Sonnet residual (same precedent ADR 0019 already accepts); not worth a 4th tier just for grading.\n2. **Hermetic controls** \u2014 carry over CLAUDE.md relocation; drop tool-deny as unenforceable for tool-using tasks (documented as a known threat, not a blocker).\n3. **Retry/feedback** \u2014 keep the pre-registered \u22643-cycle cap; validator feedback returns only the diagnosed gap, never a rewritten solution (mirrors ADR 0024's diagnose-before-edit method).\n\n**Adoption itself stays gated** on the pre-registered decision rule from Comment 1: adopt Tiered only if pass-rate delta \u2265 -0.05 vs Sonnet-solo AND tokens \u22640.7\u00d7 (or wall-clock \u22640.7\u00d7). The test runs after the current skills/agents benefit-benchmark batch completes (per the issue's own sequencing), and the result gets recorded either way per ADR 0024's append-only rule \u2014 this ADR gets rationalized in place with the outcome rather than superseded by a new one.\n\nNext step for you: `git add docs/decisions/0035-*.md ISSUE-41.md` (or discard the untracked issue file if it was scratch) and open this as its own PR per the one-ADR-per-PR rule, once lint is confirmed clean.",
+ "poker": {},
+ "artifacts": {
+  "docs/decisions/0035-tiered-agent-do-phase-defer-pending-test.md": "---\nid: 0035\ntitle: \"Tiered-agent Do-phase execution: defer adoption pending the pre-registered empirical test\"\nstatus: accepted\nsummary: \"Do not adopt tiered-agent (Sonnet-plans/Haiku-implements) execution for pdca-workflow's Do phase on assertion (ADR 0024); authorize running issue #41's pre-registered 4-arm test, with its three pre-spend owner calls resolved here, and gate actual adoption on the test's decision rule.\"\n---\n\n# 0035 \u2014 tiered-agent Do-phase execution: defer, authorize the test\n\n- Date: 2026-07-14\n- Owner: PM\n- Panel: owner-directed \u2014 issue #41's comments 1-3 already pre-registered the test design; the\n  controlling bar is the existing ADR 0024, so no separate advisor panel was needed.\n- Context: issue #41 proposes redesigning the Do phase (tech-lead -> implementation) so a top-tier\n  model plans/validates and a cheap model implements the bulk of the work. Comment 1 pre-registers\n  a falsifiable 4-arm test (Haiku-solo / Sonnet-solo / Opus-solo / Tiered) against the existing\n  hermetic harness (`benchmarks/2026-07-08-skills-hermetic/`). ADR 0024 forbids adopting a\n  cost-side change on assertion. No `benchmarks/*tiered*` directory exists (checked 2026-07-14) \u2014\n  the test has not run. Comment 3 leaves 3 owner calls open before spend.\n\n## Decision\n1. Do **not** adopt tiered-agent execution now \u2014 no data exists yet (ADR 0024: \"do not adopt on\n   assertion\" applies equally to a cost-side execution-architecture claim).\n2. Authorize running the Comment 1 pre-registered test as the next step on this issue, sequenced\n   after the skills/agents benefit-benchmark batch per issue #41's own \"Timing\" note \u2014 verify that\n   batch's completion at test-start time, not here.\n3. Resolve the 3 pre-spend owner calls (Comment 3) so the test can start without further gating:\n   a. **Grader independence** \u2014 accept the Sonnet-grades-Sonnet residual (the Tiered arm's Sonnet\n      main is graded by the Sonnet blind grader); same residual ADR 0019 already accepts elsewhere.\n      Do not spin up a 4th tier solely to grade.\n   b. **Hermetic controls** \u2014 carry over user-CLAUDE.md relocation; drop tool-deny (unenforceable\n      once the task is tool-using implementation) \u2014 record as a known threat in the run write-up,\n      not a blocker.\n   c. **Retry-cap** \u2014 <=3 cycles (already pre-registered, Comment 1). **Feedback format** \u2014 the\n      validator returns only the diagnosed gap (which expectation failed + why), never a rewritten\n      solution \u2014 mirrors ADR 0024's diagnose-before-edit method and keeps the worker's context\n      from growing across cycles.\n4. Actual adoption stays gated on the Comment 1 decision rule: Tiered adopted only if pass-rate\n   delta >= -0.05 vs Sonnet-solo AND tokens <=0.7x (or wall-clock <=0.7x). Record the result either\n   way (append-only, ADR 0024), including whether Tiered reaches Opus-solo quality at sub-Opus cost.\n\n## Justification\nADR 0024 is the controlling precedent: this repo already committed to measuring benefit-per-token\nbefore trusting a cost-side claim for any context-cost artifact. Tiered execution is the same\nclaim (\"a top-tier validator catches a cheap worker's drift\") in a different shape, so it inherits\nthe same bar. Approving the test now \u2014 rather than deferring the whole issue \u2014 keeps momentum\nwhile withholding the adoption call until the pre-registered criterion resolves. Cost is near zero:\nthe test reuses the hermetic harness, `blind.py`/`aggregate.py`, and `grade.workflow.js` verbatim\n(Comment 3); the risk this forecloses is silently paying the tiering orchestration tax without a\nquality-matched saving to show for it.\n\n## Rejected alternatives\n- Adopt now on the design's face plausibility \u2014 violates ADR 0024 directly; \"a validator will\n  catch it\" is exactly the kind of claim ADR 0024's hermetic measurement exists to check, not assume.\n- Reject/close the issue outright \u2014 premature; the design has not been tested, only asserted;\n  closing without data discards a real cost lever with no evidence either way.\n- Block the test until a genuinely independent 4th grading tier exists \u2014 over-engineers grader\n  independence for a benchmark scoped as directional (3 reps, 8 tasks); ADR 0019 already accepts\n  this residual elsewhere, so a new bar here would be inconsistent.\n\n## Assumptions\n- [checkable] no `benchmarks/*tiered*` directory or ADR referencing issue #41 exists yet \u2014 verified\n  via repo search 2026-07-14 (`ls benchmarks/`, `docs/decisions/` up to 0034); result: confirmed absent.\n- [checkable-doc] the skills/agents benefit-benchmark batch issue #41 sequences after has a\n  completion signal (merged PR/ADR) before the tiered test starts \u2014 owner verifies at test-start\n  time, not here.\n- [unverifiable] the Sonnet-grades-Sonnet residual (3a) does not bias the Tiered arm's measured\n  pass rate upward relative to the other solo arms \u2014 REOPEN-IF: a later run with a genuinely\n  independent 4th-tier grader shows a directional gap vs this run's numbers.\n\n## Revisit triggers\n- The pre-registered test completes -> rationalize this ADR in place with the adopt/reject result\n  and the measured numbers (ADR 0024's record-either-way rule); do not open a second ADR for the result.\n- Someone tries to start the tiered test before the skills/agents benefit-benchmark batch this\n  issue is sequenced after has completed -> block start, finish that batch first.\n"
+ }
+}

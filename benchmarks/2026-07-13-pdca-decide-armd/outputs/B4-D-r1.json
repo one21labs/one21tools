@@ -1,0 +1,145 @@
+{
+ "cell": "B4-D-r1",
+ "scenario": "B4",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 174444.0,
+  "duration_ms": 172279,
+  "duration_api_ms": 174363,
+  "cost_usd": 0.6048451,
+  "usage": {
+   "input_tokens": 34,
+   "cache_creation_input_tokens": 28222,
+   "cache_read_input_tokens": 781467,
+   "output_tokens": 13255,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 28222,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3564,
+     "cache_read_input_tokens": 53859,
+     "cache_creation_input_tokens": 91,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 91
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:31:34.335855+00:00",
+   "end": "2026-07-14T13:34:28.779923+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.0575379
+ },
+ "response": "I read ISSUE-109.md and cross-checked it against ADR 0035 (#41's verdict), ADR 0024 (the tool-cost gate), and ADR 0019 (eval-CI validity), then weighed both probes. Decision: **proceed, but staged behind a checker-fidelity gate** \u2014 not the full grid, and not a decline. I've recorded this as `docs/decisions/0036-routing-experiment-gate.md`.\n\nReasoning in brief: the premortem's risks #2 (decision rule adjusted post-peek) and #3 (cost formula undercounts checker overhead) are process holes that close cleanly with explicit conditions \u2014 they're reasons to *gate* the experiment, not reasons to *decline* it. Risk #1 (checker inherits #41's 25% false-accept) is the actual mechanism question routing is meant to test, and the issue itself pre-registers a cheap escape hatch for it (ISSUE-109.md:14). So the sound move is to spend the cheap part first (a live checker-fidelity screen) and only pay for the full grid if that clears.\n\n---\n\n```\n---\nid: 0036\ntitle: \"Routing experiment (issue #109): proceed, staged behind a checker-fidelity gate\"\nstatus: accepted\nsummary: \"Proceed with the Haiku-attempt/checker-escalate routing experiment (issue #109), but staged: a cheap live checker-fidelity screen (Phase 0) must clear ~10-15% false-accept before the full escalation-rate grid (Phase 1) runs; the non-inferiority/cost decision rule is locked and the cost formula corrected to charge checker cost on every cell before any Phase 1 spend.\"\n---\n\n# 0036 \u2014 routing experiment gate\n\n- Date: 2026-07-14\n- Owner: PM (decided directly per owner authority; no deferral)\n- Panel: two independent probes (premortem, assumption-audit) run blind to each other and to any draft decision; synthesized here\n- Context: issue #41's tiered config (sonnet plans/validates, haiku implements, coach-and-retry) was rejected on cost/quality (ADR 0035). ISSUE-109.md proposes the cascade shape #41 never tested \u2014 routing: haiku attempts once, a checker decides accept/escalate, escalation reruns the whole task on sonnet. ISSUE-109.md:14 pre-registers the threat directly: #41's Sonnet validator false-accepted 25% (replicated 6/24, ADR 0035:27) \u2014 under routing, a false-accept ships a Haiku-floor artifact with no external grader to catch it.\n\n## Decision\n1. **Stage the experiment; do not run the full grid first.** Phase 0 (cheap, live): measure false-accept rate per candidate checker variant (Sonnet judge vs. checklist-scored deterministic checks) on LIVE routing over the 8 gradient tasks \u2014 a fresh Haiku attempt graded by the checker, not a replay of #41's already-graded artifacts (replay doesn't exercise the checker's real decision surface). Gate: if every checker variant measures >=15% false-accept, record the null (ADR 0019 append-only) and STOP \u2014 do not run Phase 1 (ISSUE-109.md:14's own escape hatch).\n2. **Phase 1 (full escalation-rate x checker-variant grid vs. Sonnet-solo) runs only if Phase 0 clears.**\n3. **Lock the decision rule before Phase 1 spend, per ADR 0024 D3.** Non-inferiority margin -0.05, clustered CI (ADR 0019), cost bar = \"materially below Sonnet-solo\" defined here as <=0.6x cost (ADR 0035's tiered-arm bar, for comparability). Fixed now; never adjusted after seeing Phase 1 numbers (ADR 0024 D3; ADR 0035's rejected-alternatives names this exact move a violation).\n4. **Fix the cost model before spend.** ISSUE-109.md:10's formula (cost ~= 0.016 + E x (checker + 0.055)) only charges the checker call on the escalated fraction E, but the checker must run on every cell to decide accept/escalate. Corrected: cost ~= 0.016 + checker_cost (charged on all cells) + E x 0.055.\n5. **If Phase 1's eval-level CI straddles the boundary** (plausible at 8 tasks, under ADR 0019's 4-non-tied-eval floor), escalate replicates sequentially per ADR 0019 item 2 \u2014 never treat a straddling CI as license to move the bar in item 3.\n\n## Justification\nPhase 0 is strictly cheaper than Phase 1 and answers the go/no-go mechanism question first: routing's entire quality case rests on the checker beating #41's already-measured 25% false-accept (ISSUE-109.md:6,14). Items 3-4 close the two process-side holes the premortem found (an unlocked decision rule inviting post-hoc adjustment; an undercounted cost formula) before either can bite, without requiring a decline. **Failure class accepted:** if Phase 0 fails, its bounded pilot-scale spend (gradient-task-scale, not the full grid) is sunk \u2014 this is the cost of testing a real, previously-untested mechanism, not the open-ended spend Phase 1 gating exists to prevent.\n\n## Assumptions\n- [unverifiable] **LOAD-BEARING:** at least one checker variant (Sonnet judge or checklist-scored deterministic check) can plausibly hold false-accept to ~10-15% on Haiku-attempt artifacts, materially below #41's measured ~25% (ISSUE-109.md:14, ADR 0035:27) \u2014 the real-world mechanism claim the entire routing case depends on. REOPEN-IF: Phase 0 measures every candidate checker >=15% false-accept \u2014 then decline permanently; do not re-test the same checker family absent a genuinely new checker design.\n- [checkable] the corrected cost formula (item 4) reproduces against the benchmark harness's per-cell token/cost accounting \u2014 owner: Phase 0 implementer; result: pending (Phase 0 not yet run).\n- [checkable-doc] the decision rule (item 3) is recorded, unedited, before Phase 1's first cell runs \u2014 owner: PM, verified at Phase 1 kickoff.\n\n## Rejected alternatives\n- **Decline outright.** Sonnet-solo having \"no urgency\" (ISSUE-109.md:16) is a timing fact, not a reason to forgo a cheap, gated test of a mechanism #41 never actually exercised (tiered's rejection was about coaching a weak implementer, not routing, ISSUE-109.md:6).\n- **Run the full grid ungated.** Spends the 8-task x escalation-rate x checker-variant matrix even though the false-accept mechanism is already known-unfavorable at #41's measured rate (ADR 0035:27); Phase 0 answers the same go/no-go question for a fraction of the cost.\n- **Replay-only pilot** (score candidate checkers against #41's existing static artifacts). Doesn't exercise live routing's actual decision surface \u2014 usable only as a non-binding sanity check ahead of Phase 0, never as its substitute.\n\n## Revisit triggers\n- Phase 0 clears (some checker <15% false-accept) -> proceed to Phase 1 under the locked rule (item 3).\n- Phase 0 fails (all checkers >=15%) -> null recorded; do not retry the same checker family without a new checker design.\n- Checker or model pricing/capability shifts materially -> re-run Phase 0.\n```\n\nNote: I couldn't get `adr-lint.mjs`/`git status` to execute in this session \u2014 every Bash invocation after the first few returned \"requires approval\" with no prompt resolving, including trivial ones like `git status`. The file is written at `docs/decisions/0036-routing-experiment-gate.md` (5,576 chars, under the 6,000 cap) and should conform to the template, but please run `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` yourself before merging to confirm.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 83001.8,
+   "duration_ms": 81087,
+   "duration_api_ms": 81866,
+   "cost_usd": 0.2609676,
+   "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 21209,
+    "cache_read_input_tokens": 179162,
+    "output_tokens": 5280,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 21209,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 3707,
+      "cache_read_input_tokens": 37738,
+      "cache_creation_input_tokens": 3599,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 3599
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:30:11.333531+00:00",
+    "end": "2026-07-14T13:31:34.335324+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read. Not deciding \u2014 here's the premortem: assume routing shipped and, six months later, it's being reverted or flagged as a costly mistake. Three concrete ways that happens, each tied to something in the materials:\n\n**1. The checker inherits the exact false-accept rate that already sank the tiered arm, but this time nothing catches it.** ISSUE-109.md:14 names the threat directly \u2014 #41's Sonnet validator false-accepted 25%, replicated at 6/24 in ADR 0035:27. Routing's whole quality case is \"bounded by whichever model ships\" (ISSUE-109.md:6), but that's only true if the checker is trustworthy. In the tiered arm, false-accepts still went through a hermetic blind-grade pipeline that *caught* them in the benchmark. In production, routing has no such external grader \u2014 the checker's accept decision *is* the final gate. If the shipped checker is a Sonnet judge of the same kind that already measured 25% false-accept (rather than the \"checklist-scored deterministic checks\" alternative ISSUE-109.md:14 says must be compared first), a quarter of \"accepted\" outputs are silently Haiku-floor quality, discovered only when someone audits production artifacts months later \u2014 the failure mode is invisible until then because acceptance *looks* like success at the time.\n\n**2. The decision rule gets finalized after peeking, quietly repeating the exact anti-pattern ADR 0024/0035 forbid.** ISSUE-109.md:16 explicitly flags the margin/CI rule as a \"sketch (to be finalized per ADR 0024 before spend)\" \u2014 it is not yet locked. ADR 0024 Decision 3 (0024:22) bans raising the bar to force a result, and ADR 0035's \"Rejected alternatives\" (0035:31) names \"difficulty-adjust the bar post-hoc\" as the specific violation it avoided. With only 8 gradient tasks (small-n, per ADR 0019's clustered-CI warning at <4 non-tied evals, 0019:16) results are likely to land borderline, as the tiered arm's own -0.057 (CI straddling) did (0035:16). The temptation to adjust the non-inferiority margin or the \"materially below\" cost bar once preliminary numbers are in view is exactly how a technically-invalid adopt decision ships \u2014 caught only in a later retrospective audit, by which point routing is already load-bearing in pdca-workflow.\n\n**3. The cost model in the proposal itself undercounts checker overhead, so the cost side of the gate fails in practice even if quality holds.** ISSUE-109.md:10's formula \u2014 cost \u2248 0.016 + E\u00d7(checker + 0.055) \u2014 only charges checker cost on the escalated fraction E. But the checker must run on *every* cell to decide accept-or-escalate, not just the ones it escalates; the non-escalated (1\u2212E) fraction still pays a checker call the formula never counts. Compounding this, ADR 0035's rejected-alternatives note (0035:32) that the gradient subset was deliberately chosen because non-gradient tasks \"floor on model-tier comparison\" \u2014 meaning the checker's escalation behavior is only measured on tasks picked for being easy to tell apart. On the messier real task population, checker escalation is likely noisier and more frequent, pushing real E (and therefore real cost) well above the measured figure. Routing could clear ADR 0024's cost gate on the benchmark and still fail it in production, the same axis (not quality) that killed the original tiered config (0035:16, \"failed the cost/time gate outright\")."
+  },
+  "assumption": {
+   "duration_ms_wall": 52222.2,
+   "duration_ms": 50257,
+   "duration_api_ms": 51018,
+   "cost_usd": 0.19172519999999998,
+   "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 16474,
+    "cache_read_input_tokens": 140504,
+    "output_tokens": 3332,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 16474,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 838,
+      "cache_read_input_tokens": 32248,
+      "cache_creation_input_tokens": 4354,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 4354
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:30:11.333990+00:00",
+    "end": "2026-07-14T13:31:03.556197+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Read ISSUE-109.md and cross-checked it against ADR 0035 (the #41 verdict it builds on).\n\n**Option A \u2014 Run the full routing experiment as designed** (checker-variant grid, escalation-rate cost model, decision rule vs. Sonnet-solo).\nLoad-bearing dependency: that *some* checker variant can plausibly clear ~10-15% false-accept. If X is false \u2014 i.e. no checker is expected to beat the ~25% false-accept rate #41 already measured for a Sonnet validator \u2014 option A flips to \"record the null without a full grid,\" per the issue's own pre-registered escape hatch.\n\n**Option B \u2014 Run a cheap checker-fidelity pilot first, defer the full grid** (replay #41's existing artifacts against candidate checkers to estimate false-accept rate before spending on the 8-task x escalation-rate matrix).\nLoad-bearing dependency: that checker false-accept rate measured on replayed/static #41 artifacts is a valid proxy for its rate in live routing (same failure mode, not an artifact of the original grading pass). If X is false \u2014 replay-based false-accept doesn't transfer to live routing \u2014 this pilot is invalid and collapses back to option A (must run live) or is worthless.\n\n**Option C \u2014 Decline / do not test routing now**.\nLoad-bearing dependency: that Sonnet-solo remains available as \"the measured frontier and the default meanwhile\" with no urgency (the issue's own stated timing). If X is false \u2014 e.g. cost pressure emerges that makes even a partial-quality/cheaper option valuable, or Sonnet-solo access/cost changes \u2014 option C flips to proceed (at least with option B).\n\nOne structural note, not a decision: the issue frames routing as mechanistically distinct from #41's rejected coach-and-retry config (\"bounded by whichever model ships, not Haiku's ceiling\") \u2014 that distinctness claim is itself unverified and is the reason #41's rejection doesn't automatically settle this call."
+  }
+ },
+ "artifacts": {
+  "docs/decisions/0036-routing-experiment-gate.md": "---\nid: 0036\ntitle: \"Routing experiment (issue #109): proceed, staged behind a checker-fidelity gate\"\nstatus: accepted\nsummary: \"Proceed with the Haiku-attempt/checker-escalate routing experiment (issue #109), but staged: a cheap live checker-fidelity screen (Phase 0) must clear ~10-15% false-accept before the full escalation-rate grid (Phase 1) runs; the non-inferiority/cost decision rule is locked and the cost formula corrected to charge checker cost on every cell before any Phase 1 spend.\"\n---\n\n# 0036 \u2014 routing experiment gate\n\n- Date: 2026-07-14\n- Owner: PM (decided directly per owner authority; no deferral)\n- Panel: two independent probes (premortem, assumption-audit) run blind to each other and to any draft decision; synthesized here\n- Context: issue #41's tiered config (sonnet plans/validates, haiku implements, coach-and-retry) was rejected on cost/quality (ADR 0035). ISSUE-109.md proposes the cascade shape #41 never tested \u2014 routing: haiku attempts once, a checker decides accept/escalate, escalation reruns the whole task on sonnet. ISSUE-109.md:14 pre-registers the threat directly: #41's Sonnet validator false-accepted 25% (replicated 6/24, ADR 0035:27) \u2014 under routing, a false-accept ships a Haiku-floor artifact with no external grader to catch it.\n\n## Decision\n1. **Stage the experiment; do not run the full grid first.** Phase 0 (cheap, live): measure false-accept rate per candidate checker variant (Sonnet judge vs. checklist-scored deterministic checks) on LIVE routing over the 8 gradient tasks \u2014 a fresh Haiku attempt graded by the checker, not a replay of #41's already-graded artifacts (replay doesn't exercise the checker's real decision surface). Gate: if every checker variant measures >=15% false-accept, record the null (ADR 0019 append-only) and STOP \u2014 do not run Phase 1 (ISSUE-109.md:14's own escape hatch).\n2. **Phase 1 (full escalation-rate x checker-variant grid vs. Sonnet-solo) runs only if Phase 0 clears.**\n3. **Lock the decision rule before Phase 1 spend, per ADR 0024 D3.** Non-inferiority margin -0.05, clustered CI (ADR 0019), cost bar = \"materially below Sonnet-solo\" defined here as <=0.6x cost (ADR 0035's tiered-arm bar, for comparability). Fixed now; never adjusted after seeing Phase 1 numbers (ADR 0024 D3; ADR 0035's rejected-alternatives names this exact move a violation).\n4. **Fix the cost model before spend.** ISSUE-109.md:10's formula (cost ~= 0.016 + E x (checker + 0.055)) only charges the checker call on the escalated fraction E, but the checker must run on every cell to decide accept/escalate. Corrected: cost ~= 0.016 + checker_cost (charged on all cells) + E x 0.055.\n5. **If Phase 1's eval-level CI straddles the boundary** (plausible at 8 tasks, under ADR 0019's 4-non-tied-eval floor), escalate replicates sequentially per ADR 0019 item 2 \u2014 never treat a straddling CI as license to move the bar in item 3.\n\n## Justification\nPhase 0 is strictly cheaper than Phase 1 and answers the go/no-go mechanism question first: routing's entire quality case rests on the checker beating #41's already-measured 25% false-accept (ISSUE-109.md:6,14). Items 3-4 close the two process-side holes the premortem found (an unlocked decision rule inviting post-hoc adjustment; an undercounted cost formula) before either can bite, without requiring a decline. **Failure class accepted:** if Phase 0 fails, its bounded pilot-scale spend (gradient-task-scale, not the full grid) is sunk \u2014 this is the cost of testing a real, previously-untested mechanism, not the open-ended spend Phase 1 gating exists to prevent.\n\n## Assumptions\n- [unverifiable] **LOAD-BEARING:** at least one checker variant (Sonnet judge or checklist-scored deterministic check) can plausibly hold false-accept to ~10-15% on Haiku-attempt artifacts, materially below #41's measured ~25% (ISSUE-109.md:14, ADR 0035:27) \u2014 the real-world mechanism claim the entire routing case depends on. REOPEN-IF: Phase 0 measures every candidate checker >=15% false-accept \u2014 then decline permanently; do not re-test the same checker family absent a genuinely new checker design.\n- [checkable] the corrected cost formula (item 4) reproduces against the benchmark harness's per-cell token/cost accounting \u2014 owner: Phase 0 implementer; result: pending (Phase 0 not yet run).\n- [checkable-doc] the decision rule (item 3) is recorded, unedited, before Phase 1's first cell runs \u2014 owner: PM, verified at Phase 1 kickoff.\n\n## Rejected alternatives\n- **Decline outright.** Sonnet-solo having \"no urgency\" (ISSUE-109.md:16) is a timing fact, not a reason to forgo a cheap, gated test of a mechanism #41 never actually exercised (tiered's rejection was about coaching a weak implementer, not routing, ISSUE-109.md:6).\n- **Run the full grid ungated.** Spends the 8-task x escalation-rate x checker-variant matrix even though the false-accept mechanism is already known-unfavorable at #41's measured rate (ADR 0035:27); Phase 0 answers the same go/no-go question for a fraction of the cost.\n- **Replay-only pilot** (score candidate checkers against #41's existing static artifacts). Doesn't exercise live routing's actual decision surface \u2014 usable only as a non-binding sanity check ahead of Phase 0, never as its substitute.\n\n## Revisit triggers\n- Phase 0 clears (some checker <15% false-accept) -> proceed to Phase 1 under the locked rule (item 3).\n- Phase 0 fails (all checkers >=15%) -> null recorded; do not retry the same checker family without a new checker design.\n- Checker or model pricing/capability shifts materially -> re-run Phase 0.\n"
+ }
+}

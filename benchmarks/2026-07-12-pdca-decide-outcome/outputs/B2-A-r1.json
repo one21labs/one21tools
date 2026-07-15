@@ -1,0 +1,60 @@
+{
+ "cell": "B2-A-r1",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash",
+  "Write",
+  "Edit"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 92947.5,
+  "duration_ms": 91729,
+  "duration_api_ms": 89549,
+  "cost_usd": 0.23948300000000003,
+  "usage": {
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 13122,
+   "cache_read_input_tokens": 146420,
+   "output_tokens": 7739,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 13122,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4380,
+     "cache_read_input_tokens": 34523,
+     "cache_creation_input_tokens": 2498,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2498
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T18:34:40.828700+00:00",
+   "end": "2026-07-12T18:36:13.776196+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Decision: pilot the two decision-gating arms first, staged; not the full 4\u00d78\u00d73 grid upfront\n\n**Question.** ISSUE-41.md's pre-registered test plan (Comment 1, `ISSUE-41.md:25-59`) sets up a 4-arm \u00d7 8-task \u00d7 3-rep grid (~250-300 agent invocations, `ISSUE-41.md:71`). Should execution run the full grid, or pilot the most expensive arm first and stop early once the decision gate is decidable?\n\n**Decision.** Stage the run. First wave: **Tiered** and **Sonnet-solo** only, 1 rep across all 8 pre-screened tasks (not the full 3). Check the pre-registered decision rule (`ISSUE-41.md:51`: adopt Tiered if delta \u2265 \u22120.05 AND tokens \u2264 0.7\u00d7 Sonnet-solo) against that wave's CI. Only if the CI straddles the boundary, escalate \u2014 add reps 2\u20133 for Tiered/Sonnet-solo, and only then run Haiku-solo and Opus-solo (needed for the secondary \"Opus quality at sub-Opus cost\" report, `ISSUE-41.md:51`, not for the primary adopt/reject gate). Do not commit to the full grid before the first wave resolves.\n\n**Rationale.**\n\n1. **The primary decision rule is a 2-arm comparison, not a 4-arm one.** It's stated entirely in terms of Tiered vs. Sonnet-solo (`ISSUE-41.md:51`). Haiku-solo (cost floor) and Opus-solo (quality ceiling, `ISSUE-41.md:35-36`) inform secondary reporting but gate nothing \u2014 running them before the primary gate is resolved is spend the decision rule doesn't need yet.\n2. **Tiered is the expensive, highest-risk arm** \u2014 up to 3 plan\u2192implement\u2192validate\u2192re-dispatch cycles per run (`ISSUE-41.md:37`), the only arm needing new code (`ISSUE-41.md:59,70`), and the thing actually under test. Piloting it first surfaces orchestration bugs (validator false-accept/false-reject, retry-cap/feedback-format \u2014 both still open owner calls per `ISSUE-41.md:73`) cheaply, before they'd corrupt a fully-committed 96-run grid.\n3. **This is already the pre-registration's own logic, just applied one dimension earlier.** Comment 1 pre-commits to \"Sequential escalation: add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (`ISSUE-41.md:49`). Staging arms (gate-arms-first, context-arms-if-needed) is the identical principle applied to arm selection instead of only reps/tasks \u2014 not a new rule, an extension of one already agreed.\n4. **ADR 0024's cost-justification stance** (`docs/decisions/0024-tool-cost-justification-loop.md:16`, \"read the verdict off the eval-clustered CI... a pass is not a stop condition\" / spend justified as incurred, not en bloc) argues against front-loading cost for arms that may turn out unnecessary once the primary comparison is already unambiguous.\n5. **No downside case.** If the first-wave CI straddles the boundary, the plan simply proceeds to the full grid exactly as originally scoped \u2014 piloting costs nothing extra in that branch. It only saves spend in the branch where the answer is already clear from wave 1, which is the entire point of a pre-registered stopping rule.\n6. **Pure \"pilot Tiered alone\" was rejected** as underspecified: the decision rule is inherently relative to Sonnet-solo (delta and token-ratio both reference it), so a Tiered-only pilot can't be checked against the gate. The minimal self-sufficient pilot is Tiered + Sonnet-solo together, which is what's decided above.\n\n**Not decided here / stays with the owner calls already flagged in Comment 3** (`ISSUE-41.md:73`): grader independence at 3 tiers, which hermetic controls carry to tool-using tasks, and the exact retry-cap/feedback format \u2014 none of those are the execution-design question this was scoped to.",
+ "artifacts": {}
+}

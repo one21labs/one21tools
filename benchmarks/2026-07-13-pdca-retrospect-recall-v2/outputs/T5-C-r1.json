@@ -1,0 +1,57 @@
+{
+ "cell": "T5-C-r1",
+ "substrate": "T5",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 198323.6,
+  "duration_ms": 197014,
+  "duration_api_ms": 197334,
+  "cost_usd": 0.5626789,
+  "usage": {
+   "input_tokens": 40,
+   "cache_creation_input_tokens": 27848,
+   "cache_read_input_tokens": 709373,
+   "output_tokens": 12129,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 27848,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 826,
+     "cache_read_input_tokens": 45929,
+     "cache_creation_input_tokens": 1117,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1117
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T15:21:07.890854+00:00",
+   "end": "2026-07-14T15:24:26.214499+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "**Findings** (most-severe first; friction #1 \"manifest line integration test flaked\" omitted \u2014 no such test exists anywhere in this repo, unverifiable one-off):\n\n1. **Threshold change with no `/decide`** \u2014 73ed0e8 raised `scripts/gate.py:6` `LIMIT` 100\u2192140 as a bare commit. Only ADRs 0001-0003 exist (none about the limit); `docs/pdca/session-log.txt` exists but is empty. \u2192 improvement: retroactively author an ADR for this threshold (or revert-and-redo through `/decide`) \u2192 home: `docs/decisions/000X-gate-line-limit.md` \u2192 **judgment call: yes**, needs `/decide` + ADR.\n\n2. **The test that should've caught #1 is broken and never runs** \u2014 `scripts/gate.test.py:8` does `over_limit('\\n\\n' + 'x' * (LIMIT + 10))` but only imports `over_limit`, not `LIMIT` \u2192 guaranteed `NameError`. Moot anyway: `scripts/ci.sh` only runs `gate.py`, never `gate.test.py`/`report.test.py`. This is the literal root cause of friction #3. \u2192 improvement: `from gate import over_limit, LIMIT` in the test, and add both test files to `ci.sh` \u2192 home: `scripts/gate.test.py` + `scripts/ci.sh` \u2192 judgment call: no, straight bug + wiring fix.\n\n3. **Git-tellable backstory in `docs/guide.md:12`** \u2014 \"(Harborctl was called `dockman`... old `--pull-always` flag... gone.)\", added 4de66ad, still present. Violates CLAUDE.md's cut-on-sight backstory rule. \u2192 improvement: delete the bullet \u2192 home: `docs/guide.md` \u2192 judgment call: no.\n\n4. **TODO-in-doc for an unimplemented flag** \u2014 `docs/config.md:15` \"TODO: add a `--dry-run` flag (tracked as issue #67)\" in a doc whose stated purpose is current flags/defaults; also the 3rd back-to-back edit to this file in-range (6c4e7ac, c4d49da, 9808296), plausibly why friction #2's rebase conflict landed there. \u2192 improvement: move the TODO out of `config.md` into issue #67 only \u2192 home: `docs/config.md` \u2192 judgment call: no (advisory).\n\nOmitted as non-systemic: friction #1 (no matching test exists in repo to fix)."
+}

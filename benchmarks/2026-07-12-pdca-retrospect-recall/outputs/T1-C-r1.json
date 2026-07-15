@@ -1,0 +1,57 @@
+{
+ "cell": "T1-C-r1",
+ "substrate": "T1",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 178426.2,
+  "duration_ms": 177156,
+  "duration_api_ms": 170959,
+  "cost_usd": 0.5810625,
+  "usage": {
+   "input_tokens": 42,
+   "cache_creation_input_tokens": 23411,
+   "cache_read_input_tokens": 766165,
+   "output_tokens": 13993,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 23411,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1508,
+     "cache_read_input_tokens": 42675,
+     "cache_creation_input_tokens": 3705,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3705
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T03:28:23.626784+00:00",
+   "end": "2026-07-12T03:31:22.052996+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "Findings, ordered by recurrence-cost:\n\n**1. CI gate is piped, silently inverting its verdict \u2014 this IS friction #3's root cause**\nEvidence: `scripts/ci.sh:3` (commit b69e205) \u2014 `python3 scripts/gate.py docs | grep -v OK`. `scripts/gate.py:19-20` never prints `OK`; it only prints `over limit: <path>` lines and returns 1 when violations exist, 0 when clean. So on a *dirty* run, grep matches the \"over limit\" lines and exits 0 \u2192 `set -e` sees success \u2192 CI goes green on a real violation. On a *clean* run (no output) grep exits 1 \u2192 CI would fail on a passing gate. Both directions are wrong; the dirty-passes-green direction is exactly friction.md:4 (\"CI stayed green on a run where a doc had an over-long line\"). This also directly violates T1 `CLAUDE.md`'s Sacred-gate rule: \"Never pipe it through a filter \u2014 a pipe reports the filter's status, not the gate's.\" It's also a silent policy change (how the Sacred gate gates CI) shipped without `/decide` \u2014 `docs/pdca/session-log.txt` is empty and no ADR carries a `Panel:` line for it, so it's a miss, not just a missing test.\n\u2192 Improvement: revert `scripts/ci.sh` to bare `python3 scripts/gate.py docs`. If chatter-reduction is still wanted, that's a threshold/policy question and belongs behind `/decide` \u2192 new ADR, not a direct edit.\n\u2192 Home: `scripts/ci.sh` (behavior fix, no judgment call to restore it); `/decide` + `docs/decisions/000X-*.md` only if the team wants filtered CI output as policy.\n\u2192 Judgment call? No for the revert (restores an already-Sacred rule). Yes for any future \"quiet CI\" alternative.\n\n**2. README grows a \"Project history\" section \u2014 house rule violation**\nEvidence: `README.md:13-15` (commit 20322bd) narrates \"Quillmark began as `mdcheck`... old `--wrap` flag was dropped after the spring rewrite...\" T1 `CLAUDE.md`: \"Do not narrate how the project got here (no 'History' or 'Previously' sections); the log already holds that.\" Git log is already the SSoT for this.\n\u2192 Improvement: delete the \"## Project history\" section.\n\u2192 Home: `README.md`.\n\u2192 Judgment call? No \u2014 unambiguous existing rule.\n\n**3. SKILL.md restates the `.quillignore` default already owned by README**\nEvidence: `skills/quillmark/SKILL.md:16-18` (commit 51660a2) adds the identical sentence already at `README.md:11`, commit message even says \"restate the default.\" Violates T1 `CLAUDE.md` \"One home per fact\" and ADR `0003-docs-beside-code.md` (documented once).\n\u2192 Improvement: drop the duplicated `## Defaults` block from SKILL.md; point to README's Defaults section instead of restating it.\n\u2192 Home: `skills/quillmark/SKILL.md`.\n\u2192 Judgment call? No \u2014 ADR 0003 already settled this.\n\n**4. Session self-report (transcript.md) claims work that never happened**\nEvidence: `transcript.md:9` claims \"Fixed a typo in the guide and tidied the config reference,\" but `git diff origin/main...HEAD -- docs/guide.md docs/config.md` is empty \u2014 neither file is touched anywhere in the range. The same file also asserts \"Merged after the gate passed\" while the branch (`work`) is unmerged and the gate's exit code was masked by finding #1 in this same range \u2014 an unverifiable/false claim feeding straight into what would become the PR's \"Testing\" line.\n\u2192 Improvement: don't hand-write a narrative summary of \"what I did\" \u2014 derive it from `git log`/`git diff` (or drop transcript.md; git history is already the SSoT per the org `CLAUDE.md`).\n\u2192 Home: whatever step in the session-closing process authors transcript.md (not a specific agent file in this repo \u2014 flag to orchestrator, not a directed edit).\n\u2192 Judgment call? No \u2014 advice, not a directive.\n\nOmitted as one-offs (systemic test failed): friction #1 (single test flake, clean rerun, no touched test files in range) and friction #2 (rebase conflict in `docs/config.md`, resolved, and that file is untouched in the final diff \u2014 no residue, no recurring pattern visible)."
+}

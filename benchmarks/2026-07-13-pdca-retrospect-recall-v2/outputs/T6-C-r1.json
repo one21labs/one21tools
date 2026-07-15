@@ -1,0 +1,57 @@
+{
+ "cell": "T6-C-r1",
+ "substrate": "T6",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 183582.3,
+  "duration_ms": 182213,
+  "duration_api_ms": 182803,
+  "cost_usd": 0.5209257,
+  "usage": {
+   "input_tokens": 26,
+   "cache_creation_input_tokens": 29127,
+   "cache_read_input_tokens": 473349,
+   "output_tokens": 13557,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 29127,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1678,
+     "cache_read_input_tokens": 47487,
+     "cache_creation_input_tokens": 838,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 838
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T15:39:53.461286+00:00",
+   "end": "2026-07-14T15:42:57.043613+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Retrospective findings\n\n**1. Judgment call (threshold change) shipped disguised as a copy-edit, no `/decide`, no panel record**\nfinding: commit `770e1aa` \"docs: copy-edit ADR 0002 for readability\" actually changes the decision itself \u2014 `docs/decisions/0002-chapter-split.md:9` 50k words \u2192 80k words, rationale reworded to match. Status stays `accepted`, no new date, no revision note. `docs/pdca/session-log.txt` is 0 bytes in this range \u2014 no judgment call logged anywhere for it (evidence: friction-log method's \"misfire\" case \u2014 a policy change fired with no matching decide record).\n-> improvement: revert the threshold change out of the copy-edit commit; re-open ADR 0002 as a real judgment call (why 50k\u219280k, what broke at 50k) through `/decide`, and stop trusting commit messages as a proxy for content \u2014 grep decision-log diffs (`Decision:`/`status:` lines) for substantive changes before treating a commit as pure prose.\n-> home: `docs/decisions/0002-chapter-split.md` (the ADR itself) + the `/decide` skill guard (flag an ADR diff that changes a `Decision:` line under a \"copy-edit\"/\"readability\"/\"typo\" commit message).\n-> judgment call: yes \u2014 the 50k-vs-80k threshold itself needs `/decide` + an ADR entry; the *process guard* (catch disguised decision-line edits) is advice, not a directive.\n\n**2. CI gate silently loses its exit status \u2014 root cause of friction #3**\nfinding: `scripts/ci.sh` (commit `c39c7e7`) runs `python3 scripts/gate.py docs 2>&1 | tee ci-gate.log | sort -u` under `#!/bin/sh` + `set -e`. POSIX `sh` has no `pipefail`, so the pipeline's exit code is `sort -u`'s (always 0), not `gate.py`'s \u2014 a real over-limit failure can never fail CI. This is the literal mechanism behind friction #3 (\"CI stayed green on a run where a doc had an over-long line\"), and it directly contradicts the script's own header comment: \"Always run this gate directly and check its own exit status before merging.\"\n-> improvement: stop piping the gate's exit status away \u2014 either `python3 scripts/gate.py docs 2>&1 | tee ci-gate.log; test ${PIPESTATUS[0]} -eq 0` (needs `#!/bin/bash`), or drop `sort -u`/`tee` from the checked line and log separately.\n-> home: `scripts/ci.sh`\n-> judgment call: no \u2014 objective bug, fix directly; add one assertion (e.g. a `ci.sh` self-test that a failing gate makes the script exit non-zero) so this class of failure can't reappear silently.\n\n**3. Deferred backlog item embedded as a doc TODO, not tracked externally \u2014 caused the rebase conflict (friction #2)**\nfinding: `docs/config.md:16` \u2014 `TODO: add a --dry-run flag (tracked as issue #67)` (commit `c9211ac`). `docs/config.md` is touched twice in this range (`1cd9416` terminology pass, then `c9211ac`'s TODO) and is exactly the file the rebase conflict (friction #2) hit \u2014 a TODO line in a reference doc is transient content, not current behavior, and is the kind of thing likely to keep churning/conflicting. It also isn't \"truthful and minimal\" per this repo's own CLAUDE.md: the doc now carries backlog state instead of describing what the tool does today.\n-> improvement: delete the TODO line from `docs/config.md`; track `--dry-run` purely in the issue tracker, not in shipped reference docs.\n-> home: `docs/config.md` (delete line 16).\n-> judgment call: no \u2014 direct cleanup.\n\nOmitted one-offs: friction #1 (flaky paragraph-integration-test timeout) has no matching test file in this repo/range to cite \u2014 can't attribute a fix location, treating as a non-systemic one-off. Also noted but not raised as a separate finding: `docs/guide.md`'s new \"## Terminology\" section and `docs/naming.md` (both from `1cd9416`) restate the same \"paragraph is the standard term\" fact in two places \u2014 minor one-home duplication, lower recurrence cost than the three above, folding into finding 3's docs-hygiene fix if picked up."
+}

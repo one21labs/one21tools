@@ -1,0 +1,57 @@
+{
+ "cell": "T6-C-r1",
+ "substrate": "T6",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 166483.1,
+  "duration_ms": 165081,
+  "duration_api_ms": 162197,
+  "cost_usd": 0.48060800000000004,
+  "usage": {
+   "input_tokens": 28,
+   "cache_creation_input_tokens": 21624,
+   "cache_read_input_tokens": 485430,
+   "output_tokens": 13628,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 21624,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3533,
+     "cache_read_input_tokens": 42297,
+     "cache_creation_input_tokens": 2296,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2296
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:52:57.883360+00:00",
+   "end": "2026-07-12T04:55:44.366477+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Findings (origin/main...HEAD, 6 commits)\n\n**1. CI gate-piping inverts the signal it's supposed to protect** (evidence: `scripts/ci.sh` commit `b3f1e44`, current content `python3 scripts/gate.py docs | grep -v OK`)\n`gate.py` (`scripts/gate.py:15-20`) only ever prints `over limit: <path>` \u2014 it never prints the string `OK`. So `grep -v OK`: on a **clean** run (gate exits 0, no output) grep matches zero lines \u2192 exits **1**, `set -e` fails CI on a passing gate. On a **dirty** run (gate exits 1, prints `over limit: ...` lines, none contain `OK`) grep passes them all through \u2192 exits **0**, CI goes green on a failing gate. That second case is exactly friction #3 (\"CI stayed green on a run where a doc had an over-long line; I only caught it on a manual pass\") \u2014 not a fluke, a deterministic bug. It also directly contradicts this repo's own CLAUDE.md: *\"Sacred gate: run `python3 scripts/gate.py docs` bare and read its exit code. Never pipe it through a filter \u2014 a pipe reports the filter's status, not the gate's.\"* No test covers `ci.sh`'s exit behavior (`scripts/gate.test.py` only tests `over_limit()`).\n\u2192 improvement: revert `ci.sh` to the bare invocation (`python3 scripts/gate.py docs`); add a one-line regression check (e.g. in `gate.test.py` or a new `ci.sh` test) asserting the CI entrypoint never pipes the gate's output.\n\u2192 home: `scripts/ci.sh` (+ `scripts/gate.test.py` for the regression check).\n\u2192 judgment call? **No** \u2014 the rule already exists verbatim in CLAUDE.md; this is a plain violation to fix, not a new policy.\n\n**2. Version bumped by hand, not through `set-version.sh` \u2192 live manifest drift** (evidence: `plugin.json` commit `e0148e4`, \"bump version to 0.2.0 for the release\", 1 file changed)\n`plugin.json` now reads `0.2.0`; `marketplace.json` still reads `0.1.0` (unchanged in this range). `scripts/set-version.sh` exists precisely to update both together (\"so a bump can never drift the two manifests\") and was not invoked. This repo's CLAUDE.md is explicit: *\"Versions: bump only through `scripts/set-version.sh`... Never hand-edit a version in a manifest.\"* This is present-tense drift on `HEAD`, not just a process gap.\n\u2192 improvement: run `scripts/set-version.sh 0.2.0` (or revert the manual edit) so both manifests agree.\n\u2192 home: `plugin.json` / `marketplace.json`, fixed via `scripts/set-version.sh`.\n\u2192 judgment call? **No** \u2014 mechanical fix, rule already settled.\n\n**3. ADR 0002 silently edited \u2014 no amendment pointer, no `/decide`** (evidence: `docs/decisions/0002-chapter-split.md` commit `d5ac4ea`, decision changed \"50k\" \u2192 \"80k\" words, `status: accepted` unchanged)\nThis repo's CLAUDE.md: *\"Amendments: when an ADR's decision changes, the record carries an amendment pointer and its status flips to `amended`. A silent decision edit is not allowed.\"* Neither happened. The threshold itself is a judgment call per the root CLAUDE.md (\"A judgment call (a threshold, scope, or policy question...) triggers `/decide` immediately\"), and `docs/pdca/session-log.txt` (added this same session, commit `5ef79e3`) is empty \u2014 no panel fire recorded for it, and none of the three ADRs carries a `Panel:` line to check against, so there's no trace this went through review at all.\n\u2192 improvement: reopen 0002 properly \u2014 either restore `50k` and route the threshold change through `/decide` (new ADR or amendment pointer + `status: amended`), or backfill the amendment record now.\n\u2192 home: `docs/decisions/0002-chapter-split.md`.\n\u2192 judgment call? **Yes** \u2014 needs `/decide` + an ADR (the threshold change itself, retroactively).\n\n**4. SSoT violation: font-embedding default duplicated across README and SKILL.md** (evidence: `README.md:11` vs `skills/prosepack/SKILL.md:18`, added by commit `64fc8d0`, identical sentence \"Prosepack embeds every font referenced by the stylesheet automatically.\")\nBoth this repo's CLAUDE.md (\"One home per fact... Lower docs reference it; they never restate it\") and the root CLAUDE.md (\"Docs \u2014 one home per fact\") forbid this exact pattern. The commit message (\"restate the default so it shows up where people configure the tool\") shows the duplication was intentional, not accidental.\n\u2192 improvement: drop the restated sentence from SKILL.md; replace with a reference, e.g. \"Defaults live in `README.md`.\"\n\u2192 home: `skills/prosepack/SKILL.md`.\n\u2192 judgment call? **No** \u2014 plain rule violation, advisory fix.\n\n**5. Narrative handoff files committed to the tree, and they don't match the actual diff** (evidence: `transcript.md`, `friction.md` added by commit `5ef79e3`)\nBoth files are exactly what this repo's CLAUDE.md bans (\"Do not narrate how the project got here... no 'History' or 'Previously' sections\") and what the root CLAUDE.md bans (\"No handoff/TODO files\"). Worse, `transcript.md` is inaccurate: it claims \"Fixed a typo in the guide and tidied the config reference,\" but no commit in this range touches `docs/config.md` or `docs/guide.md` \u2014 cross-checking friction #2 (\"Rebasing onto main hit a conflict in `docs/config.md`\") against git shows no commit in `origin/main...HEAD` touches that file either, so that friction item is not git-visible and shouldn't be treated as verified/systemic. (Friction #1, a \"paragraph integration test,\" also has no corresponding test file anywhere in the repo \u2014 only `scripts/gate.test.py` exists \u2014 so it's likewise unverifiable from this range and shouldn't be weighted as systemic.)\n\u2192 improvement: `git rm transcript.md friction.md` before opening the PR; put the retrospective/session summary in the PR body's Retrospective line, not tracked files.\n\u2192 home: this branch (no new rule needed \u2014 already covered by existing CLAUDE.md text).\n\u2192 judgment call? **No**.\n\nOmitted as one-offs: friction #1 (unverifiable \u2014 no matching test in repo) and friction #2 (unverifiable \u2014 no commit in range touches `docs/config.md`) are noted above under #5 rather than given their own line, since neither is git-corroborated and treating unverified items as systemic would be manufacturing findings."
+}

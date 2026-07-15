@@ -1,0 +1,57 @@
+{
+ "cell": "T4-C-r1",
+ "substrate": "T4",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 134524.8,
+  "duration_ms": 133331,
+  "duration_api_ms": 126006,
+  "cost_usd": 0.41105100000000006,
+  "usage": {
+   "input_tokens": 30,
+   "cache_creation_input_tokens": 18577,
+   "cache_read_input_tokens": 492320,
+   "output_tokens": 10072,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 18577,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1467,
+     "cache_read_input_tokens": 41274,
+     "cache_creation_input_tokens": 272,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 272
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T04:20:20.725755+00:00",
+   "end": "2026-07-12T04:22:35.250575+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Findings\n\n**1. Version bump hand-edited plugin.json, skipping `set-version.sh` \u2192 manifests now drifted**\nEvidence: commit `9d072e3` changes only `plugin.json` (0.4.0\u21920.5.0); `marketplace.json` still reads `\"version\": \"0.4.0\"` (confirmed by reading both files). `scripts/set-version.sh` exists precisely to write both atomically (`22d5dc7`) and CLAUDE.md is explicit: \"Never hand-edit a version in a manifest.\" This is friction #3 made concrete \u2014 the author had to \"eyeball\" agreement because the script that guarantees it wasn't used, and the eyeball missed it: main is currently one PR away from shipping a broken registry entry.\n\u2192 Improvement: add a cheap drift check \u2014 a script (or a few lines in `scripts/ci.sh`) that parses `plugin.json` and `marketplace.json` and fails if versions differ, so drift is caught by the gate instead of by eye.\n\u2192 Home: `scripts/ci.sh` (+ new small script under `scripts/`, paired with a test per CLAUDE.md's \"never ship a process-gating script without a test\").\n\u2192 Judgment call: no \u2014 enforces an existing explicit rule, doesn't set new policy. Advisory; orchestrator can implement directly. Also fix in this branch: hand-run `scripts/set-version.sh 0.5.0` (or `0.4.0` to revert) before merge so main doesn't ship the drifted state.\n\n**2. SKILL.md restates README's fact, breaking one-home-per-fact**\nEvidence: commit `4ea30c5` adds \"Ledgerlint treats any amount under 0.01 as zero.\" to `skills/ledgerlint/SKILL.md:18`, verbatim-duplicating `README.md:11`. Commit message even names the motive (\"restate... so it shows up where people configure the tool\") \u2014 a conscious duplication, not an accident. Violates both this repo's CLAUDE.md (\"every fact lives in exactly one doc... lower docs reference it; they never restate it\") and ADR `0003-docs-beside-code` (\"every user-facing behaviour is documented in `docs/`, once\").\n\u2192 Improvement: drop the `## Defaults` section from SKILL.md; replace with a reference, e.g. \"Defaults: see README.md.\"\n\u2192 Home: `skills/ledgerlint/SKILL.md`.\n\u2192 Judgment call: no \u2014 plain violation of a settled rule/ADR, not a new policy question.\n\n**3. Narrative session artifacts committed as permanent repo docs, one containing a rule violation**\nEvidence: commit `fe920d8` adds `transcript.md` and `friction.md` at repo root (not scratch, not a PR body). `transcript.md` is pure \"what I did\" narration \u2014 exactly the \"History\"/\"Previously\" pattern CLAUDE.md bans (\"Docs: state the current truth... the log already holds that\") \u2014 and root CLAUDE.md separately bans handoff files (\"No handoff/TODO files\"). It also states, as fact, \"Previewed the branch diff with `git log main..work`\" \u2014 the two-dot form this repo's CLAUDE.md explicitly forbids (\"preview a branch with the three-dot form `main...branch`... Never\" two-dot) \u2014 so the committed doc documents a rule violation as normal procedure. Not on the orchestrator's friction list; flagged via cross-check.\n\u2192 Improvement: don't commit `transcript.md`/`friction.md` to the tree; the required artifact is the PR body's `Retrospective: run|...` line (per ADR 0030 analog already implied by this repo's \"Retrospective line is required on every PR\"). Drop both files from the branch before opening the PR.\n\u2192 Home: none needed \u2014 existing rule (ledgerlint CLAUDE.md \"Docs: state the current truth\" + Shipping section) already covers it; this is a compliance miss, not a gap.\n\u2192 Judgment call: no \u2014 advisory, orchestrator should just remove the files before shipping.\n\nOmitted as one-offs (insufficient recurrence evidence): friction #1 (flaky \"entry integration test\" \u2014 no such test file exists anywhere in this repo, unverifiable and likely transient); friction #2 (rebase conflict in `docs/config.md` \u2014 that file has exactly one commit in history, no repeated-conflict pattern to indicate a systemic issue)."
+}

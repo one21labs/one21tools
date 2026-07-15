@@ -1,0 +1,54 @@
+{
+ "cell": "B2-A-r1",
+ "scenario": "B2",
+ "arm": "A",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 39687.4,
+  "duration_ms": 38368,
+  "duration_api_ms": 39455,
+  "cost_usd": 0.1327036,
+  "usage": {
+   "input_tokens": 4,
+   "cache_creation_input_tokens": 11406,
+   "cache_read_input_tokens": 48702,
+   "output_tokens": 3262,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 11406,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3161,
+     "cache_read_input_tokens": 28574,
+     "cache_creation_input_tokens": 2960,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2960
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T05:59:33.711916+00:00",
+   "end": "2026-07-14T06:00:13.399299+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1327036
+ },
+ "response": "## Decision Record \u2014 Issue #41 execution design: full grid vs. expensive-arm pilot\n\n**Question.** Run the full pre-registered 4-arm \u00d7 8-task \u00d7 3-rep grid, or pilot the most expensive arm alone first and stop early if the decision gate is already decidable?\n\n**Decision: Run the full pre-registered grid.** Do not substitute a single-arm pilot-and-early-stop design.\n\n**Rationale:**\n\n1. **The decision rule is not evaluable from one arm.** The pre-registered gate (ISSUE-41.md:51) is a joint condition on *Tiered vs. Sonnet-solo*: quality delta \u2265 -0.05 **AND** tokens \u2264 0.7\u00d7 Sonnet-solo. Whichever arm is \"most expensive\" (Tiered, by summed-across-all-agents accounting, or Opus-solo, by per-token cost), no single arm carries both sides of that comparison. A one-arm pilot cannot make the gate decidable in principle \u2014 it would only ever produce an *appearance* of decidability by comparing against an un-measured baseline, which is worse than inconclusive.\n\n2. **This is exactly the flexible-stopping risk pre-registration was adopted to close.** Comment 1 states the plan was \"registered before running to avoid fishing for a favorable cut\" (line 27). An unregistered rule that says \"stop after the expensive arm if it already looks decisive\" is a new, undisclosed optional-stopping procedure layered on top of a commitment made specifically to prevent that. Adding it now \u2014 after the fact, without pre-registering *it* \u2014 reintroduces the same fishing risk the whole design exists to close off.\n\n3. **A cheaper, already-sanctioned lever exists and should be used instead.** The pre-registration already contains the correct place to trade cost for signal: \"add reps/tasks only where a CI straddles the decision boundary; stop when unambiguous\" (line 49), plus the upstream pre-screen that drops saturated tasks before the grid runs at all (line 42). These are the registered, principled cost controls \u2014 sequential escalation on *reps and tasks within the full arm set*, not early exit on *arms*.\n\n4. **Dropping arms breaks two things the design explicitly depends on.** The task-gradient threat control (line 54: \"without a Haiku<Opus gap the test is uninformative\") requires the Haiku/Opus endpoints to interpret any result at all, and the secondary prize question \u2014 \"whether Tiered reaches Opus-solo quality at sub-Opus cost\" (line 51) \u2014 is unanswerable without Opus-solo data. A pilot-one-arm-and-stop design would risk shipping a verdict on the primary hypothesis while leaving the stated secondary question, which is called out as \"the real prize,\" unaddressed.\n\n**How to apply:** Execute all 4 arms \u00d7 8 (pre-screened) tasks \u00d7 3 reps as registered; use the already-registered sequential escalation only to extend reps/tasks when a CI straddles the boundary, never to truncate arms. Record the outcome per ADR 0024 (append-only snapshot) regardless of result.",
+ "probes": {},
+ "artifacts": {}
+}

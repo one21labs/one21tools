@@ -1,0 +1,145 @@
+{
+ "cell": "S2-D-r1",
+ "scenario": "S2",
+ "arm": "D",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 49220.7,
+  "duration_ms": 47246,
+  "duration_api_ms": 54670,
+  "cost_usd": 0.1365525,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 7604,
+   "cache_read_input_tokens": 113505,
+   "output_tokens": 3674,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 7604,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 492,
+     "cache_read_input_tokens": 30814,
+     "cache_creation_input_tokens": 2324,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2324
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:35:42.137177+00:00",
+   "end": "2026-07-14T13:36:31.357904+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3193927
+ },
+ "response": "I've read `MEMO.md` and `modules.md` and written the decision to `DECISION.md`. Summary:\n\n**Decision: Option A** \u2014 extract `dispatcher_console` as a single service, tables stay shared.\n\n**Rejected:**\n- **B** (full multi-quarter migration): its sole driver \u2014 enterprise/procurement pressure \u2014 is unsubstantiated; the memo's own author asked twice and got nothing concrete. Both probes flagged this independently (assumption probe's load-bearing premise for B; premortem's failure class 1).\n- **C** (do nothing): Ops Tools is concretely blocked today, not speculatively \u2014 the case for absorbing that cost further is weaker than a cheap, reversible extraction.\n\n**Load-bearing assumption for A:** `dispatch_events` truly has zero readers and `dispatcher_console` truly has zero inbound synchronous callers. If a hidden caller/reader exists that the trace missed, the \"reversible in a week\" claim collapses and A flips.\n\n**Failure class accepted:** a gap in the extraction playbook (monitoring, deploy, on-call handoff) surfaces only once live \u2014 but contained to one low-blast-radius module with a one-week undo path, rather than replicated across several teams' live commitments as it would under B.\n\nI explicitly did not commit to any fixed extraction order beyond `dispatcher_console` \u2014 `notifications` in particular stays out of scope until A's model is proven, addressing premortem failure class 2 directly.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 31797.8,
+   "duration_ms": 29789,
+   "duration_api_ms": 31898,
+   "cost_usd": 0.09977539999999999,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8218,
+    "cache_read_input_tokens": 72478,
+    "output_tokens": 1868,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8218,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1591,
+      "cache_read_input_tokens": 26330,
+      "cache_creation_input_tokens": 2016,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2016
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:35:10.338863+00:00",
+    "end": "2026-07-14T13:35:42.136660+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Three failure classes, each grounded in specifics from `MEMO.md` and `modules.md`:\n\n**1. The migration was scoped around a claim nobody could substantiate.** The memo explicitly documents that the \"several enterprise prospects ask about microservices\" argument is secondhand \u2014 the author asked twice for a specific prospect, lost-deal note, or procurement ticket and got nothing (`MEMO.md` lines 17\u201319). If that pressure was the real driver behind committing to a broad, multi-quarter migration (Option B), there was never a concrete customer, deal size, or deadline to validate scope or sequencing against. Six months in, the \"procurement\" justification either never resurfaces in an actual deal or turns out to require something the migration didn't even address (e.g., a specific compliance cert, not service boundaries), leaving a large infrastructure commitment with no one able to say what business outcome it was supposed to produce.\n\n**2. The sequencing plan pulled a highly-coupled module before the coupling was resolved.** `modules.md` shows `notifications` has 9 synchronous inbound callers and 3 shared tables, and is flagged by name as something that \"would be a multi-month entanglement\" to extract first \u2014 in contrast to `dispatcher_console`, which has zero inbound callers and a private write table. A \"sequence several extractions over the next two quarters\" plan (Option B) that reaches `notifications` on a fixed timeline, rather than gating on proof from the low-risk seam first, runs straight into that entanglement: nine call sites need coordinated changes, three shared tables create write-ordering and consistency bugs across newly-separate deploys, and the two-quarter schedule slips or ships with data races that surface as production incidents.\n\n**3. Irreversible commitments were made before the operating model was validated.** The memo frames Option A's reversal cost as roughly a week (one service, shared DB, routing change back) versus Option B, which \"commits infrastructure, on-call rotations, and cross-team API contracts that are slow and expensive to unwind\" (`MEMO.md` lines 37\u201339). If the decision stood up on-call rotations and cross-team contracts for multiple services in parallel, rather than proving the model on the one leaf-node seam first, any gap in the extraction playbook \u2014 monitoring, deploy pipeline, ownership handoff \u2014 gets replicated across several teams simultaneously instead of being caught and fixed on a single low-blast-radius service. By the time it's clear the model has a hole, the fallback isn't a week-long routing change; it's unwinding several live service boundaries and the team commitments built around them."
+  },
+  "assumption": {
+   "duration_ms_wall": 18556.3,
+   "duration_ms": 16578,
+   "duration_api_ms": 19309,
+   "cost_usd": 0.0830648,
+   "usage": {
+    "input_tokens": 6,
+    "cache_creation_input_tokens": 8122,
+    "cache_read_input_tokens": 72376,
+    "output_tokens": 795,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 8122,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 504,
+      "cache_read_input_tokens": 26234,
+      "cache_creation_input_tokens": 2016,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2016
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T13:35:10.339677+00:00",
+    "end": "2026-07-14T13:35:28.896030+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "Options and their single load-bearing dependency:\n\n- **A \u2014 extract dispatcher_console only, tables stay shared:** load-bearing premise is that `dispatch_events` truly has zero readers and the console has zero inbound synchronous callers (modules.md: \"Inbound synchronous callers: 0,\" \"no other module reads this table\"). If X is false \u2014 some hidden caller or downstream reader of `dispatch_events` exists that the trace missed \u2014 option A flips, since the \"reversible in a week\" claim depends entirely on that isolation being real.\n\n- **B \u2014 commit to full multi-quarter multi-service migration:** load-bearing premise is that the procurement/enterprise pressure is real and durable (memo: prospects \"keep asking,\" raised in procurement reviews). If X is false \u2014 i.e., there's no actual prospect, lost-deal note, or procurement ticket backing this, which the memo itself admits it couldn't produce \u2014 option B flips, since committing infra/on-call/API contracts for two quarters is only justified by that external pressure, not by the internal coupling data (which argues for a narrow cut, not a broad one).\n\n- **C \u2014 do nothing, keep Ops Tools on shared deploy train:** load-bearing premise is that Ops Tools' release blockage is tolerable to absorb a while longer. If X is false \u2014 i.e., the four-engineer team's velocity loss/blocked releases are already costly enough that waiting has a real price \u2014 option C flips, since the memo's stated trigger (they're \"increasingly blocked\") is the only reason not to just stay put."
+  }
+ },
+ "artifacts": {
+  "DECISION.md": "# Decision: first service to carve out of the Dockline monolith\n\nDecision owner: platform lead (per authority granted in `MEMO.md`)\nDate: 2026-07-14\nInputs: `MEMO.md`, `modules.md`, premortem probe report, assumption probe report\n\n## Decision\n\n**Option A.** Extract `dispatcher_console` as a single service behind a thin API,\nleaving its tables (`bookings`, `carriers` reads; `dispatch_events` write) in the\nshared database for now.\n\n## Rationale\n\n`modules.md` shows `dispatcher_console` is a leaf: zero inbound synchronous callers,\nand its only write target (`dispatch_events`) has no other readers. That is a real,\ntraced structural fact, not an aspiration \u2014 it is what makes the \"fold it back in a\nweek\" reversal claim in `MEMO.md` credible. Extracting the one module where the data\nbacks up the isolation claim, on a path we can undo cheaply if the isolation turns out\nto be wrong, is the correct first move.\n\n`notifications` is the opposite profile \u2014 9 synchronous callers, 3 shared tables \u2014 and\nboth probes independently flagged committing to a fixed two-quarter sequence that\nreaches a module like that as the way this goes wrong (premortem failure class 2). We\nare not pre-committing to any extraction order beyond this one service; whether\n`notifications` (or anything else) gets extracted next is a separate decision made\nafter A's operating model has been proven, not before.\n\n## Options rejected and why\n\n**B \u2014 full multi-quarter multi-service migration.** Rejected. The memo's own author\ncould not substantiate the stated driver: two separate requests for a specific\nprospect, lost-deal note, or procurement ticket tied to the \"prospects keep asking\nabout microservices\" claim came back empty (`MEMO.md` lines 17\u201319). Both probes\nconverged on this independently \u2014 the assumption probe named it as B's sole\nload-bearing premise, and the premortem probe named it as failure class 1. Committing\ninfrastructure, on-call rotations, and cross-team API contracts (memo lines 37\u201339) for\ntwo quarters on an unverified external pressure claim, when the internal coupling data\nin `modules.md` argues for a narrow first cut rather than a broad one, is not\njustified. If that procurement pressure becomes real and specific (a named prospect,\ndeal, or deadline), B or a version of it becomes worth re-evaluating on its own merits\n\u2014 but that is a future decision with future evidence, not this one.\n\n**C \u2014 do nothing.** Rejected. The memo states Ops Tools (four engineers) is\n\"increasingly blocked\" shipping on the shared deploy train today. That cost is\nconcrete and current, not speculative, so the case for absorbing it further is weaker\nthan the case for a reversible, low-blast-radius extraction that directly relieves it.\n\n## Load-bearing assumption\n\nThe decision rests on one premise about A's real-world mechanism: **`dispatch_events`\ntruly has no readers and `dispatcher_console` truly has no inbound synchronous\ncallers** \u2014 i.e., the isolation `modules.md` traced is complete, not an artifact of an\nincomplete trace. If that is false \u2014 some caller or downstream reader was missed \u2014\noption A flips: the \"reversible in about a week\" claim depends entirely on that\nisolation being real, and without it the fold-back-in-a-week plan doesn't hold.\n\n## Failure class accepted\n\nWe are accepting premortem failure class 3 in miniature, deliberately scoped down:\nsome gap in the extraction playbook (monitoring, deploy pipeline, on-call handoff)\ngets discovered only once dispatcher_console is live as a service. Unlike option B,\nthis gap surfaces on one low-blast-radius module with a one-week undo path, not\nreplicated across several teams' live service boundaries and commitments\nsimultaneously. That containment \u2014 not avoidance of the failure mode \u2014 is the reason\nthis is the acceptable place to accept it.\n\n## Risks / assumptions carried forward\n\n- **(Load-bearing)** `dispatch_events` write-isolation and zero-inbound-caller status\n  holds in practice, not just in the traced call graph. If violated, re-evaluate before\n  proceeding further; the reversal plan is the mitigation.\n- Some non-trivial part of standing up a service (deploy pipeline, monitoring,\n  ownership handoff) will have a rough edge the first time through. Accepted, because\n  the blast radius is one module and the undo path is a routing change back, not a\n  multi-team unwind.\n- The procurement/enterprise-pressure claim behind option B remains unverified. It is\n  not a factor in this decision and should not be treated as settled scope for later\n  extractions until it is backed by a specific prospect, deal, or deadline.\n\n## Kill / re-evaluate criteria\n\n- If, once live, `dispatch_events` turns out to have a reader or `dispatcher_console`\n  a caller the trace missed, fold it back via the routing change described in the memo\n  and reassess before extracting anything else.\n- Do not schedule extraction of `notifications` or any other module on a fixed\n  calendar. The next extraction, if any, is decided after A's operating model\n  (deploy, monitoring, on-call) has run long enough to be trusted, and is chosen based\n  on coupling data in `modules.md`, not on unverified external pressure.\n"
+ }
+}

@@ -1,0 +1,54 @@
+{
+ "cell": "B4-A-r1",
+ "scenario": "B4",
+ "arm": "A",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 528789.4,
+  "duration_ms": 527448,
+  "duration_api_ms": 527555,
+  "cost_usd": 2.6133181000000008,
+  "usage": {
+   "input_tokens": 128,
+   "cache_creation_input_tokens": 84562,
+   "cache_read_input_tokens": 4901097,
+   "output_tokens": 42303,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 84562,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3395,
+     "cache_read_input_tokens": 104515,
+     "cache_creation_input_tokens": 175,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 175
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:29:14.932715+00:00",
+   "end": "2026-07-14T06:38:03.722195+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 2.6133181000000008
+ },
+ "response": "I read `ISSUE-109.md` and cross-checked it against ADR 0035 (the closing verdict on issue #41's tiered-execution experiment) and the relevant pre-registration precedents (ADR 0019, 0023, 0024, 0025, 0027). Decision recorded as `docs/decisions/0036-routing-cascade-experiment-greenlight.md`.\n\n**Decision: PROCEED, conditionally.**\n\nKey reasoning:\n- ADR 0035 rejected *tiered* (iterative coaching of a weak implementer) \u2014 the identified failure mechanism was \"iterating a weak implementer against a strong critic converges to the implementer's ceiling.\" Routing (single haiku attempt, discard-and-redo on reject, no coaching) is a genuinely different mechanism that was never tested, so this isn't re-litigating a settled ADR \u2014 it's a first test of an unexamined shape.\n- The issue's own cost model bounds the downside well below tiered's blowup: worst case \u2248 checker + sonnet-solo cost, not tiered's 2.94x.\n- I found a way to make this even cheaper than the issue proposed: routing's escalate branch (sonnet redoes the whole task, no coaching) is *identical* to the already-collected `sonnet-solo` arm in `benchmarks/2026-07-10-tiered-execution-fullgrid/`, and that benchmark's `haiku-solo` outputs are already graded too. So Phase 1 \u2014 the checker-fidelity pilot that determines whether routing can even work \u2014 needs **zero new generation spend**, only checker-call tokens, by composing already-graded cells.\n- Gate: proceed to a full routing grid / adopt-reject verdict only if a checker variant clears **\u226415% false-accept** (the issue's own threshold, benchmarked against ADR 0035's measured 25% tiered-validator false-accept). If nothing clears it, record the null immediately rather than spending on a full grid to chase a result the pilot already ruled out.\n\nOne process note: I couldn't get `adr-lint.mjs` to actually execute in this session (repeated approval prompts weren't granted), so I hand-verified the frontmatter, ADR citations, char budget (5909/6000), and the falsifiability criterion against the linter's source. Please run `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` yourself before merging to get the automated confirmation CLAUDE.md requires pre-merge.\n\nThe Phase 1 pilot script itself is follow-up work, not done here \u2014 per ADR 0021 it belongs in a GitHub issue (deferred, not implemented inline in this decision).",
+ "probes": {},
+ "artifacts": {}
+}

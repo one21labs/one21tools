@@ -1,0 +1,57 @@
+{
+ "cell": "T3-A-r1",
+ "substrate": "T3",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 299568.9,
+  "duration_ms": 298146,
+  "duration_api_ms": 298477,
+  "cost_usd": 0.8540983999999999,
+  "usage": {
+   "input_tokens": 50,
+   "cache_creation_input_tokens": 39003,
+   "cache_read_input_tokens": 1029358,
+   "output_tokens": 20699,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 39003,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1706,
+     "cache_read_input_tokens": 56873,
+     "cache_creation_input_tokens": 1319,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1319
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T06:55:23.482588+00:00",
+   "end": "2026-07-14T07:00:23.051515+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I have enough evidence for a solid set of findings. Here's the review:\n\n## Process problems found (this session = the 16 commits on `work` ahead of `main`)\n\n**1. CI gate's exit code is silently discarded \u2014 this is the root cause of friction #3**\n`scripts/ci.sh:5`, introduced in `3606899`:\n```sh\npython3 scripts/gate.py docs | grep -v OK\n```\nunder `set -e` in `/bin/sh` (dash \u2014 no `pipefail`). `gate.py` never prints the string `\"OK\"` (`scripts/gate.py:18`) \u2014 it only prints `\"over limit: <path>\"` on failure. So when the gate genuinely fails, its output doesn't match `OK`, `grep -v OK` echoes the line and **exits 0**, and `set -e` only inspects the pipeline's last command \u2192 CI reports green on a real failure. This is exactly friction.md item 3 (\"CI stayed green on a run where a doc had an over-long line\"). The inverse bug also exists: on a clean pass, `gate.py` prints nothing, `grep -v OK` matches zero lines and exits 1, which would spuriously fail CI on a good run.\n\n**2. The gate's own decision-logic test is currently broken**\n`scripts/gate.test.py:5`: `assert over_limit('x' * 100) is True`. This was correct when `LIMIT = 90`, but `03bc407` (this session) raised `LIMIT` to 110 (`scripts/gate.py:6`) without touching the test fixture \u2014 100 is no longer `> 110`, so this assertion now raises `AssertionError` on any real run. Line 8 also references `LIMIT` without importing it (`from gate import over_limit` only, line 3) \u2014 a pre-existing latent bug from `05f0c4b` on `main`, previously masked because the script never reached that line. The transcript's \"gate green\" claim is not consistent with actually running the full CI script.\n\n**3. Threshold/policy changes made directly instead of going through `/decide`**\nCLAUDE.md is explicit: \"A judgment call (a threshold, scope, or policy question...) triggers `/decide` immediately... Never fix a judgment call directly before deciding it.\" Two threshold changes bypassed this in one session:\n- `933a8d9` \u2014 commit message says \"clarify wording in ADR 0002,\" but the diff changes the actual decision value: `docs/decisions/0002-tile-cache.md`, \"The render cache keeps the last **200**\" \u2192 \"**500** tiles.\" That's a policy change mislabeled as a wording fix, made directly with no PDCA cycle.\n- `03bc407` \u2014 raised the gate's line-limit from 90 to 110 directly, updating only `docs/troubleshooting.md`, with no ADR recorded for the new threshold.\n\n**4. Fabricated/unverifiable issue reference**\n`790a4c3` adds to `docs/config.md`: `TODO: add a --dry-run flag (tracked as issue #69)`. This repo's only remote (`git remote -v`) is a local bare repo with no issue tracker \u2014 there is no GitHub host here, so issue #69 cannot exist. This violates ADR 0021 (\"Deferred = issues... No handoff/TODO files\") twice over: a TODO was left in a docs file, and it cites a specific issue number that has no corresponding artifact.\n\n**5. Transcript's completion claim is contradicted by git history**\n`transcript.md:36` states \"Merged after the gate passed. Nothing outstanding from my side,\" and frames the work as two merged PRs. But `origin/main` and local `main` are both still at `eb55c19`, identical, 16 commits behind `work` \u2014 no merge commit, no push, no PR evidence anywhere. Per CLAUDE.md, git history is the SSoT; it directly contradicts the narrative.\n\n**6. Retrospective claimed but not substantiated**\n`transcript.md` states `Retrospective: run` for both PRs (twice), but `docs/pdca/session-log.txt` was committed empty (0 lines) in the same commit (`69b82d2`) that added the transcript. ADR 0030 requires recording the retrospective outcome \u2014 an empty log doesn't back the claim.\n\n**7. Known friction was selectively left out of the transcript**\n`friction.md` lists 3 items, but `transcript.md`'s \"Checking the branch\" section only mentions item #1 (the flaky test). The rebase conflict in `docs/config.md` (#2) and the CI false-green (#3) \u2014 the two most process-relevant frictions \u2014 are never mentioned in the transcript at all, so they never fed the retrospective.\n\n**8. Minor: dead code + tautological test**\n`scripts/report.py` (added `921adb4`) is never invoked by `ci.sh` or referenced anywhere else in the repo (only its own test imports it). Its test, `scripts/report.test.py:5` (`assert count('.') >= 0`), can never fail \u2014 `len()` is never negative \u2014 so it verifies nothing. Given the repo's own \"cut muda on sight\" / no-dead-code policy, this is unused scaffolding with a test that provides no real coverage."
+}

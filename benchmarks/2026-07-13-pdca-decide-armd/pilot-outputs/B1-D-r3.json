@@ -1,0 +1,143 @@
+{
+ "cell": "B1-D-r3",
+ "scenario": "B1",
+ "arm": "D",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 289593.7,
+  "duration_ms": 288259,
+  "duration_api_ms": 289192,
+  "cost_usd": 1.2074839,
+  "usage": {
+   "input_tokens": 68,
+   "cache_creation_input_tokens": 52711,
+   "cache_read_input_tokens": 1847063,
+   "output_tokens": 22309,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 52711,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 774,
+     "cache_read_input_tokens": 77925,
+     "cache_creation_input_tokens": 498,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 498
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T05:48:49.248899+00:00",
+   "end": "2026-07-14T05:53:38.842613+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.596762
+ },
+ "response": "I've read the two probes, cross-checked the load-bearing claims against the current repo state, and recorded the decision.\n\n**Decision (docs/decisions/0035-tiered-agent-do-phase-test-authorization.md):** Don't adopt tiered execution now \u2014 that's already settled by ADR 0024, not a fresh call. What *was* open is Comment 3's three \"owner calls before spend.\" I resolved them: authorize running the Comment 1/3 pre-registered 4-arm test as designed, accept the Sonnet-grades-Sonnet grader residual (same precedent as ADR 0019) rather than deferring indefinitely, and defer the Opus-main arm per Comment 3's own sequencing. Adoption itself stays gated on the pre-registered rule (delta \u2265 -0.05 AND tokens/wall-clock \u2264 0.7x) \u2014 a follow-up ADR will record adopt/no-adopt once the test actually runs.\n\nKey thing that shaped this: the premortem's sharpest risk (a new tiered script shipping before a hard CI gate exists, so a missing `model:` silently burns Sonnet/Opus) turned out to be **already closed** \u2014 `check-workflow.mjs` was wired into `gates.yml` as a required check by ADR 0029, merged a few hours after ISSUE-41's Comment 2 raised the concern. The premortem cited Comment 2 as current without checking whether #54 had since been decided; it had. I flagged that as a `[checkable]` assumption in the ADR rather than silently correcting the premortem, and fixed a one-line stale docstring in `scripts/check-workflow.mjs` that still said \"advisory\" (it isn't). The other two premortem risks (validator self-grading, 8-task generalization) are real but are the test's own bounded, named residuals \u2014 not blockers \u2014 and I recorded them as revisit triggers instead.\n\nNote: I couldn't run `node`/`adr-lint.mjs` in this session (command approval was denied each attempt), so I hand-verified the ADR against the lint's rules (frontmatter, id/filename match, no dangling `ADR NNNN` cites, falsifiability criterion present, char budget: 5,773/6,000). Worth running `node pdca-workflow/scripts/adr-lint.mjs docs/decisions` yourself before this merges.",
+ "probes": {
+  "premortem": {
+   "duration_ms_wall": 55297.8,
+   "duration_ms": 53922,
+   "duration_api_ms": 54510,
+   "cost_usd": 0.2594786,
+   "usage": {
+    "input_tokens": 12,
+    "cache_creation_input_tokens": 23381,
+    "cache_read_input_tokens": 218742,
+    "output_tokens": 3521,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 23381,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 1725,
+      "cache_read_input_tokens": 47647,
+      "cache_creation_input_tokens": 1446,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 1446
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T05:47:53.950281+00:00",
+    "end": "2026-07-14T05:48:49.248106+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Premortem: tiered-agent execution for the Do phase \u2014 assume it shipped and failed by 2027-01\n\n**1. The silent-model-inherit defect recurs inside the very script the decision depends on.** `check-workflow.mjs` only *advisorily* lints for a missing `model:` key on `agent()` calls (`scripts/check-workflow.mjs:1-14`), and issue #54 \u2014 still open per Comment 2 of ISSUE-41.md \u2014 is what would decide whether that check ever gates CI. The tiered-orchestration script this issue calls for is new code with a main agent *and* worker `agent()` calls, i.e. exactly the pattern that already caused 5 merged `*.workflow.js` files to silently execute on the session model instead of the intended tier (Comment 2, tracked as #53). If the new script ships before #54 lands a hard gate, a worker call missing `model: haiku` silently runs on Sonnet/Opus \u2014 the tiering tax goes up, the measured cost saving quietly evaporates in production, and nobody notices because the pass rate looks fine (it's now Sonnet-solo wearing a tiered label).\n\n**2. The validator rubber-stamps its own worker's output and the benchmark never caught it.** The design explicitly names this risk but doesn't resolve it: \"Owner calls before spend: (1) grader independence is unsolvable with 3 tiers... accept the Sonnet-grades-Sonnet residual\" (Comment 3), and ADR 0019 already carries this as a *named, unresolved residual* \u2014 \"Claude-grades-Claude family bias... judgment-only assertions stay directional \u2014 bounded, not eliminated.\" In the tiered arm, the same Sonnet instance plans, validates, and re-dispatches its own Haiku worker \u2014 a tighter self-preference loop than plain grading. The pre-registered test does plan to \"measure the main-agent validator's false-accept / false-reject vs the final grader\" (Test plan, Threats/controls), but that's measured against only 8 pre-screened tasks; if false-accept rate is low on that curated sample but climbs on messier real Do-phase specs (multi-file tech-lead builds vs single-skill evals), the validator waves through broken worker output in production that the benchmark structurally couldn't surface.\n\n**3. The 8-task pre-screened sample doesn't represent real Do-phase work, so the cost/quality win doesn't generalize.** The decision rule requires \">=30% lower total tokens... summed across ALL agents\" including every validation/retry cycle (Comment 1's decision rule and \"honest cost\" control), but the sample is deliberately narrow: 8 tasks \"chosen for a Haiku->Opus quality gradient,\" pre-screened to drop saturated ones, 3 reps each (Comment 1, Comment 3: \"~250-300 agent invocations\"). Real tech-lead-directed builds (per `pdca-workflow/agents/tech-lead.md:9-16`, spanning exact change sites, schema migrators, and Sacred-file-paired tests) are far more heterogeneous than a curated implementation-eval gradient. If production tasks routinely hit the `<=3 cycles` retry cap that the 8-task sample rarely exercised, the orchestration tax (plan + validate + re-dispatch, repeated) erodes the measured 0.7x token ratio below the adoption threshold \u2014 but by then tiering is embedded in the Do-phase flow, and reverting means re-litigating a settled ADR (which CLAUDE.md's \"Inherit settled ADRs; don't re-litigate\" discourages) instead of just re-running the eval."
+  },
+  "assumption": {
+   "duration_ms_wall": 38477.1,
+   "duration_ms": 37080,
+   "duration_api_ms": 38265,
+   "cost_usd": 0.12979949999999998,
+   "usage": {
+    "input_tokens": 4,
+    "cache_creation_input_tokens": 11399,
+    "cache_read_input_tokens": 48695,
+    "output_tokens": 3072,
+    "server_tool_use": {
+     "web_search_requests": 0,
+     "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+     "ephemeral_1h_input_tokens": 11399,
+     "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "not_available",
+    "iterations": [
+     {
+      "input_tokens": 2,
+      "output_tokens": 2971,
+      "cache_read_input_tokens": 28567,
+      "cache_creation_input_tokens": 2960,
+      "cache_creation": {
+       "ephemeral_5m_input_tokens": 0,
+       "ephemeral_1h_input_tokens": 2960
+      },
+      "type": "message"
+     }
+    ],
+    "speed": "standard"
+   },
+   "stop_reason": "end_turn",
+   "timestamps": {
+    "start": "2026-07-14T05:47:53.950830+00:00",
+    "end": "2026-07-14T05:48:32.427918+00:00"
+   },
+   "error": null,
+   "retried": false,
+   "response": "## Options for \"adopt tiered-agent execution?\" (assumption hunt only \u2014 not deciding)\n\n**1. Adopt Tiered now, on assertion (skip the empirical test).**\nLoad-bearing dependency: Haiku-worker quality under a Sonnet-validator/iterate(\u22643) loop is already non-inferior to Sonnet-solo.\nIf X is false \u2014 i.e. Haiku's gap survives \u22643 validation cycles \u2014 option flips: this is exactly what ISSUE-41.md:15 (\"Do NOT adopt on assertion\") forecloses, and Comment 1's own hypothesis (line 31) says non-inferiority is unproven.\n\n**2. Don't adopt \u2014 keep Sonnet-solo as the Do-phase baseline.**\nLoad-bearing dependency: tiering can't clear the pre-registered bar (\u2265-0.05 pass-rate delta AND \u22640.7x tokens/wall-clock, line 51).\nIf X is false \u2014 the test in fact clears both thresholds \u2014 option flips: status quo becomes the wrong call by the pre-registered decision rule itself.\n\n**3. Defer the decision to the pre-registered test's outcome (Comment 1/3 as designed).**\nLoad-bearing dependency: the design actually converges to an unambiguous signal \u2014 8 tasks with a real Haiku\u2194Opus gradient survive the pre-screen (line 42), and sequential escalation resolves any straddling CI (line 49).\nIf X is false \u2014 pre-screen can't find 8 non-saturated tasks, or CIs stay ambiguous after escalation \u2014 option flips: the test can't adjudicate the call, forcing an untested decision by default.\n\n**4. Adopt the Opus-main tiered variant (Opus plans/validates, not Sonnet).**\nLoad-bearing dependency: Sonnet-main's validator has a materially worse false-accept rate than Opus-main would (line 56, \"measure the main-agent validator's false-accept/false-reject\") \u2014 i.e. Opus buys real catch-rate, not just cost.\nIf X is false \u2014 Sonnet-main validates Haiku output about as reliably as Opus-main would \u2014 option flips: line 6's \"Opus may earn its place ONLY here\" condition isn't met, and Comment 3 line 67 already recommends deferring this arm on that basis.\n\n**5. Grader-independence blocker forces indefinite defer (owner calls it unsolvable, line 73 item 1).**\nLoad-bearing dependency: the Sonnet-grades-Sonnet residual is acceptable per ADR 0019 precedent rather than disqualifying.\nIf X is false \u2014 the residual is judged to invalidate blind grading for this test \u2014 option flips: none of options 1\u20134 can be resolved empirically until a 4th independent grading tier exists."
+  }
+ },
+ "artifacts": {}
+}

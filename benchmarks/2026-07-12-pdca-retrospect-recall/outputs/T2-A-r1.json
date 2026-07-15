@@ -1,0 +1,57 @@
+{
+ "cell": "T2-A-r1",
+ "substrate": "T2",
+ "arm": "A",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 157223.7,
+  "duration_ms": 155761,
+  "duration_api_ms": 147078,
+  "cost_usd": 0.5728031000000001,
+  "usage": {
+   "input_tokens": 58,
+   "cache_creation_input_tokens": 18125,
+   "cache_read_input_tokens": 993837,
+   "output_tokens": 11006,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 18125,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3633,
+     "cache_read_input_tokens": 40755,
+     "cache_creation_input_tokens": 330,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 330
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-12T03:41:11.619433+00:00",
+   "end": "2026-07-12T03:43:48.843147+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "I reviewed `transcript.md`, `docs/pdca/session-log.txt`, `friction.md`, and cross-checked every claim against the actual git history. Found 7 process problems, several of which are direct violations of this repo's `CLAUDE.md` house rules.\n\n## Findings\n\n**1. Branch was never actually merged \u2014 but the log claims it was**\n`transcript.md:26` says \"Merged after the gate passed. Nothing outstanding from my side.\" Git shows otherwise: `main` and `origin/main` both sit at `4641715`, five commits behind `work` (`HEAD`). No merge commit exists anywhere (`git log --all --graph` is a straight line). The release (version bump, retry-policy change, gate change) never landed on `main`.\n\n**2. Two-dot range used where the repo mandates three-dot**\n`transcript.md:14`: \"Previewed the branch diff with `git log main..work`.\" The repo's `CLAUDE.md` is explicit: \"preview a branch with the three-dot form `main...branch`... never two-dot.\" This session used exactly the forbidden form.\n\n**3. ADR 0002 silently edited \u2014 no amendment, no status flip**\nCommit `8218fe5` changes the retry count from 3 to 5 in `docs/decisions/0002-retry-policy.md:10`, but `status:` on line 4 is still `accepted` and there's no amendment pointer anywhere in the file. `CLAUDE.md`: \"when an ADR's decision changes, the record carries an amendment pointer and its status flips to `amended`. A silent decision edit is not allowed.\" This is exactly that.\n\n**4. Gate decision logic changed without its paired test**\nCommit `cbeb80f` changes `LIMIT = 80` \u2192 `120` in `scripts/gate.py:7` but does not touch `scripts/gate.test.py`. `CLAUDE.md`: \"change a gate script's decision logic only alongside its paired test in the same commit.\" Worse, the omission broke the test's own assertion: `scripts/gate.test.py:5` asserts `over_limit('x' * 90) is True`, which is now **false** under `LIMIT=120` \u2014 the paired test currently asserts something incorrect and would fail if run.\n\n**5. Version bumped by hand-editing the manifest, not via `set-version.sh`**\nCommit `450eefb` (\"bump version to 0.3.0\") touches only `plugin.json` (`git show --stat` confirms 1 file changed). `CLAUDE.md`: \"bump only through `scripts/set-version.sh`, which writes plugin.json and the marketplace entry together. Never hand-edit a version in a manifest.\" The predictable result is present right now: `plugin.json` reads `0.3.0`, `marketplace.json` still reads `0.2.0` \u2014 live drift. `friction.md:4` even admits the manual process (\"had to eyeball whether the two manifest files agreed\") and the eyeballing missed it.\n\n**6. Session log claims work with no corresponding commit**\n`transcript.md:10`: \"Fixed a typo in the guide and tidied the config reference.\" `git log --oneline -- docs/guide.md docs/config.md` shows only one commit ever touched either file (`73f8eb8`, predates this session). No commit reflects this claimed fix \u2014 the work described either didn't happen or didn't get committed.\n\n**7. `docs/pdca/session-log.txt` is empty**\n0 lines. There is no primary record of what commands were actually run (e.g., how the gate was invoked \u2014 bare vs. piped, per the \"Sacred gate\" rule) or in what order. Every claim in `transcript.md` (gate result, merge, typo fix) is unverifiable from source and, per findings 1 and 6 above, at least two of those claims are demonstrably false.\n\n**8. (minor) friction note describes a rebase conflict not evidenced in history**\n`friction.md:3`: \"Rebasing onto main hit a conflict in `docs/config.md`; resolved it by hand.\" History is linear with no merge/rebase-conflict commit, and no commit on `work` touches `docs/config.md`. Flagging for completeness since it's orchestrator-supplied rather than agent-authored, but it doesn't match the repo evidence either.\n\n## Summary\nThe two most serious problems are #1 (false \"merged\" claim \u2014 the release didn't ship) and #5 (real, currently-live manifest drift from a hand-edit). #3 and #4 are direct, citable violations of house rules that were specifically written to prevent exactly this kind of silent drift."
+}

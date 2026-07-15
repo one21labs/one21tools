@@ -21,8 +21,7 @@ current product and surface the open calls yourself.
 
 ## Why this shape
 A correctness panel finds problems but can't decide between them — averaging can't resolve a
-trade-off (sequence/scope/gating turn on cost, risk, differentiation, which correctness experts
-don't own). So split the jobs (roles below): advisors argue, one PM decides and records it, an
+trade-off. So split the jobs (roles below): advisors argue, one PM decides and records it, an
 independent gate verifies against real code/output and can BLOCK. The panel pieces also ship
 standalone — the `advise`, `verify`, and `red-team` skills — for calls that don't need the
 ceremony; this skill composes them and adds the record.
@@ -57,9 +56,11 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
 3. **Check output.** For any claim about what the product renders/prints/exports/writes, grade the
    real produced output before advising — the grading rule's home is the `verifier` agent. No
    output layer = skip.
-4. **Advise (dialectic).** Run the `advise` primitive on the framed scope — it owns panel
-   selection and the spawn/shape rules (fresh, parallel, never primed; opposing counsel on
-   two-sided calls).
+4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
+   at a lite/bare record — no panel spawn; escalate here only for a high-stakes or
+   irreversible call that clears that cheap gate. Then run the `advise` primitive on the
+   framed scope — it owns panel selection and the spawn/shape rules (fresh, parallel, never
+   primed; opposing counsel on two-sided calls).
 5. **Decide (PM).** Invoke `pm`. It weighs them and writes an ADR per call (justification + tagged
    assumptions + rejected alternatives + revisit triggers) per `references/adr-template.md`
    (char caps: `references/doc-budgets.md`). A settled call records as `tier: lite` instead —
@@ -75,7 +76,8 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
    (`id`/`title`/`status`/`summary`; version-agnostic — ship-state derives from `## Act`; lint
    spec: `references/adr-lint.md`; rules + shared register:
    `docs/decisions/README.md`). If a roadmap/changelog/tracker exists, mirror
-   build-order/ship-state there referencing the ADR ID.
+   build-order/ship-state there referencing the ADR ID. Spawned experiments: a
+   neutral falsifiable hypothesis (ADR 0059).
 8. **Iterate the system.** Fold what you learned (a missing field, a better stop rule) back into
    its home — an agent file, this skill, or CLAUDE.md. Automate this Act loop with `/retrospect`.
 

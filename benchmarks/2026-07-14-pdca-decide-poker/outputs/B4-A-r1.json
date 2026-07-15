@@ -1,0 +1,56 @@
+{
+ "cell": "B4-A-r1",
+ "scenario": "B4",
+ "arm": "A",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 248221.9,
+  "duration_ms": 246878,
+  "duration_api_ms": 246536,
+  "cost_usd": 1.1453295,
+  "usage": {
+   "input_tokens": 66,
+   "cache_creation_input_tokens": 53645,
+   "cache_read_input_tokens": 1768945,
+   "output_tokens": 19461,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 53645,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 583,
+     "cache_read_input_tokens": 71515,
+     "cache_creation_input_tokens": 2258,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2258
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T20:16:30.665346+00:00",
+   "end": "2026-07-14T20:20:38.887265+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 1.1453295
+ },
+ "response": "**Bottom line: proceed, but gated \u2014 not an unconditional full grid.**\n\nRouting (issue #109) tests a genuinely different mechanism than issue #41's coach-and-retry, which ADR 0035 already rejected \u2014 that rejection was about iteration converging to the weak implementer's ceiling, and doesn't settle routing's failure mode (checker false-accept). So declining outright would drop a real, cheap-to-run test; but running the full grid unconditionally would risk repeating #41's mistake, since ADR 0035's own data (a Sonnet validator false-accepting 6/24 = 25%) is a discouraging prior for a Sonnet-judge checker.\n\nThe resolution: split the spend. **Stage 1** re-grades the *already-committed* haiku-solo outputs from `benchmarks/2026-07-10-tiered-execution-fullgrid/` with candidate checkers \u2014 this costs only checker calls, no new model generation, and directly measures the false-accept rate the issue itself flagged as the make-or-break variable. **Stage 2** (the real sonnet-escalation spend) only runs if a checker clears the issue's own \u226415% false-accept bar; I also finalized the previously-sketched adoption bar (non-inferior frac-met, \u22640.6\u00d7 cost) per ADR 0024. Chars: 4,990/6,000, manually verified against `adr-lint.mjs`'s rules (couldn't execute the linter directly this session \u2014 Bash calls to `node` were blocked by the permission layer).\n\nI did not commit this or open a PR \u2014 the ADR file (`docs/decisions/0036-routing-checker-fidelity-gate.md`) and the original `ISSUE-109.md` are sitting as untracked changes if you want to review before committing.",
+ "poker": {},
+ "artifacts": {
+  "docs/decisions/0036-routing-checker-fidelity-gate.md": "---\nid: 0036\ntitle: \"Routing experiment (issue #109): proceed, gated by a checker-fidelity pre-test before any escalation spend\"\nstatus: accepted\nsummary: \"Issue #109's routing config (haiku attempts once, checker accept/escalate, escalation redoes the WHOLE task on sonnet, no coaching) is architecturally distinct from #41's rejected coach-and-retry (ADR 0035) \u2014 different failure mode, worth testing. PROCEED, but only via a two-stage gate: Stage 1 is free (checker variants re-grade the ALREADY-COMMITTED haiku-solo outputs in benchmarks/2026-07-10-tiered-execution-fullgrid/outputs/ against existing MET/NOT-MET verdicts, zero new generation calls); Stage 2 (real sonnet-escalation spend) runs ONLY if a checker variant clears <=15% false-accept.\"\n---\n\n# 0036 \u2014 routing experiment: proceed, gated by checker fidelity\n\n- Date: 2026-07-14\n- Owner: PM (owner-directed, full authority per request)\n- Panel: none \u2014 arithmetic-style spend gate, same footing as ADR 0035\n- Context: ISSUE-109.md proposes routing (haiku attempts once; checker accepts or escalates the WHOLE task to sonnet, no coaching) \u2014 the cascade shape #41's coach-and-retry did not test. ADR 0035 rejected coach-and-retry (2.94-8.8x cost, quality below sonnet-solo) via a DIFFERENT mechanism: iterating a weak implementer against a critic converges to the implementer's ceiling. Routing fails differently (bounded by checker false-accept, not iteration convergence) \u2014 untested. 0035's parallel replication measured a Sonnet validator at 25% false-accept (6/24) on a related-but-not-identical task (validating COACHED final output, not a first-attempt accept/escalate call) \u2014 informative prior, not dispositive.\n\n## Decision\n1. **Proceed with the routing experiment**, conditional on the two-stage gate below \u2014 not a full grid on day one.\n2. **Stage 1 (checker-fidelity pre-test, ~zero incremental cost):** score each checker variant (sonnet-judge; checklist-scored deterministic) against the 24 haiku-solo outputs already committed in `benchmarks/2026-07-10-tiered-execution-fullgrid/outputs/` and `graded/`, reusing their existing MET/NOT-MET ground truth. Compute false-accept (checker ships a cell existing grading marked failing) and false-reject per variant. No new generation calls \u2014 only checker calls.\n3. **Stage 2 (full routing grid, real escalation spend):** runs ONLY if a Stage-1 variant clears **false-accept <=15%** (the issue's own bar, ISSUE-109.md:14). Else record the null (ADR 0024) and stop.\n4. **Finalized Stage-2 adoption bar** (per ADR 0024, completing ISSUE-109's sketch): ADOPT routing iff (a) frac-met delta (routing - sonnet-solo) > -0.05, eval-clustered 95% CI (ADR 0019, same margin as 0035), AND (b) median cost <=0.6x sonnet-solo (0035's cost gate, reused), AND (c) the winning checker's false-accept on the Stage-2 grid confirms <=15% (Stage 1 is a haiku-solo-only proxy; Stage 2 re-checks on the real escalate/accept mix).\n5. Reuse ADR 0023 hermetic executor, ADR 0025 blind+prosecutor grading, ADR 0026 sample/archive rule, ADR 0027 arm construction \u2014 same harness family as `2026-07-10-tiered-execution-fullgrid`.\n6. Timing: owner's call, no urgency (ISSUE-109.md:16) \u2014 authorizes Stage 1 whenever picked up; does not schedule it.\n\n## Justification\nCost x risk x value: Stage 1 costs ~24 checker calls (cents) and directly resolves the pre-registered known threat (ISSUE-109.md:12-14) before Stage 2's real escalation spend. Declining outright drops a cheap test of a mechanism 0035 never measured (0035 falsified coach-and-retry, not routing). An ungated full grid repeats #41's mistake of paying for a result the false-accept math already makes foreseeably negative.\n\n## Assumptions\n- [checkable] Stage 1 is executable against already-committed artifacts, no new generation cost \u2014 result: verified 2026-07-14 (`outputs/` has 25 haiku-solo cell files; `graded/verdicts.jsonl` + `prosecute_counts.jsonl` present).\n- [checkable] a checker variant clears <=15% false-accept in Stage 1 \u2014 owner runs Stage 1, records the number; result: pending.\n- [unverifiable] 0035's 25% false-accept (coach-loop validator) transfers to routing's accept/escalate checker \u2014 different call shape, could score either direction \u2014 REOPEN-IF Stage 1's rate diverges >10pp from 25% either way; note the divergence when recording Stage 1.\n\n## Rejected alternatives\n- Decline outright \u2014 discards a near-free Stage-1-only test of a mechanism 0035 never measured.\n- Run the full grid unconditionally \u2014 repeats #41's paid-for-a-foreseeable-null pattern.\n- Treat 0035's 25% as dispositive, skip measuring routing's checker \u2014 conflates a coach-loop validator with a first-attempt accept/escalate checker (see Assumptions).\n\n## Revisit triggers\n- Stage 1 completes -> record the false-accept table; gate opens (Stage 2) or the null is recorded (ADR 0024) and appended to `## Act`.\n- A new checker variant becomes available -> re-run Stage 1 against it before declaring the gate closed.\n"
+ }
+}

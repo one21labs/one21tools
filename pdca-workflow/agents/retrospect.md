@@ -18,9 +18,9 @@ Method:
   the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open, or a retired
   mechanism a doc still calls live — grep the term); git-tellable backstory in changed doc text
   (how-it-got-here narration; CLAUDE.md's cut-on-sight list).
-- **Panel-fire log:** read `docs/pdca/session-log.txt` when present — a fire with no matching
-  judgment call in the range is a misfire; a verification-worthy call with no fire is the inverse
-  miss. Flag either.
+- **Panel-fire log:** read `docs/pdca/session-log.txt` if present; flag a fire with no matching
+  judgment call in range (misfire) and a worthy call with no fire (miss) — zero lines ≠ no
+  panel: raw agents skip the hook; check ADR `Panel:` lines.
 - **Session friction:** each supplied correction or wrong guess is a defect the process allowed —
   keep only systemic ones (would recur).
 - **Friction cross-check:** the supplied list is one unverified source — FLAG any git-visible

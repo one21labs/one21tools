@@ -1,0 +1,186 @@
+{
+ "cell": "S1-P-r1",
+ "scenario": "S1",
+ "arm": "P",
+ "rep": 1,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 36628.4,
+  "duration_ms": 35284,
+  "duration_api_ms": 37587,
+  "cost_usd": 0.1131297,
+  "usage": {
+   "input_tokens": 6,
+   "cache_creation_input_tokens": 9190,
+   "cache_read_input_tokens": 76569,
+   "output_tokens": 2204,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 9190,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1937,
+     "cache_read_input_tokens": 28685,
+     "cache_creation_input_tokens": 633,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 633
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T20:39:42.041801+00:00",
+   "end": "2026-07-14T20:40:18.670214+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.5066535999999999
+ },
+ "response": "All three advisors converge on **Option C (O3, intermediate cap with planned revisit)** at score 5, while O1 (1,000/day) and O2 (150/day) both scored lower (2 and 4) \u2014 and the two rounds show no real disagreement to resolve. I'm going with O3.\n\n## Decision Record: Free-tier daily request cap\n\n**Decision:** Cap the free tier at **300 requests/day per key**, effective at launch, with a revisit checkpoint tied to real Pro-conversion data.\n\n**Why 300, specifically:**\n- It sits above every observed day in the 30-day log (busiest ~250/key-avg), so no current free user gets capped or breaks on day one \u2014 no launch-week support fires.\n- It's well below the built/load-tested 1,000, so it isn't a wall-free-forever number. As usage grows past today's baseline, active users will hit it and become real upgrade candidates.\n- It's deliberately not \"near observed usage\" (150) \u2014 the memo is explicit that conversion elasticity is an unvalidated guess, and a harder cap on zero data risks pushing users to churn instead of upgrade. 300 gets most of the lever effect while hedging that risk.\n\n**Revisit mechanism (the part that keeps this from being O1/O2 with extra steps):**\n- Instrument a \"hit the cap\" event per key now, at launch \u2014 not something to add later.\n- Hard checkpoint: **90 days after Pro goes live**, review (a) what fraction of capped keys converted to Pro vs. churned, and (b) what fraction of keys are hitting 300 at all.\n- This is a calendar commitment, not a \"someday\" \u2014 put 2026-10-12 (90 days post-launch, adjust once Pro ships) on the calendar now.\n\n**What would make me change the number:**\n- If capped users churn rather than upgrade \u2192 raise the cap toward 1,000; the lever is costing more users than it converts.\n- If almost nobody reaches 300 even months after Pro launches \u2192 lower it toward 150; it isn't functioning as a lever at all.\n- If overage triggers meaningful support load before the 90-day mark \u2192 tighten enforcement (e.g., soft-warn then hard-cap) rather than changing the number itself.\n\nNo file changes needed \u2014 this is a standalone decision, not something the repo's code depends on. Let me know if you want this appended to `MEMO.md` as a resolution section.",
+ "poker": {
+  "options": [
+   {
+    "id": "O1",
+    "label": "Cap at 1,000/day",
+    "summary": "Set the free-tier cap at 1,000 requests/day, matching the already-built and load-tested metering capacity."
+   },
+   {
+    "id": "O2",
+    "label": "Cap near observed usage (~150/day)",
+    "summary": "Set the cap close to typical active-key usage (~100-250/day) so it functions as a conversion lever toward Pro."
+   },
+   {
+    "id": "O3",
+    "label": "Intermediate cap with planned revisit",
+    "summary": "Choose a cap between observed usage and built capacity, with a defined point to reassess once Pro conversion data exists."
+   }
+  ],
+  "usable_advisors": 3,
+  "round1": [
+   {
+    "O1": {
+     "score": 2,
+     "crux": "A 1,000/day cap sits ~4-10x above even the busiest observed per-key day (~250), so it costs nothing to build but functions as no wall at all \u2014 free stays free forever",
+     "dependency": "If the goal is purely to avoid support/infra risk rather than to drive Pro conversion, then matching built capacity is the right call and this score should rise"
+    },
+    "O2": {
+     "score": 4,
+     "crux": "A ~150/day cap sits just above typical usage (~100/key) but below the busiest days (~250), making it a real lever that active users will plausibly hit within weeks without punishing typical usage on day one",
+     "dependency": "If actual conversion sensitivity to hitting a cap turns out to be low (users just churn instead of upgrading, since there's no Pro conversion data yet), the lever could suppress usage/goodwill without producing revenue, reversing this score"
+    },
+    "O3": {
+     "score": 5,
+     "crux": "Given the memo's own admission that conversion elasticity is an unvalidated guess, an intermediate cap with a defined revisit point captures most of the conversion-lever effect while hedging against picking the wrong number on zero data",
+     "dependency": "If there's no realistic mechanism/discipline to actually revisit the cap later (i.e., 'planned revisit' never happens), this collapses into an arbitrary middle number with none of the hedge's benefit, reversing this score"
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "1,000/day is ~10x the observed per-key average (~94-106/day across 30 days), so it forfeits the cap's stated purpose as a conversion lever purely because the capacity happens to already exist.",
+     "dependency": "If the free tier's real job is cost/abuse containment rather than driving Pro conversion (e.g. revenue isn't the near-term goal), then 'already load-tested for 1,000' stops being irrelevant sunk cost and becomes the correct low-risk choice, reversing the score upward."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "150/day sits just above the observed daily average (~100, max ~106) and directly operationalizes the memo's own framing of the cap as a conversion lever.",
+     "dependency": "The CSV only gives daily aggregates (total_requests/active_keys), not per-key distributions \u2014 if a meaningful subset of legitimate free users runs far above the ~100 average on any given day (long-tail usage), a 150 cap would throttle real engaged users rather than cleanly separating light users from upgrade candidates, reversing the score downward."
+    },
+    "O3": {
+     "score": 5,
+     "crux": "The memo states outright that conversion elasticity is 'the guess the entire decision rides on' with zero Pro data yet \u2014 an intermediate cap with a defined revisit point is the calibrated response to that admitted uncertainty rather than committing hard in either direction.",
+     "dependency": "If there's no real mechanism or discipline (as a solo founder) to actually execute the revisit later, the 'planned revisit' is a promise with no teeth, and O3 degrades into an arbitrary number with the appearance of rigor but none of the benefit over just picking O1 or O2 outright."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Matches built capacity, but sizing the rig for 1,000 was arbitrary from day one and has no bearing on what cap actually converts users, so 'costs nothing to build' isn't a reason to pick it as the business number.",
+     "dependency": "If the founder's real goal were purely technical headroom/safety margin rather than a conversion lever, this would be defensible \u2014 but the memo explicitly frames the cap as a conversion lever, which this option ignores."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "Setting the cap near the ~100-250/day observed range makes it a real, binding conversion lever now instead of waiting on data the founder admits doesn't exist yet.",
+     "dependency": "If the guess that a binding cap meaningfully drives free-to-Pro conversion is wrong (e.g., users churn instead of upgrading when capped), this aggressive a cut could cost more active users than it converts."
+    },
+    "O3": {
+     "score": 5,
+     "crux": "It captures the same conversion-lever benefit as O2 while hedging against the admitted uncertainty in conversion behavior, with a defined revisit point once real Pro data exists.",
+     "dependency": "If there's no credible commitment/mechanism to actually revisit the number later (i.e., 'planned revisit' is vague and never happens), it collapses into a slightly-better-hedged version of O1 with false confidence."
+    }
+   }
+  ],
+  "reveal_spread": {
+   "O1": 0,
+   "O2": 0,
+   "O3": 0
+  },
+  "divergent": [],
+  "round2": [],
+  "final": [
+   {
+    "O1": {
+     "score": 2,
+     "crux": "A 1,000/day cap sits ~4-10x above even the busiest observed per-key day (~250), so it costs nothing to build but functions as no wall at all \u2014 free stays free forever",
+     "dependency": "If the goal is purely to avoid support/infra risk rather than to drive Pro conversion, then matching built capacity is the right call and this score should rise"
+    },
+    "O2": {
+     "score": 4,
+     "crux": "A ~150/day cap sits just above typical usage (~100/key) but below the busiest days (~250), making it a real lever that active users will plausibly hit within weeks without punishing typical usage on day one",
+     "dependency": "If actual conversion sensitivity to hitting a cap turns out to be low (users just churn instead of upgrading, since there's no Pro conversion data yet), the lever could suppress usage/goodwill without producing revenue, reversing this score"
+    },
+    "O3": {
+     "score": 5,
+     "crux": "Given the memo's own admission that conversion elasticity is an unvalidated guess, an intermediate cap with a defined revisit point captures most of the conversion-lever effect while hedging against picking the wrong number on zero data",
+     "dependency": "If there's no realistic mechanism/discipline to actually revisit the cap later (i.e., 'planned revisit' never happens), this collapses into an arbitrary middle number with none of the hedge's benefit, reversing this score"
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "1,000/day is ~10x the observed per-key average (~94-106/day across 30 days), so it forfeits the cap's stated purpose as a conversion lever purely because the capacity happens to already exist.",
+     "dependency": "If the free tier's real job is cost/abuse containment rather than driving Pro conversion (e.g. revenue isn't the near-term goal), then 'already load-tested for 1,000' stops being irrelevant sunk cost and becomes the correct low-risk choice, reversing the score upward."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "150/day sits just above the observed daily average (~100, max ~106) and directly operationalizes the memo's own framing of the cap as a conversion lever.",
+     "dependency": "The CSV only gives daily aggregates (total_requests/active_keys), not per-key distributions \u2014 if a meaningful subset of legitimate free users runs far above the ~100 average on any given day (long-tail usage), a 150 cap would throttle real engaged users rather than cleanly separating light users from upgrade candidates, reversing the score downward."
+    },
+    "O3": {
+     "score": 5,
+     "crux": "The memo states outright that conversion elasticity is 'the guess the entire decision rides on' with zero Pro data yet \u2014 an intermediate cap with a defined revisit point is the calibrated response to that admitted uncertainty rather than committing hard in either direction.",
+     "dependency": "If there's no real mechanism or discipline (as a solo founder) to actually execute the revisit later, the 'planned revisit' is a promise with no teeth, and O3 degrades into an arbitrary number with the appearance of rigor but none of the benefit over just picking O1 or O2 outright."
+    }
+   },
+   {
+    "O1": {
+     "score": 2,
+     "crux": "Matches built capacity, but sizing the rig for 1,000 was arbitrary from day one and has no bearing on what cap actually converts users, so 'costs nothing to build' isn't a reason to pick it as the business number.",
+     "dependency": "If the founder's real goal were purely technical headroom/safety margin rather than a conversion lever, this would be defensible \u2014 but the memo explicitly frames the cap as a conversion lever, which this option ignores."
+    },
+    "O2": {
+     "score": 4,
+     "crux": "Setting the cap near the ~100-250/day observed range makes it a real, binding conversion lever now instead of waiting on data the founder admits doesn't exist yet.",
+     "dependency": "If the guess that a binding cap meaningfully drives free-to-Pro conversion is wrong (e.g., users churn instead of upgrading when capped), this aggressive a cut could cost more active users than it converts."
+    },
+    "O3": {
+     "score": 5,
+     "crux": "It captures the same conversion-lever benefit as O2 while hedging against the admitted uncertainty in conversion behavior, with a defined revisit point once real Pro data exists.",
+     "dependency": "If there's no credible commitment/mechanism to actually revisit the number later (i.e., 'planned revisit' is vague and never happens), it collapses into a slightly-better-hedged version of O1 with false confidence."
+    }
+   }
+  ]
+ },
+ "artifacts": {}
+}

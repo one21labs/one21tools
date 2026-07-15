@@ -1,0 +1,57 @@
+{
+ "cell": "T1-C-r1",
+ "substrate": "T1",
+ "arm": "C",
+ "rep": 1,
+ "allow": [
+  "Read",
+  "Grep",
+  "Glob",
+  "Bash"
+ ],
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 238907.4,
+  "duration_ms": 237517,
+  "duration_api_ms": 238656,
+  "cost_usd": 0.7739769,
+  "usage": {
+   "input_tokens": 34,
+   "cache_creation_input_tokens": 50678,
+   "cache_read_input_tokens": 584203,
+   "output_tokens": 19588,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 50678,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5916,
+     "cache_read_input_tokens": 47801,
+     "cache_creation_input_tokens": 2877,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2877
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-14T13:46:43.614239+00:00",
+   "end": "2026-07-14T13:50:42.521660+00:00"
+  },
+  "error": null,
+  "retried": false
+ },
+ "response": "## Findings\n\n**1. PR1 shipped without the required `Retrospective:` line \u2014 and PR1 is exactly where the defects live**\n\n- Evidence: `transcript.md:20-24` (PR1 body: Purpose/Changes/Testing, no `Retrospective:` line) vs PR2 (`transcript.md:31`) and PR3 (`transcript.md:37`) which both have `Retrospective: run`. CLAUDE.md requires every PR body carry `Retrospective: run | unavailable | skipped-<reason>` (ADR 0030) \u2014 PR1 has none of the three.\n- PR1 (by content match) carries commits `a510113` and `9fe9f50` \u2014 the two commits below with real defects, and its own Testing line (\"Testing: gate green; unit tests pass.\") is false (see #3).\n- Improvement: add the missing `Retrospective:` line to PR1 (run one now \u2014 don't backfill the word without doing it).\n- Home: PR1 body / `/retrospect` step at the point PR1 is opened.\n- Judgment call? No \u2014 this is a plain compliance gap in an existing, already-decided rule (ADR 0030). Advice, not a `/decide`.\n\n**2. `scripts/ci.sh` swallows the docs-gate's exit code via an un-`pipefail`'d pipe \u2014 matches friction #3 exactly, still live on HEAD**\n\n- Evidence: `scripts/ci.sh:8` \u2014 `python3 scripts/gate.py docs 2>&1 | tee ci-gate.log | sort -u`, introduced at `9fe9f50` (in-range). Shebang is `#!/bin/sh` (`ci.sh:1`) with `set -e` but no `pipefail`; a pipeline's exit status is its last command's (`sort -u`, always 0), so `gate.py` returning 1 on an over-limit line never trips `set -e`.\n- This is precisely friction #3 (\"CI stayed green on a run where a doc had an over-long line; caught only on manual pass\") \u2014 and it's still unfixed on HEAD, not a one-off.\n- Compounding: `docs/guide.md:18` (added same-branch, `a510113`) asserts \"CI runs the same gate, so a green local run means a green build\" \u2014 a doc claim the pipe bug falsifies right now.\n- Improvement: capture `gate.py`'s own status before piping, e.g. `python3 scripts/gate.py docs > ci-gate.log 2>&1; status=$?; sort -u ci-gate.log; exit \"$status\"`. Add a `ci.sh` regression check: run it against a fixture doc with an over-limit line and assert non-zero exit (CLAUDE.md: no gating script ships without a test of its decision logic).\n- Home: `scripts/ci.sh` (fix) + a new case in `scripts/gate.test.py` or a small `ci.sh`-level test (guard).\n- Judgment call? Partial \u2014 the fix itself is not a judgment call. But whether the docs-gate should be hard-fail (per this repo's CLAUDE.md: \"Run the gate before shipping\") or advisory (per `docs/decisions/0002-advisory-warnings.md`: \"Warnings are advisory and never fail the build\") is genuinely ambiguous and was never reconciled \u2014 a worthy call with no panel fire (`docs/pdca/session-log.txt` is 0 bytes in range, `a2f07b7`). Flag for `/decide`: does ADR 0002 cover this project's own dogfood gate, or only quillmark's output when run against user repos? Needs an ADR update/new ADR either way.\n\n**3. `scripts/gate.test.py:8` references undefined `LIMIT` \u2014 PR1's \"unit tests pass\" claim is false**\n\n- Evidence: `scripts/gate.test.py:3` does `from gate import over_limit` (only), but line 8 evaluates `LIMIT` unqualified \u2014 `NameError` at runtime, introduced at `912e764` (pre-existing on `main`, not this branch). What *is* this-branch's fault: `9fe9f50` is the commit that, for the first time, wires this file into CI (`ci.sh:6`, \"ci: unit tests\") and PR1 claims \"Testing: gate green; unit tests pass.\" \u2014 a claim never actually true, since running `scripts/gate.test.py` crashes on the `LIMIT` line right after printing \"gate tests ok\".\n- Improvement: `from gate import over_limit, LIMIT`.\n- Home: `scripts/gate.test.py:3`.\n- Judgment call? No \u2014 straight bug fix.\n\nOmitted as one-offs (no systemic recurrence, low git signal): friction #1 (single test flake, no evidence of a real \"line integration test\" file \u2014 only prose references in `friction.md`/`transcript.md`); friction #2 (rebase conflict resolution in `docs/config.md` looks clean in the current diff, nothing mis-resolved)."
+}
