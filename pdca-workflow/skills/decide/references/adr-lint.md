@@ -64,6 +64,9 @@ machinery:
     connected component of the undirected cite graph (an edge = either record cites the other):
     entangled records ship together, unrelated decisions ship separately. Flag absent or a single
     new ADR = skipped, so only the PR-context CI step (which passes the diff-added files) can fire it.
+    Because CI fires this only at PR time, a long-lived branch gets no connectivity feedback while
+    it accumulates ADRs — before opening a PR that adds more than one, run it locally:
+    `adr-lint.mjs docs/decisions --new-adrs=<the added ids>`.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 
