@@ -129,7 +129,7 @@ test("hook registered without a CI-visible test fails", () => {
   assert.equal(missing[0].path, "pdca-workflow/hooks/explicit-model-guard.sh");
 });
 
-test("hook with a CI-visible <basename>.test.mjs in the sibling scripts/ dir passes", () => {
+test("grandfathered hook with a CI-visible <basename>.test.mjs in the sibling scripts/ dir passes", () => {
   const hooksJson = JSON.stringify({
     hooks: { PreToolUse: [{ matcher: "Agent", hooks: [{ type: "command", command: "${CLAUDE_PLUGIN_ROOT}/hooks/explicit-model-guard.sh" }] }] },
   });
@@ -198,5 +198,33 @@ test("hook whose test-<basename>.sh exists but is invoked by no gates.yml run li
   assert.equal(missing.length, 1);
   assert.equal(missing[0].kind, "hook");
   assert.equal(missing[0].path, "pdca-workflow/hooks/gate-pipe-guard.sh");
-  assert.match(missing[0].reason, /gates\.yml-invoked test-<basename>\.sh/);
+  assert.match(missing[0].reason, /no gates\.yml run line invokes it/);
+});
+
+test("non-grandfathered hook with only a CI-visible <basename>.test.mjs fails (ADR 0064 standard)", () => {
+  const gatesYml = [
+    "run: node --test pdca-workflow/scripts/*.test.mjs",
+    'run: for t in pdca-workflow/hooks/test-*.sh; do bash "$t"; done',
+  ].join("\n");
+  // the .mjs convention would have satisfied the pre-0064 predicate; the standard rejects it here.
+  const existingFiles = new Set(["pdca-workflow/scripts/gate-pipe-guard.test.mjs"]);
+  const missing = findMissingTests({
+    gatesYml,
+    hookRegistrations: [hookReg("gate-pipe-guard")],
+    existingFiles,
+  });
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].expected, "pdca-workflow/hooks/test-gate-pipe-guard.sh");
+  assert.match(missing[0].reason, /standardize on a gates\.yml-invoked sibling test-<basename>\.sh \(ADR 0064\)/);
+});
+
+test("grandfathered hook may also satisfy the gate with a test-<basename>.sh suite", () => {
+  const gatesYml = 'run: for t in pdca-workflow/hooks/test-*.sh; do bash "$t"; done\n';
+  const existingFiles = new Set(["pdca-workflow/hooks/test-explicit-model-guard.sh"]);
+  const missing = findMissingTests({
+    gatesYml,
+    hookRegistrations: [hookReg("explicit-model-guard")],
+    existingFiles,
+  });
+  assert.deepEqual(missing, []);
 });
