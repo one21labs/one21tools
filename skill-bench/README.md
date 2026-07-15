@@ -78,9 +78,9 @@ ADR 0058). What a consumer must provide / knows:
   credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
   (#170 hard-problem 4).
-- **Method foundations** (pre-registration, empirical evals, description ablation) live in the
-  **dev-skills plugin's** `building-skills` skill (ADR 0063 Call 2) — install dev-skills for the
-  method depth; `/bench` itself runs without it.
+- **Method depth is a separate install:** the measurement-method docs are homed in the
+  dev-skills plugin (ADR 0063 Call 2; the `/bench` SKILL.md's closing note names them) —
+  `/bench` runs without dev-skills, but install it for the discipline references.
 - **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
   (#170 hard-problem 3); without it, grade serially via `claude -p` with the same prompts.
 
