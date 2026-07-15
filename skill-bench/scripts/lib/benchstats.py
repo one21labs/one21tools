@@ -70,18 +70,18 @@ def top_cell_attribution(cells, x, y, top_n=3):
         if c["arm"] not in (x, y):
             continue
         loo = clustered_delta(cells[:i] + cells[i + 1:], x, y)["mean"]
-        if loo != loo:  # cluster vanished — removal is maximally load-bearing
+        if math.isnan(loo):  # cluster vanished — removal is maximally load-bearing
             flips, halves = True, True
         else:
             flips = (loo > 0) != (base > 0)
             halves = abs(loo) < abs(base) / 2
         rows.append({"bid": c.get("bid"), "arm": c["arm"], "scenario": c["scenario"],
-                     "loo_mean": None if loo != loo else round(loo, 4),
-                     "delta_vs_base": None if loo != loo else round(base - loo, 4),
+                     "loo_mean": None if math.isnan(loo) else round(loo, 4),
+                     "delta_vs_base": None if math.isnan(loo) else round(base - loo, 4),
                      "flips_or_halves": flips or halves})
     rows.sort(key=lambda r: (r["delta_vs_base"] is not None, -(abs(r["delta_vs_base"] or 0))))
     top = rows[:top_n]
-    return {"base_mean": None if base != base else round(base, 4), "top": top,
+    return {"base_mean": None if math.isnan(base) else round(base, 4), "top": top,
             "inspect": any(r["flips_or_halves"] for r in top)}
 
 
