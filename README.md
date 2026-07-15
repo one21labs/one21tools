@@ -9,7 +9,7 @@ benefit-per-token of what Claude loads (quality), or move rules into surfaces th
 human catching the miss — shipped gates, hooks, and skills, not prose (autonomy). Work is
 prioritized against them.
 
-Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: documentation is held to CI-checked character budgets.
+Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: SKILL.md bodies and references, ADRs, CLAUDE.md, and agent prompts are held to CI-checked character budgets.
 
 The differentiating idea: manufacturing quality principles translate directly to AI-assisted code. Lean's waste elimination becomes YAGNI and SSoT enforcement. Toyota's poka-yoke becomes boundary validation. Deming's "build quality in" becomes catching defects at source rather than inspecting them out downstream. The skills encode these as Claude directives.
 
