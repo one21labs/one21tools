@@ -37,3 +37,8 @@ not significance. A weak KEEP with a straddling CI is "no detectable difference,
 judge flip between families, or a verdict that only holds under one grader, is a reason to re-measure
 rather than to conclude. Report the direction and the caveat together; never launder a wide-CI point
 estimate into a claim.
+
+Post-grading, run the arm-asymmetric overturn check (`scripts/lib/overturn.py --dir <dir>
+--pattern <regex>`, the regex pre-registered as the decision signature): cells in different arms
+carrying the same decision but different verdicts on an expectation are sampled for judge
+consistency before any bar they feed is interpreted.
