@@ -9,7 +9,9 @@ summary: "Extend check-gate-tests.mjs with two syntactic DENY predicates: (a) a 
 
 - Date: 2026-07-15
 - Owner: PM
-- Panel: opposing counsel (FOR mechanical enforcement / AGAINST new lint) — `scratchpad/panel-198.md`. Full tier: two live triggers + an open false-positive risk, so not lite.
+- Panel: opposing counsel (FOR/AGAINST mechanical enforcement). Full tier. Verifier: all claims
+  CONFIRMED. Red-team: 3 breaks folded in — (a) value-anchored vs keyword/case/comment evasions;
+  (d) cd-resolved direct invocations, flag/`python`-tolerant capture (detail: branch tests).
 - Context: `check-gate-tests.mjs` verifies a wired gate/hook test EXISTS and is CI-globbed (:132-169), never that it ASSERTS — a self-skipping test reads green forever (#198). Scar: `.claude/hooks/test-post-edit-gate.sh` hard-coded a Windows `REPO=`, SKIP-exited 0 every CI run, hid a `python`-vs-`python3` defect (fixed 171a5f7). Separately the docstring declares `.mjs`-only (:13-14); a second generic python gate `check_reachability.py` (gates.yml:42, #194) now ships with its pairing enforced by convention only — deleting `check_reachability_test.py` merges green (verified: checker still exits 0). Open: mechanize, document, or accept.
 
 ## Decision
@@ -38,3 +40,4 @@ Cost low (both reuse `extractTestGlobs`/`globCoversPath`; (a) is one content reg
 - (a) fires on a legitimate hard-coded path -> demote that predicate to WARN, keep (d).
 - A python gate needs an executed test NOT expressible as glob-or-direct (e.g. pytest discovery) -> generalize (d)'s execution model.
 - A self-skip lands via a mechanism neither predicate catches (env-var gate, `return 0`) -> the syntactic scope is too narrow; reopen.
+- A python gate ships as `python3 -m <module>` (no .py token, uncaptured by design) -> generalize (d)'s capture before relying on it.

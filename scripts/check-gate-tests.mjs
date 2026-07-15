@@ -27,8 +27,8 @@
  * ${CLAUDE_PROJECT_DIR}) to get the registered set. The standard (ADR 0064) is a self-contained
  * sibling `test-<basename>.sh` suite matched by a .sh path/glob appearing in a gates.yml run:
  * line (e.g. the `for t in pdca-workflow/hooks/test-*.sh` step) — a CI-verified invocation, not
- * mere file existence. The two pre-0064 hooks tested via a `<basename>.test.mjs` that spawns the
- * real .sh (MJS_GRANDFATHERED_HOOKS) keep that path, covered by a `node --test` glob; every
+ * mere file existence. The pre-0064 hook tested via a `<basename>.test.mjs` that spawns the
+ * real .sh (MJS_GRANDFATHERED_HOOKS) keeps that path, covered by a `node --test` glob; every
  * other hook must carry the .sh suite.
  *
  * DESIGN CONSTRAINTS: zero dependencies; findMissingTests() is PURE (no fs — takes gatesYml text,
@@ -68,37 +68,49 @@ export function extractWiredGates(gatesYml) {
   return [...new Set(out)];
 }
 
-/** Every `python3 <path>.py` gate invocation in a run: line — excluding test files, globs, and
- *  shell-variable args (`python3 "$t"`). Deduped, in first-seen order. */
+/** Every `python[3] [flags] <path>.py` gate invocation in a run: line — excluding test files,
+ *  globs, and shell-variable args (`python3 "$t"`). A `-m module` gate has no .py token and is
+ *  NOT captured (ADR 0069 revisit trigger). Deduped, in first-seen order. */
 export function extractPyGates(gatesYml) {
   const out = [];
   for (const line of gatesYml.split("\n")) {
-    const m = line.match(/\bpython3\s+(\S+\.py)\b/);
+    const m = line.match(/\bpython3?\s+(?:-[^m\s]\S*\s+)*(\S+\.py)\b/);
     if (m && !m[1].endsWith("_test.py") && !m[1].includes("*") && !m[1].includes("$")) out.push(m[1]);
   }
   return [...new Set(out)];
 }
 
 /** How CI executes python tests: `*_test.py` glob tokens (for-loop style) plus direct
- *  `python3 <x>_test.py` invocations (kept verbatim; basename covers the cd-then-run idiom). */
+ *  `python[3] <x>_test.py` invocations. A `cd <dir> && python3 x_test.py` idiom resolves to
+ *  `<dir>/x_test.py` — a bare basename never certifies a gate in another directory (red-team
+ *  break on ADR 0069: two same-basename gates, one cd-run, must not both pass). */
 export function extractPyTestExecutions(gatesYml) {
   const globs = [];
   const direct = [];
   for (const line of gatesYml.split("\n")) {
     for (const m of line.matchAll(/[^\s;'"`]+\*[^\s;'"`]*_test\.py/g)) globs.push(m[0]);
-    const d = line.match(/\bpython3\s+(\S+_test\.py)\b/);
-    if (d) direct.push(d[1]);
+    const d = line.match(/\bpython3?\s+(?:-[^m\s]\S*\s+)*(\S+_test\.py)\b/);
+    if (d) {
+      const cd = line.match(/\bcd\s+([^\s;&]+)\s*&&/);
+      direct.push(cd && !d[1].includes("/") ? `${cd[1].replace(/\/$/, "")}/${d[1]}` : d[1]);
+    }
   }
   return { globs: [...new Set(globs)], direct: [...new Set(direct)] };
 }
 
-/** Line numbers assigning a path-root variable a literal absolute path with no derivation —
- *  the self-skip signature (ADR 0069): such a test SKIPs everywhere but one machine. */
+/** Line numbers where a variable assignment's VALUE starts with a literal absolute path root —
+ *  the self-skip signature (ADR 0069): such a test SKIPs everywhere but one machine. Matches
+ *  any assignment shape (export/readonly/local/declare prefixes, any-case names); a value whose
+ *  ROOT is derived (`$(…)`, `${…}`, `$VAR`) is spared, but a literal root is flagged even when a
+ *  variable appears later in the path (red-team: `/home/x/${P}` is still machine-bound). */
 export function selfSkipLines(shText) {
   const out = [];
+  const assign = /^\s*(?:export\s+|readonly\s+|local\s+(?:-\S+\s+)*|declare\s+(?:-\S+\s+)*)?[A-Za-z_][A-Za-z0-9_]*=(.*)$/;
   shText.split("\n").forEach((line, i) => {
-    if (/^\s*[A-Z_]+=["']?([A-Za-z]:[\\/]|\/(home|Users|mnt|root|opt|srv)\/)/.test(line)
-        && !line.includes("$(") && !line.includes("${")) out.push(i + 1);
+    const m = line.match(assign);
+    if (!m) return;
+    const value = m[1].replace(/^["']/, "");
+    if (/^([A-Za-z]:[\\/]|\/(home|Users|mnt|root|opt|srv)\/)/.test(value)) out.push(i + 1);
   });
   return out;
 }
@@ -185,9 +197,8 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
   const pyExec = extractPyTestExecutions(gatesYml);
   for (const gate of extractPyGates(gatesYml)) {
     const testPath = gate.replace(/\.py$/, "_test.py");
-    const baseName = testPath.slice(testPath.lastIndexOf("/") + 1);
     const executed = pyExec.globs.some((g) => globCoversPath(g, testPath))
-      || pyExec.direct.some((d) => d === testPath || d === baseName);
+      || pyExec.direct.includes(testPath);
     if (!existingFiles.has(testPath)) {
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "no sibling _test.py" });
     } else if (!executed) {

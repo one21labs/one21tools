@@ -253,10 +253,29 @@ test("extractPyGates keeps gate invocations, drops test files, globs, and loop v
   ]);
 });
 
-test("extractPyTestExecutions collects glob tokens and direct python3 test invocations", () => {
+test("extractPyTestExecutions collects glob tokens and resolves cd-prefixed direct invocations", () => {
   const { globs, direct } = extractPyTestExecutions(PY_GATES_YML);
   assert.deepEqual(globs, ["skill-bench/scripts/*_test.py", "skill-bench/scripts/lib/*_test.py"]);
-  assert.deepEqual(direct, ["validate_test.py"]);
+  assert.deepEqual(direct, ["dev-skills/skills/building-skills/scripts/validate_test.py"]);
+});
+
+test("red-team break 2 closed: a bare basename never certifies a same-named gate in another dir", () => {
+  const gatesYml = [
+    "run: python3 dirA/validate.py",
+    "run: python3 dirB/validate.py",
+    "run: cd dirB && python3 validate_test.py",
+  ].join("\n");
+  const existingFiles = new Set(["dirA/validate_test.py", "dirB/validate_test.py"]);
+  const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles });
+  assert.equal(missing.length, 1);
+  assert.equal(missing[0].path, "dirA/validate.py");
+});
+
+test("red-team break 3 closed: flag-prefixed python3 and bare python invocations are captured", () => {
+  assert.deepEqual(extractPyGates("run: python3 -B scripts/gate.py\n"), ["scripts/gate.py"]);
+  assert.deepEqual(extractPyGates("run: python scripts/gate.py\n"), ["scripts/gate.py"]);
+  // -m module gates carry no .py token — uncaptured by design (ADR 0069 revisit trigger)
+  assert.deepEqual(extractPyGates("run: python3 -m pkg.gate --check\n"), []);
 });
 
 test("python gates with executed siblings pass: glob coverage and cd-then-direct-invocation both count", () => {
@@ -289,6 +308,18 @@ test("selfSkipLines flags literal absolute path-root assignments, spares derived
   assert.deepEqual(selfSkipLines('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'), []);
   assert.deepEqual(selfSkipLines('ROOT="${CLAUDE_PROJECT_DIR}/x"\nHOOK="$HERE/x.sh"\n'), []);
   assert.deepEqual(selfSkipLines('echo "/home/user is not an assignment"\n'), []);
+});
+
+test("red-team break 1 closed: declaration keywords, any-case names, comments, and late-var paths", () => {
+  assert.deepEqual(selfSkipLines('export REAL_PLUGIN_ROOT="/home/ajmcc/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('readonly REPO="/home/ajmcc/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('local repo="/home/ajmcc/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('declare -r REPO="/home/ajmcc/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('repo="/home/ajmcc/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/x"   # or $(git rev-parse ...)\n'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/${PROJECT}"\n'), [1]);
+  // derived ROOT stays spared even with a keyword prefix
+  assert.deepEqual(selfSkipLines('export ROOT="$(pwd)/x"\nlocal p="${HOME}/x"\n'), []);
 });
 
 test("a hook whose CI-invoked test-<basename>.sh hard-codes an absolute path fails as vacuous", () => {
