@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-validate_test.py -- decision-logic test for validate.py's char/TOC gates (ADR 0009; "never ship a
+validate_test.py -- decision-logic test for validate.py's gates (ADR 0009; "never ship a
 process-gating script without a test of its decision logic"). Zero-dependency: Python's stdlib
-unittest. Run: python validate_test.py  (or: python -m unittest validate_test) from this dir.
+unittest. CI runs it from this dir (gates.yml); locally: python validate_test.py  (or:
+python -m unittest validate_test).
 
-Each case builds a throwaway skill folder in a temp dir and asserts validate_skill's verdict, so the
-decision logic (name rules, body char cap, reference char cap, reference TOC threshold) is
+Each case builds a throwaway skill folder in a temp dir and asserts validate_skill's verdict, so
+the decision logic (name rules, body char cap incl. frontmatter evasion, reference char cap + TOC
+threshold, doc-structure lint R8, self-referential path lint R6.2, evals.json gate R7) is
 exercised end to end.
 """
 import unittest

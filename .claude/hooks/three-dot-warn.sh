@@ -6,7 +6,7 @@
 # (origin/main...branch), per CLAUDE.md Shipping rules. NEVER denies. Also appends one counted
 # line to the shared session log (docs/pdca/session-log.txt -- location owned and documented by
 # the plugin's spawn-log.sh header; same single-line `>>` append, atomic enough per that header)
-# so the promotion-to-deny window is measurable from git (red-team break 5): if the count stays
+# so the promotion-to-deny window is measurable from git: if the count stays
 # zero the warn rung suffices; if it grows, promote.
 #
 # FIRE CONDITIONS: the command must (a) invoke git with a range subcommand -- log, diff, or

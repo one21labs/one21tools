@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Decision-logic test for repo-hooks/three-dot-warn.sh. Runnable on git-bash:
+# Decision-logic test for three-dot-warn.sh. Runnable on git-bash:
 # `bash test-three-dot-warn.sh`. Uses a mktemp CLAUDE_PROJECT_DIR fixture -- never the real
 # repo -- and asserts on the additionalContext output, the appended log line, and exit codes.
 set -u

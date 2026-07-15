@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical blinding TEMPLATE (#170) — the operator-side recipe audited across I2/armd/poker.
+"""Canonical blinding TEMPLATE (#170) — the operator-side blinding recipe.
 
 COPY into a dated benchmark dir and adapt the `ADAPT` blocks. The recipe you keep:
 

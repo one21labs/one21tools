@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """Reusable benchmark-artifact IO (ADR 0026): format convention + sampled raw retention.
 
-dump_records/load_records write/read a list of dict records as CSV (the default — flat/scalar
-records, e.g. arm maps, bid tables; nested values are flattened into columns, e.g. a `ci` list
-becomes `ci_lo`/`ci_hi`, so no field ever needs quoting; measured 0.45x pretty-json's tokens), TSV
-(same size, tab delimiter), or minified JSONL (text-heavy records carrying a prose `evidence`
-field, where format barely moves the byte count so JSONL wins on diffability and parse-safety
-instead of the ~5% CSV saving). sample_and_archive_raw keeps a small deterministic sample of raw
-output files per group in place (audit-readable plain text, ADR 0023's sample_rule) and
-gzip-archives the rest into one all.tar.gz per benchmark instead of silently discarding it
-(ADR 0026) — raw model output is the dominant byte cost, so this is the compression lever.
+ARCHITECTURE ROLE: the one home for benchmark-record serialization (dump_records/load_records)
+and for bounding raw-output byte cost (sample_and_archive_raw — archive, never discard).
+Format-choice rationale and size measurements live in ADR 0026; per-function contracts live in
+the docstrings below.
 
-Stdlib only: csv, gzip (via tarfile's "w:gz"), json, os, tarfile.
+DESIGN CONSTRAINTS: stdlib only.
 """
 import csv
 import json

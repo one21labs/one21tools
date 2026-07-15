@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Graded-artifact validation + ERROR-cell rule (#191 item 1). Stdlib only, pure.
 
-The #185 post-verdict audit found the grid's only zero-scored cells were output-capture
-failures graded as quality zeros. The rule this module mechanizes: a cell whose graded
+Capture failures graded as quality zeros corrupt the verdict (#185's failure mode).
+The rule this module mechanizes: a cell whose graded
 artifact fails a mechanical non-emptiness/shape check is an ERROR cell (infrastructure,
 recorded and resumable), never a quality 0. Run it BEFORE blinding; an ERROR cell never
 reaches a grader.

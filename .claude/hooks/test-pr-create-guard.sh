@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Decision-logic test for repo-hooks/pr-create-guard.sh. Runnable on git-bash:
+# Decision-logic test for pr-create-guard.sh. Runnable on git-bash:
 # `bash test-pr-create-guard.sh`. Builds body fixtures under mktemp -d (never the real repo).
 # Every deny output is also fed to node JSON.parse -- a deny reason that breaks the JSON is a
 # test failure regardless of the decision being right.

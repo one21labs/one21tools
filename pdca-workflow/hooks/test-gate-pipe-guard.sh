@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Decision-logic test for plugin-hooks/gate-pipe-guard.sh (the pdca-workflow plugin's copy: only
+# Decision-logic test for the sibling gate-pipe-guard.sh (the pdca-workflow plugin's copy: only
 # guards adr-lint.mjs). Runnable on git-bash: `bash test-gate-pipe-guard.sh`. Pipes synthetic
-# PreToolUse stdin JSON at the hook and asserts allow/deny on stdout.
+# PreToolUse stdin JSON at the hook and asserts allow/deny on stdout. CI runs every
+# hooks/test-*.sh via .github/workflows/gates.yml.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/gate-pipe-guard.sh"

@@ -12,7 +12,7 @@
 #   G2: the body file must contain the Claude disclosure line, and for `gh pr create` also a
 #      `Retrospective:` line (ADR 0030) -- checked BEFORE the artifact exists, not at CI.
 #
-# COMMAND-WORD ANCHOR (session-operator finding): `gh pr create` only counts at a command-word
+# COMMAND-WORD ANCHOR: `gh pr create` only counts at a command-word
 # position -- start of command or right after `&&`/`;`/`|` -- so `echo 'gh pr create'`
 # (single-quoted: survives the JSON extraction) is not an invocation. Double-quoted mentions
 # (`grep "gh pr create" f`) never even reach the matcher: the house [^"]* extraction ends at the
