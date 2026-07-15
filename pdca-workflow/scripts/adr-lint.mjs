@@ -26,6 +26,7 @@
  *   node scripts/adr-lint.mjs [decisionsDir] [--budget=N] [--new-adrs=<ids-or-paths,comma-sep>]
  *   decisionsDir default: docs/decisions   ·   --budget default: ADR_CHAR_BUDGET (char-budget.mjs)
  *   --new-adrs: the change's ADDED ADR files (CI passes the PR diff) — decision-set check, ADR 0051
+ *   Exit: 0 = corpus OK · 1 = problems found · 2 = cannot read decisionsDir.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";

@@ -5,11 +5,6 @@ Skill Initialization Script
 Creates valid skill directory structure with TODO placeholders.
 Validates the name immediately via validate.py's shared validate_name (ADR 0010).
 
-Evidence Sources:
-- agentskills.io spec: Field constraints, max lengths
-- platform.claude.com best practices: No XML chars
-- Reserved words (anthropic, claude): Confirmed by upload testing
-
 Usage:
     python init.py <skill-name> [output-directory]
     python init.py my-skill ./skills

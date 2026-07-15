@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Decision-logic test for plugin-hooks/spawn-log.sh. Runnable on git-bash:
+# Decision-logic test for the sibling spawn-log.sh (CI runs every hooks/test-*.sh via
+# .github/workflows/gates.yml). Runnable on git-bash:
 # `bash test-spawn-log.sh`. Uses a mktemp CLAUDE_PROJECT_DIR fixture -- never the real repo --
 # and asserts on exit code, the ABSENCE of any deny output, and the log file's content/format.
 set -u

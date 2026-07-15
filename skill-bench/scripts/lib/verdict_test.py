@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for verdict_of's and merge_verdict's decision logic (ADR 0024, ADR 0027).
-Run: python -m unittest verdict_test."""
+"""Unit tests for verdict_of's and merge_verdict's decision logic (ADR 0024, ADR 0027)."""
 import unittest
 
 from verdict import merge_verdict, verdict_of

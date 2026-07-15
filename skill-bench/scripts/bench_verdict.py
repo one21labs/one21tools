@@ -4,7 +4,8 @@ judge, and NO new generation spend (ADR 0055). This is the generalized #172 cros
 
 Two modes:
   --judge grok|claude   re-grade the committed normalized cells with that judge (grade+prosecute),
-                        then compute arm means, clustered C-B (KEEP/CUT), per-expectation.
+                        then compute arm means, the clustered treatment-control delta (KEEP/CUT;
+                        pair from --primary, default C,B), per-expectation.
   --judge both          run the chosen judge AND load the committed baseline verdicts, then emit the
                         JUDGE-DIVERGENCE diagnostic (agreement, kappa, stricter-count, verdict flip).
 
@@ -12,7 +13,8 @@ Input dir must contain graded/verdicts.jsonl (bid, scenario, norm, expectations[
 graded/arm_map.tsv (bid arm scenario rep), graded/keys.json (scenario -> rubric key).
 
 Normalization is REUSED from the committed cells (the only stage that sees raw output) so the judge
-family is the sole changed variable. Reads the benchmark dir read-only; writes only to --out.
+family is the sole changed variable. Reads the benchmark dir read-only; writes only to --out
+(and per-cell regraded verdicts to --cells-out when given).
 """
 import argparse, json, os, sys
 from concurrent.futures import ThreadPoolExecutor, as_completed

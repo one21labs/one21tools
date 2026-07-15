@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Decision-logic test for repo-hooks/post-edit-gate.sh. Runnable on git-bash:
+# Decision-logic test for post-edit-gate.sh. Runnable on git-bash:
 # `bash test-post-edit-gate.sh`. Uses the REAL repo as CLAUDE_PROJECT_DIR (read-only: the gate
 # scripts under test -- validate.py, check-restatement.mjs, check-workflow.mjs -- only read
 # files, this test writes nothing into the repo) so the routing exercises the genuine scripts and
 # a genuine skill/benchmark fixture, not stubs.
+# SKIPs (exit 0) when the real repo is not at the hard-coded Windows path -- so the CI run of
+# this suite asserts nothing; the routing is only actually verified on the dev machine.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/post-edit-gate.sh"

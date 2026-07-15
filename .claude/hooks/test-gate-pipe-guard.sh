@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Decision-logic test for repo-hooks/gate-pipe-guard.sh (this repo's copy: guards the repo-local
+# Decision-logic test for gate-pipe-guard.sh (this repo's copy: guards the repo-local
 # gate scripts, excludes adr-lint.mjs -- that one is the plugin guard's job, see script header).
 # Runnable on git-bash: `bash test-gate-pipe-guard.sh`.
 set -u

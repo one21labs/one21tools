@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Bash) for the pdca-workflow plugin. DENIES a Bash command that
 # invokes adr-lint.mjs -- the only gate script this plugin ships -- and pipes its output through
-# a filter, which hides the gate's exit code (CLAUDE.md: "Never pipe a gate through a filter that
-# hides its exit code"). `||` and `&&` are allowed (they don't touch the exit code); a true `|`
+# a filter: a pipe reports the filter's exit status, not the gate's, so gate failures pass
+# silently. `||` and `&&` are allowed (they don't touch the exit code); a true `|`
 # after the invocation is always denied, including into `tee`/`cat` -- those still swallow the
 # exit code without `set -o pipefail`, so there is no carve-out for them.
 #
@@ -45,7 +45,7 @@ for gate in $GATES; do
   first_op=$(printf '%s' "$folded" | grep -oE '@@AND@@|@@OR@@|;|\|' | head -1)
 
   if [ "$first_op" = "|" ]; then
-    reason="Denied: $gate is a gate; piping it hides its exit code (CLAUDE.md: never pipe a gate through a filter). Run it bare and read the output directly."
+    reason="Denied: $gate is a gate; piping it hides its exit code (a pipe reports the filter's exit status, not the gate's). Run it bare and read the output directly."
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
     exit 0
   fi

@@ -8,11 +8,11 @@
 # agent, or tool is invoked from here).
 #
 # LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt. Chosen because (verified against
-# this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/
-# are unignored), so anything under .claude/ would be git-INVISIBLE -- defeating the purpose --
+# this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/,
+# hooks/ are unignored), so anything under .claude/ would be git-INVISIBLE -- defeating the purpose --
 # and `*.log` is gitignored too, so the file is .txt, not .log. docs/ is tracked, already the
 # home of committable process state (docs/decisions/), and a consumer without docs/ gets it
-# created by the mkdir -p below. The retrospect rubric and the PR agent cite this path.
+# created by the mkdir -p below. The retrospect rubric (agents/retrospect.md) cites this path.
 #
 # WRITE MECHANICS: single-line `>>` append with O_APPEND semantics -- atomic enough for
 # line-sized writes even when the sibling three-dot-warn hook (repo-side) appends to the SAME

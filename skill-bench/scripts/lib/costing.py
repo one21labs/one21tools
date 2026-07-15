@@ -7,9 +7,9 @@ per-call API charge. But every run consumes real usage (quota, rate limits, unde
 usage the CLIs report, so the cost is understood regardless of billing mode. Stdlib only.
 
 Rates are per 1,000,000 tokens (USD). Anthropic figures from the claude-api reference (cached
-2026-06-24); grok-4.5 from xAI published pricing. cache_read ~= 0.1x input, cache_write ~= 1.25x
-input (Anthropic's 5-minute-TTL model; applied to grok as an approximation — grok cache pricing
-differs and is flagged where it matters).
+2026-06-24); grok-4.5 from xAI published pricing. Anthropic cache multipliers: cache_read = 0.1x
+input, cache_write = 1.25x input (5-minute-TTL model). grok-4.5 cache figures are in the PRICES
+table (cache_read 0.25x input; cache_write approximated at the Anthropic 1.25x multiplier).
 """
 
 PRICES = {

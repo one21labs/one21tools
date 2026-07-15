@@ -4,6 +4,7 @@
  * span across two files is flagged; below-window, fenced-code, frontmatter, and ADR-metadata
  * duplication is not; allowlisted pairs are excluded; and the deployed gate passes on the
  * repo itself — the surface a consumer invokes (gates.yml).
+ * Run: node --test scripts/*.test.mjs from the repo root.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

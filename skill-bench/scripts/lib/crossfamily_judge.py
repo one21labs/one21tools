@@ -8,6 +8,9 @@ pipeline's grade -> prosecute -> met_final = grade AND prosecute (ADR 0025), sam
 
 Reads the frozen dir read-only; writes only to --out. Grok invoked headless with a
 schema-constrained structured output (identical GRADE schema to grade_i2.workflow.js).
+
+Kept as the append-only prototype snapshot behind PROTOTYPE-i2-result.json (ADR 0057). Live
+pipelines import rubric.py + judge.py instead — do not extend or import this copy.
 """
 import argparse, json, os, subprocess, sys, tempfile, statistics
 from collections import defaultdict

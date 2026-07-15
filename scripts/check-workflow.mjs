@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /*
- * check-workflow.mjs — required CI checks for benchmarks/**\/*.workflow.js (issue #61, wired as a
- * gate by ADR 0029):
+ * check-workflow.mjs — required CI checks for *.workflow.js files under a root dir; gates.yml
+ * runs it over benchmarks/ and skill-bench/ (issue #61, wired as a gate by ADR 0029):
  *   1. model-key lint: every agent() call's options object must carry a `model:` key, else the
- *      agent silently inherits the session model (Opus — the defect #53 had to backfill across
- *      5 merged files). The tiering rule's prose home is optimizing-context's subagents.md.
+ *      agent silently inherits the session model. The tiering rule's prose home is
+ *      optimizing-context's subagents.md.
  *   2. wrap-and-syntax-check: workflow scripts use top-level return/await, legal only inside the
  *      Workflow runner's async wrapper — bare `node --check` false-positives (.mjs) or silently
  *      under-validates (.js). Emulate the wrapper, then syntax-check.
@@ -13,6 +13,7 @@
  * (check-workflow.test.mjs); main() is the thin IO wrapper. Runs in gates.yml on every PR.
  *
  * Usage: node scripts/check-workflow.mjs [dir]   (dir default: benchmarks)
+ * Exit 1 listing every syntax or missing-model problem; exit 0 otherwise.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";

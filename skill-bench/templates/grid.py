@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Canonical grid-runner TEMPLATE (#170; the shape three dated dirs re-derived by cloning).
+"""Canonical grid-runner TEMPLATE (#170).
 
 COPY this file into a new dated benchmark dir and adapt every `ADAPT` block; never clone a
 sibling dated dir (those are frozen measurement records, ADR 0026). The shape you keep:
