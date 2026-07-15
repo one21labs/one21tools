@@ -28,8 +28,8 @@ VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated
   3. `parse_skill_md` vendored inline from skill-creator/scripts/utils.py -- this file has no
      package-relative import and runs standalone: `python3 run_eval.py ...`.
 
-Linux/WSL-only (select.select() on a subprocess pipe fd; no Windows equivalent). See
-skills/building-skills/references/description-ablation.md for the run protocol.
+Linux/WSL-only (select.select() on a subprocess pipe fd; no Windows equivalent). Run protocol:
+the dev-skills plugin's building-skills skill, references/description-ablation.md (method home).
 """
 
 import argparse
