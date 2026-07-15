@@ -13,6 +13,7 @@ summary: "Two harness-hygiene fixes from an owner best-practices review: (1) ben
   (2) `PromptfooSubstrate.PIN` (that constant is the version's one home) replaces the
   moving-head fetch; `$SKILL_BENCH_PROMPTFOO_BIN` still overrides. Owner-direct.
 - Why: single-pass with/without deltas cannot separate reliably-good from lucky — the repo's own
-  grids rep 3x with clustered CIs (ADR 0019) while the exported tool did not; and an unpinned
+  grids rep 3x with clustered CIs (ADR 0019) while the exported tool (skill-bench, extracted
+  per ADR 0055) did not; and an unpinned
   substrate silently changes under a pre-registration (the parser is validated per pinned line).
 - Enforced: decision-logic tests (rep-bid uniqueness; pin-no-latest) run in required CI.
