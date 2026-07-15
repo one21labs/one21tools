@@ -38,3 +38,6 @@ Output:
 - **BLOCKERS:** any verified correctness or safety finding that should stop the decision as
   written. These bind the PM — be specific and cite evidence.
 - Note anything the PM assumed done that the product does not do (or vice-versa).
+- In a benchmark verdict README, check texture claims, not just bar numbers: a causal
+  "the mechanism is X" sentence must cite its supporting cells or carry an exploratory
+  label — spot-check the cited cells; uncited mechanism prose is REFUTED-by-omission.
