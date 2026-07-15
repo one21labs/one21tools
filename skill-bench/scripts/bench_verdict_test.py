@@ -67,5 +67,37 @@ class TestVerdictMath(unittest.TestCase):
         self.assertAlmostEqual(s["D_minus_C"]["mean"], 0.5)
 
 
+class TestTopCellAttribution(unittest.TestCase):
+    # #191 item 3: a bar read must not rest on a handful of (possibly infrastructure-broken) cells.
+    def test_zero_cell_that_carries_the_delta_flags_inspect(self):
+        # The #185 shape: arms tie everywhere except one zero-scored capture failure in P,
+        # which single-handedly manufactures the whole C-P gap.
+        cells = ([cell(f"c{s}{r}", "C", f"S{s}", [1, 1, 0, 0]) for s in (1, 2) for r in (1, 2, 3)]
+                 + [cell("p11", "P", "S1", [1, 1, 0, 0]), cell("p12", "P", "S1", [1, 1, 0, 0]),
+                    cell("p1z", "P", "S1", [0, 0, 0, 0])]   # capture failure graded as quality 0
+                 + [cell(f"p2{r}", "P", "S2", [1, 1, 0, 0]) for r in (1, 2, 3)])
+        attr = bs.top_cell_attribution(cells, "C", "P", top_n=2)
+        self.assertTrue(attr["inspect"])
+        self.assertEqual(attr["top"][0]["bid"], "p1z")
+        self.assertTrue(attr["top"][0]["flips_or_halves"])
+
+    def test_balanced_cells_do_not_flag(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 0]), cell("c2", "C", "S2", [1, 1, 1, 0]),
+                 cell("c3", "C", "S3", [1, 1, 1, 0]), cell("c4", "C", "S4", [1, 1, 1, 0]),
+                 cell("b1", "B", "S1", [1, 1, 0, 0]), cell("b2", "B", "S2", [1, 1, 0, 0]),
+                 cell("b3", "B", "S3", [1, 1, 0, 0]), cell("b4", "B", "S4", [1, 1, 0, 0])]
+        attr = bs.top_cell_attribution(cells, "C", "B")
+        self.assertAlmostEqual(attr["base_mean"], 0.25)
+        self.assertFalse(attr["inspect"])
+
+    def test_other_arms_excluded_and_top_n_respected(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 1]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 1]), cell("b2", "B", "S2", [1, 0, 0, 0]),
+                 cell("a1", "A", "S1", [0, 0, 0, 0])]
+        attr = bs.top_cell_attribution(cells, "C", "B", top_n=2)
+        self.assertEqual(len(attr["top"]), 2)
+        self.assertNotIn("a1", [r["bid"] for r in attr["top"]])
+
+
 if __name__ == "__main__":
     unittest.main()

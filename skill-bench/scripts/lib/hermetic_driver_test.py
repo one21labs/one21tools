@@ -7,8 +7,8 @@ import unittest
 import unittest.mock
 from types import SimpleNamespace
 
-from hermetic_driver import (CLAUDE_DENY_TOOLS, build_env, do_call, neutral_cwd,
-                             summarize_call)
+from hermetic_driver import (CLAUDE_DENY_TOOLS, build_env, capture_artifacts, do_call,
+                             fresh_copy, neutral_cwd, summarize_call)
 
 ENVELOPE = {"result": "the answer", "total_cost_usd": 0.01, "duration_ms": 900,
             "duration_api_ms": 800, "usage": {"input_tokens": 5, "output_tokens": 7},
@@ -138,10 +138,6 @@ class NeutralCwd(unittest.TestCase):
             self.assertEqual(os.path.basename(cwd), "cwd")
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class CarveOut(unittest.TestCase):
     """ADR 0052 carve-out: allow= removes named tools from the deny flags; unknown names error."""
 
@@ -174,3 +170,49 @@ class CarveOut(unittest.TestCase):
         cmd = self.captured_cmd(extra_args=("--append-system-prompt", "SP"))
         self.assertEqual(cmd[-2:], ["--append-system-prompt", "SP"])
         self.assertLess(cmd.index("--disallowedTools"), cmd.index("--append-system-prompt"))
+
+
+class FreshCopyAndCapture(unittest.TestCase):
+    """Per-cell fresh-copy hermetics + every-arm artifact capture (#191 / the armd lesson)."""
+
+    def bundle(self, td):
+        import pathlib
+        src = pathlib.Path(td, "src")
+        (src / "docs").mkdir(parents=True)
+        (src / "docs" / "existing.md").write_text("pre-existing corpus file")
+        (src / "data.txt").write_text("payload")
+        return src
+
+    def test_fresh_copy_is_private_and_complete(self):
+        import pathlib
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            src = self.bundle(td)
+            work = fresh_copy(src, "S1-A-r1")
+            try:
+                self.assertNotEqual(str(src), work)
+                self.assertEqual(pathlib.Path(work, "data.txt").read_text(), "payload")
+                pathlib.Path(work, "data.txt").write_text("mutated")
+                self.assertEqual((src / "data.txt").read_text(), "payload")
+            finally:
+                shutil.rmtree(work, ignore_errors=True)
+
+    def test_capture_only_cell_created_files(self):
+        import pathlib
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            src = self.bundle(td)
+            work = fresh_copy(src, "S1-A-r1")
+            try:
+                pathlib.Path(work, "docs", "decision.md").write_text("the cell's artifact")
+                got = capture_artifacts(work, src)
+                self.assertEqual(list(got), [os.path.join("docs", "decision.md")])
+                self.assertEqual(got[os.path.join("docs", "decision.md")], "the cell's artifact")
+            finally:
+                shutil.rmtree(work, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    unittest.main()

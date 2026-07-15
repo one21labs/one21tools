@@ -76,7 +76,11 @@ def summarize(cells, x, y):
             f"{x}_minus_{y}": {**benchstats.keep_verdict(d_xy)},
             f"{x}_minus_A": round(benchstats.clustered_delta(cells, x, "A")["mean"], 4),
             "per_expectation": {i: {a: round(v, 2) for a, v in benchstats.per_expectation(cells)[i].items()}
-                                for i in benchstats.EXP_IDS}}
+                                for i in benchstats.EXP_IDS},
+            # #191 item 3: the delta's largest per-cell contributors; inspect=true means the
+            # verdict flips or halves without them — check those cells for infrastructure
+            # failure before interpreting the bar.
+            "attribution": benchstats.top_cell_attribution(cells, x, y)}
 
 
 def main():

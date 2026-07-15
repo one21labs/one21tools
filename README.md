@@ -43,7 +43,7 @@ ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 3. **Blind grading + prosecutor** — a grader blind to the arm scores each response against the
    eval's expectations; every PASS is re-examined adversarially.
 4. **Verdict** — eval-clustered mean delta with a 95% CI, read against token cost
-   (`skills/building-skills/scripts/eval_verdict.py`). Keep, improve, or revert follows the
+   (`skill-bench/scripts/eval_verdict.py`). Keep, improve, or revert follows the
    measurement (ADR 0024); results land as append-only snapshots under `benchmarks/<date>-*/`.
 5. **Description ablation** — the frontmatter description is the one always-loaded surface, so it
    is trigger-tested separately (TP/FP on should-fire and adjacent should-not-fire queries) and
@@ -60,8 +60,8 @@ depends on skill-creator (ADR 0033).
 | Piece | Where | What it enforces / does |
 |-------|-------|------------------------|
 | `validate.py` | `skills/building-skills/scripts/` | Skill shape: frontmatter, char budgets, emoji ban, eval schema. Run on every skill in CI. |
-| `eval_verdict.py` | `skills/building-skills/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
-| `run_eval.py` | `skills/building-skills/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033). |
+| `eval_verdict.py` | `skill-bench/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
+| `run_eval.py` | `skill-bench/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033, `/bench trigger`). |
 | `skill-bench/scripts/lib/` | `skill-bench` plugin | Shared benchmark harness: IO + verdict math + hermetic driver + blind grading + cost gate + cross-family judge (`bench_io.py`, `verdict.py`, `judge.py`, ...), unit-tested. |
 | `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity (frontmatter, ids, cites, char budgets) plus agent char budgets and marketplace/plugin.json manifest drift. |
 | `check-workflow.mjs` | `scripts/` | Benchmark workflow files: syntax + explicit `model:` on every agent call (ADR 0029). |

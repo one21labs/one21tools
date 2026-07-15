@@ -85,7 +85,7 @@ Skill is effective only if it measurably improves baseline.
 ## Empirical Evaluation
 
 The full protocol — paired benchmark on skill-creator's harness, pressure cases, and the
-owned cost-per-benefit verdict (`scripts/eval_verdict.py`) — lives in
+skill-bench plugin's cost-per-benefit verdict (`scripts/eval_verdict.py`) — lives in
 [empirical-evals.md](empirical-evals.md) (ADR 0013). No skill-creator installed = the manual
 baseline steps above suffice. Method writeup:
 https://agentskills.io/skill-creation/evaluating-skills

@@ -19,7 +19,9 @@ off the records themselves, not only off git commit ordering.
 """
 import json
 import os
+import shutil
 import subprocess
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +59,27 @@ def neutral_cwd(outdir):
     cwd = os.path.join(outdir, "cwd")
     os.makedirs(cwd, exist_ok=True)
     return cwd
+
+
+def fresh_copy(src, tag, prefix="cell"):
+    """A private temp copy of a scenario bundle for ONE call — per-cell fresh-copy hermetics:
+    no cell ever sees another cell's writes. Caller removes it (shutil.rmtree) after capture."""
+    workdir = tempfile.mkdtemp(prefix=f"{prefix}-{tag}-")
+    shutil.rmtree(workdir)
+    shutil.copytree(src, workdir, symlinks=True)
+    return workdir
+
+
+def capture_artifacts(workdir, src, pattern="*.md", limit=20000):
+    """Every file matching pattern that the CELL created (absent from the source bundle).
+    The #185 armd lesson: capture for EVERY arm, and never sweep pre-existing corpus files —
+    an arm-skewed capture grades as quality when it is infrastructure (#191)."""
+    out = {}
+    for p in Path(workdir).rglob(pattern):
+        rel = str(p.relative_to(workdir))
+        if not (Path(src) / rel).exists():
+            out[rel] = p.read_text(encoding="utf-8", errors="replace")[:limit]
+    return out
 
 
 def safe_get(d, *keys, default=None):

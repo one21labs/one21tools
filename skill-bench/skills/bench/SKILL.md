@@ -1,6 +1,6 @@
 ---
 name: bench
-description: Use when measuring whether a Claude Code skill earns its context cost, or re-judging existing benchmark evidence with a cross-family judge and no generation spend. Two subcommands — `verdict` (recompute a verdict from already-graded results, pluggable judge, zero generation cost) and `skill` (paired with/without value benchmark of a skill). Explicit-invoke; cross-family grok judge by default with a claude fallback; deterministic notional cost accounting.
+description: Use when measuring whether a Claude Code skill earns its context cost, re-judging existing benchmark evidence with a cross-family judge and no generation spend, or trigger-testing a skill description. Three subcommands — `verdict` (recompute a verdict from already-graded results, pluggable judge, zero generation cost), `skill` (paired with/without value benchmark of a skill), and `trigger` (description ablation: TP/FP on should-fire and should-not-fire queries). Explicit-invoke; cross-family grok judge by default with a claude fallback; deterministic notional cost accounting.
 disable-model-invocation: true
 ---
 
@@ -48,7 +48,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
 - `--reps` (default 3): generations per task x arm — a single pass cannot separate reliably-good
   from lucky (ADR 0058); use 1 only for a smoke run.
 
-## Guardrails (both subcommands)
+## `trigger` — description ablation (paid trigger runs)
+
+Does the description fire on should-trigger queries and stay quiet on should-not? Runs the
+vendored trigger runner (ADR 0033) on a flat eval set of `{query, should_trigger}` items.
+
+```
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-path <dir> \
+  --model <pinned-model> --num-workers 1 --timeout 240 [--description "<variant text>"]
+```
+
+- Linux/WSL-only (#170 hard problem 4) — document, don't silently degrade.
+- `--num-workers 1` is MANDATORY (concurrent workers collapse rates toward 1/N); a timeout is a
+  null measurement, never a False. Report only matched-protocol A/B deltas, never absolute rates.
+
+## Guardrails (all subcommands)
 
 - Cross-family grok judge is the default because same-family grading (Claude grades Claude) is a
   measured confound; on grok's absence it falls back to claude with a printed caveat.
@@ -60,6 +74,21 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
   as grounding (never evidence), a null recorded as an equally valid outcome. Titles pose the
   question, never the answer. Advocacy wording is itself a contamination channel: agents read it.
 - Never edits a frozen dated benchmark dir (append-only, ADR 0026).
+- **Infrastructure is never quality (#191):** every generative step in an arm carries an output
+  contract with one retry, or a pre-registered ERROR-cell rule — above all the step producing the
+  graded artifact. A cell whose graded artifact fails the mechanical shape check
+  (`lib/artifact_check.py`) is an ERROR cell, never a quality 0. Before blinding, run the
+  capture-symmetry sweep (`blind.capture_symmetry`) — arm-skewed emptiness is an infrastructure
+  defect to fix before grading, not signal.
+- **Mechanism claims cite cells (#191):** any causal "the mechanism is X" sentence in a verdict
+  README cites its supporting cells or carries an exploratory label. A bar miss that flips or
+  halves without its top contributing cells (`benchstats.top_cell_attribution`) triggers
+  inspection of those cells for infrastructure failure before interpretation.
 
-Method foundations (pre-registration, empirical evals) live in the `building-skills` skill; this
-skill references them rather than restating.
+New benchmark dirs start from the canonical templates in `templates/` (grid runner, blinding,
+grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs
+the Claude Code `Workflow` tool (#170 hard problem 3); without it, grade serially via `claude -p`.
+
+Method foundations (pre-registration, empirical evals, description ablation) live in the
+**dev-skills plugin's** `building-skills` skill; this skill references them rather than restating.
+Installed without dev-skills, `/bench` still runs — those references are method depth, not code.

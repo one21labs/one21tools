@@ -26,7 +26,7 @@ Complementary, not alternatives:
 |-------|-------|---------|
 | Pressure testing | eval authoring (below; method from obra/superpowers) | Can the agent rationalize its way around the skill under pressure? |
 | Paired benchmark | Anthropic skill-creator harness (delegated — ADR 0013) | Does the skill measurably beat the no-skill baseline? |
-| Cost verdict | `scripts/eval_verdict.py` (owned) | Does the delta justify the skill's chars? |
+| Cost verdict | the skill-bench plugin's `scripts/eval_verdict.py` | Does the delta justify the skill's chars? |
 
 Execution is DELEGATED: skill-creator's benchmark mode already runs paired
 with_skill/without_skill configurations with graded assertions and token/time stats. This repo
@@ -128,7 +128,7 @@ bounded by (2)/(4), not eliminated. Treat those verdict components as directiona
 Post-process the harness's `benchmark.json` with the owned layer:
 
 ```
-python scripts/eval_verdict.py <benchmark.json> --skill <skill-folder>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/eval_verdict.py" <benchmark.json> --skill <skill-folder>
 ```
 
 It pairs each eval's runs across configurations and reports:

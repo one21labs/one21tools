@@ -17,10 +17,10 @@ cost makes triggering moot. Measure separately.
 
 ## The instrument
 
-[scripts/run_eval.py](../scripts/run_eval.py) — vendored from anthropics/skills'
-skill-creator with 4 correctness fixes (3 stream patches + timeout-as-null) plus a testability
-extraction (ADR 0033); `run_eval_test.py` guards the fixed detection and aggregation logic.
-Linux/WSL-only (`select.select()` on a subprocess pipe fd).
+The skill-bench plugin's `scripts/run_eval.py` (`/bench trigger`) — vendored from
+anthropics/skills' skill-creator with 4 correctness fixes (3 stream patches + timeout-as-null)
+plus a testability extraction (ADR 0033); `run_eval_test.py` guards the fixed detection and
+aggregation logic. Linux/WSL-only (`select.select()` on a subprocess pipe fd).
 
 ## Validity: absolute rates are NEVER reportable
 
@@ -58,7 +58,7 @@ absolute rate, and never compare rates across different runs, fields, or environ
    feeding the runner.
 5. Invocation:
    ```
-   python3 run_eval.py --eval-set <path> --skill-path <skill-dir> \
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-path <skill-dir> \
      --model <pinned-model> --num-workers 1 --timeout 240 \
      [--description "<variant text>"]
    ```
