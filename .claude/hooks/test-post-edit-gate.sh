@@ -3,14 +3,14 @@
 # `bash test-post-edit-gate.sh`. Uses the REAL repo as CLAUDE_PROJECT_DIR (read-only: the gate
 # scripts under test -- validate.py, check-restatement.mjs, check-workflow.mjs -- only read
 # files, this test writes nothing into the repo) so the routing exercises the genuine scripts and
-# a genuine skill/benchmark fixture, not stubs.
-# SKIPs (exit 0) when the real repo is not at the hard-coded Windows path -- so the CI run of
-# this suite asserts nothing; the routing is only actually verified on the dev machine.
+# a genuine skill/benchmark fixture, not stubs. The repo root is derived from this script's own
+# location (two dirs up), so the suite runs everywhere the repo is checked out, CI included;
+# SKIPs (exit 0) only if that derivation doesn't land in a repo checkout.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/post-edit-gate.sh"
-REPO="C:/Users/ajmcc/projects/one21tools"
-[ -f "$REPO/scripts/check-restatement.mjs" ] || { echo "SKIP: real repo not found at $REPO"; exit 0; }
+REPO="$(cd "$HERE/../.." && pwd)"
+[ -f "$REPO/scripts/check-restatement.mjs" ] || { echo "SKIP: repo root not found at $REPO"; exit 0; }
 
 pass=0; fail=0
 assert_exit() {

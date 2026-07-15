@@ -26,6 +26,7 @@ fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([
 fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
 root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
+PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 
 run_gate() {
   out=$("$@" 2>&1) || { printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2; }
@@ -34,7 +35,7 @@ run_gate() {
 case "$fp" in
   */skills/*)
     skilldir=$(printf '%s' "$fp" | sed -n 's/.*\(skills\/[^/]*\)\/.*/\1/p')
-    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate python "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
+    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in
   */benchmarks/*.workflow.js) run_gate node "$root/scripts/check-workflow.mjs" ;;
