@@ -1,8 +1,8 @@
-# skill-bench (DRAFT skeleton — ADR 0055 / #170)
+# skill-bench
 
 The repo's unique asset — the only public hermetic skill-**measurement** pipeline — packaged so any
-skill author can measure their own skill. This is a scaffold, not a wired plugin: it records the
-target design from ADR 0055. Nothing here is on the marketplace or moved out of its current home yet.
+skill author can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
+ADR 0055 (scope) + ADR 0063 (completion set); plan: #170.
 
 ## What this plugin is (and is not)
 
@@ -15,7 +15,7 @@ target design from ADR 0055. Nothing here is on the marketplace or moved out of 
 ## Architecture: bespoke layer on a rented substrate
 
 ```
-  /bench (verdict | skill)  [trigger: planned]        <- one explicit-invoke skill, subcommands
+  /bench (verdict | skill | trigger)                  <- one explicit-invoke skill, subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
   cross-family judge (grok default) | verdict.py         keep in-repo; no vendor sells this
@@ -52,14 +52,14 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - Auth: grok.com subscription (zero marginal cost) or `XAI_API_KEY` for CI. Model `grok-4.5` = 500K ctx.
 - These flags are NOT in the public docs (docs.x.ai) but are present in the binary; pin the version.
 
-## Milestones (per #170, unchanged; substrate + judge added)
-- **M0** `/decide` ADR 0055 (scope, judge default, substrate). Resolve #150/ADR 0050 dependency shape.
-- **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; update `gates.yml` + nav; gates stay green.
-- **M2** Genericize: config layer + consumer-layout test.
-- **M3** Skill surface: one `/bench` skill (verdict + skill subcommands shipped; trigger planned) + on-demand references.
-- **M4** Substrate adapter: promptfoo behind `hermetic_driver`; native fallback (inspect-ai stays planned).
-- **M5** Cross-family judge wired into the grading template + `judge-divergence` diagnostic.
-- **M6** Dogfood: reproduce one committed benchmark via the installed plugin; then one third-party skill.
+## Milestones (per #170; substrate + judge added by ADR 0055)
+- **M0** `/decide` ADR 0055 — accepted as amended by ADR 0063 (#150/ADR 0050: no dependency declared; its split is a separate PR). DONE
+- **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; `gates.yml` + nav updated. DONE
+- **M2** Genericize: config layer + consumer-layout test. DONE
+- **M3** Skill surface: one `/bench` skill (verdict + skill + trigger) + on-demand references + canonical `templates/` (grid runner, blinding, grading workflow). DONE
+- **M4** Substrate adapter: promptfoo behind `hermetic_driver`; native fallback (inspect-ai stays planned). DONE
+- **M5** Cross-family judge wired in + `judge-divergence` diagnostic. DONE
+- **M6** Dogfood: `/plugin install` round-trip proven; the paid reproduce-a-committed-benchmark and third-party-skill runs are tracked as follow-up issues (spend-gated, ADR 0063 Call 4).
 
 ## Portability (installed elsewhere)
 
@@ -76,19 +76,23 @@ ADR 0058). What a consumer must provide / knows:
 - **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode —
   NOT by `/bench verdict` or the native `/bench skill`): set `$SKILL_BENCH_CONFIG_DIR` to a clean
   credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
-- **Platform:** the hermetic CLAUDE.md-discovery behavior is Linux/WSL-only (#170 hard-problem 4).
-
-Remaining genericization (eval-schema/config layer, consumer-layout test) is #170's **M2** — not
-yet complete; treat cross-repo use as beta until M2 lands.
+- **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
+  (#170 hard-problem 4).
+- **Method foundations** (pre-registration, empirical evals, description ablation) live in the
+  **dev-skills plugin's** `building-skills` skill (ADR 0063 Call 2) — install dev-skills for the
+  method depth; `/bench` itself runs without it.
+- **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
+  (#170 hard-problem 3); without it, grade serially via `claude -p` with the same prompts.
 
 ## Status
-Runnable: `/bench` with `verdict` + `skill` subcommands (native substrate + availability-aware cross-family
-judge with grok->claude fallback + deterministic cost accounting), harness lib moved in (M1),
-config layer + consumer-layout test (M2), registered in the marketplace.
+Runnable: `/bench` with `verdict` + `skill` + `trigger` subcommands (native substrate +
+availability-aware cross-family judge with grok->claude fallback + deterministic cost accounting),
+harness lib moved in (M1), config layer + consumer-layout test (M2), canonical templates
+(`templates/`), #191 infrastructure-vs-quality hardening (ERROR cells, capture symmetry,
+per-cell attribution), registered in the marketplace.
 
 Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces a verdict from a
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
 CI-runnable, needs authenticated grok). Promptfoo generation is wired into
-`/bench skill` (`--substrate promptfoo`, M4, proven live). Not yet done: the `/plugin install`
-marketplace round-trip (#170 M6 tail). See `docs/decisions/0055-*`.
+`/bench skill` (`--substrate promptfoo`, M4, proven live). See `docs/decisions/0055-*` and `0063-*`.
