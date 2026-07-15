@@ -8,10 +8,10 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
 (`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget (CLAUDE.md, agent prompts, manifest drift):
-`node pdca-workflow/scripts/adr-lint.mjs docs/decisions` — run it on a near-cap file, don't hand-count.
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions` — run it, don't hand-count. Before editing
+any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
 Check benchmark workflows: `node scripts/check-workflow.mjs`.
-Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>` — writes the
-version's one home (plugin.json when the plugin has one, else the marketplace entry).
+Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
 
 ## Muda — ruthlessly cut on sight
 Cut muda the moment you see it, not later — duplicated logic / one-home violations, dead code or

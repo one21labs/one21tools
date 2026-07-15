@@ -45,6 +45,16 @@ correct altitude) adds its own entry to `DOC_BUDGETS` with a bigger number — e
 `docs/review-system.md` at ~12,000 (~4 pp). The table above is the pattern, not a fixed list;
 `DOC_BUDGETS` in `char-budget.mjs` is the fixed list.
 
+## Editing a budgeted doc — measure first, never iterate against the gate
+
+Before ANY edit to a capped file: `wc -c <file>` -> headroom = cap − current; size the planned
+addition the same way (`printf '%s' "<text>" | wc -c`, minus any text it replaces). If the
+addition exceeds the headroom, do NOT word-golf the new line into mush and do NOT edit-validate-trim
+in a loop: review the WHOLE file for muda and drift (restatements of another home, narration,
+dead references) and cut there first — a file living at its cap is itself a smell that it carries
+waste or holds facts belonging at a different altitude. The pm agent's ADR rule (draft to the
+margin, measure once) is this same discipline at authoring time; this section owns it for edits.
+
 ## Method — chars <-> tokens
 
 Budgets are in **chars** (ADR 0008): a char count can't be gamed by long lines, and needs no API
