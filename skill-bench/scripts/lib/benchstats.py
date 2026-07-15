@@ -59,6 +59,32 @@ def keep_verdict(delta):
             "confidence": "strong" if strong else "weak"}
 
 
+def top_cell_attribution(cells, x, y, top_n=3):
+    """Per-cell leave-one-out attribution on the clustered x-y delta (#191 item 3). Returns the
+    top_n cells whose removal moves the mean most, each with its leave-one-out mean and whether
+    removal flips the KEEP/CUT direction or halves the magnitude — either sets inspect=True:
+    inspect those cells for infrastructure failure BEFORE interpreting the bar."""
+    base = clustered_delta(cells, x, y)["mean"]
+    rows = []
+    for i, c in enumerate(cells):
+        if c["arm"] not in (x, y):
+            continue
+        loo = clustered_delta(cells[:i] + cells[i + 1:], x, y)["mean"]
+        if loo != loo:  # cluster vanished — removal is maximally load-bearing
+            flips, halves = True, True
+        else:
+            flips = (loo > 0) != (base > 0)
+            halves = abs(loo) < abs(base) / 2
+        rows.append({"bid": c.get("bid"), "arm": c["arm"], "scenario": c["scenario"],
+                     "loo_mean": None if loo != loo else round(loo, 4),
+                     "delta_vs_base": None if loo != loo else round(base - loo, 4),
+                     "flips_or_halves": flips or halves})
+    rows.sort(key=lambda r: (r["delta_vs_base"] is not None, -(abs(r["delta_vs_base"] or 0))))
+    top = rows[:top_n]
+    return {"base_mean": None if base != base else round(base, 4), "top": top,
+            "inspect": any(r["flips_or_halves"] for r in top)}
+
+
 def divergence(cells_a, cells_b, label_a="A", label_b="B"):
     """Judge-vs-judge concordance across every (cell x expectation) call. cells_* keyed the same by bid."""
     ma = {c["bid"]: c["met"] for c in cells_a}

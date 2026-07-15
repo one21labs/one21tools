@@ -48,6 +48,27 @@ def write_blinded(records, graded_dir, key_fn, payload_fn, arm_key="arm"):
     return arm_map
 
 
+def capture_symmetry(records, response_fn, arm_key="arm", empty_chars=40, skew_threshold=0.1):
+    """Per-arm capture sweep run BEFORE blinding (#191 item 2): arm symmetry (ADR 0023) covers
+    prompts; this extends it to capture. Returns {"arms": {arm: {n, empty_n, empty_rate,
+    median_len}}, "skewed": bool} — skewed when some arm's empty-rate exceeds the minimum arm's
+    by more than skew_threshold. A skewed sweep is an infrastructure defect to fix before
+    grading (in #185 arm P had 3/24 empty captures vs 0/48 elsewhere), never signal."""
+    by_arm = {}
+    for r in records:
+        by_arm.setdefault(r[arm_key], []).append(len((response_fn(r) or "").strip()))
+    arms = {}
+    for arm, lens in sorted(by_arm.items()):
+        lens.sort()
+        empty_n = sum(1 for n in lens if n < empty_chars)
+        arms[arm] = {"n": len(lens), "empty_n": empty_n,
+                     "empty_rate": round(empty_n / len(lens), 3),
+                     "median_len": lens[len(lens) // 2]}
+    rates = [a["empty_rate"] for a in arms.values()]
+    skewed = bool(rates) and (max(rates) - min(rates)) > skew_threshold
+    return {"arms": arms, "skewed": skewed}
+
+
 NEUTRAL_SCHEMA_PROMPT = (
     "Extract every DISTINCT problem/defect finding asserted in the review text below into a "
     "JSON array, one object per finding: {\"claim\": <one-sentence restatement in neutral "
