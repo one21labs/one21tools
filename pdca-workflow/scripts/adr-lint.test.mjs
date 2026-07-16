@@ -262,8 +262,11 @@ test("decision-set: absent, empty, or singleton new-ADR list reports nothing (fa
   assert.deepEqual(decisionSetWarnings(["docs/decisions/0001-first.md"], files), []);
 });
 
-test("decision-set: the real 0047-0050 corpus set is quiet (the entangled-set precedent)", () => {
-  assert.deepEqual(decisionSetWarnings(["0047", "0048", "0049", "0050"], corpus()), []);
+// 0050's owner rework (2026-07-16) dropped its 0047/0048 entanglement, so the historic
+// 0047-0050 batch no longer proves quiet-on-connected; 0055+0063 (extraction + its
+// completion set, mutually cited) is the corpus's current connected precedent.
+test("decision-set: a real cite-connected corpus set is quiet (0055 + 0063)", () => {
+  assert.deepEqual(decisionSetWarnings(["0055", "0063"], corpus()), []);
 });
 
 test("decision-set: the real WP1 set (0064-0068, cite-unconnected) WARNS but is permitted — the batch that amended this rule", () => {

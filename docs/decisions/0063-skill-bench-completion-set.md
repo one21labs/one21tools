@@ -1,8 +1,8 @@
 ---
 id: 0063
-title: "skill-bench completion set: ratify 0055, keep method-reference home, bundle #191 1-3, defer paid runs"
+title: "skill-bench completion set: ratify 0055, skill-bench owns its method references, bundle #191 1-3, defer paid runs"
 status: accepted
-summary: "Four calls completing #170: (1) flip ADR 0055 proposed->accepted, amended; (2) method references KEEP in building-skills (skill-bench references them) — mitigate lone-install loss by naming the dev-skills plugin, not moving; (3) bundle #191 items 1-3 + item-4 checklist half, split the cross-plugin verifier edit + item 5; (4) defer paid M5/M6 to issues, #150 keeps its own PR, but the zero-spend /plugin install round-trip rides this PR. Also completes M3, ships templates, refreshes README, cuts the lib husk."
+summary: "Four calls completing #170: (1) flip ADR 0055 proposed->accepted, amended; (2) method references move INTO skill-bench (owner rework 2026-07-16: the measurement product owns its method — standalone install); (3) bundle #191 items 1-3 + item-4 checklist half, split the cross-plugin verifier edit + item 5; (4) defer paid M5/M6 to issues, #150 keeps its own PR, but the zero-spend /plugin install round-trip rides this PR. Also completes M3, ships templates, refreshes README, cuts the lib husk."
 ---
 
 # 0063 — skill-bench completion set (#170)
@@ -14,29 +14,29 @@ summary: "Four calls completing #170: (1) flip ADR 0055 proposed->accepted, amen
 
 ## Decision
 **Call 1 — flip ADR 0055 proposed->accepted, amended** (applied to 0055 this PR): items 2-3 shipped as decided (judge.py:57, substrate.py:78), item 4 partial (no `trigger`); item 1's reference clause shipped INVERTED — refs stay in building-skills, skill-bench references them (SKILL.md:64, judging.md:11), opposite of 0055:16. Weakest assumption now discharged (below). Status = decision validity, not milestone completion — the flip does not wait on M3.
-**Call 2 — method references KEEP in building-skills** (ratify the inversion). SSoT is met by the cross-reference; a move rewrites cross-links + external pointers and re-certs dev-skills for no poka-yoke. Mitigate the lone-install adopter loss: skill-bench/README requirements + judging.md:11 must name the **dev-skills plugin**, not just "the building-skills skill".
+**Call 2 — method references move INTO skill-bench** (owner rework 2026-07-16 — its own reopen trigger fired: the owner is the first standalone adopter; the original KEEP call lives in git history). `empirical-evals.md`, `pre-registration.md`, `description-ablation.md` live at `skill-bench/skills/bench/references/` — the measurement product owns its method. Authoring guidance (`evaluation-patterns.md`, `section-ablation.md`, eval schemas) stays with building-skills. Cross-plugin pointers in BOTH directions are plugin-naming prose, never relative links.
 **Call 3 — bundle #191 items 1-3 + item-4's bench-SKILL.md checklist half into THIS PR**, each its own commit (skill-bench-local, additive to resident files). Split item-4's pdca-workflow verifier-agent edit (cross-plugin revert boundary) + item 5 to a follow-up issue.
 **Call 4 — defer paid M5/M6 to follow-up issues; #150/ADR 0050 keeps its own PR.** Carve-out: the zero-spend `/plugin install` round-trip (README:93) rides THIS PR, proven in Testing — first command an adopter types.
 **Also this PR** (owner directive): complete M3 (move run_eval.py/eval_verdict.py into skill-bench/scripts/ + `/bench trigger`, documenting hard-problems 3 Workflow-dependency + 4 Linux/WSL), ship the canonical grid-runner/blinding/grading-workflow templates, refresh the README, cut the benchmarks/lib husk. Deferred = issues (ADR 0021).
 
 ## Justification
-Owner directive + ADR 0056 (cohesive over one-concern) drive one packaged PR; split lines are revert boundaries, not concern counts. Keep (Call 2) is same-SSoT at zero churn — #170's "no reference duplicated" bar is already met (zero evals cases exercise the five filenames), so a move is a paid ADR-0024 re-check for cosmetic compliance. #191 1-3 are additive to resident files, cohesive with the extraction; the verifier-agent edit is cross-plugin (clean revert), so it splits. #150 is a Sacred restructure with no code dependency here (ADR 0050).
+Owner directive + ADR 0056 (cohesive over one-concern) drive one packaged PR; split lines are revert boundaries, not concern counts. Call 2 (as reworked): a standalone measurement product owns its own method. #191 1-3 are additive to resident files, cohesive with the extraction; the verifier-agent edit is cross-plugin (clean revert), so it splits. #150 is a Sacred manifest question with no code dependency here (ADR 0050).
 
 ## Assumptions
 - [verified] 0055's WEAKEST assumption — a grok re-grade of a dated benchmark reproduces the divergence diagnostic — is DISCHARGED: poker `bench_verdict.py --judge both` gives agreement 0.819, kappa 0.593 (`benchmarks/2026-07-14-pdca-decide-poker/README.md:66,101`), a second point beside the 72-cell prototype (kappa 0.575).
 - [checkable] #191 items 1-3 change no shipped call signature (helper added to bench lib; blind.py/benchstats.py extended additively) — gate verifies at build.
 - [checkable] M3 move is behavior-neutral: run_eval.py/eval_verdict.py + tests relocate to skill-bench/scripts/, gates stay green — gate verifies.
 - [checkable-doc] no plugin.json carries a `dependencies` field (grep: none), so the dev-skills dependency is README prose here, NOT declared; #150/ADR 0050 (which introduces that field) stays a separate PR, no code dependency. result: verified.
-- [unverifiable] naming the dev-skills plugin in README + judging.md closes the lone-install adopter loss. REOPEN-IF a real external adopter installs skill-bench alone and still hits a dangling method pointer.
+- [unverifiable] in-plugin method references close the lone-install gap. REOPEN-IF an adopter still hits a dangling method pointer from a lone skill-bench install.
 
 ## Rejected alternatives
-- MOVE the five references into skill-bench (Call 2 losing counsel) — rewrites 9+ cross-links + 3 external pointers, re-certs dev-skills, machine-unverified either way; #170's duplication bar already met. Churn, no poka-yoke.
+- KEEP the method references in building-skills (the original Call 2) — a lone skill-bench install dangles its own methodology; the move's churn was one-time, the dangling permanent.
 - Fast-follow ALL of #191 (adopter) / split ALL of #191 (lean) — owner directive packages related work; the middle splits only the cross-plugin edit on its revert boundary.
 - Bundle #150 here — Sacred restructure, different revert boundary, no code dependency (ADR 0050).
 - Leave 0055 `proposed` — drift-by-omission while reality diverged on two of four items.
 - Ride /plugin install on the M5/M6 deferral — it is zero-spend and the #170 acceptance bar.
 
 ## Revisit triggers
-- First external adopter installs skill-bench alone, or M6 external proof runs — reopens Call 2.
+- An adopter needs authoring guidance (evaluation-patterns) from a lone skill-bench install — revisit the authoring/measurement split line.
 - A #191 1-3 change forces a shipped call-signature edit — revert boundary broke; reopens Call 3.
 - /plugin install fails in Testing — 0055 M6 blocked; #170 acceptance not met.
