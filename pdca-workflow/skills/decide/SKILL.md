@@ -13,8 +13,10 @@ agents and writes ADRs.
 
 **Trigger.** A roadmap/product change, an open judgment call, or ANY user feedback (bug report,
 feature ask, behavioral observation). Route it here — never fix a feedback item directly before
-planning it. A judgment call (threshold, scope, policy) triggers the panel even for meta/tooling
-work.
+planning it. **Panel only for genuinely CONTESTED calls** (real two-sided trade-off, Sacred
+surface, hard-to-reverse); everything else the PM records directly (ADR 0062). When the
+decisive fact is a person's preference and the person is reachable, ASK — a panel cannot
+outvote the client.
 
 $ARGUMENTS (optional) = the artifact or calls to focus on. If empty, review the roadmap against the
 current product and surface the open calls yourself.
@@ -44,21 +46,18 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
 ## The loop
 1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs. Read
    `docs/decisions/` so settled calls aren't re-litigated. Scan open ADRs' revisit
-   triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift — an
-   ADR shipped (dated `## Act`) that a sibling/cross-ref still treats as open, or an accepted ADR
-   long stalled with no `## Act`; flag any roadmap/changelog/tracker out of sync. Cite the line;
-   omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,
-   not real. A CLAUDE.md-configured metrics command runs before any gating/conversion call;
-   fold fired triggers into the panel — see `references/metrics-engine.md` (window-decoupling +
-   min-sample discipline; thresholds are project config). No metrics command = skip.
+   triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift (a shipped ADR a
+   sibling still treats as open; an accepted ADR long stalled with no `## Act`;
+   roadmap/changelog/tracker out of sync) — cite the line; omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,
+   not real. A CLAUDE.md-configured metrics command runs before any
+   gating/conversion call — see `references/metrics-engine.md`. None configured = skip.
 2. **Frame.** Clarify scope FIRST, per the `advise` skill's Frame step (its home). List the open
    calls. One register. Multiple calls: pre-allocate parallel `pm`s' IDs here, one each.
 3. **Check output.** For any claim about what the product renders/prints/exports/writes, grade the
    real produced output before advising — the grading rule's home is the `verifier` agent. No
    output layer = skip.
 4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
-   at a lite/bare record — no panel spawn; escalate here only for a high-stakes or
-   irreversible call that clears that cheap gate. Then run the `advise` primitive on the
+   at a lite/bare record — no panel spawn; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
    framed scope — it owns panel selection and the spawn/shape rules (fresh, parallel, never
    primed; opposing counsel on two-sided calls).
 5. **Decide (PM).** Invoke `pm`. It weighs them and writes an ADR per call (justification + tagged

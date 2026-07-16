@@ -41,7 +41,7 @@ summary: "<one line for the skim catalog>"
    falsifiability gate (settled = nothing left to test), but REJECTED if it carries a revisit
    trigger or open assumption (`REOPEN-IF`, a `## Revisit triggers` section, or an `[unverifiable]`
    bullet): that means the decision isn't actually settled, so it must graduate to a full ADR.
-7. **Budget** — no ADR exceeds its char budget: full ADRs default to 6,000 (configurable via
+7. **Budget** — no ADR exceeds its char budget: caps live in `char-budget.mjs` (never restated here; configurable via
    `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
    `char-budget.mjs`; full budget rationale (why chars not lines, no-exemptions rule) in
    `adr-template.md`'s Template section — canonical, not restated here. Advisory (ADR 0067,
