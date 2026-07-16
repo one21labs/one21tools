@@ -93,6 +93,7 @@ New benchmark dirs start from the canonical templates in `templates/` (grid runn
 grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs
 the Claude Code `Workflow` tool (#170 hard problem 3); without it, grade serially via `claude -p`.
 
-Method foundations (pre-registration, empirical evals, description ablation) live in the
-**dev-skills plugin's** `building-skills` skill; this skill references them rather than restating.
-Installed without dev-skills, `/bench` still runs — those references are method depth, not code.
+Method foundations ship WITH this skill (ADR 0063 Call 2 as reworked — the measurement product
+owns its method): [pre-registration.md](references/pre-registration.md),
+[empirical-evals.md](references/empirical-evals.md),
+[description-ablation.md](references/description-ablation.md). skill-bench installs standalone.

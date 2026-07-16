@@ -67,8 +67,8 @@ the product can be wrong, plus the cost / value / risk / differentiation axes.
 
 The plugin ships the generic framework; each project supplies its domain (advisor personas,
 thresholds, Sacred files, render/verify command). Two deliberate scope calls (recorded in this
-repo's [docs/decisions/0001](../docs/decisions/0001-pdca-workflow-extraction-scope.md), the
-framework dogfooded on its own extraction):
+repo's decision log as ADR 0001, pdca-workflow-extraction-scope — outside this plugin's shipped
+files, so no link survives an install; the framework dogfooded on its own extraction):
 
 - **Metrics engine = spec, not code.** `references/metrics-engine.md` is the language-neutral
   `analyze()` contract (window-decoupling, sample-gating, `unknown != healthy`); a project

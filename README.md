@@ -31,7 +31,7 @@ cost-matched baselines everywhere — recorded, not spun — judge-robust for bo
 replacements; the measured values are the process guarantees, retrospect's FP discipline, and
 the independent-perspectives failure-anticipation edge; ADR 0057/0061 route the program).
 Measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
-The loop (method home: `skills/building-skills/references/empirical-evals.md`; decision records:
+The loop (method home: `skill-bench/skills/bench/references/empirical-evals.md`; decision records:
 ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 
 1. **Evals** — each measured dev/engineering skill has `evals/evals.json` (3+ cases,
@@ -48,7 +48,7 @@ ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
 5. **Description ablation** — the frontmatter description is the one always-loaded surface, so it
    is trigger-tested separately (TP/FP on should-fire and adjacent should-not-fire queries) and
    trimmed to the shortest text that holds recall
-   (`skills/building-skills/references/description-ablation.md`).
+   (`skill-bench/skills/bench/references/description-ablation.md`).
 
 All of this machinery is in-repo and self-contained (python3 + node + the `claude` CLI; trigger
 runs are Linux/WSL-only). No external skill or plugin needs to be installed to run it —

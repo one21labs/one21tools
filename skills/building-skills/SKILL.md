@@ -104,7 +104,7 @@ Think of Claude navigating a path:
 
 ### 1. Draft Evaluations First
 
-Draft 3+ test cases (`evals/evals.json`, validate.py gates the shape) before writing documentation. Execution runs on skill-creator's harness; the skill-bench plugin's `scripts/eval_verdict.py` turns its benchmark into the cost-per-benefit verdict. Authoring: [evaluation-patterns.md](references/evaluation-patterns.md); measurement protocol: [empirical-evals.md](references/empirical-evals.md); pre-run discipline: [pre-registration.md](references/pre-registration.md).
+Draft 3+ test cases (`evals/evals.json`, validate.py gates the shape) before writing documentation. Execution runs on skill-creator's harness; the skill-bench plugin's `scripts/eval_verdict.py` turns its benchmark into the cost-per-benefit verdict. Authoring: [evaluation-patterns.md](references/evaluation-patterns.md). Measurement protocol and pre-run discipline (empirical-evals.md, pre-registration.md) live in the **skill-bench plugin's** `bench` skill — the measurement product owns its method.
 
 ### 2. Develop Iteratively
 

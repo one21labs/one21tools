@@ -1,7 +1,7 @@
 # Empirical Evals — measure that a skill earns its context cost
 
 Read this when a skill needs empirical evidence, not authoring guidance (that is
-[evaluation-patterns.md](evaluation-patterns.md)). The repo's claim is "token efficiency
+evaluation-patterns.md, **dev-skills plugin**). The repo's claim is "token efficiency
 enforced, not aspirational" — char budgets enforce the COST side; this protocol measures the
 BENEFIT side. Together: a skill is justified when its measured effect is worth its chars.
 
@@ -38,7 +38,7 @@ verdict with a confidence interval.
 Install skill-creator from Anthropic's agent-skills marketplace (`anthropics/skills` on
 GitHub; it is NOT bundled with Claude Code and NOT shipped by this marketplace). No
 skill-creator available = fall back to the manual baseline steps in
-[evaluation-patterns.md](evaluation-patterns.md); the protocol below assumes the harness.
+evaluation-patterns.md (dev-skills plugin); the protocol below assumes the harness.
 
 ## Authoring evals
 
@@ -51,7 +51,7 @@ integer ids, non-empty prompt/expected_output/expectations).
 
 Disciplines:
 
-- **4+ cases**: normal, edge, and at least one pressure case. Expectations must
+- **3+ cases**: normal, edge, and at least one pressure case. Expectations must
   DISCRIMINATE — an assertion that passes with and without the skill measures nothing
   (skill-creator's analyzer flags these; cut them).
 - **Pressure cases** (method from obra/superpowers' skill-testing): phrase the prompt to
@@ -181,13 +181,13 @@ it — retention turns on WITH that check, not before.
 
 Measuring WHICH content within an always-loaded skill or CLAUDE.md earns its place (not just
 whether the whole does) is a deeper cut than the whole-skill verdict above — see
-[section-ablation.md](section-ablation.md).
+section-ablation.md (dev-skills plugin).
 
 ## Scope and limits
 
 - **Triggering is out of scope here** — the paired benchmark injects the skill, so it cannot
   measure whether the description ACTIVATES; use the triggering tests in
-  [evaluation-patterns.md](evaluation-patterns.md) and the vendored trigger runner
+  evaluation-patterns.md (dev-skills plugin) and the vendored trigger runner
   ([description-ablation.md](description-ablation.md), ADR 0033).
 - **Deltas are model- and eval-relative** — re-benchmark before comparing verdicts across
   model generations; record the executor model (benchmark.json metadata carries it).
