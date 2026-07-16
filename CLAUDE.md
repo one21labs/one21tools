@@ -1,16 +1,16 @@
 # one21tools
 
-Goal (home: README.md): quality output, autonomously. Prioritize all work against it.
+Goal (home: README.md): quality output, autonomously, judged as the person receiving it.
+Prioritize all work against it.
 
 ## Stack & navigation
 No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,
-registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts
-(`adr-lint.mjs`, `validate.py`). Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
+registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
+Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget (CLAUDE.md, agent prompts, manifest drift):
-`node pdca-workflow/scripts/adr-lint.mjs docs/decisions` — run it, don't hand-count. Before editing
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
-Check benchmark workflows: `node scripts/check-workflow.mjs`.
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
 
 ## Muda — ruthlessly cut on sight
@@ -22,7 +22,7 @@ don't restate. Operationalized, not a slogan:
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke (prevent > detect):** delete the mirror, don't guard or resync it; derive, don't duplicate.
 - **Forcing functions:** `/retrospect` before every PR; `adr-lint` guards the decision log; the
-  advisory muda-review CI (`.github/workflows/claude-review.yml`) posts inline findings, never blocks.
+  advisory muda-review CI posts inline findings, never blocks.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
@@ -32,9 +32,8 @@ don't restate. Operationalized, not a slogan:
 - `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge.
 
 ## Docs — one home per fact
-Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
-Git history is the SSoT for backstory — state the current truth, never narrate how it got there
-("Learned" logs, retired-ID notes = drift; cut on sight). Altitude: README > CLAUDE.md > SKILL.md /
+Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate
+(backstory rules: `ssot-enforcement.md`). Altitude: README > CLAUDE.md > SKILL.md /
 manifests / scripts (the "code" here — they own skill names, manifest fields, the registry, the
 deterministic logic; a doc that restates them rots).
 
@@ -79,3 +78,8 @@ This repo dogfoods its own `pdca-workflow` plugin. A judgment call (a threshold,
 question — even meta/tooling) triggers `/decide` immediately — advise -> PM decides -> ADR in
 `docs/decisions/` -> verify (fresh-eyes + red-team). Never fix a judgment call directly before
 deciding it. Inherit settled ADRs; don't re-litigate.
+
+## Judgment
+A want you can't QUOTE is your own — ask, don't infer. Before deciding what someone
+experiences, go experience it as they would. A perfectly-formed record can still be
+senseless — form is no substitute for a person in the frame.
