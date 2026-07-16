@@ -2,7 +2,7 @@
 
 Read this when a skill is always-in-context (or near its char cap) and you need to know WHICH
 content earns its place, not just whether the whole earns its cost — the deeper cut beyond
-[empirical-evals.md](empirical-evals.md)'s whole-skill verdict.
+the whole-skill verdict of empirical-evals.md (**skill-bench plugin**, `bench` skill).
 
 For a skill that is always-in-context or near its char cap, measure WHICH content earns its
 place, not just whether the whole does. Treat sections (or each references/*.md) as factors:
