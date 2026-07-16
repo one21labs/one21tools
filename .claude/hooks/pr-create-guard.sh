@@ -9,8 +9,8 @@
 #      cross-repo, so CLAUDE.md's prose rule stays structurally load-bearing (ADR 0047 (a)).
 #   G1: the body must arrive via --body-file/-F. Inline --body/-b is denied (quoting-unsafe on
 #      PS 5.1, and an inline body can't be content-checked before publication).
-#   G2: the body file must contain the Claude disclosure line, and for `gh pr create` also a
-#      `Retrospective:` line (ADR 0030) -- checked BEFORE the artifact exists, not at CI.
+#   G2: the body file must contain the Claude disclosure line -- checked BEFORE the
+#      artifact exists, not at CI.
 #
 # COMMAND-WORD ANCHOR: `gh pr create` only counts at a command-word
 # position -- start of command or right after `&&`/`;`/`|` -- so `echo 'gh pr create'`
@@ -63,7 +63,7 @@ bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file|-F)(=|[[:space:]
   | sed -E 's/^[[:space:]]*(--body-file|-F)(=|[[:space:]]+)//')
 if [ -z "$bf" ]; then
   if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body|-b)(=|[[:space:]]|$)'; then
-    deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure + Retrospective lines before anything is published). Write the body to a file first."
+    deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first."
   fi
   exit 0   # no body flags at all: let gh open its editor / error on its own
 fi
@@ -76,10 +76,4 @@ case "$body" in
   *'Disclosure: written by Claude'*) : ;;
   *) deny "Denied: body file $bf is missing the Claude authorship disclosure line (CLAUDE.md: required on every issue and PR Claude writes, at creation time). Append: *Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*" ;;
 esac
-if [ "$kind" = "pr" ]; then
-  case "$body" in
-    *'Retrospective:'*) : ;;
-    *) deny "Denied: PR body file $bf is missing the required Retrospective: line (ADR 0030). Run /retrospect on this branch, then add a line: Retrospective: run | unavailable | skipped-<reason>." ;;
-  esac
-fi
 exit 0

@@ -21,8 +21,9 @@ don't restate. Operationalized, not a slogan:
 - **Cite-or-silence:** every muda call cites a `file:line`; never manufacture a "consolidation" to
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke (prevent > detect):** delete the mirror, don't guard or resync it; derive, don't duplicate.
-- **Forcing functions:** `/retrospect` before every PR; `adr-lint` guards the decision log; the
-  advisory muda-review CI posts inline findings, never blocks.
+- **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
+  inline findings, never blocks. `/retrospect` is on-demand — run it when something felt wrong,
+  never as ritual.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
@@ -57,11 +58,7 @@ deterministic logic; a doc that restates them rots).
   squashed commits as a phantom range. Preview what a branch/PR changes with three-dot
   (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
   `main` as reverting main's content.
-- PR body: Purpose / Changes / Testing / Deferred / Retrospective. Run `/retrospect` on the branch
-  before opening it, then record the outcome as a body line: `Retrospective: run | unavailable |
-  skipped-<reason>` (ADR 0030) — `skipped-batch:<link>` is a sanctioned reason when debt is paid by
-  a batch retrospect covering prior small PRs; `unavailable` when the plugin didn't load in-session
-  (ADR 0022). No size floor: "tiny PR" is not a valid reason on its own.
+- PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
@@ -74,10 +71,11 @@ deterministic logic; a doc that restates them rots).
   decision-state stays in ADRs.
 
 ## Feedback = PDCA trigger
-This repo dogfoods its own `pdca-workflow` plugin. A judgment call (a threshold, scope, or policy
-question — even meta/tooling) triggers `/decide` immediately — advise -> PM decides -> ADR in
-`docs/decisions/` -> verify (fresh-eyes + red-team). Never fix a judgment call directly before
-deciding it. Inherit settled ADRs; don't re-litigate.
+This repo dogfoods its own `pdca-workflow` plugin. A judgment call gets DECIDED and recorded
+(ADR in `docs/decisions/`) before it's built — directly for routine calls, with a panel only
+when genuinely contested, with one fresh adversary (verify/red-team) when the result ships or
+is hard to reverse (ADR 0062). Inherit settled ADRs; don't re-litigate — but an ADR resting on
+an unsourced want is challengeable, not settled.
 
 ## Judgment
 A want you can't QUOTE is your own — ask, don't infer. Before deciding what someone

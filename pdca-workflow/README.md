@@ -53,10 +53,10 @@ skills/
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each), retrospect-reminder.test.mjs
+scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each)
                  the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
-hooks/         hooks.json + retrospect-reminder.sh   (PR-create -> /retrospect reminder)
+hooks/         hooks.json (model guard, gate-pipe guard, ADR post-edit lint, spawn log)
 ```
 
 The five meta-roles ship here. The **advisor panel is project-specific** and is generated for
@@ -89,7 +89,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /plugin install pdca-workflow@one21tools
 /pdca-init        # once per project: CLAUDE.md + docs/decisions/ + a tailored advisor panel
 /decide   # decide a judgment call; writes an ADR
-/retrospect       # before opening a PR; improves the process
+/retrospect       # on-demand, when something felt wrong; improves the process
 ```
 
 All three skills are explicit-invoke only (`disable-model-invocation`) — the panel spends many
