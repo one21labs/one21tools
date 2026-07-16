@@ -9,7 +9,7 @@ and the panel-vs-baseline contrast moved from near-zero to clearly positive. So 
 a first-class variable, not a neutral instrument. Default to a different family from the generator.
 
 Foundations for grading validity (blinding, planted-defect calibration, prosecutor discipline) are
-owned by the `building-skills` skill's method references — consult those; this file covers only what
+owned by [empirical-evals.md](empirical-evals.md); this file covers only what
 is specific to the pluggable judge.
 
 ## Selecting the judge

@@ -53,7 +53,7 @@ divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (
 - These flags are NOT in the public docs (docs.x.ai) but are present in the binary; pin the version.
 
 ## Milestones (per #170; substrate + judge added by ADR 0055)
-- **M0** `/decide` ADR 0055 — accepted as amended by ADR 0063 (#150/ADR 0050: no dependency declared; its split is a separate PR). DONE
+- **M0** `/decide` ADR 0055 — accepted as amended by ADR 0063 (#150/ADR 0050: standalone plugins, no dependency declared). DONE
 - **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; `gates.yml` + nav updated. DONE
 - **M2** Genericize: config layer + consumer-layout test. DONE
 - **M3** Skill surface: one `/bench` skill (verdict + skill + trigger) + on-demand references + canonical `templates/` (grid runner, blinding, grading workflow). DONE
@@ -78,9 +78,9 @@ ADR 0058). What a consumer must provide / knows:
   credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
   (#170 hard-problem 4).
-- **Method depth is a separate install:** the measurement-method docs are homed in the
-  dev-skills plugin (ADR 0063 Call 2; the `/bench` SKILL.md's closing note names them) —
-  `/bench` runs without dev-skills, but install it for the discipline references.
+- **Method depth ships in-plugin** (ADR 0063 Call 2 as reworked): pre-registration,
+  empirical-evals, and description-ablation live under the `/bench` skill's references —
+  skill-bench is standalone.
 - **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
   (#170 hard-problem 3); without it, grade serially via `claude -p` with the same prompts.
 

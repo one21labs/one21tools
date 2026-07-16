@@ -72,8 +72,8 @@ absolute rate, and never compare rates across different runs, fields, or environ
 
 Keep the SHORTEST description that holds the true-positive rate without raising the
 false-positive rate — a longer description that buys no additional trigger accuracy is pure
-context cost (the same "every char earns its place" bar as
-[section-ablation.md](section-ablation.md)). Run 1 replicate per query first; escalate to 3
+context cost (the same "every char earns its place" bar as the building-skills skill's
+section-ablation.md, dev-skills plugin). Run 1 replicate per query first; escalate to 3
 replicates ONLY for a query whose pass/fail flips between candidate descriptions — the
 sequential-escalation discipline (ADR 0019), applied here to ambiguous flips instead of CI width.
 
