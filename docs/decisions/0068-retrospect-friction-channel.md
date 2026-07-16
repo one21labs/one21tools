@@ -57,7 +57,8 @@ which killed-or-confirmed for ~$0). Building first would be adopt-on-assertion (
   the orchestrator's list, with the one novel finding from the agent's independent git read.
 - [checkable] harness transcript JSONL carries extractable tool errors/hook denials/nonzero
   exits sufficient to build the ledger without new instrumentation. TEST: the Phase-0 extract
-  itself. — owner: Phase-0 run, on #189. result: pending.
+  itself. — owner: Phase-0 run, on #189. result: confirmed 2026-07-15 —
+  benchmarks/2026-07-15-pdca-retrospect-friction-phase0/ (PASS 3/5 at threshold).
 - [unverifiable] blind classification adequately controls the hindsight confound in
   "finding-grade" — REOPEN-IF the Phase-0 verdict flips under an independent second
   classification pass.
