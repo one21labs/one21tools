@@ -10,10 +10,9 @@ pass=0; fail=0
 
 FIX=$(mktemp -d)
 trap 'rm -rf "$FIX"' EXIT
-GOOD="$FIX/good-body.md"; BAD="$FIX/bad-body.md"; NORETRO="$FIX/no-retro-body.md"; CRLF="$FIX/crlf-body.md"
+GOOD="$FIX/good-body.md"; BAD="$FIX/bad-body.md"; CRLF="$FIX/crlf-body.md"
 printf 'Purpose: x\nRetrospective: run\n\n*Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*\n' > "$GOOD"
 printf 'Purpose: x\n' > "$BAD"
-printf 'Purpose: x\n\n*Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*\n' > "$NORETRO"
 printf 'Purpose: x\r\nRetrospective: run\r\n\r\n*Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*\r\n' > "$CRLF"
 
 # $1 = name, $2 = the command value EXACTLY as it appears inside the stdin JSON string
@@ -39,8 +38,6 @@ run_case() {
 run_case "deny G1: inline --body"                        "gh pr create --title x --body inline-text"                     deny  "body-file"
 run_case "allow: pr create with compliant body file"     "gh pr create --title x --body-file $GOOD"                      allow
 run_case "deny G2: body file missing disclosure"         "gh pr create --title x --body-file $BAD"                       deny  "disclosure"
-run_case "deny G2: PR body missing Retrospective line"   "gh pr create --title x --body-file $NORETRO"                   deny  "Retrospective"
-run_case "allow: issue create needs no Retrospective"    "gh issue create --title x --body-file $NORETRO"                allow
 run_case "deny G3: external repo, -R space form"         "gh pr create -R other/repo --title x --body-file $GOOD"        deny  "one21labs"
 run_case "allow: internal repo -R one21labs/x"           "gh pr create -R one21labs/x --title x --body-file $GOOD"       allow
 run_case "allow: non-gh command"                         "git commit -m msg"                                             allow
@@ -63,11 +60,11 @@ run_case "allow: gh pr view -R external (read)"          "gh pr view 7 --repo ot
 run_case "allow: gh pr edit -R external (create-scoped)" "gh pr edit 7 -R other/repo --body-file $GOOD"                  allow
 
 # CRLF body file still matches both lines.
-run_case "allow: CRLF body file, disclosure+retro found" "gh pr create --title x --body-file $CRLF"                      allow
+run_case "allow: CRLF body file, disclosure found"       "gh pr create --title x --body-file $CRLF"                      allow
 
 # Flag-form coverage: -F short form and --body-file= equals form.
 run_case "deny: -F short form parsed (missing disclosure)" "gh pr create --title x -F $BAD"                              deny  "disclosure"
-run_case "deny: --body-file= equals form parsed"         "gh pr create --title x --body-file=$NORETRO"                   deny  "Retrospective"
+run_case "deny: --body-file= equals form parsed"         "gh pr create --title x --body-file=$BAD"                       deny  "disclosure"
 
 # Fail-open paths.
 run_case "allow: unreadable body file (gh will error)"   "gh pr create --title x --body-file /nonexistent/nope.md"       allow

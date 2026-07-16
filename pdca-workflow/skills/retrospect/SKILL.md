@@ -1,6 +1,6 @@
 ---
 name: retrospect
-description: Use when wrapping up shipped work or before opening a PR. Derives at least 2 routed process improvements from git history plus this session's friction, then applies or escalates each. Explicit-invoke only; never auto-fire.
+description: Use when something in the shipped work felt wrong or worth learning from — on demand, never as per-PR ritual. Derives at least 2 routed process improvements from git history plus this session's friction, then applies or escalates each. Explicit-invoke only; never auto-fire.
 disable-model-invocation: true
 ---
 
@@ -8,8 +8,9 @@ disable-model-invocation: true
 
 Make the process better after shipping. The process half of the feedback system (the product
 half is `/decide` on user feedback). Explicit-invoke only: it spends an agent and edits
-process docs, so it must never auto-fire. Run it on this branch before opening the PR, so
-improvements land in the still-open PR.
+process docs, so it must never auto-fire. Run it ON DEMAND — when friction recurred, a defect
+surprised you, or the work fought back — not as ritual; while the PR is still open is the
+useful moment, so findings can land in it.
 
 Arguments (optional): $ARGUMENTS = the git range or scope (e.g. `origin/main...HEAD`, a PR number).
 Default: `origin/main...HEAD` (this branch's work; three-dot against the remote tip, not stale

@@ -58,9 +58,9 @@ Rules:
 
 Telegraphic fragments, not prose — one full sentence for the crux (load-bearing *why* + weakest
 assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
-visible line. **Budget: ≤6,000 chars (~2 pp) norm** for a single-decision ADR — a char count can't
+visible line. **Budget: the `ADR_CHAR_BUDGET` cap in `char-budget.mjs`** (sized with slack — the cap stops bloat, never forces word-golf) — a char count can't
 be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
-an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to a margin (~5,000) and
+an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to the margin (`ADR_CHAR_MARGIN`) and
 measure once (`node -e` char count) before finalizing** — don't write long and trim in N passes.
 The margin also reserves room for the `## Act` block appended at ship (below); an ADR finalized
 at the cap edge forces a trim at close time.

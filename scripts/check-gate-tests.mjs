@@ -40,7 +40,6 @@ const GATES_WORKFLOW = ".github/workflows/gates.yml";
  *  registered hook must carry a gates.yml-invoked sibling `test-<basename>.sh` (ADR 0064). */
 export const MJS_GRANDFATHERED_HOOKS = new Set([
   "pdca-workflow/hooks/explicit-model-guard.sh",
-  "pdca-workflow/hooks/retrospect-reminder.sh",
 ]);
 const HOOK_REGISTRATIONS = [
   { path: "pdca-workflow/hooks/hooks.json", pluginRoot: "pdca-workflow" },

@@ -45,14 +45,16 @@ export const DOC_BUDGETS = {
   "pdca-workflow/skills/pdca-init/references/claude-md-template.md": 6000,
 };
 
-// Single-decision ADR norm (~2 pp). No exemptions — every ADR is held to the cap (ADR 0008 chose
-// rewrite-under-budget over a grandfather allowlist for this small corpus).
-export const ADR_CHAR_BUDGET = 6000;
+// Single-decision ADR cap. Sized with SLACK above the ~6,000 the corpus historically ran at:
+// ADRs are read on-demand (not always-loaded context), so the cap exists to stop unbounded
+// bloat, never to force exact-fit word-golf — iterating prose against a tight cap is muda
+// (owner, 16-Jul-2026: keep caps against bloat, sized generously).
+export const ADR_CHAR_BUDGET = 9000;
 
-// Advisory drafting margin for a full ADR (adr-template.md: draft to ~5,000 so the `## Act`
+// Advisory drafting margin for a full ADR (adr-template.md: draft below this so the `## Act`
 // block appended at ship time still fits the cap). adr-lint WARNs — never fails — when a
-// PR-ADDED full ADR (--new-adrs) exceeds it (ADR 0067); the legacy near-cap corpus is not swept.
-export const ADR_CHAR_MARGIN = 5000;
+// PR-ADDED full ADR (--new-adrs) exceeds it (ADR 0067); the legacy corpus is not swept.
+export const ADR_CHAR_MARGIN = 8000;
 
 // Lite-tier ADR cap (`tier: lite` frontmatter): a SETTLED decision — decision + why + where it's
 // enforced, no panel/assumptions/revisit machinery. A quarter page keeps the tier honest: anything
@@ -60,8 +62,9 @@ export const ADR_CHAR_MARGIN = 5000;
 export const LITE_ADR_CHAR_BUDGET = 1500;
 
 // Agent prompt files (pdca-workflow/agents/*.md) — a lean-prompt guard (ADR 0009); a glob capped by
-// this sibling budget, same shape as the ADR corpus.
-export const AGENT_CHAR_BUDGET = 3000;
+// this sibling budget, same shape as the ADR corpus. Slack above the ~3,000 the prompts run at,
+// for the same no-word-golf reason as the ADR cap.
+export const AGENT_CHAR_BUDGET = 3500;
 
 // Shared per-file check — one loop body, so the "path:chars/cap" report format cannot diverge
 // between the doc and agent walks. ENOENT-tolerant like the directory walks below: a budgeted doc
