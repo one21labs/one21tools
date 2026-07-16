@@ -14,7 +14,7 @@ any budgeted doc: measure headroom + the addition first, cut muda elsewhere to f
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
 
 ## Muda — ruthlessly cut on sight
-Cut muda the moment you see it, not later — duplicated logic / one-home violations, dead code or
+Duplicated logic / one-home violations, dead code or
 fields, premature abstraction, drift, git-tellable backstory. The taxonomy + audit method live in
 the **`engineering-principles`** skill (`waste-identification` / `ssot-enforcement`) — reference it,
 don't restate. Operationalized, not a slogan:
@@ -48,16 +48,18 @@ deterministic logic; a doc that restates them rots).
   files; split only for a clean revert boundary or to keep main green. Version bumps get their own PR (`set-version.mjs`, ADR 0048).
 - **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
-  available, post an "in progress" claim comment at start; clear it on completion.
+  available, post an "in progress" claim comment at start; clear it on completion. Retitle a
+  tracking issue whose title no longer matches its remaining scope before working under it.
+- **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
+  fails the same way — PATCH the body via `gh api`.
 - **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
   findings; address each or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). After a squash-merge the branch still
   shows commits "ahead" of `main`, so judge merged-ness by PR state + file diff, not
   `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
   branch onto `origin/main` before ranging, branching, or `/retrospect` — a stale local `main` re-adds the
-  squashed commits as a phantom range. Preview what a branch/PR changes with three-dot
-  (`origin/main...branch`), never two-dot — two-dot is tip-to-tip and shows a branch merely behind
-  `main` as reverting main's content.
+  squashed commits as a phantom range. Preview a branch/PR with three-dot
+  (`origin/main...branch`), never two-dot (tip-to-tip: a behind-branch reads as reverting main).
 - PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
