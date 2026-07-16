@@ -10,16 +10,25 @@
  * Mechanism, .mjs gates: parse gates.yml's `run:` lines for `node <path>.mjs` (excluding
  * `node --test ...` lines, which name GLOBS of tests, not a gate to test) to get the wired set;
  * the expected test is `<path without .mjs>.test.mjs`; it must exist AND match one of the globs
- * named on a `node --test` line. validate.py's own decision logic is python-tested by
- * validate_test.py (also wired in gates.yml) — out of scope here, .mjs only.
+ * named on a `node --test` line.
+ *
+ * Mechanism, python gates (ADR 0069): every `python3 <path>.py` gate invocation on a run: line
+ * (excluding *_test.py, globs, and shell-variable args like `python3 "$t"`) requires a sibling
+ * `<path>_test.py` that CI executes — matched by a `*_test.py` glob token or invoked directly
+ * on a `python3 ..._test.py` line (basename match covers the `cd <dir> && python3 x_test.py`
+ * idiom).
+ *
+ * Vacuity check (ADR 0069): a resolved test-<basename>.sh whose text assigns a path-root
+ * variable a LITERAL absolute path (no `$(`/`${` derivation) is flagged — the machine-path
+ * SKIP-exit-0 scar class where CI asserts nothing everywhere but one machine.
  *
  * Mechanism, bash hooks: parse pdca-workflow/hooks/hooks.json and any .claude/settings*.json for
  * a "hooks" block's `command` strings ending in .sh (resolving ${CLAUDE_PLUGIN_ROOT} /
  * ${CLAUDE_PROJECT_DIR}) to get the registered set. The standard (ADR 0064) is a self-contained
  * sibling `test-<basename>.sh` suite matched by a .sh path/glob appearing in a gates.yml run:
  * line (e.g. the `for t in pdca-workflow/hooks/test-*.sh` step) — a CI-verified invocation, not
- * mere file existence. The two pre-0064 hooks tested via a `<basename>.test.mjs` that spawns the
- * real .sh (MJS_GRANDFATHERED_HOOKS) keep that path, covered by a `node --test` glob; every
+ * mere file existence. The pre-0064 hook tested via a `<basename>.test.mjs` that spawns the
+ * real .sh (MJS_GRANDFATHERED_HOOKS) keeps that path, covered by a `node --test` glob; every
  * other hook must carry the .sh suite.
  *
  * DESIGN CONSTRAINTS: zero dependencies; findMissingTests() is PURE (no fs — takes gatesYml text,
@@ -57,6 +66,53 @@ export function extractWiredGates(gatesYml) {
     if (m && !m[1].includes("*")) out.push(m[1]);
   }
   return [...new Set(out)];
+}
+
+/** Every `python[3] [flags] <path>.py` gate invocation in a run: line — excluding test files,
+ *  globs, and shell-variable args (`python3 "$t"`). A `-m module` gate has no .py token and is
+ *  NOT captured (ADR 0069 revisit trigger). Deduped, in first-seen order. */
+export function extractPyGates(gatesYml) {
+  const out = [];
+  for (const line of gatesYml.split("\n")) {
+    const m = line.match(/\bpython3?\s+(?:-[^m\s]\S*\s+)*(\S+\.py)\b/);
+    if (m && !m[1].endsWith("_test.py") && !m[1].includes("*") && !m[1].includes("$")) out.push(m[1]);
+  }
+  return [...new Set(out)];
+}
+
+/** How CI executes python tests: `*_test.py` glob tokens (for-loop style) plus direct
+ *  `python[3] <x>_test.py` invocations. A `cd <dir> && python3 x_test.py` idiom resolves to
+ *  `<dir>/x_test.py` — a bare basename never certifies a gate in another directory (red-team
+ *  break on ADR 0069: two same-basename gates, one cd-run, must not both pass). */
+export function extractPyTestExecutions(gatesYml) {
+  const globs = [];
+  const direct = [];
+  for (const line of gatesYml.split("\n")) {
+    for (const m of line.matchAll(/[^\s;'"`]+\*[^\s;'"`]*_test\.py/g)) globs.push(m[0]);
+    const d = line.match(/\bpython3?\s+(?:-[^m\s]\S*\s+)*(\S+_test\.py)\b/);
+    if (d) {
+      const cd = line.match(/\bcd\s+([^\s;&]+)\s*&&/);
+      direct.push(cd && !d[1].includes("/") ? `${cd[1].replace(/\/$/, "")}/${d[1]}` : d[1]);
+    }
+  }
+  return { globs: [...new Set(globs)], direct: [...new Set(direct)] };
+}
+
+/** Line numbers where a variable assignment's VALUE starts with a literal absolute path root —
+ *  the self-skip signature (ADR 0069): such a test SKIPs everywhere but one machine. Matches
+ *  any assignment shape (export/readonly/local/declare prefixes, any-case names); a value whose
+ *  ROOT is derived (`$(…)`, `${…}`, `$VAR`) is spared, but a literal root is flagged even when a
+ *  variable appears later in the path (red-team: `/home/x/${P}` is still machine-bound). */
+export function selfSkipLines(shText) {
+  const out = [];
+  const assign = /^\s*(?:export\s+|readonly\s+|local\s+(?:-\S+\s+)*|declare\s+(?:-\S+\s+)*)?[A-Za-z_][A-Za-z0-9_]*=(.*)$/;
+  shText.split("\n").forEach((line, i) => {
+    const m = line.match(assign);
+    if (!m) return;
+    const value = m[1].replace(/^["']/, "");
+    if (/^([A-Za-z]:[\\/]|\/(home|Users|mnt|root|opt|srv)\/)/.test(value)) out.push(i + 1);
+  });
+  return out;
 }
 
 /** Every glob argument following `node --test` on any line. */
@@ -120,10 +176,11 @@ export function extractRegisteredHooks(registrationText, pluginRoot) {
 /**
  * Pure decision logic. gatesYml: text of gates.yml. hookRegistrations: [{ text, pluginRoot }] for
  * each registration file present. existingFiles: anything exposing `.has(posixRelPath)`.
- * Returns [{ kind: "gate"|"hook", path, expected, reason }] for every wired gate/hook lacking a
- * CI-visible test; [] means the corpus passes.
+ * readFile(posixRelPath) -> string|null enables the ADR 0069 vacuity check; omitted, that check
+ * is skipped (pre-0069 behavior). Returns [{ kind: "gate"|"hook", path, expected, reason }] for
+ * every wired gate/hook lacking a CI-visible (and non-vacuous) test; [] means the corpus passes.
  */
-export function findMissingTests({ gatesYml, hookRegistrations = [], existingFiles }) {
+export function findMissingTests({ gatesYml, hookRegistrations = [], existingFiles, readFile = null }) {
   const testGlobs = extractTestGlobs(gatesYml);
   const shInvocations = extractShInvocations(gatesYml);
   const missing = [];
@@ -137,6 +194,18 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
     }
   }
 
+  const pyExec = extractPyTestExecutions(gatesYml);
+  for (const gate of extractPyGates(gatesYml)) {
+    const testPath = gate.replace(/\.py$/, "_test.py");
+    const executed = pyExec.globs.some((g) => globCoversPath(g, testPath))
+      || pyExec.direct.includes(testPath);
+    if (!existingFiles.has(testPath)) {
+      missing.push({ kind: "gate", path: gate, expected: testPath, reason: "no sibling _test.py" });
+    } else if (!executed) {
+      missing.push({ kind: "gate", path: gate, expected: testPath, reason: "sibling _test.py exists but no gates.yml line executes it" });
+    }
+  }
+
   const hooks = hookRegistrations.flatMap(({ text, pluginRoot }) => extractRegisteredHooks(text, pluginRoot));
   for (const hook of [...new Set(hooks)]) {
     const slash = hook.lastIndexOf("/");
@@ -144,7 +213,19 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
     const base = (slash === -1 ? hook : hook.slice(slash + 1)).replace(/\.sh$/, "");
     const shCandidate = `${dir}/test-${base}.sh`;
     const shHit = existingFiles.has(shCandidate) && shInvocations.some((g) => globCoversPath(g, shCandidate));
-    if (shHit) continue;
+    if (shHit) {
+      const text = readFile ? readFile(shCandidate) : null;
+      const skips = text == null ? [] : selfSkipLines(text);
+      if (skips.length) {
+        missing.push({
+          kind: "hook",
+          path: hook,
+          expected: shCandidate,
+          reason: `test self-skips via hard-coded absolute path (${shCandidate}:${skips[0]}, ADR 0069)`,
+        });
+      }
+      continue;
+    }
     if (MJS_GRANDFATHERED_HOOKS.has(hook)) {
       const scriptsDir = dir.replace(/\/hooks$/, "/scripts");
       const mjsCandidates = [...new Set([`${dir}/${base}.test.mjs`, `${scriptsDir}/${base}.test.mjs`])];
@@ -192,8 +273,8 @@ function main(argv) {
 
   const existingFiles = { has: (relPath) => existsSync(join(root, relPath)) };
 
-  const missing = findMissingTests({ gatesYml, hookRegistrations, existingFiles });
-  const wiredCount = extractWiredGates(gatesYml).length;
+  const missing = findMissingTests({ gatesYml, hookRegistrations, existingFiles, readFile: read });
+  const wiredCount = extractWiredGates(gatesYml).length + extractPyGates(gatesYml).length;
   const hookCount = new Set(hookRegistrations.flatMap((r) => extractRegisteredHooks(r.text, r.pluginRoot))).size;
 
   if (missing.length) {
