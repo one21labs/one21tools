@@ -167,3 +167,14 @@ wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-
 - **`benchmarks/lib` reused, not reimplemented** — `verdict.py`'s shared `verdict_of` is not used here
   (the adoption bar is a directional margin + cost gate, not the KEEP/HARMFUL/CUT-CANDIDATE rule) but
   `bench_io.sample_and_archive_raw` is (`archive_raw.py`).
+
+## Correction (appended 2026-07-16, issue #215)
+
+The "pre-registration + harness only — no run has been executed" statement above is STALE: the
+run WAS executed and landed together with this directory (PR #102; verdict recorded in ADR
+0035). All three arms ran the full generation grid; grading covered the 8-task gradient subset
+(amendment recorded pre-unblinding — see ADR 0035). `results.jsonl` holds the verdict:
+haiku-solo mean_delta -0.16 CI95 [-0.279, -0.041], tiered -0.057 [-0.14, +0.026]; tokens 2.94x
+and wall-clock 3.22x sonnet-solo against a <=0.6x bar; `adopt_tiered: false`. Dated dirs are
+append-only (ADR 0026/0041), so this note is appended and the stale text above is left as
+written.
