@@ -52,7 +52,9 @@ Run this loop:
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
    review/edit the panel, then run `/decide` for their first decision. Offer (don't
    auto-apply) the optional advisory CI: copy `${CLAUDE_PLUGIN_ROOT}/templates/claude-review.yml` into
-   `.github/workflows/` and print its OAuth-token / required-check setup steps.
+   `.github/workflows/` and print its OAuth-token / required-check setup steps. Also offer the
+   house reply-summary standard: copy `${CLAUDE_PLUGIN_ROOT}/templates/plain-summary.md` to
+   `.claude/output-styles/` and set `outputStyle` in settings (ADR 0074).
 
 The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) ship with this plugin
 and need no scaffolding — only the domain panel is project-specific.
