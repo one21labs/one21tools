@@ -58,13 +58,14 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
    output layer = skip.
 4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
    at a lite/bare record — no panel spawn; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
-   framed scope — it owns panel selection and the spawn/shape rules (fresh, parallel, never
-   primed; opposing counsel on two-sided calls).
+   framed scope — it owns panel selection and the spawn/shape rules.
 5. **Decide (PM).** Invoke `pm`. It weighs them and writes an ADR per call (justification + tagged
    assumptions + rejected alternatives + revisit triggers) per `references/adr-template.md`
    (char caps: `references/doc-budgets.md`). A settled call records as `tier: lite` instead —
    boundary + shape: adr-template.md's Lite tier.
-6. **Verify + red-team + tech-lead.** Run the `verify` primitive over every load-bearing claim
+6. **Verify + red-team + tech-lead.** Gated like step 4: only when the result SHIPS or is
+   hard to reverse — else record the skip. Run the `verify` primitive over every
+   load-bearing claim
    and `[checkable]` assumption. An accepted ADR needing implementation gets `tech-lead`. If
    any ADR folds a safety caveat in as a BLOCKER, the `red-team` primitive AND `tech-lead` are
    required. All fresh, uncontaminated by the PM's

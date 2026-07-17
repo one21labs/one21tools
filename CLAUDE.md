@@ -8,11 +8,12 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 `scripts/`); plugins are top-level dirs (e.g. `pdca-workflow/`) with a `.claude-plugin/plugin.json`,
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
 Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
-Lint the decision log + every char budget (CLAUDE.md, agent prompts, manifest drift):
+Lint the decision log + every char budget:
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
-Plugin hooks fire from the installed CACHE, not the working tree — reinstall to test hook edits.
+Plugin hooks fire from the installed CACHE, not the working tree — a stale cache silently
+enforces RETIRED policy; reinstall after any hook-touching merge, not just to test edits.
 
 ## Muda — ruthlessly cut on sight
 Duplicated logic / one-home violations, dead code or
