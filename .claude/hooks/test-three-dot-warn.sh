@@ -30,21 +30,23 @@ run_case() {
   rm -rf "$FIX"
 }
 
-# Two-dot-against-main variants: fire.
-run_case "warn: git log main..feature"               'git log main..feature'                          warn
+# git diff two-dot against main: fire (the diff-specific tip-to-tip trap, ADR 0047(c)/0072).
 run_case "warn: git diff origin/main..HEAD"          'git diff origin/main..HEAD'                     warn
-run_case "warn: git rev-list --count main..HEAD"     'git rev-list --count main..HEAD'                warn
-run_case "warn: chained cd && git log main..x"       'cd /some/dir && git log --oneline main..x'      warn
+run_case "warn: chained cd && git diff main..x"      'cd /some/dir && git diff --stat main..x'        warn
+
+# log/rev-list two-dot is CORRECT usage (commits ahead of main): never fires (ADR 0072).
+run_case "silent: git log main..feature (correct)"   'git log main..feature'                          silent
+run_case "silent: git rev-list --count main..HEAD (correct)" 'git rev-list --count main..HEAD'        silent
 
 # The fix itself: three-dot never fires.
 run_case "silent: git log origin/main...branch"      'git log origin/main...branch'                   silent
 run_case "silent: git diff main...HEAD"              'git diff main...HEAD'                           silent
 
 # Ranges not involving main: never fire.
-run_case "silent: git log a..b (non-main)"           'git log a..b'                                   silent
+run_case "silent: git diff a..b (non-main)"          'git diff a..b'                                  silent
 run_case "silent: git diff feature..other"           'git diff feature..other'                        silent
-run_case "silent: notmain..x (boundary guard)"       'git log notmain..x'                             silent
-run_case "silent: upstream/main..x (accepted limitation, doc'd)" 'git log upstream/main..x'           silent
+run_case "silent: notmain..x (boundary guard)"       'git diff notmain..x'                            silent
+run_case "silent: upstream/main..x (accepted limitation, doc'd)" 'git diff upstream/main..x'          silent
 
 # git without a range subcommand: never fires.
 run_case "silent: git checkout main"                 'git checkout main'                              silent
@@ -63,7 +65,7 @@ rm -rf "$FIX"
 
 # Log line format on a fire: ISO-8601Z + two-dot-main + the matched range token.
 FIX=$(mktemp -d)
-printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git log origin/main..HEAD"}}' \
+printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git diff origin/main..HEAD"}}' \
   | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" >/dev/null
 grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z two-dot-main .*origin/main\.\.' "$FIX/$LOG_REL"
 check "log line format: ISO-8601Z + two-dot-main + range token" $? "content=[$(cat "$FIX/$LOG_REL" 2>/dev/null)]"
