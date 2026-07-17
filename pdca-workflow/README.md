@@ -87,10 +87,16 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 
 ```
 /plugin install pdca-workflow@one21tools
-/pdca-init        # once per project: CLAUDE.md + docs/decisions/ + a tailored advisor panel
+/pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
 /retrospect       # on-demand, when something felt wrong; improves the process
 ```
 
 All three skills are explicit-invoke only (`disable-model-invocation`) — the panel spends many
 agents and writes files, so it never auto-fires.
+
+**Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
+unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).
+Installing the plugin for its skills alone changes nothing in projects that haven't adopted.
+To scope the whole plugin (skills included) per project, use Claude Code's native
+`enabledPlugins` in the project's `.claude/settings.json`.

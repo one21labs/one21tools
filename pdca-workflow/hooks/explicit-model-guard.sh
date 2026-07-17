@@ -13,7 +13,13 @@
 # onward so an unrelated top-level field can't match. No jq (git-bash safe). Fails OPEN (allows)
 # on malformed/empty stdin or a missing tool_input marker -- a broken hook must never block
 # every agent launch.
+#
+# FIRING SCOPE (ADR 0071): fires only in a project that adopted the PDCA practice, marked by the
+# docs/pdca/ dir (scaffolded by /pdca-init). Everywhere else this is a no-op -- a session-wide
+# install must not impose tier discipline on repos that never opted in (ADR 0050). Stdin is
+# drained BEFORE the marker check so the harness never sees a broken pipe.
 input=$(cat)
+[ -d "${CLAUDE_PROJECT_DIR:-.}/docs/pdca" ] || exit 0
 scope=$(printf '%s' "$input" | sed -n 's/.*\("tool_input".*\)/\1/p')
 [ -z "$scope" ] && exit 0
 

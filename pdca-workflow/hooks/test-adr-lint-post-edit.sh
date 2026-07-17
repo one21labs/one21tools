@@ -31,9 +31,9 @@ run() {
   echo $?
 }
 
-# --- Fixture A: consumer WITH a valid (lite) ADR corpus ---
+# --- Fixture A: consumer WITH a valid (lite) ADR corpus + the docs/pdca adoption marker ---
 FIX_OK=$(mktemp -d)
-mkdir -p "$FIX_OK/docs/decisions" "$FIX_OK/.claude/agents"
+mkdir -p "$FIX_OK/docs/decisions" "$FIX_OK/docs/pdca" "$FIX_OK/.claude/agents"
 cat > "$FIX_OK/docs/decisions/0001-good.md" <<'EOF'
 ---
 id: "0001"
@@ -51,17 +51,24 @@ cat > "$FIX_OK/CLAUDE.md" <<'EOF'
 Trivially small, well under any char budget.
 EOF
 
-# --- Fixture B: consumer with an INVALID ADR (missing frontmatter) ---
+# --- Fixture B: consumer with an INVALID ADR (missing frontmatter), marker present ---
 FIX_BAD=$(mktemp -d)
-mkdir -p "$FIX_BAD/docs/decisions"
+mkdir -p "$FIX_BAD/docs/decisions" "$FIX_BAD/docs/pdca"
 printf '# 0001: no frontmatter at all\n\nThis ADR is missing its YAML frontmatter block.\n' > "$FIX_BAD/docs/decisions/0001-bad.md"
 
-# --- Fixture C: consumer with NO docs/decisions dir at all (degrade gracefully) ---
+# --- Fixture C: adopted (marker present) but NO docs/decisions dir (degrade gracefully) ---
 FIX_NONE=$(mktemp -d)
-mkdir -p "$FIX_NONE/.claude/agents"
+mkdir -p "$FIX_NONE/docs/pdca" "$FIX_NONE/.claude/agents"
 printf '# CLAUDE.md\nno ADR corpus in this consumer project\n' > "$FIX_NONE/CLAUDE.md"
 
-trap 'rm -rf "$FIX_OK" "$FIX_BAD" "$FIX_NONE"' EXIT
+# --- Fixture D (ADR 0071 firing scope): a generic ADR corpus with NO docs/pdca marker -- an
+# INVALID ADR that would fail the gate, proving the marker check (not the lint passing) is what
+# exits 0. ---
+FIX_NOMARK=$(mktemp -d)
+mkdir -p "$FIX_NOMARK/docs/decisions"
+printf '# 0001: no frontmatter at all\n\nGeneric ADR practice, never adopted PDCA.\n' > "$FIX_NOMARK/docs/decisions/0001-bad.md"
+
+trap 'rm -rf "$FIX_OK" "$FIX_BAD" "$FIX_NONE" "$FIX_NOMARK"' EXIT
 
 code=$(run "$FIX_OK" "$FIX_OK/docs/decisions/0001-good.md" "$REAL_PLUGIN_ROOT")
 assert_exit "valid ADR edit -> gate passes -> exit 0" 0 "$code"
@@ -70,7 +77,10 @@ code=$(run "$FIX_BAD" "$FIX_BAD/docs/decisions/0001-bad.md" "$REAL_PLUGIN_ROOT")
 assert_exit "invalid ADR edit -> gate fails -> exit 2" 2 "$code"
 
 code=$(run "$FIX_NONE" "$FIX_NONE/CLAUDE.md" "$REAL_PLUGIN_ROOT")
-assert_exit "no docs/decisions dir -> degrade gracefully -> exit 0" 0 "$code"
+assert_exit "marker present, no docs/decisions dir -> degrade gracefully -> exit 0" 0 "$code"
+
+code=$(run "$FIX_NOMARK" "$FIX_NOMARK/docs/decisions/0001-bad.md" "$REAL_PLUGIN_ROOT")
+assert_exit "invalid ADR edit but NO docs/pdca marker -> hook no-ops -> exit 0" 0 "$code"
 
 code=$(run "$FIX_OK" "$FIX_OK/CLAUDE.md" "$REAL_PLUGIN_ROOT")
 assert_exit "CLAUDE.md edit, valid corpus -> gate runs, passes -> exit 0" 0 "$code"
