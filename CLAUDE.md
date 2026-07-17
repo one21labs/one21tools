@@ -12,6 +12,7 @@ Lint the decision log + every char budget (CLAUDE.md, agent prompts, manifest dr
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
 Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
+Plugin hooks fire from the installed CACHE, not the working tree — reinstall to test hook edits.
 
 ## Muda — ruthlessly cut on sight
 Duplicated logic / one-home violations, dead code or
