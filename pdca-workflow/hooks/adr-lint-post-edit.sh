@@ -35,6 +35,10 @@ case "$fp" in
   *) exit 0 ;;
 esac
 
+# FIRING SCOPE (ADR 0071): only a project that adopted the PDCA practice (docs/pdca/ marker,
+# scaffolded by /pdca-init) gets this gate -- a generic docs/decisions ADR corpus that never
+# opted in must not be linted with this plugin's house rules (ADR 0050).
+[ -d "$root/docs/pdca" ] || exit 0
 # Degrade gracefully: a consumer with no ADR corpus has nothing for this hook to gate.
 [ -d "$root/docs/decisions" ] || exit 0
 
