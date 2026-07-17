@@ -95,3 +95,13 @@ export CLAUDE_CONFIG_DIR="$HOME/issue30/claude-config"
 export PATH="$HOME/.local/bin:$PATH"
 bash harness.sh
 ```
+
+## Correction (appended 2026-07-16, issue #215)
+
+The "PREP ONLY / no `claude` calls have been executed" statements above are STALE: the run WAS
+executed and landed together with this directory (PR #103). `results.jsonl` holds the completed
+18-cell run — eval 1 (ssot copy-to-match) flips +1.00 (without 0/3, with 3/3), evals 2-3 ceiling
+in both arms; mean_delta +0.333, CI95 [-0.32, +0.987], verdict INCONCLUSIVE (n=3 evals,
+underpowered as pre-registered; directionally positive, zero negative deltas). It supersedes the
+2026-07-08 confounded null per ADR 0023. Dated dirs are append-only (ADR 0026/0041), so this
+note is appended and the stale text above is left as written.
