@@ -11,8 +11,13 @@
 # this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/,
 # hooks/ are unignored), so anything under .claude/ would be git-INVISIBLE -- defeating the purpose --
 # and `*.log` is gitignored too, so the file is .txt, not .log. docs/ is tracked, already the
-# home of committable process state (docs/decisions/), and a consumer without docs/ gets it
-# created by the mkdir -p below. The retrospect rubric (agents/retrospect.md) cites this path.
+# home of committable process state (docs/decisions/). The retrospect rubric
+# (agents/retrospect.md) cites this path.
+#
+# FIRING SCOPE (ADR 0071): docs/pdca/ is also the PDCA adoption marker (scaffolded by
+# /pdca-init) -- this hook logs only where the dir ALREADY exists and never creates it. The
+# marker is opt-in state; a hook that mkdir'd its own marker would opt every project in on the
+# first panel (or builtin `verify`) invocation, the exact write-pollution ADR 0050 rules out.
 #
 # WRITE MECHANICS: single-line `>>` append with O_APPEND semantics -- atomic enough for
 # line-sized writes even when the sibling three-dot-warn hook (repo-side) appends to the SAME
@@ -33,7 +38,7 @@ skill=$(printf '%s' "$input" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\([^
 case "$skill" in
   advise|red-team|verify|pdca-workflow:advise|pdca-workflow:red-team|pdca-workflow:verify)
     root="${CLAUDE_PROJECT_DIR:-.}"
-    mkdir -p "$root/docs/pdca" 2>/dev/null || exit 0
+    [ -d "$root/docs/pdca" ] || exit 0
     printf '%s skill-spawn %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$skill" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
     ;;
 esac

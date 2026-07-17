@@ -70,10 +70,16 @@ class GrokJudge(_CostTracking):
         with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
             f.write(prompt); pf = f.name
         try:
-            r = subprocess.run(
-                [self.bin, "--prompt-file", pf, "--output-format", "json",
-                 "--json-schema", json.dumps(schema), "--disallowed-tools", GROK_DENY],
-                capture_output=True, text=True, timeout=self.timeout)
+            try:
+                r = subprocess.run(
+                    [self.bin, "--prompt-file", pf, "--output-format", "json",
+                     "--json-schema", json.dumps(schema), "--disallowed-tools", GROK_DENY],
+                    capture_output=True, text=True, timeout=self.timeout)
+            except subprocess.TimeoutExpired:
+                # Contract consistency: timeout is a JudgeError like every other failure mode —
+                # a caller's per-cell handler must be able to catch ONE exception type (a raw
+                # TimeoutExpired killed a whole resumable grading pass, PR #219 retrospective).
+                raise JudgeError(f"grok timeout after {self.timeout}s")
             if r.returncode != 0:
                 raise JudgeError(f"grok exit {r.returncode}: {r.stderr[-300:]}")
             env = json.loads(r.stdout)
@@ -98,10 +104,13 @@ class ClaudeJudge(_CostTracking):
     def grade(self, prompt, schema):
         # claude -p has no --json-schema; ask for JSON-only and parse, retrying tolerant of fences.
         p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
-        r = subprocess.run(
-            [self.bin, "-p", p, "--output-format", "json", "--model", self.model,
-             "--disallowedTools", CLAUDE_DENY],
-            capture_output=True, text=True, timeout=self.timeout)
+        try:
+            r = subprocess.run(
+                [self.bin, "-p", p, "--output-format", "json", "--model", self.model,
+                 "--disallowedTools", CLAUDE_DENY],
+                capture_output=True, text=True, timeout=self.timeout)
+        except subprocess.TimeoutExpired:
+            raise JudgeError(f"claude timeout after {self.timeout}s")  # same contract as grok
         if r.returncode != 0:
             raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
         env = json.loads(r.stdout)

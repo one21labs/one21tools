@@ -17,6 +17,12 @@ A pre-registration states a NUMERIC judge/grading-cost estimate on this same not
 checkpoint, ADR 0066). When the measured figure exceeds the estimate by more than 2x, record
 the gap in the verdict README and the routing ADR's Act.
 
+**`ceiling_usd` derivation (ADR 0073):** the generation cost gate's `ceiling_usd` is set to 2x
+the pre-registered notional estimate — the >2x stop-rule of record — NEVER the estimate itself.
+Encoding the estimate band's top as the ceiling forces a mid-run revision the moment a pilot
+projects above it (realized in `benchmarks/2026-07-17-thirdparty-writing-plans/`); the stop
+rule and the mechanical gate must be the same number.
+
 ## Scoring
 
 Each cell scores the fraction of its expectations met, after the grade-then-prosecute min rule (see

@@ -32,7 +32,10 @@ Run this loop:
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
    before a PR); never rewrite the user's content.
 
-3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
+3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
+   create it with an empty `session-log.txt` (committed): the dir is BOTH the panel spawn-log's
+   home and the marker the plugin's enforcement hooks require before firing in a project — no
+   `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home — it carries the ADR rules, the template, AND the shared-assumption register). The copy is
    deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
