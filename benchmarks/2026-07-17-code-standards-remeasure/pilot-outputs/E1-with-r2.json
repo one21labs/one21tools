@@ -1,0 +1,53 @@
+{
+ "cell": "E1-with-r2",
+ "scenario": "E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 37915.4,
+  "duration_ms": 36622,
+  "duration_api_ms": 37415,
+  "cost_usd": 0.3625069,
+  "usage": {
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 44899,
+   "cache_read_input_tokens": 140273,
+   "output_tokens": 3345,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 44899,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1174,
+     "cache_read_input_tokens": 44642,
+     "cache_creation_input_tokens": 257,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 257
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-17T13:04:49.116131+00:00",
+   "end": "2026-07-17T13:05:27.031552+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.3625069
+ },
+ "response": "I don't have a file-write tool available in this session, so here's the complete updated module \u2014 save it as `notifier.py`:\n\n```python\n\"\"\"\nnotifier.py - HTTP notification sender with retry and backoff\n\nARCHITECTURE ROLE:\n  Sends a single notification payload to a URL, retrying on failure with a\n  configurable delay between attempts. Retry/timeout/backoff values are\n  loaded from a JSON config file; callers decide how to handle a final\n  failure (None return).\n\nDESIGN CONSTRAINTS:\n  - No delay is applied after the final attempt.\n  - A missing or malformed config file falls back to defaults; the failure\n    is logged, not raised, so callers can still run offline.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.error\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 1.0\n\n\ndef config_load(path):\n    try:\n        with open(path) as f:\n            config = json.load(f)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Failed to load config from %s: %s; using defaults\", path, err)\n        config = {}\n\n    retries = config.get(\"retries\", DEFAULT_RETRIES)\n    timeout_seconds = config.get(\"timeout\", DEFAULT_TIMEOUT_SECONDS)\n    backoff_seconds = config.get(\"backoff_seconds\", DEFAULT_BACKOFF_SECONDS)\n    return retries, timeout_seconds, backoff_seconds\n\n\ndef notification_send(url, payload, retries, timeout_seconds, backoff_seconds):\n    for attempt in range(retries):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            return urllib.request.urlopen(request, timeout=timeout_seconds).read()\n        except (urllib.error.URLError, OSError) as err:\n            logger.warning(\n                \"Notification attempt %d/%d to %s failed: %s\",\n                attempt + 1, retries, url, err,\n            )\n            if attempt < retries - 1:\n                time.sleep(backoff_seconds)\n\n    logger.error(\"Notification to %s failed after %d attempts\", url, retries)\n    return None\n```\n\nChanges from the original:\n- Added `backoff_seconds` (default `1.0`) read from config and slept between retries via `time.sleep`, skipped after the final attempt.\n- Renamed `ld`/`snd` \u2192 `config_load`/`notification_send`, `r`/`to` \u2192 `retries`/`timeout_seconds` for clarity.\n- Replaced bare `except:` with specific exceptions (`OSError`, `json.JSONDecodeError`, `urllib.error.URLError`) and added logging with context instead of silently swallowing failures.\n- Removed the dead commented-out `load()` function and added a short file header.\n\nI don't have a write tool available in this session, so you'll need to save this as `notifier.py` yourself.",
+ "artifacts": {}
+}
