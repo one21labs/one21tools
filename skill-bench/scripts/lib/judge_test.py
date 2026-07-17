@@ -59,6 +59,26 @@ class TestJudge(unittest.TestCase):
         self.assertEqual(j.name, "claude-opus-4-8")
         self.assertIn("SAME-FAMILY", j.fallback_note)
 
+    def test_grok_timeout_raises_judge_error(self):
+        # A judge timeout must surface as JudgeError like every other grade() failure mode —
+        # a raw subprocess.TimeoutExpired escaping killed a resumable grading pass (PR #219).
+        from unittest.mock import patch
+        j = judge.GrokJudge(bin="/usr/bin/grok", timeout=1)
+        with patch.object(judge.subprocess, "run",
+                          side_effect=judge.subprocess.TimeoutExpired(cmd="grok", timeout=1)):
+            with self.assertRaises(judge.JudgeError) as ctx:
+                j.grade("prompt", {"type": "object"})
+        self.assertIn("timeout", str(ctx.exception))
+
+    def test_claude_timeout_raises_judge_error(self):
+        from unittest.mock import patch
+        j = judge.ClaudeJudge(timeout=1)
+        with patch.object(judge.subprocess, "run",
+                          side_effect=judge.subprocess.TimeoutExpired(cmd="claude", timeout=1)):
+            with self.assertRaises(judge.JudgeError) as ctx:
+                j.grade("prompt", {"type": "object"})
+        self.assertIn("timeout", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

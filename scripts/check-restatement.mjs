@@ -37,6 +37,7 @@ export const ALLOW_PAIRS = [
   [/^\.claude\/agents\//, /^\.claude\/agents\//],
   [/^\.claude\/agents\//, /^pdca-workflow\/skills\/pdca-init\/references\/advisor-template\.md$/],
   [/^CLAUDE\.md$/, /^pdca-workflow\/skills\/pdca-init\/references\/claude-md-template\.md$/],
+  [/^\.claude\/output-styles\/plain-summary\.md$/, /^pdca-workflow\/templates\/plain-summary\.md$/],
   [/^docs\/decisions\/README\.md$/, /^pdca-workflow\/skills\/pdca-init\//],
   [/^docs\/decisions\/0035-/, /^docs\/decisions\/0036-/],
 ];

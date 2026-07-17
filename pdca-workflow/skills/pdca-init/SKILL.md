@@ -32,7 +32,10 @@ Run this loop:
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
    before a PR); never rewrite the user's content.
 
-3. **Scaffold the decision log + its guard.** If `docs/decisions/` is absent, create it: copy
+3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
+   create it with an empty `session-log.txt` (committed): the dir is BOTH the panel spawn-log's
+   home and the marker the plugin's enforcement hooks require before firing in a project — no
+   `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home — it carries the ADR rules, the template, AND the shared-assumption register). The copy is
    deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
@@ -52,7 +55,9 @@ Run this loop:
 5. **Confirm.** Summarize what you scaffolded and the panel you generated; tell the user to
    review/edit the panel, then run `/decide` for their first decision. Offer (don't
    auto-apply) the optional advisory CI: copy `${CLAUDE_PLUGIN_ROOT}/templates/claude-review.yml` into
-   `.github/workflows/` and print its OAuth-token / required-check setup steps.
+   `.github/workflows/` and print its OAuth-token / required-check setup steps. Also offer the
+   house reply-summary standard: copy `${CLAUDE_PLUGIN_ROOT}/templates/plain-summary.md` to
+   `.claude/output-styles/` and set `outputStyle` in settings (ADR 0074).
 
 The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) ship with this plugin
 and need no scaffolding — only the domain panel is project-specific.

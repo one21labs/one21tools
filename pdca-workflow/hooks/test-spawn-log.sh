@@ -22,9 +22,13 @@ fire() {
 
 LOG_REL="docs/pdca/session-log.txt"
 
+# All marker-present fixtures pre-create docs/pdca: it is the ADR 0071 adoption marker the hook
+# requires and never creates itself.
+
 # Cases 1-4: each panel primitive fires, bare and prefixed.
 for skill in advise red-team verify pdca-workflow:advise; do
   FIX=$(mktemp -d)
+  mkdir -p "$FIX/docs/pdca"
   res=$(fire "$FIX" "{\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"$skill\",\"args\":\"\"}}")
   code=${res%%|*}; out=${res#*|}
   n=$( [ -f "$FIX/$LOG_REL" ] && grep -c " skill-spawn $skill\$" "$FIX/$LOG_REL" || echo 0 )
@@ -35,6 +39,7 @@ done
 
 # Case 5: another skill does NOT log.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 res=$(fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"dataviz"}}')
 code=${res%%|*}
 [ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
@@ -43,6 +48,7 @@ rm -rf "$FIX"
 
 # Case 6: a skill whose name merely CONTAINS a primitive does not log (exact-match case arms).
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 res=$(fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"security-review-verify-extra"}}')
 code=${res%%|*}
 [ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
@@ -51,6 +57,7 @@ rm -rf "$FIX"
 
 # Case 7: missing skill field -> fails open, no log.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 res=$(fire "$FIX" '{"tool_name":"Skill","tool_input":{"args":"x"}}')
 code=${res%%|*}
 [ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
@@ -59,6 +66,7 @@ rm -rf "$FIX"
 
 # Case 8: malformed/empty stdin -> fails open.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 out=$(printf '' | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK"); code=$?
 [ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
 check "malformed/empty stdin -> fails open, exit 0, no log" $? "code=$code"
@@ -66,19 +74,29 @@ rm -rf "$FIX"
 
 # Case 9: log line FORMAT -- ISO-8601 UTC date, literal event tag, skill name, nothing else.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"red-team"}}' >/dev/null
 grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z skill-spawn red-team$' "$FIX/$LOG_REL"
 check "log line format: ISO-8601Z + skill-spawn + name" $? "content=[$(cat "$FIX/$LOG_REL" 2>/dev/null)]"
 rm -rf "$FIX"
 
-# Case 10: repeat fires APPEND (one line per fire, no truncation), and the dir is auto-created
-# fresh each session (mkdir -p covered implicitly by every case above starting dir-less).
+# Case 10: repeat fires APPEND (one line per fire, no truncation).
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"advise"}}' >/dev/null
 fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"verify"}}' >/dev/null
 n=$(grep -c ' skill-spawn ' "$FIX/$LOG_REL")
 [ "$n" = "2" ]
 check "two fires -> two appended lines" $? "lines=$n"
+rm -rf "$FIX"
+
+# Case 11 (ADR 0071 firing scope): primitive fires in a project WITHOUT the docs/pdca marker ->
+# exit 0, no log, and the hook must NOT create the marker dir itself.
+FIX=$(mktemp -d)
+res=$(fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"advise"}}')
+code=${res%%|*}
+[ "$code" = "0" ] && [ ! -d "$FIX/docs/pdca" ]
+check "no docs/pdca marker -> exit 0, no log, dir NOT created" $? "code=$code"
 rm -rf "$FIX"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
