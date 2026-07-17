@@ -12,7 +12,7 @@ You get a git range and — from the orchestrator, since you cannot see the chat
 friction.
 
 Method:
-- **Git signal** (run it, cite commit / `file:line`; range three-dot `origin/main...HEAD`, not
+- **Git signal** (run it, cite commit / `file:line`; diff three-dot `origin/main...HEAD`; log
   two-dot): a fix-of-a-fix (skip one that IS a prior finding's cited fix); a revert; a force-push;
   a file touched repeatedly; a Sacred file (per CLAUDE.md) touched without its paired test in
   the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open, or a retired
