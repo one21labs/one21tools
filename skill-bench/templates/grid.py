@@ -13,6 +13,7 @@ sibling dated dir (those are frozen measurement records, ADR 0026). The shape yo
 """
 import argparse
 import json
+import os
 import shutil
 import sys
 import threading
@@ -83,6 +84,9 @@ def main():
 
     # metadata.json: {"cost": {"ceiling_usd": .., "pilot_cap_usd": .., "per_arm_estimate_usd":
     # {arm: null-until-piloted}}} — the pre-registered spend contract, written BEFORE any run.
+    # ceiling_usd = 2x the notional estimate (the stop-rule of record, ADR 0073), NEVER the
+    # estimate itself — encoding the estimate band's top forces a mid-run revision the moment a
+    # pilot projects above it (cost-and-verdict.md owns the rule).
     meta = json.loads((HERE / "metadata.json").read_text(encoding="utf-8"))
     ceiling = meta["cost"]["ceiling_usd"]
     cap = meta["cost"]["pilot_cap_usd"] if args.pilot else ceiling
@@ -113,8 +117,21 @@ def main():
                 for arm in ARMS:
                     tasks.append((sub, src, context, rep, arm))
 
-    with ThreadPoolExecutor(max_workers=2 if args.pilot else 4) as pool:
-        list(pool.map(lambda t: run_cell(*t, env, out, state, lock, cap), tasks))
+    # Single-writer lock (ADR 0073 / PR #219 retrospective): the resumable skip in run_cell is
+    # read-then-run, so a second concurrent invocation silently double-generates (double-SPENDS)
+    # cells. O_EXCL create fails fast instead; released on every exit path below.
+    lockfile = out / ".grid.lock"
+    try:
+        lock_fd = os.open(lockfile, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        sys.exit(f"{lockfile} exists — another grid.py run owns this outputs dir (or died holding "
+                 "it); confirm no process is live before removing the lockfile")
+    try:
+        with ThreadPoolExecutor(max_workers=2 if args.pilot else 4) as pool:
+            list(pool.map(lambda t: run_cell(*t, env, out, state, lock, cap), tasks))
+    finally:
+        os.close(lock_fd)
+        lockfile.unlink(missing_ok=True)
     if state["halt"]:
         sys.exit(f"backstop: ${state['spent']:.2f} > ${cap} — halted, resumable")
     print(f"{'pilot' if args.pilot else 'grid'} complete: total ${state['spent']:.2f}")
