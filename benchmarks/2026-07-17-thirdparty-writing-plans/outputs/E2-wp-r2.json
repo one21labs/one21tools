@@ -1,0 +1,55 @@
+{
+ "cell": "E2-wp-r2",
+ "scenario": "E2",
+ "arm": "wp",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 59475.4,
+  "duration_ms": 58244,
+  "duration_api_ms": 59433,
+  "cost_usd": 0.23666310000000002,
+  "usage": {
+   "input_tokens": 10,
+   "cache_creation_input_tokens": 17219,
+   "cache_read_input_tokens": 128847,
+   "output_tokens": 6266,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 17219,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 149,
+     "cache_read_input_tokens": 29768,
+     "cache_creation_input_tokens": 5317,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 5317
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-17T06:51:05.849810+00:00",
+   "end": "2026-07-17T06:52:05.325250+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.23666310000000002
+ },
+ "response": "Plan saved to `PLAN.md`. It's a single self-contained task: add `GET /tasks/export` to `taskboard/routes/tasks.py` reusing the existing `_auth()` helper, returning CSV (via stdlib `csv`/`io`, no new deps) of only the caller's own tasks, plus two new tests in `tests/test_tasks.py` covering the happy path and the 401 case \u2014 full TDD steps and exact code included.",
+ "artifacts": {
+  "PLAN.md": "# CSV Task Export Implementation Plan\n\n> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.\n\n**Goal:** Add a `GET /tasks/export` endpoint that returns the calling user's own tasks as a downloadable CSV file.\n\n**Architecture:** Taskboard is a small Flask app (`taskboard/app.py`) that registers two blueprints, `tasks_bp` (`taskboard/routes/tasks.py`) and `users_bp` (`taskboard/routes/users.py`), against a single-file JSON store (`taskboard/storage.py`). Auth is a static per-user token passed in the `X-Auth-Token` header and checked against `data[\"users\"]`; there is no session/cookie auth. This feature adds one new route function to the existing `tasks_bp` blueprint, reusing the existing `_auth()` helper already used by every other task route. No new files, dependencies, or storage changes are needed \u2014 Python's built-in `csv` module handles CSV generation.\n\n**Tech Stack:** Python, Flask 3.0.3, pytest 8.2.0 (already in `requirements.txt` \u2014 no new dependencies).\n\n## Global Constraints\n\n- Do not add new third-party dependencies. Use only Python's standard library (`csv`, `io`) plus Flask, which are already available.\n- Do not change the on-disk JSON storage format (`taskboard/storage.py`). This feature only reads existing task data.\n- Follow the existing auth pattern: every task route calls `_auth(data)` (defined in `taskboard/routes/tasks.py`) and returns `jsonify(error=\"unauthorized\"), 401` if it returns falsy. The export endpoint must do the same \u2014 do not invent a new auth mechanism.\n- A user must only ever see their own tasks in the export, never other users' tasks (same ownership rule already enforced in `list_tasks`/`update_task`).\n- Match the existing code style in this repo: no type hints, no docstrings beyond the one-line module docstrings already present, no blank-line-heavy formatting. Look at the existing functions in `taskboard/routes/tasks.py` before writing new code.\n\n---\n\n## File Structure\n\n- **Modify:** `taskboard/routes/tasks.py` \u2014 add one new route function, `export_tasks_csv()`, registered as `GET /export` on the existing `tasks_bp` blueprint (so the full path is `/tasks/export`, since `tasks_bp` is mounted with `url_prefix=\"/tasks\"` in `taskboard/app.py:11`). Add `csv`, `io`, and `Response` imports at the top of the file.\n- **Modify:** `tests/test_tasks.py` \u2014 add two new test functions covering the happy path (CSV contains only the caller's own tasks, correct header/rows) and the unauthorized case (no/invalid token returns 401).\n- No other files need to change. `taskboard/storage.py`, `taskboard/routes/users.py`, and `taskboard/app.py` are untouched.\n\n---\n\n### Task 1: Add `GET /tasks/export` CSV export endpoint\n\n**Files:**\n- Modify: `taskboard/routes/tasks.py`\n- Test: `tests/test_tasks.py`\n\n**Interfaces:**\n- Consumes: `storage.load()` \u2192 dict shaped `{\"users\": {token: {\"name\": ...}}, \"tasks\": [task, ...]}` where each task is `{\"id\": int, \"title\": str, \"owner\": token, \"done\": bool, \"notes\": str}` (see `taskboard/storage.py:1-2`). Consumes the existing `_auth(data)` helper in `taskboard/routes/tasks.py:8-10`, which returns the caller's token if valid, else `None`.\n- Produces: a new route `GET /tasks/export` that later tasks/tests can call via `client.get(\"/tasks/export\", headers={\"X-Auth-Token\": token})`. No other task depends on this yet \u2014 this is a self-contained, one-task feature.\n\n- [ ] **Step 1: Write the failing tests**\n\nOpen `tests/test_tasks.py` and add these two test functions at the end of the file (keep the existing `_register` helper and imports as-is):\n\n```python\ndef test_export_csv_returns_only_own_tasks(client):\n    ann, bob = _register(client, \"ann\"), _register(client, \"bob\")\n    client.post(\"/tasks/\", json={\"title\": \"write spec\", \"notes\": \"due friday\"},\n                headers={\"X-Auth-Token\": ann})\n    client.post(\"/tasks/\", json={\"title\": \"bob task\"}, headers={\"X-Auth-Token\": bob})\n\n    r = client.get(\"/tasks/export\", headers={\"X-Auth-Token\": ann})\n\n    assert r.status_code == 200\n    assert r.mimetype == \"text/csv\"\n    lines = r.get_data(as_text=True).strip().splitlines()\n    assert lines[0] == \"id,title,done,notes\"\n    assert lines[1] == \"1,write spec,False,due friday\"\n    assert len(lines) == 2\n\n\ndef test_export_csv_requires_auth(client):\n    assert client.get(\"/tasks/export\").status_code == 401\n```\n\n- [ ] **Step 2: Run the tests to verify they fail**\n\nRun: `pytest tests/test_tasks.py -v`\n\nExpected: both new tests `FAIL`. `test_export_csv_requires_auth` fails because `/tasks/export` doesn't exist yet (Flask returns 404, not 401). `test_export_csv_returns_only_own_tasks` fails for the same reason.\n\n- [ ] **Step 3: Implement the endpoint**\n\nOpen `taskboard/routes/tasks.py`. Update the import line at the top of the file from:\n\n```python\nfrom flask import Blueprint, jsonify, request\n```\n\nto:\n\n```python\nimport csv\nimport io\nfrom flask import Blueprint, jsonify, request, Response\n```\n\nThen add the new route. Append it after `update_task` (the last function in the file), so the full file reads:\n\n```python\n\"\"\"Task CRUD. All endpoints require a valid X-Auth-Token belonging to a known user.\"\"\"\nimport csv\nimport io\nfrom flask import Blueprint, jsonify, request, Response\nfrom taskboard import storage\n\ntasks_bp = Blueprint(\"tasks\", __name__)\n\n\ndef _auth(data):\n    token = request.headers.get(\"X-Auth-Token\", \"\")\n    return token if token in data[\"users\"] else None\n\n\n@tasks_bp.get(\"/\")\ndef list_tasks():\n    data = storage.load()\n    if not _auth(data):\n        return jsonify(error=\"unauthorized\"), 401\n    return jsonify(data[\"tasks\"])\n\n\n@tasks_bp.post(\"/\")\ndef create_task():\n    data = storage.load()\n    owner = _auth(data)\n    if not owner:\n        return jsonify(error=\"unauthorized\"), 401\n    body = request.get_json(force=True)\n    task = {\"id\": storage.next_task_id(data), \"title\": body[\"title\"],\n            \"owner\": owner, \"done\": False, \"notes\": body.get(\"notes\", \"\")}\n    data[\"tasks\"].append(task)\n    storage.save(data)\n    return jsonify(task), 201\n\n\n@tasks_bp.patch(\"/<int:task_id>\")\ndef update_task(task_id):\n    data = storage.load()\n    owner = _auth(data)\n    if not owner:\n        return jsonify(error=\"unauthorized\"), 401\n    for t in data[\"tasks\"]:\n        if t[\"id\"] == task_id and t[\"owner\"] == owner:\n            t.update({k: v for k, v in request.get_json(force=True).items()\n                      if k in (\"title\", \"done\", \"notes\")})\n            storage.save(data)\n            return jsonify(t)\n    return jsonify(error=\"not found\"), 404\n\n\n@tasks_bp.get(\"/export\")\ndef export_tasks_csv():\n    data = storage.load()\n    owner = _auth(data)\n    if not owner:\n        return jsonify(error=\"unauthorized\"), 401\n    buffer = io.StringIO()\n    writer = csv.writer(buffer)\n    writer.writerow([\"id\", \"title\", \"done\", \"notes\"])\n    for t in data[\"tasks\"]:\n        if t[\"owner\"] == owner:\n            writer.writerow([t[\"id\"], t[\"title\"], t[\"done\"], t[\"notes\"]])\n    return Response(\n        buffer.getvalue(),\n        mimetype=\"text/csv\",\n        headers={\"Content-Disposition\": \"attachment; filename=tasks.csv\"},\n    )\n```\n\nNote: `/export` is a static path segment and `update_task`'s route uses the `<int:task_id>` converter, which only matches integers \u2014 so `GET /tasks/export` cannot be swallowed by the `PATCH /tasks/<int:task_id>` rule, and route registration order doesn't matter here.\n\n- [ ] **Step 4: Run the tests to verify they pass**\n\nRun: `pytest tests/test_tasks.py -v`\n\nExpected: all tests in the file `PASS`, including the two new ones.\n\n- [ ] **Step 5: Run the full test suite**\n\nRun: `pytest tests/ -v`\n\nExpected: all tests `PASS` (existing `tests/test_users.py` tests are unaffected by this change).\n\n- [ ] **Step 6: Commit**\n\n```bash\ngit add taskboard/routes/tasks.py tests/test_tasks.py\ngit commit -m \"feat: add CSV export endpoint for a user's own tasks\"\n```\n\n---\n\n## Manual Verification (optional but recommended)\n\nAfter Step 6, you can sanity-check the endpoint against a running server:\n\n```bash\npython -m taskboard.app &\nTOKEN=$(curl -s -X POST localhost:5000/users/ -H \"Content-Type: application/json\" -d '{\"name\":\"ann\"}' | python -c \"import sys,json; print(json.load(sys.stdin)['token'])\")\ncurl -s -X POST localhost:5000/tasks/ -H \"Content-Type: application/json\" -H \"X-Auth-Token: $TOKEN\" -d '{\"title\":\"write spec\",\"notes\":\"due friday\"}'\ncurl -s localhost:5000/tasks/export -H \"X-Auth-Token: $TOKEN\"\n```\n\nExpected final output: a CSV body starting with `id,title,done,notes` followed by a row for the task just created. Kill the background server afterward (`kill %1`).\n"
+ }
+}
