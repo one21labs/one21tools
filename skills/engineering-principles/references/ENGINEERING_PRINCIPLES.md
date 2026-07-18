@@ -2,7 +2,7 @@
 
 ## Table of Contents
 
-[Foundations](#foundations) | [Key Quotes](#key-quotes) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [5 Whys](#root-cause-analysis-5-whys) | [Design First](#design-first-implementation-second) | [Process](#process-principles) | [Pareto](#pareto-application-guide) | [5S](#5s-applied-to-software) | [Docs for AI](#documentation-for-ai-consumption) | [Application Hierarchy](#application-hierarchy) | [References](#references)
+[Foundations](#foundations) | [Key Quotes](#key-quotes) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [5 Whys](#root-cause-analysis-5-whys) | [Design First](#design-first-implementation-second) | [Process](#process-principles) | [Pareto](#pareto-application-guide) | [5S](#5s-applied-to-software) | [Lean by Domain](#lean-applicability-by-domain) | [Docs for AI](#documentation-for-ai-consumption) | [Application Hierarchy](#application-hierarchy) | [References](#references)
 
 Manufacturing engineering principles for all work - software, documentation, processes, and physical workspaces. They synthesize Lean and Agile foundations for modern software development and engineering workflows.
 
@@ -34,6 +34,8 @@ Manufacturing engineering principles for all work - software, documentation, pro
 > "Gather together the things that change for the same reasons. Separate those things that change for different reasons." — Robert C. Martin
 
 > "Study the results to understand the system better. Compare with your prediction...learn from the difference." — W. Edwards Deming
+
+> "Every piece of knowledge must have a single, unambiguous, authoritative representation within a system." — Andy Hunt & Dave Thomas (DRY)
 
 ## Seven Wastes (Software)
 
@@ -88,11 +90,20 @@ apply to the process itself, not just the product.**
 ## Root Cause Analysis (5 Whys)
 
 When to apply, method, and stopping criteria: [root-cause-analysis.md](root-cause-analysis.md).
+If a root cause reads "person X made a mistake," it is not the root cause — ask what about the
+system allowed or encouraged that mistake.
 
 ## Design First, Implementation Second
 
-Foundational workflow: get design right before implementing. Rework is waste. Parent-child
-rationale, per-domain design/implementation split, and checklists: [design-review.md](design-review.md).
+Foundational workflow: fixing design is cheap; fixing implementation is expensive. The
+parent-child relationship:
+
+- Design (parent) → Implementation (child)
+- Implementation follows from design
+- If design is wrong, implementation will be wrong
+- Rework is waste
+
+Per-domain checklists and review process: [design-review.md](design-review.md).
 
 ## Process Principles
 
@@ -127,19 +138,17 @@ rationale, per-domain design/implementation split, and checklists: [design-revie
 | 4 | Seiketsu (Standardize) | Standard procedures | Linting, coding standards | Doc templates, formats |
 | 5 | Shitsuke (Sustain) | Maintain discipline | CI/CD enforcement, audits | Regular review cycles |
 
+## Lean Applicability by Domain
+
+| Work Type | TPS Fit | Why |
+|-----------|---------|-----|
+| Manufacturing | Direct | Designed for this |
+| Traditional software | Selective | Discovery work — Kanban, waste ID, and SSoT translate; cycle-time/defect-rate targets don't |
+| AI-assisted workflows | Direct | Stochastic outputs need variation reduction: poka-yoke via output schemas, standardized work via skills/CLAUDE.md, Jidoka via evals that flag out-of-spec output, SPC via temperature/seed pinning |
+
 ## Documentation for AI Consumption
 
 LLM context windows impose constraints analogous to A3's one-page limit. Context engineering applies TPS principles to AI-consumed documentation.
-
-### Context Windows as Physical Constraints
-
-| Constraint | A3 (Physical) | LLM Context (Virtual) |
-|------------|---------------|-----------------------|
-| **Physical limit** | One printed page | Context window (tokens) |
-| **Resource** | Paper space | Token budget |
-| **Consumer** | Human reader | AI + Human |
-| **Forcing function** | Forces prioritization | Forces precision |
-| **Result** | Clarity through constraint | Efficiency through constraint |
 
 ### Context Engineering Principles (Anthropic)
 
@@ -153,16 +162,6 @@ LLM context windows impose constraints analogous to A3's one-page limit. Context
 | **Context windows are scarce** | Lean (eliminate waste) | Every token must add value - no redundancy |
 | **Avoid contradictions** | SSoT (Single Source of Truth) | One canonical fact per topic - contradictions degrade output |
 | **Human + AI judgment** | Jidoka (automation with human touch) | AI accelerates, human validates |
-
-### AI vs Human Consumption
-
-| Aspect | Human Reader | AI Consumer |
-|--------|--------------|-------------|
-| **Needs** | Narrative flow, whitespace, examples | Dense structure, explicit rules, SSoT |
-| **Tolerance** | Handles ambiguity well | Requires explicit instruction |
-| **Processing** | Can skip/skim sections | Processes sequentially, can't skip effectively |
-| **Memory** | Remembers context across sessions | No memory between sessions |
-| **Cost** | Time (human labor) | Tokens (computational resource) |
 
 ### CLAUDE.md Files and Token Efficiency
 
@@ -185,6 +184,7 @@ include, token allocation) is optimizing-context territory, not duplicated here:
 - Shewhart, W.A. (1939). *Statistical Method from the Viewpoint of Quality Control*
 - Deming, W.E. (1986). *Out of the Crisis*
 - Ohno, T. (1988). *Toyota Production System: Beyond Large-Scale Production*
+- Hunt, A. & Thomas, D. (1999). *The Pragmatic Programmer*
 - Poppendieck, M. & T. (2003). *Lean Software Development: An Agile Toolkit*
 - Martin, R.C. (2003). *Agile Software Development, Principles, Patterns, and Practices*
 - Blank, S. & Dorf, B. (2012). *The Startup Owner's Manual*

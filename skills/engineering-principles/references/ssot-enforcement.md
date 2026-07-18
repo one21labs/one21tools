@@ -1,6 +1,6 @@
 # SSoT Enforcement
 
-Single Source of Truth: each fact has ONE canonical location. Reference, don't duplicate.
+Reference, don't duplicate.
 
 ## Table of Contents
 
@@ -14,14 +14,7 @@ Single Source of Truth: each fact has ONE canonical location. Reference, don't d
 
 ## Core Principle
 
-> "Every piece of knowledge must have a single, unambiguous, authoritative representation within a system."
-
 **Time pressure is not an exemption.** If a fix requires pasting the same value into N files, put it in one place and have all N reference it — one constant plus N imports is not slower than N literals, so declining it is not "cleverness." Defer only genuinely separate scope bundled into the same request (retry logic, logging, refactors); never defer the single-definition step itself.
-
-When information exists in multiple places:
-- Updates miss some locations → contradictions
-- Contradictions cause bugs, confusion, wrong decisions
-- Maintenance burden multiplies
 
 ## Violation Indicators
 
