@@ -56,5 +56,5 @@ Each call is cost x validity; owner freeze held — fraction-met kills #186 (sec
 ## Act (post-ship — 2026-07-14)
 - [outcome] classifier [checkable] verified — 20.1% family disagreement excluded + recorded; TESTED deltas cleared with margin (Phase-0 SUPPORTED, bare arm only).
 - [outcome] "dual costs <$1" premise violated: $16.82 notional.
-- [outcome] #185 H1 FALSIFIED judge-robust (bar c spread 0.281 vs 0.063 — mostly a decider capture defect; poker README correction); pre-grid triggers never fired.
+- [outcome] #185 H1 FALSIFIED judge-robust (bar c spread 0.281 vs 0.063 — mostly a decider capture defect; poker README correction); pre-grid triggers never fired — violated.
 - [pivot] "#185 verdict lands" fired -> ADR 0062.

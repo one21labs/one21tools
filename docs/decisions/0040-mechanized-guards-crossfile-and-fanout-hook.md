@@ -42,5 +42,5 @@ Item 6 has the best ratio in the batch — a deterministic shell hook (~0 per-ca
 
 ## Act (post-ship — 2026-07-10)
 - [outcome] hook denies/carves out correctly in its 11-case surface-invoked test (PR #133); the LIVE injection [checkable] is still-open — signal: first plugin-loaded session.
-- [outcome] the backlink guard found one offender (0023↔0026), fixed same-PR.
+- [outcome] the backlink guard found one offender (0023↔0026), fixed same-PR — verified.
 - [process] CLAUDE.md pointer dropped at build (budget); the hook is the decided mechanism.

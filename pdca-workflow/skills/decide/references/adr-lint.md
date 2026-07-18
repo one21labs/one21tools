@@ -1,5 +1,10 @@
 # ADR corpus linter — spec
 
+## Table of Contents
+- [Frontmatter schema](#frontmatter-schema-every-adr-starts-with-this)
+- [The checks](#the-checks-over-docsdecisionsmd)
+- [Run / install](#run--install)
+
 The ADR system is an append-only, manually-numbered corpus. The cleanest poka-yoke is
 **prevention over detection**: there is no materialized index to keep in sync — a mirror you
 don't maintain can't drift, so the ADR files ARE the catalog (skim them by grepping the
@@ -67,6 +72,12 @@ machinery:
     batching unit (a deliberate work package is fine); the WARN surfaces an accidental
     grab-bag at review. Flag absent or a single new ADR = nothing reported; only the
     PR-context CI step (which passes the diff-added files) emits it.
+
+13. **Outcome vocabulary** (ADR 0079; a corpus check, numbered here to keep checks 1-12's
+    historical numbers stable) — every `- [outcome]` row carries exactly ONE whole-word of
+    `verified` / `violated` / `still-open`: the controlled input a metrics-engine consumer (a
+    hit-rate scorecard) classifies on. A free-text synonym ("FALSIFIED") or a double-tag is
+    unclassifiable — and a dropped miss reads as no miss.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 

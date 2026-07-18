@@ -9,10 +9,11 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
 Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
-`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Metrics:
+`node scripts/scorecard.mjs`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
 Plugin hooks fire from the installed CACHE, not the working tree — a stale cache silently
-enforces RETIRED policy; reinstall after any hook-touching merge, not just to test edits.
+enforces RETIRED policy; reinstall after any hook-touching merge.
 
 ## Muda — ruthlessly cut on sight
 Duplicated logic / one-home violations, dead code or
@@ -21,15 +22,15 @@ the **`engineering-principles`** skill (`waste-identification` / `ssot-enforceme
 don't restate. Operationalized, not a slogan:
 - **Cite-or-silence:** every muda call cites a `file:line`; never manufacture a "consolidation" to
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
-- **Poka-yoke (prevent > detect, as a ladder; guard the PROCESS too):** delete the mirror;
-  derive, don't duplicate. Doctrine: `engineering-principles` Process-Level Poka-yoke.
+- **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
+  Process-Level Poka-yoke.
 - **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
   inline findings, never blocks. `/retrospect` is on-demand — run it when something felt wrong,
   never as ritual.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
-  `plugin.json`. A broken or duplicate entry breaks `/plugin install`. Keep the JSON valid.
+  `plugin.json`. A broken or duplicate entry breaks `/plugin install`.
 - **SKILL.md frontmatter:** `name` FIRST (must match the folder), description-as-trigger;
   `disable-model-invocation` for explicit-invoke skills. Run `validate.py` after any SKILL.md edit.
 - `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge.
@@ -63,7 +64,8 @@ deterministic logic; a doc that restates them rots).
   branch onto `origin/main` before ranging, branching, or `/retrospect` — a stale local `main` re-adds the
   squashed commits as a phantom range. Preview a branch/PR with three-dot
   (`origin/main...branch`), never two-dot (ADR 0072).
-- PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
+- PR body: Purpose / Changes / Testing / Deferred (ADR 0030); an added external ref carries its
+  fetch-audit (`check-references`, ADR 0079).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
