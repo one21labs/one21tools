@@ -23,6 +23,13 @@ measurement campaign, or when a keyword below stops surfacing new signal. Update
 appending a new dated snapshot section; never rewrite a prior snapshot (they are the record of
 what the field looked like when decisions were made).
 
+**Reference-veracity rule (owner ruling 18-Jul: gates, period):** a lane agent's "verified"
+label is a REPORT, not verification. Before a snapshot's references are cited in shipped
+artifacts, an adversarial fetch-audit runs (try to disprove each reference) and its record
+commits to `sources/<date>-reference-audit.md`. Single-lane arXiv IDs, precise figures, star
+counts, and quotes are the highest-risk surfaces. First run: 24 verified / 2 misattributed /
+1 struck / 3 unreachable-corroborated / 0 fabricated IDs.
+
 ---
 
 ## Snapshot 2026-07 (first survey; lanes: `sources/2026-07-18-*.md`)
@@ -40,7 +47,7 @@ verification gates, feedback), not the model. Verified primaries:
 | Lamis Mukta, AI Native DevCon (Jun 2026) | "dreaming": scheduled offline pass reviewing sessions + curating memory stores | youtube.com/watch?v=tTcxVv8HHNw |
 | Anthropic Managed Agents "Dreams" docs | offline curation over past sessions with an immutable input store (mechanics: sources/2026-07-18-claude-sota-lane.md) | platform.claude.com/docs/en/managed-agents/dreams |
 | Tom Blomfield, YC (May 2026) | self-improving company: sensor / policy / tool / quality gate / learning mechanism | ycombinator.com/library/Qf-how-to-build-a-self-improving-company-with-ai |
-| Karpathy (2023) | LLM-OS: model=kernel, context=RAM, tools=peripherals | x.com/karpathy/status/1723140519554105733 |
+| Karpathy (2023) | LLM-OS: model=kernel, context=RAM, tools=peripherals | x.com/karpathy/status/1723140519554105733 — CORROBORATED ONLY (login-walled; never fetched first-hand, 18-Jul audit) |
 | Lilian Weng (Jul 2026) | self-improvement should target the harness layer, bounded by permissions/observability | lilianweng.github.io/posts/2026-07-04-harness/ |
 | Addy Osmani (Jun 2026) | "Loop Engineering" synthesis; "the agent forgets, the repo doesn't" | addyosmani.com/blog/loop-engineering/ |
 | LangChain, S. Runkle (Jun 2026) | four nested loops: agent -> verification -> production -> harness hill-climbing | langchain.com/blog/the-art-of-loop-engineering |
@@ -79,8 +86,12 @@ verification gates, feedback), not the model. Verified primaries:
   multi-CLI eval lab grading triggering/verification reflexes.
 - **Context Hub** (ambiguous name): andrewyng/context-hub (`chub`, versioned curated docs +
   feedback loop) vs LangSmith Context Hub (org registry for AGENTS.md/skills).
-- Debate lineage: Du et al. MAD, ChatEval, AI Safety via Debate — with 2025-26 skepticism
-  (arXiv:2606.19826): debate does NOT reliably beat single-agent baselines.
+- Debate lineage: Du et al. MAD, ChatEval, AI Safety via Debate. The "debate does not
+  reliably beat single-agent baselines" claim currently has NO verified citation on file —
+  the 18-Jul audit found arXiv:2606.19826 (previously cited here) is actually about
+  adversarial-peer robustness in heterogeneous debate, a different question. Treat the
+  efficacy claim as unsourced until a correct citation is found; the audit record is
+  `sources/2026-07-18-reference-audit.md`.
 
 **Field verdict:** no found project closes pdca-workflow's full loop (panel -> ADR ->
 verify/red-team -> self-editing retrospective) as one system; every piece exists in isolation.
@@ -105,8 +116,8 @@ agent skills / SKILL.md / agentskills.io; SkillsBench / paired skills evaluation
 invocation rate / description ablation; Claude Managed Agents Dreams / memory curation /
 dreaming; LLM OS / Letta / MemGPT / AIOS; agentic context engineering (ACE); GEPA reflective
 prompt evolution; DSPy MIPROv2 / SIMBA; TextGrad; self-evolving agents survey; LLM judge
-self-preference bias / cross-family LLM judge; multi-agent debate baseline (skepticism:
-arXiv:2606.19826); pre-registration LLM evaluation; evidence-gated / Proof-or-Stop; Ralph
+self-preference bias / cross-family LLM judge; multi-agent debate baseline (efficacy
+citation OPEN — see audit); pre-registration LLM evaluation; evidence-gated / Proof-or-Stop; Ralph
 Wiggum loop; doc-gardening agent; agent legibility; maker-checker / plan build judge; claude
 code retrospective plugin; self-learning-skills; memory tool 20250818; superpowers-evals
 Quorum; context hub / chub; comprehension debt / intent debt. Caution: "OS Agents survey" =

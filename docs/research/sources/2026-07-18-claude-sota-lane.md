@@ -1,5 +1,11 @@
 # Lane output: Claude web agent — SOTA systems survey (2026-07-18)
 
+> **AUDIT ANNOTATIONS (2026-07-18, see 2026-07-18-reference-audit.md — raw lane text below is preserved unedited as the record of what the lane reported):**
+> - Item 1's "Harvey reports ~6x task-completion gains" is STRUCK: absent from the fetched Dreams docs; traces only to content-farm blogs.
+> - Item 6 conflates GEPA and ACE: "Generator/Reflector/Curator" is ACE's mechanism; GEPA's measured gains are +6% avg (up to 20%) over GRPO, >10% over MIPROv2 — not "+8-10%".
+> - The "MAD does not consistently beat single-agent baselines (arXiv 2606.19826)" citation is MISATTRIBUTED — that paper is about adversarial-peer robustness in heterogeneous debate.
+
+
 Raw report summary, committed for audit (distilled corpus: ../loop-engineering.md). Methodology:
 5 parallel sub-lanes; load-bearing claims re-verified against primary sources; unverified items
 excluded from the ranked list.
