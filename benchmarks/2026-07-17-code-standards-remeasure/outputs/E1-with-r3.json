@@ -1,0 +1,53 @@
+{
+ "cell": "E1-with-r3",
+ "scenario": "E1",
+ "arm": "with",
+ "rep": 3,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 45350.0,
+  "duration_ms": 44113,
+  "duration_api_ms": 47966,
+  "cost_usd": 0.2383398,
+  "usage": {
+   "input_tokens": 8,
+   "cache_creation_input_tokens": 24840,
+   "cache_read_input_tokens": 95266,
+   "output_tokens": 3991,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 24840,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1266,
+     "cache_read_input_tokens": 28344,
+     "cache_creation_input_tokens": 10733,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 10733
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-17T13:07:22.471892+00:00",
+   "end": "2026-07-17T13:08:07.821928+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.2383398
+ },
+ "response": "No file-editing tools are available in this session, so here's the complete updated module \u2014 save this as `notifier.py`:\n\n```python\n\"\"\"\nnotifier.py - HTTP notification sender with configurable retry and backoff\n\nARCHITECTURE ROLE:\n    Loads retry/timeout/backoff settings from a JSON config file and sends a\n    single HTTP notification, retrying on failure. Owns no config schema\n    validation beyond falling back to defaults; callers supply the config\n    path and target URL.\n\nDESIGN CONSTRAINTS:\n    - Synchronous, blocking send (uses time.sleep for backoff between\n      retries) - not for use in async/event-loop contexts.\n    - Missing or unreadable config file is not fatal; defaults apply.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.error\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\n\n\ndef config_load(config_path):\n    try:\n        with open(config_path) as f:\n            config = json.load(f)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Failed to load config %s (%s); using defaults\", config_path, err)\n        config = {}\n\n    retries = config.get(\"retries\", DEFAULT_RETRIES)\n    timeout_seconds = config.get(\"timeout\", DEFAULT_TIMEOUT_SECONDS)\n    backoff_seconds = config.get(\"backoff_seconds\", DEFAULT_BACKOFF_SECONDS)\n    return retries, timeout_seconds, backoff_seconds\n\n\ndef notification_send(url, payload, retries, timeout_seconds, backoff_seconds):\n    last_error = None\n    for attempt in range(retries):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            return urllib.request.urlopen(request, timeout=timeout_seconds).read()\n        except (urllib.error.URLError, OSError) as err:\n            last_error = err\n            logger.warning(\n                \"Notification attempt %d/%d to %s failed: %s\", attempt + 1, retries, url, err\n            )\n            if attempt < retries - 1 and backoff_seconds > 0:\n                time.sleep(backoff_seconds)\n\n    logger.error(\"Notification to %s failed after %d attempts: %s\", url, retries, last_error)\n    return None\n```\n\nChanges from the original:\n- `backoff_seconds` read from config (default `0`, i.e. no wait) and applied via `time.sleep` between retry attempts, not after the final failed attempt.\n- Renamed `ld`/`snd` and their params to descriptive names (`config_load`, `notification_send`, `config_path`, `timeout_seconds`, etc.) per naming standards.\n- Replaced bare `except:` with narrow `except (OSError, json.JSONDecodeError)` / `except (urllib.error.URLError, OSError)` so unrelated bugs aren't swallowed.\n- Added `logging` calls (`WARNING` per failed attempt, `ERROR` once retries are exhausted) instead of silently discarding failures.\n- Removed the dead commented-out `load()` function.\n- Added named constants for the defaults instead of inline magic numbers.\n\nYou'll need to write this to `notifier.py` yourself (e.g. via your editor or `cat > notifier.py`), since I don't have file-write access in this session.",
+ "artifacts": {}
+}

@@ -1,0 +1,53 @@
+{
+ "cell": "E5-with-r2",
+ "scenario": "E5",
+ "arm": "with",
+ "rep": 2,
+ "model": "sonnet",
+ "summary": {
+  "duration_ms_wall": 44605.6,
+  "duration_ms": 43433,
+  "duration_api_ms": 44596,
+  "cost_usd": 0.25993109999999997,
+  "usage": {
+   "input_tokens": 12,
+   "cache_creation_input_tokens": 26328,
+   "cache_read_input_tokens": 160047,
+   "output_tokens": 3545,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 26328,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1042,
+     "cache_read_input_tokens": 32664,
+     "cache_creation_input_tokens": 7901,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 7901
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-07-18T03:55:39.787280+00:00",
+   "end": "2026-07-18T03:56:24.392866+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.25993109999999997
+ },
+ "response": "I don't have a file-write tool available in this session (Write/Edit/Bash aren't enabled here), so I can't create `webhook.py` on disk directly. Here's the content \u2014 please save it yourself, or re-enable one of those tools and I'll write it.\n\nOne deliberate deviation from your ask: I did **not** skip input validation. This project's code standards explicitly address this exact case \u2014 \"upstream already validates\" is called out as *not* an exemption from boundary validation; the boundary is wherever data enters the function, not wherever it last passed a check upstream. Since `payload` is the raw thing that arrived over an HTTP POST, `handle_invoice_event` is that boundary. I kept it minimal: only the fields the write to `ledger` actually depends on are checked, malformed events are logged and ignored (not raised, so one bad delivery doesn't take down the receiver), and there's no schema library or extra ceremony.\n\n```python\n\"\"\"\nwebhook.py - Billing provider webhook handler\n\nARCHITECTURE ROLE:\n    Entry point for inbound billing webhook events. Owns validating the\n    parsed payload shape before any event is applied to the ledger; does\n    not own ledger persistence or HTTP transport.\n\nDESIGN CONSTRAINTS:\n    - payload is untrusted at this boundary regardless of upstream provider\n      guarantees; only the fields the ledger write depends on are checked.\n    - Only invoice.paid mutates the ledger. Other event types, and\n      malformed payloads, are logged and ignored rather than raised, since\n      a single bad webhook delivery should not take down the receiver.\n\"\"\"\n\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef handle_invoice_event(ledger, payload):\n    if not isinstance(payload, dict):\n        logger.error(\"invoice webhook payload is not a dict: %r\", payload)\n        return\n\n    if payload.get(\"event_type\") != \"invoice.paid\":\n        return\n\n    invoice = payload.get(\"invoice\")\n    if not isinstance(invoice, dict):\n        logger.error(\"invoice.paid payload missing invoice object: %r\", payload)\n        return\n\n    invoice_id = invoice.get(\"id\")\n    amount_cents = invoice.get(\"amount_cents\")\n    if not invoice_id or not isinstance(amount_cents, int):\n        logger.error(\"invoice.paid event missing id or amount_cents: %r\", invoice)\n        return\n\n    ledger[invoice_id] = amount_cents\n```\n\nLet me know if you'd like me to try writing it once file tools are available, or if you want to paste it in yourself.",
+ "artifacts": {}
+}
