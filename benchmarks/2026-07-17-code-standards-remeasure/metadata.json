@@ -8,30 +8,111 @@
  "l1_protocol": {
   "queries": "committed trigger-kit 8 should-fire + 8 should-not-fire (benchmarks/2026-07-07-toolkit-grid/trigger-kit/code-standards-queries.json), derived at run time",
   "runner": "skill-bench/scripts/run_eval.py (vendored, ADR 0033/0055)",
-  "model": "sonnet", "num_workers": 1, "runs_per_query": 3, "timeout_s": 240,
+  "model": "sonnet",
+  "num_workers": 1,
+  "runs_per_query": 3,
+  "timeout_s": 240,
   "durable_fire": "a query durably fires when triggers/completed_runs >= 2/3; a timeout run is excluded from the denominator (null, never a False)",
   "variants": "control (current live description) + at most 2 variants (descriptions.json, authored pre-run; hard cap per the #30 precedent)",
-  "adoption_rule": "adopt a variant only if (a) its durable should-fire count exceeds control's, (b) NO should-fire query control durably fires is durably lost, and (c) durable false-positives are not raised vs control. Otherwise record the null and keep the current description. Absolute rates are competitive-not-isolated (nested sessions inherit built-in skills) — only within-run A/B comparisons are read.",
-  "results": null
+  "adoption_rule": "adopt a variant only if (a) its durable should-fire count exceeds control's, (b) NO should-fire query control durably fires is durably lost, and (c) durable false-positives are not raised vs control. Otherwise record the null and keep the current description. Absolute rates are competitive-not-isolated (nested sessions inherit built-in skills) \u2014 only within-run A/B comparisons are read.",
+  "results": {
+   "control": {
+    "durable_tp": "6/8",
+    "durable_fp": "0/8",
+    "durably_lost": [
+     "add a proper header comment to this file",
+     "is this function doing too many things at once"
+    ]
+   },
+   "v2": {
+    "durable_tp": "8/8",
+    "durable_fp": "0/8",
+    "durably_lost": []
+   },
+   "v1": "authored pre-run, never executed \u2014 the owner stop landed before it; v2 (targeting both lost queries) satisfied the adoption rule alone, so v1 stays unrun (<=2-variant cap unspent)",
+   "adoption": "ADOPT v2: (a) durable should-fire 8 > 6, (b) no control-durable query lost, (c) durable FP 0/8 unchanged. Shipped to skills/code-standards/SKILL.md description in this branch.",
+   "timeouts": 0
+  }
  },
  "l2_protocol": {
   "evals": "skills/code-standards/evals/evals.json (6 committed evals, self-contained prompts, 6 expectations each), mapped {id, prompt->task, expectations} at run time",
-  "arms": {"bare": "hermetic claude -p sonnet, ALL tools denied, neutral empty cwd", "with": "bare + --append-system-prompt = skills/code-standards/SKILL.md body, frontmatter stripped (the FULL loaded surface — no references dir exists, ADR 0019 item 4)"},
+  "arms": {
+   "bare": "hermetic claude -p sonnet, ALL tools denied, neutral empty cwd",
+   "with": "bare + --append-system-prompt = skills/code-standards/SKILL.md body, frontmatter stripped (the FULL loaded surface \u2014 no references dir exists, ADR 0019 item 4)"
+  },
   "reps": 3,
   "graded_artifact_rule": "the response text (tool-denied text tasks produce no files); artifact_check min 200 chars; failures are ERROR cells never quality 0 (#191); capture_symmetry gates grading",
-  "prescreen": {"rule": "1 bare rep per eval before any treatment cell; bare frac_met >= 0.85 = saturated (harden/drop, recorded here); 0.0 floor flagged; <2 discriminating evals = STOP and record", "result": "run 2026-07-17 (prescreen-outputs/, graded/prescreen-grok.jsonl): bare frac_met E1 0.17, E2 0.67, E3 1.00, E4 0.40, E5 0.20, E6 0.50. E3 is past the 0.85 ceiling -> DROPPED from the grid (recorded here before any treatment cell; 5 discriminating evals remain, no 0.0 floor). Grid is therefore 5 evals x 2 arms x 3 reps = 30 cells."},
-  "pilot": {"rule": "2 with-arm cells on eval 1 before the grid; >2x-estimate projection = STOP for re-approval", "result": "run 2026-07-17 (pilot-outputs/): with $0.282/$0.363, bare $0.24 (prescreen mean). Projection: 30 cells x mean($0.28) = $8.4 — inside the $9-20 estimate band, no stop."},
+  "prescreen": {
+   "rule": "1 bare rep per eval before any treatment cell; bare frac_met >= 0.85 = saturated (harden/drop, recorded here); 0.0 floor flagged; <2 discriminating evals = STOP and record",
+   "result": "run 2026-07-17 (prescreen-outputs/, graded/prescreen-grok.jsonl): bare frac_met E1 0.17, E2 0.67, E3 1.00, E4 0.40, E5 0.20, E6 0.50. E3 is past the 0.85 ceiling -> DROPPED from the grid (recorded here before any treatment cell; 5 discriminating evals remain, no 0.0 floor). Grid is therefore 5 evals x 2 arms x 3 reps = 30 cells."
+  },
+  "pilot": {
+   "rule": "2 with-arm cells on eval 1 before the grid; >2x-estimate projection = STOP for re-approval",
+   "result": "run 2026-07-17 (pilot-outputs/): with $0.282/$0.363, bare $0.24 (prescreen mean). Projection: 30 cells x mean($0.28) = $8.4 \u2014 inside the $9-20 estimate band, no stop."
+  },
   "judging": "grok headline + claude divergence on identical cells; a verdict flip = exploratory, no KEEP/CUT promotion",
   "metrics": "eval-clustered with-bare fraction-met delta + 95% CI (ADR 0019/0025); secondary: binary all-met + per-arm consistency (ADR 0065)"
  },
  "cost": {
   "ceiling_usd": 40.0,
   "pilot_cap_usd": 4.0,
-  "per_arm_estimate_usd": {"bare": 0.24, "with": 0.32},
-  "estimate_note": "notional estimate: L1 48-144 short trigger probes (~$2-8) + L2 36 tool-denied text cells (~$4-9) + judges (claude real ~$3-5, grok notional). Total estimate $9-20; ceiling_usd = 2x the upper estimate (ADR 0073), the stop-rule of record."
+  "per_arm_estimate_usd": {
+   "bare": 0.24,
+   "with": 0.32
+  },
+  "estimate_note": "notional estimate: L1 48-144 short trigger probes (~$2-8) + L2 36 tool-denied text cells (~$4-9) + judges (claude real ~$3-5, grok notional). Total estimate $9-20; ceiling_usd = 2x the upper estimate (ADR 0073), the stop-rule of record.",
+  "actuals": {
+   "generation_usd": "grid $7.4 (30 cells) + prescreen $1.45 + pilot $0.64 (pre-checkpoint)",
+   "judge_usd": {
+    "claude_real": 2.65,
+    "grok_notional": 1.37
+   },
+   "note": "inside the $9-20 pre-registered estimate band; ceiling $40 untouched"
+  }
  },
  "sample_rule": {
   "rule": "every L2 cell record committed under prescreen-outputs/, pilot-outputs/, outputs/; every L1 variant report committed under trigger-results/; population appended post-run",
-  "population": []
+  "population": [
+   "outputs/E1-bare-r1.json",
+   "outputs/E1-bare-r2.json",
+   "outputs/E1-bare-r3.json",
+   "outputs/E1-with-r1.json",
+   "outputs/E1-with-r2.json",
+   "outputs/E1-with-r3.json",
+   "outputs/E2-bare-r1.json",
+   "outputs/E2-bare-r2.json",
+   "outputs/E2-bare-r3.json",
+   "outputs/E2-with-r1.json",
+   "outputs/E2-with-r2.json",
+   "outputs/E2-with-r3.json",
+   "outputs/E4-bare-r1.json",
+   "outputs/E4-bare-r2.json",
+   "outputs/E4-bare-r3.json",
+   "outputs/E4-with-r1.json",
+   "outputs/E4-with-r2.json",
+   "outputs/E4-with-r3.json",
+   "outputs/E5-bare-r1.json",
+   "outputs/E5-bare-r2.json",
+   "outputs/E5-bare-r3.json",
+   "outputs/E5-with-r1.json",
+   "outputs/E5-with-r2.json",
+   "outputs/E5-with-r3.json",
+   "outputs/E6-bare-r1.json",
+   "outputs/E6-bare-r2.json",
+   "outputs/E6-bare-r3.json",
+   "outputs/E6-with-r1.json",
+   "outputs/E6-with-r2.json",
+   "outputs/E6-with-r3.json",
+   "pilot-outputs/E1-with-r1.json",
+   "pilot-outputs/E1-with-r2.json",
+   "prescreen-outputs/E1-bare-r1.json",
+   "prescreen-outputs/E2-bare-r1.json",
+   "prescreen-outputs/E3-bare-r1.json",
+   "prescreen-outputs/E4-bare-r1.json",
+   "prescreen-outputs/E5-bare-r1.json",
+   "prescreen-outputs/E6-bare-r1.json",
+   "trigger-results/control.json",
+   "trigger-results/v2.json"
+  ]
  }
 }
