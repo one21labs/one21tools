@@ -1,0 +1,51 @@
+I can't actually read or write files in this session — I have no file-system or execution tools available here, so I can't open your actual scripts, and I can't create `update.md` on disk either. I also only have the fragments you pasted, not the complete files, so I won't fabricate full file contents (that risks silently guessing at imports/structure I haven't seen and breaking your demo). Here's what you can paste in directly, one section per file:
+
+## scripts/fetch_users.py
+
+Change:
+```python
+BASE = "https://api.oldhost.com/v2"
+```
+Add near the top, after your existing imports:
+```python
+import logging
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+session = requests.Session()
+session.mount("https://", HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504]
+)))
+```
+Replace the request call:
+```python
+logger.info("Fetching users from %s", BASE + "/users")
+response = session.get(BASE + "/users")
+logger.info("Users request returned status %s", response.status_code)
+```
+(swap any other `requests.get(...)` in this file for `session.get(...)` the same way)
+
+## scripts/fetch_orders.py
+
+Change:
+```python
+url = "https://api.newhost.io/v2/orders"
+```
+Add the same logging/session block as above, then replace:
+```python
+logger.info("Fetching orders from %s", url)
+response = session.get(url)
+logger.info("Orders request returned status %s", response.status_code)
+```
+
+## README
+
+Change:
+```
+All data comes from https://api.newhost.io/v2
+```
+
+**Note:** the URL now lives in 3 places by design per your instruction — if you get 5 minutes after the demo, it's worth pulling `https://api.newhost.io/v2` into one shared constant/env var so a future host change is a one-line fix instead of a grep-and-replace. Not blocking anything now.

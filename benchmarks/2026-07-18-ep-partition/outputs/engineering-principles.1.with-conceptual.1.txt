@@ -1,0 +1,73 @@
+I don't have file-system or code-execution access in this session, so I can't write directly to `rca.md`. Here's the full post-incident analysis — copy this into the file:
+
+---
+
+# Post-Incident Analysis: Nightly Customer-Export Job — Repeated Silent Empty-File Delivery
+
+**Date:** 2026-07-18
+**Severity:** High (client-facing data delivery failure, recurring)
+**Status:** Third occurrence in two months
+
+## Summary
+
+The nightly customer-export job has now delivered an empty output file to a client three times in two months. In each case the job exited 0, no internal alert fired, and the client discovered the problem before we did. This document analyzes all three occurrences together, since analyzing them individually already failed twice to prevent recurrence.
+
+## Timeline of Occurrences
+
+| # | Trigger (proximate cause) | Detection | Time to detect |
+|---|---|---|---|
+| 1 | Schema rename broke query silently (returned 0 rows, not an error) | Client reported | Unknown / undocumented |
+| 2 | Expired credential; job caught the auth exception and continued, writing an empty file | Client reported | Unknown / undocumented |
+| 3 | Priya changed the export SQL and did not run the documented manual verification step (run once by hand, eyeball row count) | Client reported | Unknown / undocumented |
+
+Common outcome across all three: **empty file → exit code 0 → no internal alert → client notices first.**
+
+## Root Cause Analysis
+
+### The proximate causes are not the root cause
+
+Three different triggers (schema rename, credential expiry, undocumented query change) producing the *identical* failure signature is itself the diagnostic finding. If the root cause were any one of these triggers, fixing it would not have prevented the other two. The fact that the same outcome recurs under different triggers means the system has no defense against *any* trigger that results in zero rows — the failure mode lives downstream of all three triggers, not within any one of them.
+
+### Why the job exits 0 on empty output
+
+The job's success criteria is "did the process complete without throwing," not "did the process produce valid, expected output." This is true regardless of *why* the output was empty. A query change, a schema drift, and a swallowed credential error all funnel into the same unchecked code path: write file → exit 0.
+
+### Why monitoring didn't catch it
+
+Monitoring checks exit code only. This is a monitoring design choice that assumes exit code is a sufficient proxy for job correctness. That assumption is false for this job (and likely for others) — it has now been falsified three times.
+
+### Why occurrence #3's specific trigger happened (Priya / manual step skipped)
+
+Applying Deming's framing: if the fix here is "Priya should have followed the wiki step," that stops at the worker, not the system. The relevant system question is: **why does correctness depend on a human remembering to manually run and eyeball a query before it goes live?** A six-week-tenure engineer not knowing or not following a wiki-documented manual step under normal working conditions is an expected outcome of a system that has no enforced, automated gate — it is not an anomaly of that one engineer. The same gap would eventually be hit by any engineer, tenured or not, on a busy day, under deadline pressure, or simply unaware the wiki page existed.
+
+### Root cause statement
+
+**The pipeline has no automated, enforced check that validates output before delivery, and no failure signal for "job ran but produced no/anomalous data." Correctness has been implicitly delegated to human diligence (manual verification step) and to unrelated upstream systems behaving correctly (schema stability, credential validity) — with no fallback when either fails.**
+
+## Contributing Factors (not root cause, but worth fixing)
+
+- Verification step lives only in a wiki page — tribal knowledge, not enforced by tooling. No system prevents deployment of a query change without it having been run.
+- The job swallows exceptions (credential error case) rather than failing loudly, actively hiding a real failure as a soft "success."
+- No dry-run / staging step compares new query output against historical baselines before a query change goes live.
+- No minimum-viable-output check (e.g., "row count must be > 0" or "row count must be within X% of trailing 7-day average") gates delivery to the client.
+- No alerting distinguishes "job succeeded" from "job succeeded and delivered a plausible result."
+
+## What We Should Change
+
+### Immediate (this week)
+1. **Add a hard pre-delivery gate**: block delivery if row count is 0 (or below a sane floor). Fail the job / quarantine the file and page on-call instead of delivering. This alone would have prevented all three incidents regardless of trigger.
+2. **Stop swallowing exceptions** in the export job — credential and query errors must cause a non-zero exit and an alert, not a silently-continued empty write.
+3. **Change monitoring criteria**: alert on "zero rows written" and "row count anomalous vs. trailing baseline," not just exit code. Exit code 0 must no longer be treated as sufficient evidence of success.
+
+### Near-term (this sprint)
+4. **Automate the manual verification step** instead of documenting it: any change to the export query must run in a dry-run/staging mode that compares output row count and basic shape against the last known-good run, as a required CI gate before the query can be deployed — not an optional manual habit.
+5. **Add schema-drift detection** upstream (fail loudly if expected columns/tables are missing or renamed, rather than the query silently returning 0 rows).
+6. **Add credential health checks** (e.g., pre-flight auth check with alerting well before expiry, and fail-fast if auth fails at run time).
+
+### Systemic (process)
+7. Treat "wiki-documented manual step" as a standing signal to look for an automatable gate — this incident is the third time reliance on memory rather than enforcement has failed. Audit other pipelines for the same pattern (manual-step-in-wiki as the only defense against a class of error).
+8. Revisit on-call/alerting philosophy: any client-facing data delivery should have an explicit "delivered empty/anomalous data" alert class, separate from generic job-failure alerts, since this failure mode has now recurred three times with three different root triggers.
+
+## What We Should Not Do
+
+- Do not make this about Priya's onboarding or add a "remind engineers to follow the wiki" action item as the primary fix. That approach was implicitly already in place (the wiki step existed) and has already failed once in this exact form; two other incidents had nothing to do with a person skipping a step at all. Any fix that depends on a human remembering to do something correctly, every time, indefinitely, is not a fix.

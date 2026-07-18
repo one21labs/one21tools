@@ -1,0 +1,55 @@
+I'm running in a headless session right now and don't have file-system access, so I can't write `process-review.md` directly. Here's the full review — copy it into the file, or ask me again in an interactive session and I'll write it for you.
+
+---
+
+# Release Process Review
+
+## Current State
+- PR review: ~2 days average wait
+- Merged code sits on `main` until a biweekly release train
+- Each train ships ~40 changes in one batch
+- Release manager manually copies changelog entries from PR descriptions
+- Three sequential sign-offs required for *every* release: QA lead → EM → PM
+- Hotfixes follow the identical path — no fast lane
+
+## Root Problems
+
+1. **Batch size is the core risk driver.** Shipping ~40 unrelated changes at once means when something breaks, you're bisecting across 40 candidates under pressure. This is almost certainly the direct cause of "each release is stressful."
+2. **Cadence is decoupled from readiness.** Code that's reviewed and mergeable still waits up to 2 weeks to reach users. Lead time (commit → production) is dominated by calendar, not work.
+3. **Hotfixes aren't actually hot.** Routing a one-line urgent fix through the same batch + triple sign-off process defeats the purpose of calling it a hotfix. This is the most acute pain point and easiest to fix in isolation.
+4. **Sign-offs are serial by default, not by necessity.** QA → EM → PM in sequence adds pure waiting time even when the three reviews don't actually depend on each other's outcomes.
+5. **Changelog generation is manual toil at the worst possible time** — right before a release, under time pressure, entirely dependent on PR descriptions being accurate and the release manager not missing one.
+6. **PR review latency (2 days)** is a secondary bottleneck worth watching but is dwarfed by the ~2-week train wait — fixing cadence will matter more than fixing review speed.
+
+## Recommendations, in priority order
+
+### 1. Give hotfixes a real fast path (do this first, lowest risk to change)
+Define "hotfix" criteria (e.g., production-impacting, small diff) and give it: single required approver (on-call EM or lead), deploy immediately after merge, retroactive notification to QA/PM instead of blocking sign-off. This alone removes the worst pain with the least process redesign.
+
+### 2. Shrink the batch by increasing release frequency
+Move from biweekly to at least weekly, ideally toward continuous/on-demand deploys once confidence is built. Smaller batches mean: smaller blast radius, easier root-causing, less stressful releases, and shorter lead time for every change, not just hotfixes. This is the highest-leverage change but the biggest process shift — worth piloting on one team/service first.
+
+### 3. Decouple deploy from release using feature flags
+Let merged code deploy to production continuously behind flags, and treat "release" as a flag flip rather than a code push. This breaks the link between "ships" and "batch of 40," and turns most releases into low-risk, individually reversible events.
+
+### 4. Automate the changelog
+Require a changelog line in the PR template (or derive from conventional commit / PR title + label), and generate the release doc from merged PR metadata via script/bot. Removes manual transcription error and the pre-release scramble entirely.
+
+### 5. Right-size sign-offs instead of applying one process to everything
+- Parallelize QA/EM/PM review instead of forcing strict sequence, unless one genuinely gates another.
+- Tier the requirement by risk: trivial/low-risk changes (docs, config, small fixes) need fewer or lighter sign-offs; only larger or higher-risk releases need the full three.
+- Consider whether PM sign-off needs to happen per-release at all, versus per-feature at merge time.
+
+### 6. Address PR review latency once cadence is fixed
+Once release pressure eases, revisit the 2-day review wait — likely solvable with review SLAs, smaller PRs, or a rotating reviewer pool. Lower priority than the above since it's not what's currently causing the stress, but it will start to matter more as your release cadence shortens.
+
+## Suggested End State
+- Hotfixes: merge → single approval → deploy same day
+- Regular changes: small, frequent releases (daily/weekly) behind feature flags
+- Changelog: auto-generated from PR metadata
+- Sign-off: risk-tiered, parallel where possible, not a fixed triple gate for every release
+- Result: lower lead time, smaller blast radius per release, less manual toil, less stress per ship
+
+---
+
+Want me to also draft the updated PR template with the changelog field, or sketch the hotfix criteria/checklist as a follow-up doc?
