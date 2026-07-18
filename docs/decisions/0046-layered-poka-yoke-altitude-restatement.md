@@ -41,4 +41,4 @@ Simplest set that covers both failure classes at a pre-merge gate: a determinist
 - The structural allowlist grows unmaintainably → reconsider the operating point.
 
 ## Act (post-ship — 2026-07-10)
-- [outcome] lint green on the cleaned corpus (18 spans fixed in-PR); the known-truth fixture is its test.
+- [outcome] lint green on the cleaned corpus (18 spans fixed in-PR); the known-truth fixture is its test — verified.
