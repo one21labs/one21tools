@@ -21,7 +21,8 @@ the **`engineering-principles`** skill (`waste-identification` / `ssot-enforceme
 don't restate. Operationalized, not a slogan:
 - **Cite-or-silence:** every muda call cites a `file:line`; never manufacture a "consolidation" to
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
-- **Poka-yoke (prevent > detect):** delete the mirror, don't guard or resync it; derive, don't duplicate.
+- **Poka-yoke (prevent > detect, as a ladder; guard the PROCESS too):** delete the mirror;
+  derive, don't duplicate. Doctrine: `engineering-principles` Process-Level Poka-yoke.
 - **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
   inline findings, never blocks. `/retrospect` is on-demand — run it when something felt wrong,
   never as ritual.
