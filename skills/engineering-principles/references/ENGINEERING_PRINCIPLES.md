@@ -68,6 +68,23 @@ Enforcement surfaces ranked by how early they catch a defect — earlier is stro
 - **Faithful predicate**: the mechanism must test the rule it claims to enforce; a partial predicate ships with its residue recorded.
 - **Undecidable intent warns, never denies**: when a check cannot separate violation from legitimate use, it warns — false blocks train users to bypass the guard.
 
+### Process-Level Poka-yoke (Guard the Process, Not Just the Product)
+
+Doctrine (owner, 18-Jul-2026): **prevention outranks detection, as a ladder — and the guards
+apply to the process itself, not just the product.**
+
+- **Gates on gates**: no gating script ships without a decision-logic test; exit codes must
+  not be maskable (the pipe guard denies piped gate invocations, rung 1).
+- **The knowledge base is guarded like code**: decision records are linted (char budgets,
+  amendment back-pointers, version-agnosticism); cross-file restatement of a fact fails CI;
+  budgeted docs block over-cap edits at authoring time (rung 2), not review time.
+- **Why**: a self-improving loop's characteristic failure is silent self-degradation — a stale
+  hook enforcing retired policy, a gamed metric, an unsourced claim. Product guards never
+  notice loop-drift; process guards make it loud.
+- **Trust corollary**: metrics are gates, period — never optimization targets. A gameable
+  metric invites optimizing the number instead of the work (a gamed line cap became a char
+  cap), and gaming or misreporting is a catastrophic, possibly unrecoverable, trust failure.
+
 ## Root Cause Analysis (5 Whys)
 
 When to apply, method, and stopping criteria: [root-cause-analysis.md](root-cause-analysis.md).

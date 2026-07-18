@@ -8,6 +8,60 @@ The goal is **not to remove the human from the loop** — it is to raise the AI'
 (recorded, independently verified, self-improving) so the human can delegate more and intervene
 less. The human stays accountable; the agents earn more of the work.
 
+## The loop is the asset
+
+This plugin is an implementation of what the field now calls **loop engineering**: the durable
+asset around an AI model is the loop — context, memory, decision records, evals, verification
+gates, and the feedback that improves them — not the model, which is a swappable component.
+The frame was derived here independently, from TPS/lean and Deming's PDCA applied to a real
+repo; the wider field converged on the same shape from the other direction:
+
+- Anthropic on context as a finite engineered resource ([Sept 2025](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
+  and a planner -> generator -> evaluator harness cycling until the app works
+  ([Mar 2026](https://www.anthropic.com/engineering/harness-design-long-running-apps));
+  Boris Cherny: "The default isn't 'I'm going to prompt Claude' — the default is now 'I'm going
+  to have Claude prompt itself'" (MIT Technology Review, May 2026). Anthropic's "dreaming" — a
+  scheduled offline pass that reviews sessions and curates memory — is `/retrospect`'s frame.
+- Tom Blomfield's self-improving company loop — sensor / policy / tool / quality gate / learning
+  mechanism ([YC, May 2026](https://www.ycombinator.com/library/Qf-how-to-build-a-self-improving-company-with-ai)):
+  here, ADRs are the policy layer, verify/red-team the quality gate, retrospect the learning
+  mechanism, and hooks/linters the forcing functions.
+- The lineage runs back to Karpathy's LLM-OS sketch (2023); Lilian Weng's
+  [harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/)
+  (July 2026) argues self-improvement should target exactly this orchestration layer, bounded
+  by permissions and observability.
+
+What survives contact with the surveyed field as this stack's actual differentiation (a 2026-07
+three-lane survey; pieces like paired with/without skill evals and trigger ablation are NOT
+novel — Anthropic's skill-creator and SkillsBench do both): **the integrated loop** — advisor
+panel -> PM-authored ADR -> independent verify/red-team gate -> transcript-mined retrospective
+that edits the loop's own agents/skills — closed nowhere else as one system; **decisions as
+first-class lintable records** (budgeted, back-pointed, revisit-triggered ADRs); and in the
+sibling skill-bench harness, **adversarial prosecutor grading** (vs the field's
+neutral-by-design graders), **enforced cross-family judging** (advisory-only elsewhere), and
+**pre-registration + cost-gating** — verified absent, combined, from every mainstream eval
+framework surveyed.
+
+Being different is not being better, and this repo holds its own claims to its own rule
+(ADR 0024: an unmeasured process is a cut candidate). Per-claim measured status, on the
+source repo's committed benchmarks:
+- **prosecutor grading** — measured effect: the battery's uniform prosecutor RAISED the
+  skills' with-arm delta (+0.075 -> +0.088) by shaving the baseline's inflated partial
+  credit — verdicts get harder to earn, not easier (`2026-07-08-skills-hermetic`).
+- **cross-family judging** — earned its keep twice: the #172 prototype flipped its first
+  verdict, and the 2026-07 frozen re-grade flipped 1 of 10 recorded primary verdicts
+  (`2026-07-17-crossjudge-regrade`); the other 9 held — the instrument detects
+  judge-dependence without manufacturing it.
+- **pre-registration + cost gates** — observed saves on record (a 3.5x cost-estimate miss
+  caught and revised pre-grid, per ADR 0066/0076's paper trail), but NO controlled
+  comparison against running without them yet — that is a discipline claim, not a measured
+  superiority claim.
+- **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
+  measured state is in "Measured" below: specific edges (false-positive halving, failure
+  anticipation from independent perspectives) and honest nulls elsewhere; the direct
+  panel-vs-single-advisor comparison is queued (#236). Until it runs, "closed nowhere else"
+  is a fact about the field, not evidence of value.
+
 ## The cycle
 
 | Phase | What runs |
