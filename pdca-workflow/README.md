@@ -8,6 +8,40 @@ The goal is **not to remove the human from the loop** — it is to raise the AI'
 (recorded, independently verified, self-improving) so the human can delegate more and intervene
 less. The human stays accountable; the agents earn more of the work.
 
+## The loop is the asset
+
+This plugin is an implementation of what the field now calls **loop engineering**: the durable
+asset around an AI model is the loop — context, memory, decision records, evals, verification
+gates, and the feedback that improves them — not the model, which is a swappable component.
+The frame was derived here independently, from TPS/lean and Deming's PDCA applied to a real
+repo; the wider field converged on the same shape from the other direction:
+
+- Anthropic on context as a finite engineered resource ([Sept 2025](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
+  and a planner -> generator -> evaluator harness cycling until the app works
+  ([Mar 2026](https://www.anthropic.com/engineering/harness-design-long-running-apps));
+  Boris Cherny: "The default isn't 'I'm going to prompt Claude' — the default is now 'I'm going
+  to have Claude prompt itself'" (MIT Technology Review, May 2026). Anthropic's "dreaming" — a
+  scheduled offline pass that reviews sessions and curates memory — is `/retrospect`'s frame.
+- Tom Blomfield's self-improving company loop — sensor / policy / tool / quality gate / learning
+  mechanism ([YC, May 2026](https://www.ycombinator.com/library/Qf-how-to-build-a-self-improving-company-with-ai)):
+  here, ADRs are the policy layer, verify/red-team the quality gate, retrospect the learning
+  mechanism, and hooks/linters the forcing functions.
+- The lineage runs back to Karpathy's LLM-OS sketch (2023); Lilian Weng's
+  [harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/)
+  (July 2026) argues self-improvement should target exactly this orchestration layer, bounded
+  by permissions and observability.
+
+What survives contact with the surveyed field as this stack's actual differentiation (a 2026-07
+three-lane survey; pieces like paired with/without skill evals and trigger ablation are NOT
+novel — Anthropic's skill-creator and SkillsBench do both): **the integrated loop** — advisor
+panel -> PM-authored ADR -> independent verify/red-team gate -> transcript-mined retrospective
+that edits the loop's own agents/skills — closed nowhere else as one system; **decisions as
+first-class lintable records** (budgeted, back-pointed, revisit-triggered ADRs); and in the
+sibling skill-bench harness, **adversarial prosecutor grading** (vs the field's
+neutral-by-design graders), **enforced cross-family judging** (advisory-only elsewhere), and
+**pre-registration + cost-gating** — verified absent, combined, from every mainstream eval
+framework surveyed.
+
 ## The cycle
 
 | Phase | What runs |
