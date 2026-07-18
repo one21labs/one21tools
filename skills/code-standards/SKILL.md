@@ -1,6 +1,6 @@
 ---
 name: code-standards
-description: Invoke when writing, reviewing, or auditing code for quality, style, or readability — naming, header comments, error handling, logging, structure.
+description: Use when the user writes, extends, refactors, reviews, or audits code, or asks about naming, header comments, error handling, logging (what to log, or logs that don't help debugging), or whether a function's size and structure are right.
 ---
 
 # Code Standards
