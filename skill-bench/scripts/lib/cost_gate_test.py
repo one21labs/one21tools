@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Decision-logic tests for cost_gate.py (CLAUDE.md Never rule: no gating script without a test
 of its decision logic)."""
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from cost_gate import gate, main, project_grid_cost
+from cost_gate import gate, main, project_grid_cost, spent_so_far
 
 
 class ProjectionTest(unittest.TestCase):
@@ -43,6 +46,33 @@ class GateTest(unittest.TestCase):
         # One cheap cell must not rescue an expensive arm: mean(0.1, 0.9)=0.5 -> 45 > 40.
         ok, _ = gate(90, [0.1, 0.9], 40.0)
         self.assertFalse(ok)
+
+
+class SpentSoFarTest(unittest.TestCase):
+    """Resume seeding (#233): the backstop must see cumulative spend, not per-invocation."""
+
+    def _write(self, d, name, cost, error=None):
+        (Path(d) / name).write_text(
+            json.dumps({"cell": name, "summary": {"error": error, "cell_cost_usd": cost}}),
+            encoding="utf-8")
+
+    def test_sums_non_error_cells_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            self._write(d, "a.json", 0.10)
+            self._write(d, "b.json", 0.25)
+            self._write(d, "c.json", 0.40, error="timeout")  # error cell re-runs; not spent-credit
+            self.assertAlmostEqual(spent_so_far(d), 0.35)
+
+    def test_malformed_and_missing_tolerated(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "bad.json").write_text("{not json", encoding="utf-8")
+            self._write(d, "ok.json", 0.5)
+            self.assertAlmostEqual(spent_so_far(d), 0.5)
+            self.assertEqual(spent_so_far(Path(d) / "nonexistent"), 0.0)
+
+    def test_empty_dir_is_zero(self):
+        with tempfile.TemporaryDirectory() as d:
+            self.assertEqual(spent_so_far(d), 0.0)
 
 
 class CliTest(unittest.TestCase):

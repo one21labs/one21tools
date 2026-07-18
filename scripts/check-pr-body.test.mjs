@@ -43,3 +43,13 @@ test("a Partial line inside a code fence or HTML comment does not declare (ADR 0
   assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "```\nPartial: #164\n```"), []);
   assert.deepEqual(titleClosesDeclaredPartial("Fix #164", "<!-- Partial: #164 -->"), []);
 });
+
+test("denies body-side closing keywords contradicting the body's own Partial line (ADR 0078)", async () => {
+  const { bodyClosesDeclaredPartial } = await import("./check-pr-body.mjs");
+  assert.deepEqual(bodyClosesDeclaredPartial("Fixes #229\n\nPartial: #229"), ["229"]);
+  assert.deepEqual(bodyClosesDeclaredPartial("Fixes #229\nPartial: #230"), []);
+  assert.deepEqual(bodyClosesDeclaredPartial("Partial: #229"), []);
+  assert.deepEqual(bodyClosesDeclaredPartial("```\nCloses #7\n```\nPartial: #7"), []);
+  assert.deepEqual(bodyClosesDeclaredPartial(undefined), []);
+  assert.deepEqual(bodyClosesDeclaredPartial("Closes #7 cleanup\nPartial: #7, #9\nresolves #9"), ["7", "9"]);
+});

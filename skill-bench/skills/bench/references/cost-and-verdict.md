@@ -17,6 +17,11 @@ A pre-registration states a NUMERIC judge/grading-cost estimate on this same not
 checkpoint, ADR 0066). When the measured figure exceeds the estimate by more than 2x, record
 the gap in the verdict README and the routing ADR's Act.
 
+**The initial estimate is DERIVED, never guessed (ADR 0076):** take the most recent measured
+$/cell for the same judge/model from a prior committed `metadata.json` cost block (grep
+`benchmarks/*/metadata.json` for `actuals`); no prior exists → run the 2-cell pilot BEFORE
+recording any number. Three guessed estimates missed by 2-17x (ADR 0061; PR #219; PR #227).
+
 **`ceiling_usd` derivation (ADR 0073):** the generation cost gate's `ceiling_usd` is set to 2x
 the pre-registered notional estimate — the >2x stop-rule of record — NEVER the estimate itself.
 Encoding the estimate band's top as the ceiling forces a mid-run revision the moment a pilot
