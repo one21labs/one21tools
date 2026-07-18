@@ -36,9 +36,9 @@ verification gates, feedback), not the model. Verified primaries:
 |---|---|---|
 | Anthropic engineering (Sep 2025) | context is a finite engineered resource | anthropic.com/engineering/effective-context-engineering-for-ai-agents |
 | Anthropic engineering (Nov 2025, Mar 2026) | initializer->coder, then planner->generator->evaluator harness cycling until the app works | anthropic.com/engineering/harness-design-long-running-apps |
-| Boris Cherny, MIT Tech Review (May 2026) | "The default isn't 'I'm going to prompt Claude' — the default is now 'I'm going to have Claude prompt itself'" | verified quote; replaces the viral meme form |
+| Boris Cherny, MIT Tech Review (May 2026) | the verified "have Claude prompt itself" default — verbatim quote homed in pdca-workflow/README.md ("The loop is the asset"); replaces the viral meme form | MIT Technology Review |
 | Lamis Mukta, AI Native DevCon (Jun 2026) | "dreaming": scheduled offline pass reviewing sessions + curating memory stores | youtube.com/watch?v=tTcxVv8HHNw |
-| Anthropic Managed Agents "Dreams" docs | async transcript+memory merge into a NEW reviewable store; never mutates source | platform.claude.com/docs/en/managed-agents/dreams |
+| Anthropic Managed Agents "Dreams" docs | offline curation over past sessions with an immutable input store (mechanics: sources/2026-07-18-claude-sota-lane.md) | platform.claude.com/docs/en/managed-agents/dreams |
 | Tom Blomfield, YC (May 2026) | self-improving company: sensor / policy / tool / quality gate / learning mechanism | ycombinator.com/library/Qf-how-to-build-a-self-improving-company-with-ai |
 | Karpathy (2023) | LLM-OS: model=kernel, context=RAM, tools=peripherals | x.com/karpathy/status/1723140519554105733 |
 | Lilian Weng (Jul 2026) | self-improvement should target the harness layer, bounded by permissions/observability | lilianweng.github.io/posts/2026-07-04-harness/ |
