@@ -38,5 +38,6 @@ Silent failure (no red CI) landing unresolved-issue closures on main — high va
 - **Accept risk** — the mis-close is silent and lands unresolved work on main; unacceptable.
 
 ## Revisit triggers
+- Amended by ADR 0078: body-side closing keywords vs a `Partial:` line now also deny.
 - A partial-fix mis-close recurs -> per the [unverifiable] assumption, strengthen adoption of the `Partial:` line.
 - Residue (ADR 0047 precondition i) — the guard REDUCES, not eliminates: (a) a merger hand-editing the squash title is invisible to PR-time CI; (b) a **single-commit PR** whose lone commit message carries a closing keyword — under `squash_merge_commit_title: COMMIT_OR_PR_TITLE` its squash subject is the commit message, not the PR title, so a title guard never sees it (finding 2); (c) partial signalled only in prose (no `Partial:` line); (d) a cross-repo `owner/repo#NNN` title ref — far-fetched same-repo, deliberately NOT folded in. ADR 0053 sibling covers the other integrity class.

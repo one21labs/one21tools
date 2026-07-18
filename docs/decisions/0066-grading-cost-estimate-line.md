@@ -18,5 +18,5 @@ summary: "Every skill-bench pre-registration carries a numeric judge/grading-cos
   higher; the armd-era grading was never pre-estimated at all). Notional cost is real
   capacity — cost-and-verdict.md's own contract is "$0 marginal, not $0 real".
 - Enforced: the cost-and-verdict.md line — the cost-accounting home every /bench
-  pre-registration cites — plus the existing pre-reg review step; estimate-vs-actual is
-  checkable per run from `notional_cost_usd`.
+  pre-registration cites — plus the pre-reg review step; estimate-vs-actual is checkable
+  per run from `notional_cost_usd`. Amended by ADR 0076.

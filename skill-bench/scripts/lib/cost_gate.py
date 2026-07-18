@@ -11,7 +11,30 @@ Exit 0 = projection within ceiling (prints the projection); exit 1 = over ceilin
 the pilot as the artifact, route to a fresh /decide per ADR 0052's revisit trigger).
 """
 import argparse
+import json
 import sys
+from pathlib import Path
+
+
+def spent_so_far(out_dir):
+    """Cumulative cell_cost_usd of existing NON-ERROR cell records in out_dir.
+
+    Seeds a resumed run's spend counter: a runner that restarts its counter at 0 compares only
+    the current invocation's spend against the full ceiling, so a checkpoint/resume sequence
+    can silently exceed the pre-registered ceiling (#233 — the #214 resumed grid printed $6.09
+    where the true 30-cell total was $7.40). Malformed cells are skipped (they re-run anyway);
+    a missing dir is $0.
+    """
+    total = 0.0
+    for p in sorted(Path(out_dir).glob("*.json")):
+        try:
+            rec = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        summary = rec.get("summary") or {}
+        if not summary.get("error"):
+            total += summary.get("cell_cost_usd") or 0.0
+    return total
 
 
 def project_grid_cost(cells_total, pilot_cell_costs):

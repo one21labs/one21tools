@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 /*
- * check-pr-body.mjs — gate, one PR-description check:
+ * check-pr-body.mjs — gate, PR-description checks:
  * - ADR 0054: the title must not close an issue the body declares `Partial: #NNN` — a
  *   closing-keyword title becomes the squash-commit subject on main and auto-closes the issue.
  *   Only the decidable contradiction denies; a closing title with a silent body PASSes
  *   (undecidable intent — ADR 0047 precondition ii).
- * The predicate (titleClosesDeclaredPartial) is pure and unit-tested (check-pr-body.test.mjs);
+ * - ADR 0078: the same contradiction inside the body alone (`Closes #N` + `Partial: #N`).
+ * The predicates (titleClosesDeclaredPartial, bodyClosesDeclaredPartial) are pure and unit-tested;
  * reading env + exit is the thin IO wrapper. Zero-dependency .mjs, same constraint as the
  * sibling gate scripts (adr-lint, check-workflow).
  *
@@ -45,6 +46,15 @@ export const titleClosesDeclaredPartial = (title, body) => {
   return [...titleCloses].filter((n) => bodyPartials.has(n));
 };
 
+// Same contradiction, BODY-side (ADR 0078 amending 0054): a `Closes #N` in the body auto-closes
+// on merge exactly like a title keyword, so body-closes ∩ body-partials is equally decidable.
+// Fences/comments are stripped first, so a keyword in an example never denies.
+export const bodyClosesDeclaredPartial = (body) => {
+  const bodyCloses = new Set([...stripFences(body).matchAll(CLOSING_REF)].map((m) => m[2]));
+  const bodyPartials = partialsFrom(body);
+  return [...bodyCloses].filter((n) => bodyPartials.has(n));
+};
+
 function main() {
   const problems = [];
   for (const n of titleClosesDeclaredPartial(process.env.PR_TITLE, process.env.PR_BODY)) {
@@ -52,6 +62,13 @@ function main() {
       `PR title closes #${n} but the body declares \`Partial: #${n}\` (ADR 0054). On squash-merge ` +
       `the title becomes the commit subject and auto-closes #${n} — reword the title (e.g. ` +
       `\`re #${n}\`) or drop the Partial line if the PR truly completes it.`,
+    );
+  }
+  for (const n of bodyClosesDeclaredPartial(process.env.PR_BODY)) {
+    problems.push(
+      `PR body closes #${n} while also declaring \`Partial: #${n}\` (ADR 0078). GitHub reads body ` +
+      `closing keywords on merge and auto-closes #${n} — reword to \`re #${n}\` or drop the ` +
+      `Partial line if the PR truly completes it.`,
     );
   }
   if (problems.length) {
