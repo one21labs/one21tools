@@ -42,6 +42,26 @@ neutral-by-design graders), **enforced cross-family judging** (advisory-only els
 **pre-registration + cost-gating** — verified absent, combined, from every mainstream eval
 framework surveyed.
 
+Being different is not being better, and this repo holds its own claims to its own rule
+(ADR 0024: an unmeasured process is a cut candidate). Per-claim measured status, on the
+source repo's committed benchmarks:
+- **prosecutor grading** — measured effect: the battery's uniform prosecutor RAISED the
+  skills' with-arm delta (+0.075 -> +0.088) by shaving the baseline's inflated partial
+  credit — verdicts get harder to earn, not easier (`2026-07-08-skills-hermetic`).
+- **cross-family judging** — earned its keep twice: the #172 prototype flipped its first
+  verdict, and the 2026-07 frozen re-grade flipped 1 of 10 recorded primary verdicts
+  (`2026-07-17-crossjudge-regrade`); the other 9 held — the instrument detects
+  judge-dependence without manufacturing it.
+- **pre-registration + cost gates** — observed saves on record (a 3.5x cost-estimate miss
+  caught and revised pre-grid, per ADR 0066/0076's paper trail), but NO controlled
+  comparison against running without them yet — that is a discipline claim, not a measured
+  superiority claim.
+- **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
+  measured state is in "Measured" below: specific edges (false-positive halving, failure
+  anticipation from independent perspectives) and honest nulls elsewhere; the direct
+  panel-vs-single-advisor comparison is queued (#236). Until it runs, "closed nowhere else"
+  is a fact about the field, not evidence of value.
+
 ## The cycle
 
 | Phase | What runs |
