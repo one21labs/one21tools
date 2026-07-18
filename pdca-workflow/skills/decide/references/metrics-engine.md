@@ -63,6 +63,18 @@ own thresholds:
 includes the fired triggers in the panel. No metrics command configured = skip the step (the
 engine is opt-in).
 
+## Epistemic routing — DERIVED / CITED / MEASURED (doctrine, not a classifier)
+
+Route a claim BEFORE spending on measurement. DERIVED (follows logically from structure or an
+existing strong result) needs no fresh run. CITED (an external reference) needs a fetch-verified
+source — verification costs minutes; a benchmark costs hours and dollars — with the transfer
+caveat that external magnitudes are their-harness-relative. MEASURE only a claim that is
+behavioral + transfer-doubtful + decision-changing — the one domain where first-principles
+intuition demonstrably fails. A wide-CI null does NOT override a strong derivation: record it
+contested-underpowered, not settled. Every MEASURE names its gating decision before spend —
+measurement without a decision it can change is spend without a customer. This is judgment
+text for the `/decide` Inherit step, not a classifier to build.
+
 ## Provider notes (Plausible, as one example)
 The reference implementation used the Plausible Stats API v1: a `/breakdown` keyed by `event:props:<dim>`
 (the row key is the dimension's last segment, **not** a `property` field) for the ratio, and two
