@@ -7,7 +7,7 @@ only — the headline metric stays met_final = min(grader, prosecutor) for 07-09
 Resumable: an item with a line already in graded/grok_verdicts.jsonl is skipped.
 Usage: python3 grok_regrade.py [--limit N]
 """
-import json, os, re, subprocess, sys
+import json, os, subprocess, sys
 
 GROK = os.path.expanduser("~/.grok/bin/grok")
 ITEMS = "graded/items"
@@ -43,14 +43,17 @@ def main():
     if os.path.exists(OUT):
         with open(OUT) as f:
             for line in f:
-                try: done.add(json.loads(line)["bid"])
-                except Exception: pass
+                try:
+                    done.add(json.loads(line)["bid"])
+                except (json.JSONDecodeError, KeyError) as e:
+                    print(f"  WARN: skipping malformed resume line: {e}", file=sys.stderr)
     bids = sorted(b[:-5] for b in os.listdir(ITEMS) if b.endswith(".json"))
     todo = [b for b in bids if b not in done][shard::nshards]
     if limit: todo = todo[:limit]
     print(f"grok_regrade: {len(done)} done, {len(todo)} to grade")
     for i, bid in enumerate(todo):
-        item = json.load(open(f"{ITEMS}/{bid}.json"))
+        with open(f"{ITEMS}/{bid}.json") as f:
+            item = json.load(f)
         exps = item["expectations"]
         p = PROMPT.format(prompt=item["prompt"], n=len(exps),
                           expectations="\n".join(f"- {e}" for e in exps),
