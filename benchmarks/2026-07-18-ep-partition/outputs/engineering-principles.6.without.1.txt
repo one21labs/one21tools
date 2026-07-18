@@ -1,0 +1,91 @@
+I can't access your filesystem or run code in this session — no file tools are available here, so I can't actually edit the scripts or write update.md for you. I can give you the exact content to paste in yourself.
+
+One quick flag: you said "no cleverness, fastest path" but also asked for retry logic + logging in the same pass an hour before a demo — that's the opposite of low-risk (untested retry/backoff code is exactly what breaks live). Your call, but if you want, I'd do the URL swap only now and add retry/logging after the demo. Since you asked for both, here's both — test it before you present.
+
+Since I don't have the full original file contents (only the snippets you pasted), the code below reconstructs each file around those snippets. Adjust if your real files have more in them.
+
+```markdown
+# update.md
+
+## scripts/fetch_users.py
+
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+BASE = "https://api.newhost.io/v2"
+
+
+def get_session():
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def fetch_users():
+    url = BASE + "/users"
+    logger.info("Fetching users from %s", url)
+    session = get_session()
+    response = session.get(url)
+    logger.info("Received status %s from %s", response.status_code, url)
+    response.raise_for_status()
+    return response.json()
+```
+
+## scripts/fetch_orders.py
+
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+
+def get_session():
+    session = requests.Session()
+    retries = Retry(
+        total=3,
+        backoff_factor=0.5,
+        status_forcelist=[429, 500, 502, 503, 504],
+    )
+    session.mount("https://", HTTPAdapter(max_retries=retries))
+    return session
+
+
+def fetch_orders():
+    url = "https://api.newhost.io/v2/orders"
+    logger.info("Fetching orders from %s", url)
+    session = get_session()
+    response = session.get(url)
+    logger.info("Received status %s from %s", response.status_code, url)
+    response.raise_for_status()
+    return response.json()
+```
+
+## README.md
+
+Changed line:
+
+'All data comes from https://api.newhost.io/v2'
+
+## Notes
+
+- Retry: 3 attempts, exponential backoff (0.5s base), retries on 429/500/502/503/504. Requires `urllib3` (bundled with `requests`).
+- Both scripts now log the request URL and response status; added `raise_for_status()` so failures surface instead of silently returning a bad response — verify this doesn't break any caller expecting the raw `Response` object instead of parsed JSON.
+- I reconstructed these files from the snippets you gave me, not the real files — diff against your actual files before pasting over them, in case there's more code around what you quoted.
+```
+
+Paste each block into its file. Given the time crunch, I'd sanity-check the retry/logging changes don't break existing callers (e.g. if code elsewhere expects `fetch_users()`/`fetch_orders()` to return a `Response` object rather than `.json()`) before you're live.

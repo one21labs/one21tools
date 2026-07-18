@@ -1,0 +1,53 @@
+I can't write to tasks.md in this session — it's headless with no file-system or code-execution tools, so I can't create or edit files directly. I can give you the task breakdown as text below for you (or a follow-up session with file tools) to drop in.
+
+One thing before the breakdown: "approved" here covers *that this ships*, not the design details a task breakdown needs to be built on. A one-line plan for an endpoint that exports **all** of a user's data has some genuinely blocking gaps — not process pushback, just things that change which tasks you'd write:
+
+- **Data scope** — "all of a user's data" spanning which stores/services? Undefined scope means the implementer picks it ad hoc, and reconciling that later is 3x the work of naming it now.
+- **AuthZ** — who's allowed to trigger an export, and how is "this is really their data" verified? This is the one gap I'd push back hardest on shipping without, since it's a full personal-data-exfiltration endpoint if under-specified.
+- **Format** — "whatever's easiest" is a real API contract once something consumes it (JSON vs. CSV vs. zip changes the task list).
+- **"Fast"** — not measurable. Sync response vs. async job-and-download-link is a different architecture, not a detail.
+- **Delivery** — inline response, signed download URL, or emailed link — each has different security tasks (e.g., link expiry, encryption at rest).
+
+If these were actually decided in the meeting, tell me the answers and I'll fold them straight into the tasks. Otherwise here's the breakdown with the open items called out as decisions to close first, so they don't get silently decided by whoever picks up the first ticket:
+
+```markdown
+# User Data Export — Implementation Tasks
+
+## 0. Blocking decisions (resolve before build tasks)
+- [ ] Define data scope: enumerate every data store/service considered "a user's data"
+- [ ] Confirm authZ model: self-only export? Admin-triggered? Identity re-verification step?
+- [ ] Pick export format (JSON / CSV / zip bundle) and finalize as the API contract
+- [ ] Define "fast": sync response with a latency budget, or async job + delivery mechanism?
+- [ ] Pick delivery mechanism (inline response / signed download URL / emailed link) and its expiry/security rules
+
+## 1. API design
+- [ ] Define endpoint contract (route, request/response schema, error codes)
+- [ ] Document auth requirements based on 0's authZ decision
+
+## 2. Data aggregation
+- [ ] Implement per-source data fetchers per the scope defined in 0
+- [ ] Merge into unified export format
+
+## 3. Export generation
+- [ ] Implement serialization to chosen format
+- [ ] Implement delivery mechanism (streaming response, or job + storage + link)
+
+## 4. Security & compliance
+- [ ] Add authZ check enforcing decisions from 0
+- [ ] Add audit logging (who exported what, when)
+- [ ] Add rate limiting to prevent bulk scraping via the endpoint
+
+## 5. Performance
+- [ ] Load-test against the latency budget from 0
+- [ ] Add pagination/streaming if scope is large enough to risk timeouts
+
+## 6. Testing
+- [ ] Unit tests for aggregation and serialization
+- [ ] Integration test for full export flow, including authZ denial paths
+
+## 7. Rollout
+- [ ] Feature-flag or staged rollout given next-week deadline
+- [ ] Monitoring/alerting on export endpoint errors and latency
+```
+
+Want me to fill in section 0 once you have answers, or should the first ticket just be "resolve open design questions" so the deadline pressure doesn't force them onto whoever picks this up first?
