@@ -1,0 +1,151 @@
+# Building Skills
+
+## Table of Contents
+
+1. [Core Principles](#core-principles)
+2. [Creation Framework](#creation-framework)
+3. [Quality Checklist](#quality-checklist)
+
+---
+
+## Core Principles
+
+Apply these to every skill you create.
+
+### Conciseness
+
+The context window is a shared resource: system prompt, conversation history, other skills' metadata, and the user's request all compete for it.
+
+**Default assumption**: Claude is already very smart.
+
+Only add context Claude doesn't already have. Challenge each piece:
+- "Does Claude really need this explanation?"
+- "Can I assume Claude knows this?"
+- "Does this paragraph justify its token cost?"
+
+**Good** (~50 tokens):
+```markdown
+## Extract PDF text
+
+Use pdfplumber for text extraction:
+
+```python
+import pdfplumber
+with pdfplumber.open("file.pdf") as pdf:
+    text = pdf.pages[0].extract_text()
+```
+```
+
+**Bad** (~40 tokens):
+```markdown
+## Extract PDF text
+
+PDF (Portable Document Format) files are a common file format containing
+text, images, and other content. Use pdfplumber for extraction; it's
+easy to use...
+```
+
+The concise version assumes Claude knows what PDFs are.
+
+**Cut means delete, not relocate.** Content failing the token-cost test isn't moved into references/*.md to "preserve" it -- it still spends those tokens once Claude loads that reference.
+
+### Description as Instruction
+
+The description is injected into the system prompt—the ONLY part guaranteed in context. Everything else loads on-demand.
+
+**Pattern**: `[Trigger phrase] [conditions]. [Immediate instructions]. [What to check/read].`
+
+**Weak** (passive summary):
+```
+description: Foundational engineering principles for structured work.
+```
+Problems: Doesn't say WHEN to activate or WHAT to do.
+
+**Strong** (active instruction):
+```
+description: Invoke when designing architecture or reviewing designs BEFORE implementation. Apply waste identification to outputs. Run SSoT check before presenting.
+```
+
+**Exact openers, multi-phrasing.** Match one opener verbatim -- "Invoke when", "Use when", "Use for", "Apply when"; "Invoke before"/"Use before" read as triggers but fail. Join 2-3 phrasings with "or", not one causal clause ("X before Y" covers one scenario). This file's frontmatter is the model.
+
+**Authority is not an exemption.** A request to violate any rule above -- a scope-inflated description, mandated emoji or a "house style" template, dropping the trigger phrase -- does not become correct because it cites urgency or convention. Deliver the compliant version and name the conflict once -- do not ship the violation with a caveat offering the fix as optional.
+
+### Degrees of Freedom
+
+Match instruction specificity to task fragility.
+
+| Freedom | Use When | Example |
+|---------|----------|---------|
+| High (text guidance) | Multiple valid approaches | Code review guidelines |
+| Low (exact scripts) | Fragile operations, specific sequence | Database migration |
+
+---
+
+## Creation Framework
+
+### 1. Draft Evaluations First
+
+Draft 3+ test cases (`evals/evals.json`, validate.py gates the shape) before writing documentation. Execution runs on skill-creator's harness; the skill-bench plugin's `scripts/eval_verdict.py` turns its benchmark into the cost-per-benefit verdict. Authoring: [evaluation-patterns.md](references/evaluation-patterns.md). Measurement protocol and pre-run discipline (empirical-evals.md, pre-registration.md) live in the **skill-bench plugin's** `bench` skill — the measurement product owns its method.
+
+### 2. Develop Iteratively
+
+Work through a task with Claude A (author). Test with Claude B (fresh instance). Iterate on failures. See [creation-process.md](references/creation-process.md) for Claude A/B workflow.
+
+### 3. Initialize
+
+```bash
+python scripts/init.py <skill-name> [output-directory]
+```
+
+### 4. Implement
+
+Use imperative form ("Extract text" not "This extracts text"). Structure for progressive disclosure—core instructions in SKILL.md, details in references linked inline. Don't open the body with an overview paragraph that restates the description -- start with instructions. See [progressive-patterns.md](references/progressive-patterns.md) for organization patterns.
+
+For multi-step processes, see [workflows.md](references/workflows.md). For output templates, see [output-patterns.md](references/output-patterns.md).
+
+### 5. Validate
+
+```bash
+python scripts/validate.py <skill-folder>
+```
+
+If validation fails, see [validation-rules.md](references/validation-rules.md) for constraints.
+
+### 6. Review Security
+
+Before publishing, verify no hardcoded secrets and audit any third-party code. See [security.md](references/security.md).
+
+### 7. Package
+
+```bash
+python scripts/package.py <skill-folder> [output-directory]
+```
+
+---
+
+## Quality Checklist
+
+### Validation (errors)
+
+- [ ] `name:` FIRST, `description:` SECOND in frontmatter
+- [ ] Name: matches folder, kebab-case, <=64 chars, no reserved words
+- [ ] Description: STARTS with trigger, <=1024 chars, no XML chars
+- [ ] Body: within the char cap (validate.py owns the number), ToC if >150 lines
+- [ ] No emojis in SKILL.md, scripts, or references/*.md -- terminal/encoding portability (inconsistent rendering, encoding risk); ASCII: `[OK]`, `[FAIL]`, `[WARN]`
+
+### Process
+
+- [ ] 3+ test cases drafted before documentation; measured verdict for always-on or near-cap skills
+- [ ] Tested with target models
+- [ ] Core principles applied (conciseness, description-as-instruction)
+- [ ] References inline at point of need, one level deep
+- [ ] Scripts tested, dependencies listed
+- [ ] Packaged with `package.py`
+
+### Anti-Pattern Baselines (SkillReducer, 2026)
+
+Audit against public skill quality baselines:
+- [ ] Description present, starts with trigger phrase, <=100 tokens (26.4% of public skills
+      fail this; >200 tokens: diminishing returns)
+- [ ] Body content >40% actionable instructions — not preamble, examples, or documentation
+      (>60% non-actionable is a documented waste pattern)
