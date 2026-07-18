@@ -82,6 +82,18 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     const dangling = [...cited].filter(id => !onDisk.has(id));
     if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")}`);
 
+    // Outcome vocabulary (ADR 0079, spec check 13): every `## Act` `- [outcome]` row carries
+    // EXACTLY ONE of verified|violated|still-open — the controlled input a scorecard/hit-rate
+    // consumer classifies on. Free-text synonyms ("FALSIFIED") or double-tags are unclassifiable,
+    // and a dropped miss reads as no miss (unknown != healthy). Applies to every tier.
+    a.text.split("\n").forEach((line, i) => {
+      const m = line.match(/^-\s*\[outcome\]\s*(.*)$/);
+      if (!m) return;
+      const words = new Set([...m[1].matchAll(/\b(verified|violated|still-open)\b/g)].map(x => x[1]));
+      if (words.size !== 1)
+        problems.push(`${a.name}:${i + 1}: [outcome] row must carry exactly one of verified|violated|still-open (has ${words.size})`);
+    });
+
     // Falsifiability (Plan-phase criterion-minting gate): an ADR must state at least one criterion
     // the Check can later test — a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]` assumption
     // bullet, OR a `- [unverifiable]` carrying a REOPEN-IF ON THE SAME BULLET (revisitable on a

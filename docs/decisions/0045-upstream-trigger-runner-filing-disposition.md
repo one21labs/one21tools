@@ -43,4 +43,4 @@ Base-rate ~0 merges discounts any new-PR value to mostly reputational; PR upkeep
 ## Act (post-ship — 2026-07-10)
 - [outcome] both drafts posted in #94 (comment + retitle), nothing posted upstream; #94 stays open, owner-gated — verified (PR #131).
 - [pivot] red-team O7 removed the hold-until-#1323 coupling before ship.
-- [outcome] 2026-07-11: owner declined the upstream posting; #94 closed as not planned (drafts remain in the issue for reference). This supersedes the keep-open disposition; ADR 0033's revisit trigger (upstream lands the fixes → re-diff, consider un-vendoring) still watches upstream independently.
+- [outcome] 2026-07-11: owner declined the upstream posting; #94 closed as not planned (drafts remain in the issue for reference). This supersedes the keep-open disposition (the owner-gated resolution the decision anticipated); ADR 0033's revisit trigger (upstream lands the fixes → re-diff, consider un-vendoring) still watches upstream independently — verified.
