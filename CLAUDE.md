@@ -11,7 +11,6 @@ Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
-Bump a version: `node scripts/set-version.mjs <plugin|marketplace> <x.y.z>`.
 Plugin hooks fire from the installed CACHE, not the working tree — a stale cache silently
 enforces RETIRED policy; reinstall after any hook-touching merge, not just to test edits.
 
@@ -47,7 +46,8 @@ deterministic logic; a doc that restates them rots).
 
 ## Shipping — PR
 - **Size PRs for reviewability, not one-concern (ADR 0056)**: ship cohesive work together across
-  files; split only for a clean revert boundary or to keep main green. Version bumps get their own PR (`set-version.mjs`, ADR 0048).
+  files; split only for a clean revert boundary or to keep main green. Plugins carry NO
+  version fields — updates key on git content (ADR 0075).
 - **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion. Retitle a
@@ -61,7 +61,7 @@ deterministic logic; a doc that restates them rots).
   `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
   branch onto `origin/main` before ranging, branching, or `/retrospect` — a stale local `main` re-adds the
   squashed commits as a phantom range. Preview a branch/PR with three-dot
-  (`origin/main...branch`), never two-dot (tip-to-tip: a behind-branch reads as reverting main).
+  (`origin/main...branch`), never two-dot (ADR 0072).
 - PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
