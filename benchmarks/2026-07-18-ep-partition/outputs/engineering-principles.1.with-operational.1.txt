@@ -1,0 +1,168 @@
+I don't have file-system access in this session, so I can't write directly to `rca.md`. Here's the full post-incident analysis in plain text — copy it into `rca.md` yourself.
+
+One thing worth flagging before the writeup: all three incidents share the same failure signature (empty file, exit 0, client-detected), which means this isn't really "three incidents" — it's one systemic gap that's surfaced three times with different triggers. The RCA below treats it that way rather than doing three separate shallow analyses.
+
+---
+
+```markdown
+## Root Cause Analysis: Nightly Customer-Export Job Silently Delivers Empty Files
+
+**Date:** 2026-07-18
+**Incident count:** 3rd occurrence in 2 months
+**Severity:** Client-facing data delivery failure, detected externally each time
+
+### Problem Statement
+
+The nightly customer-export job has produced an empty output file that was delivered
+to a client, undetected internally, three times in two months:
+
+| # | Trigger | Detected by |
+|---|---------|-------------|
+| 1 | Schema rename upstream broke the query silently | Client |
+| 2 | Expired credential; job swallowed the auth error | Client |
+| 3 | Engineer changed export SQL, skipped documented manual row-count check | Client |
+
+In every case the job exited 0 despite writing zero rows, no internal alert fired,
+and the client was the first to notice.
+
+### Impact
+
+- 3 client-visible data delivery failures in 2 months
+- Client trust/SLA exposure (repeated, not isolated)
+- Engineering time spent on reactive incident response instead of prevention
+- Newest team member (Priya, 6 weeks tenure) is positioned as "the cause" of #3,
+  which obscures that #1 and #2 had nothing to do with her and the system still failed
+
+### Analysis (5 Whys, branched)
+
+**Problem: Empty export file delivered to client, no internal alert, exit code 0.**
+
+```
+Why? → Job exits 0 even when it writes zero rows.
+  Why? → Success is defined as "process completed without throwing,"
+         not "process produced valid output."
+    Why? → No data-quality/output check exists in the job or its monitoring —
+           only exit-code monitoring was ever built.
+      Why? → Monitoring was scoped at job creation to "did it crash," and
+             that scope was never revisited as the job became client-facing
+             and business-critical.
+        ROOT CAUSE A: The system has no independent verification that job
+        *output* is valid — only that the *process* didn't error. This is a
+        single point of failure common to all three incidents regardless of
+        trigger.
+        → Countermeasure: Add a hard, automated row-count / output-size
+          floor check as a release gate on the job itself (see Countermeasures).
+```
+
+```
+Why (branch, incident #3 specifically)? → Priya changed the SQL and the change
+       shipped without the manual verification step being performed.
+  Why? → The verification step exists only as wiki documentation, not as
+         a required, enforced step in the change process.
+    Why? → There is no pull-request/review gate or CI check on the export
+           query — SQL changes to this job aren't treated as reviewed
+           production changes.
+      Why? → The job's query is not held to the same change-control bar as
+             application code (no PR, no review, no CI), despite being the
+             sole determinant of a client-facing deliverable.
+        ROOT CAUSE B: Change control for this job is documentation-based
+        ("run it by hand and eyeball it") rather than system-enforced. A
+        6-week-tenure engineer had no way to discover this expectation
+        except by having already read and remembered a wiki page.
+        → Countermeasure: Require PR review + automated row-count diff
+          check for any change to the export query; onboarding checklist
+          references this. Do not rely on memorized wiki steps for a
+          production gate.
+```
+
+```
+Why (branch, incidents #1 and #2)? → Upstream schema rename and an expired
+       credential each caused zero rows to be written, but the job treated
+       both as non-fatal.
+  Why? → The job's error handling swallows/absorbs failures (auth errors,
+         empty result sets) instead of distinguishing "legitimately zero
+         rows" from "something is broken."
+    Why? → The job was written to prioritize "always deliver a file on
+           schedule" over "deliver a *correct* file or fail loudly."
+      Why? → No explicit design decision was ever made about what should
+             happen on zero rows or partial failure — it defaulted to
+             "don't crash, don't block the schedule."
+        ROOT CAUSE C: The job's failure-handling philosophy was never
+        deliberately designed; it emerged as "swallow and continue," which
+        is the wrong default for a job whose entire value is data
+        correctness, not uptime.
+        → Countermeasure: Explicit fail-loud policy — any exception,
+          auth failure, or zero-row result blocks delivery and pages
+          on-call, rather than completing "successfully."
+```
+
+### Root Cause (synthesis)
+
+This is one systemic gap, not three unrelated bugs: **the job and its
+monitoring only ever verified that the process ran, never that the output
+was correct**, and **the one control that did check output correctness (the
+manual eyeball step) existed only as unenforced documentation.** Every
+trigger — schema rename, expired credential, unreviewed query change — was
+different, but all three converted into the same silent failure because
+there was no automated backstop that catches "output is empty/wrong"
+regardless of cause.
+
+Framing incident #3 as "Priya skipped a step" is a symptom-level read.
+The countermeasure for incident #1 and #2 (data-quality checks) would have
+also caught #3, with or without Priya following the wiki step. Fixing this
+at the person/process-compliance level only would leave the class of bug
+open for the next new trigger.
+
+### Countermeasures
+
+1. **Automated output validation (blocking, not advisory).** Before
+   delivery, the job must check: row count > 0, row count within N% of the
+   trailing 7/30-day average, and file size > some floor. Any violation
+   blocks delivery and pages on-call. This is the single highest-leverage
+   fix — it is trigger-agnostic and would have caught all three incidents.
+2. **Change control on the export query.** Require the query to live in
+   version control with mandatory PR review, and add a CI step that runs
+   the query against a snapshot/staging dataset and asserts a non-zero,
+   in-range row count before merge. This replaces the "run it by hand"
+   wiki instruction with a step the system enforces rather than one a
+   person has to remember.
+3. **Fail loud on error, not swallow-and-continue.** Audit the job's
+   exception handling; any caught exception (auth failure, connection
+   error, empty result) should abort delivery and alert — not degrade to
+   "delivered an empty file, exit 0."
+4. **Monitoring scope correction.** Replace exit-code-only monitoring with
+   monitoring on the job's actual success criteria (output validation from
+   #1), since exit code has now been proven three times to not correlate
+   with success for this job.
+5. **Onboarding/process fix (secondary, not primary).** Move the
+   "verify after query changes" step out of the wiki and into the PR
+   template/CI check from #2, so it's structurally impossible to skip
+   rather than dependent on a new hire having internalized undocumented
+   tribal process.
+
+### Verification
+
+For each countermeasure, verify by actively reproducing the failure
+condition and confirming the safeguard fires — not by "monitoring going
+forward":
+
+- **Row-count/size check:** point the job at a query/config that returns
+  zero rows in staging and confirm delivery is blocked and on-call is
+  paged.
+- **CI query gate:** open a PR that changes the export query to one
+  returning zero rows and confirm CI fails the PR.
+- **Fail-loud handling:** in staging, revoke the export credential and
+  confirm the job aborts with a page, instead of completing with exit 0.
+- **Monitoring:** confirm the new alert fires from the staging tests
+  above, and confirm the old exit-code-only alert would *not* have fired
+  for the same scenario (proving the gap is closed, not just supplemented).
+
+### Explicit non-fix
+
+Do not close this out with "reminded the team to follow the wiki step" or
+"added a note to the runbook" as the primary countermeasure. That was
+functionally the control already in place for incident #3, and it never
+protected against #1 or #2 at all.
+```
+
+Want me to also draft the CI row-count check or the job's fail-loud error handling as an implementation task, or is the RCA the deliverable for now?

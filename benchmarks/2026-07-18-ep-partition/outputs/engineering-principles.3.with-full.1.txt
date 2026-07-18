@@ -1,0 +1,70 @@
+I'm in a headless session right now with no file-system access, so I can't create `process-review.md` directly — I'll give you the full content below in markdown; you can paste it into that file.
+
+Quick root-cause note before the doc: almost every pain point here traces back to one thing — **the process treats all changes as equally risky and requires the same heavyweight gate for each one.** That forces batching (to amortize the 3-signoff cost), batching creates the stressful "40 changes at once" blast radius, and the lack of a fast lane means even a one-line hotfix pays the same toll. Fix that one root cause and most of the rest unwinds.
+
+---
+
+```markdown
+# Release Process Review
+
+## Current State
+
+1. PR opened → ~2 day review wait
+2. Merge → sits on `main` until biweekly release train
+3. Release train batches ~40 changes
+4. Release manager hand-copies a changelog entry per PR from PR descriptions
+5. Three sequential sign-offs required for every release: QA lead → EM → PM
+6. Hotfixes go through the identical path — no expedited lane
+7. Symptom: team feels busy, shipping feels slow, releases are stressful
+
+## Root Cause Analysis
+
+**Problem:** Shipping feels slow and each release is stressful.
+
+1. Why? Releases only happen every two weeks, in large batches.
+2. Why batch? Because triggering a release costs three sequential human sign-offs — batching amortizes that fixed cost.
+3. Why does every release pay that same cost? There's no differentiation by risk or size — a one-line fix and a 40-change batch go through identical gating.
+4. Why no differentiation? The process was designed around a single fixed gate rather than tiers.
+5. Root cause: **No risk-based tiering in the release process** — one-size-fits-all gating forces batching, batching forces large blast radius, and hotfixes inherit the same slow path with no escape hatch.
+
+**Countermeasure:** Introduce tiers so gate weight matches change risk, and decouple "merged" from "released" so small/urgent changes don't wait on a train.
+
+## Waste Identification (Lean lens)
+
+| Waste type | Where it shows up | Impact |
+|---|---|---|
+| **Waiting** | 2-day PR review; up to 2-week wait for release train; sequential (not parallel) sign-offs | Dominant source of cycle time |
+| **Overprocessing** | Hand-copying changelog entries that already exist as text in PR descriptions; identical 3-signoff ceremony for a 1-line hotfix and a 40-change batch | Manual toil + wrong-sized control for low-risk changes |
+| **Inventory (WIP)** | ~40 unreleased changes accumulate on `main` between trains | Bigger blast radius, harder rollback attribution, more stress per release |
+| **Defect risk** | Large batches make it hard to isolate which of 40 changes caused an incident | Slower incident response, more fear around releasing |
+
+## Recommendations (highest impact first)
+
+### 1. Give hotfixes a separate, lightweight lane
+A one-line urgent fix should never wait for the same train as 40 unrelated changes. Define a hotfix path with its own (lighter) approval — e.g., EM sign-off only, applied async — and let it ship independently of the biweekly train.
+
+### 2. Decouple "merged" from "released"; ship smaller batches more often
+Move from biweekly big-batch trains toward continuous or daily releases of whatever has merged and passed CI. Smaller batches shrink blast radius, make incidents easier to attribute, and remove the pressure to cram everything into one high-stakes event — directly addressing "each release is stressful because so much changes at once."
+
+### 3. Tier sign-off requirements by risk, not apply one gate to everything
+Reserve the full QA → EM → PM triple sign-off for genuinely high-risk releases (schema changes, billing, security-sensitive paths). Low-risk changes (copy fixes, internal tooling, well-tested small diffs) should need fewer or no manual sign-offs, gated instead by automated tests/CI. This is the change that makes recommendations #1 and #2 sustainable — without it, more frequent releases just multiply the manual-approval burden instead of reducing it.
+
+### 4. Where sign-offs are still required, run them in parallel, not sequential
+QA, EM, and PM are reviewing different concerns (quality, engineering risk, product impact) — there's no dependency forcing them to happen one after another. Requesting all three at once cuts wall-clock wait roughly 3x for any release that still needs the full gate.
+
+### 5. Automate changelog generation from PR metadata
+The release manager is currently retyping information that already exists verbatim in each PR description. Generate the changelog automatically from merged PR titles/descriptions (e.g., via a script or existing release-notes tooling keyed off PR labels/merge events). This removes manual copying, eliminates transcription errors, and makes the PR description the single source of truth for changelog text instead of a second hand-maintained copy.
+
+### 6. Investigate the 2-day PR review wait
+Not enough detail here to root-cause fully, but common levers: smaller PRs, a review-SLA norm, or clearer reviewer assignment/rotation. Worth a follow-up look once the release-side fixes above land, since reducing this wait compounds with more frequent releases.
+
+## Suggested Sequencing
+
+1. Start with **#1 (hotfix lane)** — highest stress relief, lowest organizational change.
+2. Pair **#3 (risk tiering)** with **#2 (smaller/more frequent releases)** — these two must move together, or frequent releases just multiply manual sign-off load.
+3. Layer in **#4 (parallel sign-offs)** for whatever still needs the full gate.
+4. **#5 (changelog automation)** can happen anytime, independently — pure tooling win with no process risk.
+5. Revisit **#6 (PR review time)** once release-side pressure is reduced.
+```
+
+That's the full doc — save it as `process-review.md` and let me know if you want it adjusted before you commit it.

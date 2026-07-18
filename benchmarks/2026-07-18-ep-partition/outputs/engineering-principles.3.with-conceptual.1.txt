@@ -1,0 +1,57 @@
+I'm running in a headless session right now with no file-system access, so I can't create `process-review.md` directly — I can give you the full review as text below for you to save yourself.
+
+---
+
+# Release Process Review & Recommendations
+
+## Current State
+1. PR opened → ~2 day review wait
+2. Merged PRs sit on `main` until a biweekly train
+3. Train batches ~40 changes at once
+4. Release manager hand-copies changelog entries from each PR description into a release doc
+5. Three sequential sign-offs required for *every* release: QA lead → EM → PM
+6. Hotfixes follow the identical path — no expedite lane
+
+## Diagnosis
+
+The core problem is **batch size, not review rigor**. Every symptom you listed — stress, slowness, feeling busy but not shipping — traces back to bundling ~40 unrelated changes into one high-stakes event, then applying a uniform heavyweight process to all of them regardless of risk.
+
+**1. Oversized batches amplify risk and stress**
+Large batches increase the odds that *something* in the release breaks, and when it does, 40 co-mingled changes make root cause hard to isolate. This is the classic argument against big-batch releases: variation and defect rate compound with batch size, and it concentrates all that risk into one stressful event every two weeks instead of spreading it thinly and continuously.
+
+**2. No expedite path for urgent work**
+Routing a one-line hotfix through the same 40-change train and triple sign-off as everything else means the process has no "class of service." Urgent and routine work should not queue behind the same gate. This is likely your biggest single lever — it's actively harming your ability to respond to incidents.
+
+**3. Changelog is duplicated, not sourced**
+The PR description is already the source of truth for what changed. Hand-copying it into a separate release document creates a second copy of the same fact, which is a Single-Source-of-Truth violation: it's manual, error-prone, and someone has to remember to keep it in sync. This is pure transcription waste — it should be generated, not retyped.
+
+**4. Sign-offs are serial by default, not by necessity**
+QA → EM → PM in sequence means the release waits on three people's calendars back-to-back. Unless PM's approval genuinely depends on EM's decision (and EM's depends on QA's), this is added latency with no corresponding safety benefit. Also worth questioning: does every change need all three sign-offs, or is that calibrated to your riskiest change type and applied uniformly to everything, including trivial fixes?
+
+**5. PR review latency compounds the batching problem**
+A 2-day average review wait is itself worth shrinking, but it's secondary — it's currently masked by the fact that merged code sits for up to two weeks anyway. Fixing batch size will make PR review latency more visible/painful, so it's worth addressing in the same pass.
+
+## Recommendations
+
+**Priority 1 — Build a hotfix/expedite lane**
+Give urgent fixes a separate, lightweight path: minimal targeted review + single accountable sign-off (e.g., EM or on-call lead) + immediate deploy, independent of the train. This alone should resolve the "one-line fix waits two weeks" complaint.
+
+**Priority 2 — Shrink the batch, increase frequency**
+Move from biweekly/40-change batches toward smaller, more frequent releases — ideally per-PR or daily. Smaller batches mean smaller blast radius, easier rollback, and less concentrated stress per release. If a full move to continuous deployment feels too large a jump, start by halving the interval and batch size and iterate.
+
+**Priority 3 — Automate the changelog**
+Generate release notes directly from merged PR titles/descriptions (e.g., via labels, conventional commit format, or a bot that compiles them at release time). Eliminate manual hand-copying entirely — the PR should be the only place this text is written.
+
+**Priority 4 — Make sign-offs risk-proportional and parallel where possible**
+- Run QA, EM, and PM review in parallel instead of sequentially unless there's a genuine dependency.
+- Reserve the full triple sign-off for higher-risk releases (schema changes, payment paths, etc.); let low-risk changes (docs, config, minor fixes) ship with a lighter gate.
+
+**Priority 5 — Tighten PR review turnaround**
+Once release cadence speeds up, a 2-day review wait becomes the new bottleneck. Consider a review SLA, smaller PRs, or a reviewer rotation to keep this from becoming the next chokepoint.
+
+**Track it**
+Once changes land, measure deployment frequency, change failure rate, and time from merge to production. These will tell you whether the above changes are actually reducing stress and increasing throughput, not just moving the bottleneck.
+
+---
+
+Want me to tailor this to something more specific to your stack (e.g., feature flags for decoupling deploy from release, or a concrete expedite-lane proposal)?

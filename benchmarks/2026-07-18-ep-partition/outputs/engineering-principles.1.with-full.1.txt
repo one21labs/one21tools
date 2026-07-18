@@ -1,0 +1,68 @@
+I don't have file-system or code-execution tools available in this session, so I can't write directly to `rca.md`. Here's the full post-incident analysis — please save it yourself, or let me know if you'd like me to try again once file tools are available.
+
+---
+
+# Post-Incident Analysis: Nightly Customer-Export Job Delivers Empty File (3rd Occurrence)
+
+**Date:** 2026-07-18
+**Status:** Third occurrence in two months of the same failure signature
+
+## Problem Statement
+
+The nightly customer-export job completed with exit code 0 after writing zero rows to its output file. The empty file was delivered to a client with no internal alert firing; the client discovered the problem before the team did. This exact signature — empty output, exit 0, no alert, client notices first — has now occurred three times in two months, each with a different immediate trigger.
+
+## Incident History
+
+| # | Trigger | Detection |
+|---|---------|-----------|
+| 1 | Schema rename broke the query silently | Client noticed |
+| 2 | Expired credential, exception swallowed by job | Client noticed |
+| 3 | Priya changed export SQL, skipped the documented manual row-count check | Client noticed |
+
+The triggers are all different. The outcome and detection failure are identical every time — that repetition is itself the signal that the real root cause is systemic, not any one trigger.
+
+## Root Cause Analysis (5 Whys, two branches)
+
+### Branch A — Immediate trigger (this incident)
+1. Why did the export contain 0 rows? → Priya's changed query returned no matching rows.
+2. Why wasn't that caught before delivery? → The manual verification step ("run by hand, eyeball row count") documented in the wiki wasn't performed.
+3. Why wasn't it performed? → It's an undiscoverable, memory-dependent manual step; Priya is six weeks into the role and had no system-enforced prompt to do it.
+4. Why does correctness depend on a human remembering a wiki step at all? → No automated safeguard exists to block delivery of anomalous output.
+5. Why not? **Root cause A:** The pipeline was designed to treat the job's exit code as the sole correctness signal; output validation was never built into the system itself, only documented as a human process.
+
+### Branch B — Systemic detection failure (common to all 3 incidents)
+1. Why did no one get alerted, all three times? → Monitoring only checks the job's process exit code.
+2. Why does exit code 0 happen even with zero rows / a swallowed exception? → The job's error handling catches failures (e.g., expired credential) without propagating them, and a 0-row result is indistinguishable from a valid result.
+3. Why is a successful-but-empty output not treated as a failure? → There is no data-quality gate (row count, size, anomaly check) between "job exited" and "file delivered."
+4. Why is there no such gate? → Monitoring was built around infra/process health, not data correctness — a common but incomplete monitoring model.
+5. **Root cause B:** Success is defined purely by process exit status. There is no check on the content of what was produced, and no circuit breaker preventing delivery of suspect output.
+
+**Note on "human error":** It would be easy to close this as "Priya forgot a step." Per Deming, that's not a root cause — it's a symptom. The real question is what system allowed a critical correctness check to depend entirely on an individual's memory of a wiki page, with zero enforcement or fallback. That's Root Cause A.
+
+## What We Should Change
+
+**Immediate (Jidoka — stop the line automatically):**
+- Add a hard row-count/output-size gate before delivery: if rows are zero or anomalously low relative to a trailing baseline (e.g., 7-day average), the job fails loudly and delivery is blocked. This is the automated replacement for the manual "eyeball the row count" step — it removes the dependency on human memory (poka-yoke).
+- Treat "ran but produced suspect output" as a distinct, alertable failure mode, separate from "process crashed."
+
+**Short-term:**
+- Extend monitoring to check data-quality signals (row count, byte size, output schema), not just exit code.
+- Stop swallowing exceptions (e.g., the credential failure from incident 2) — a caught error should still fail the job.
+- Audit other client-facing delivery jobs for the same "exit code = success" pattern; this anti-pattern is unlikely to be unique to this one job.
+
+**Process / SSoT:**
+- Move the manual verification step out of the wiki and into the pipeline as code. A documented instruction asking a human to compensate for a missing system safeguard is itself the smell to fix — the check should live in exactly one place (the pipeline), not as tribal knowledge two people might not have read.
+- Require that changes to export SQL either pass the automated row-count gate or get peer review before running against production data.
+
+**Longer-term:**
+- Default all client-facing delivery jobs to fail-safe, not fail-open: any exception, anomaly, or low row count should default to withholding delivery and alerting — never silently shipping a possibly-wrong file.
+- Keep an onboarding checklist for new engineers on data-delivery pipelines, but treat it as a stopgap only, not the fix — the goal is that this class of mistake becomes structurally impossible to ship, not just easier to remember.
+
+## Verification (not "we'll monitor going forward")
+
+Before closing this incident, reproduce all three failure modes in staging and confirm the new gate catches each one:
+1. **Zero-row query** (this incident's trigger): confirm the gate fails the job, blocks delivery, and alerts on-call.
+2. **Swallowed exception** (incident 2's trigger, expired credential): confirm the exception now propagates or the row-count gate catches the resulting empty output.
+3. **Schema rename** (incident 1's trigger): rename a column the query depends on and confirm the job fails or the gate trips instead of silently returning 0 rows.
+
+Only close the incident once all three are demonstrated to be caught automatically, not merely documented as "should be caught."

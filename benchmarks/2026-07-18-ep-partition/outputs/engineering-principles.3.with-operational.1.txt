@@ -1,0 +1,102 @@
+I don't have file-system or code-execution access in this session, so I can't write `process-review.md` directly. Here's the full review as markdown — save it yourself as `process-review.md`.
+
+---
+
+```markdown
+# Release Process Review
+
+## Problem Statement
+The team merges work steadily but perceives shipping as slow, and releases are
+stressful. Root cause analysis below traces this to the release process design,
+not developer throughput.
+
+## Root Cause Analysis (5 Whys)
+
+**Problem:** Shipping feels slow and releases are stressful, despite the team
+being busy.
+
+1. Why? Merged code sits unreleased for up to 14 days (biweekly train) before
+   users see it.
+2. Why does it sit? Release cadence is fixed by calendar, not by readiness —
+   every change waits for the same train regardless of size or urgency.
+3. Why is batching itself stressful? ~40 unrelated changes ship together, so
+   when something breaks, isolating the cause and deciding what to roll back
+   is hard — risk compounds across the batch instead of per-change.
+4. Why do hotfixes wait too? There is one undifferentiated release path; a
+   one-line urgent fix goes through the identical batch, changelog, and
+   triple sign-off as the full 40-change release.
+5. Root cause: **The process treats "merge," "release," and "sign-off" as a
+   single fixed-size, fixed-cadence, one-size-fits-all unit**, instead of
+   decoupling them and scaling each to the risk/urgency of the change.
+
+A second, independent root cause behind the manual toil:
+
+1. Why is the changelog hand-copied? Because there is no single source of
+   truth for release notes — the PR description holds the real content, and a
+   human retypes it into a separate document.
+2. Why does that matter? It's manual, repeated ~40 times per release, and
+   error-prone (an SSoT violation: the same fact — what changed — exists in
+   two places that can drift).
+3. Root cause: **No automated pipeline turns PR metadata into release notes.**
+
+## Waste Identified (Lean lens)
+
+| Waste | Where |
+|---|---|
+| Waiting | Merged code waits up to 14 days for the train; PRs wait ~2 days for review |
+| Inventory | ~40 changes queue up before release — large "work in progress" pile |
+| Overprocessing | Full 3-party sequential sign-off applied uniformly, even to one-line hotfixes |
+| Motion/manual transcription | Release manager hand-copies changelog entries from every PR |
+| Defects (compounded risk) | Large batch size makes failures harder to attribute and roll back |
+
+## Recommendations
+
+### 1. Decouple deploy from release cadence (highest impact)
+Move toward shipping smaller batches more frequently — ideally deploying on
+merge, gated by feature flags for anything not ready for users. This directly
+attacks the root cause: it removes the fixed 2-week inventory buildup and
+shrinks blast radius per release, which is what makes releases stressful.
+- Start incrementally if a full move to continuous deployment is too big a
+  jump: shorten the train from biweekly to weekly, then daily, while
+  measuring stability.
+
+### 2. Give hotfixes a real fast path
+Define an expedited path for narrowly-scoped, urgent, low-risk fixes:
+single sign-off (e.g., on-call engineer or EM), deploy independently of the
+train. Don't force a one-line fix through the same governance as a
+40-change batch — risk-scale the process instead of applying it uniformly.
+
+### 3. Automate the changelog from PR data (eliminate the SSoT violation)
+Make the PR description/title the single source of truth, and generate the
+release document from it automatically (e.g., conventional-commit style
+labels + a release-notes bot, or tooling like release-please). This removes
+manual transcription entirely rather than optimizing it.
+
+### 4. Right-size and parallelize sign-off
+Two separate fixes here, not one:
+- **Risk-scale approvals:** small/low-risk changes need fewer or lighter
+  sign-offs (or automated checks); reserve the full QA → EM → PM chain for
+  changes that actually warrant it.
+- **Parallelize what remains:** QA, EM, and PM sign-offs don't have an
+  inherent dependency on each other — running them concurrently instead of
+  strictly sequentially cuts review lead time even where all three are
+  still required.
+
+### 5. Separately investigate PR review latency
+The ~2-day average PR wait is a distinct bottleneck from the release train
+and worth its own root-cause pass (reviewer load, lack of review SLA, unclear
+ownership) — but it isn't the primary driver of "release feels stressful";
+don't let it distract from fixing the batching/sign-off issues above first.
+
+## Suggested Sequencing
+1. Automate changelog generation (low risk, immediate toil reduction).
+2. Stand up the hotfix fast path (addresses the most acute pain first).
+3. Risk-tier and parallelize sign-offs.
+4. Shorten release cadence incrementally (weekly → daily/continuous),
+   backed by feature flags.
+5. Once release stress drops, revisit PR review latency as its own effort.
+```
+
+---
+
+Want me to adjust tone/length, or focus more on one recommendation (e.g., a concrete plan for the feature-flag rollout or the hotfix path)?

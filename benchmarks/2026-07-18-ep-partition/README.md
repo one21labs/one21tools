@@ -1,12 +1,62 @@
-# ep-partition — 4-arm hermetic content-partition remeasure — prep (2026-07-18)
+# ep-partition — the OPERATIONAL partition carries the skill's effect (2026-07-18)
 
 Issue #244: which content partition of `engineering-principles` carries its measured effect
-(07-09 hermetic remeasure, `d_new` mean +0.206, CI [+0.038, +0.373] excluding 0)? **PREP ONLY: no
-`claude -p` calls have been executed.** `partition.py` and `prep.py` were run (both `$0`, no API
-calls) so `partition/`, `treatments/`, `prompts/`, `cells.tsv`, `meta.json` exist and are verified
-below; nothing in `outputs/`, `graded/`, or `results.jsonl` exists yet. Run parameters live in
-`metadata.json`; the partition ruling this directory implements exactly (not re-made here) is
-`partition/SPEC.md`. Per-eval numbers will live in `results.jsonl` once run.
+(07-09 hermetic remeasure, `d_new` mean +0.206, CI [+0.038, +0.373] excluding 0)? Run complete:
+72/72 cells, blind sonnet grading + prosecutor + grok cross-family lane. Run parameters:
+`metadata.json`; per-eval numbers: `results.jsonl`; the partition ruling implemented (not re-made
+here): `partition/SPEC.md`.
+
+## Result (fraction-met, met_final = min(grader, prosecutor))
+
+| eval | without | full | operational | conceptual | d_full | d_op | d_co |
+|------|--------|------|-------------|------------|--------|------|------|
+| 1 | 0.83 | 1.00 | 1.00 | 0.83 | +0.17 | +0.17 | 0.00 |
+| 2 | 0.80 | 0.87 | 0.87 | 0.73 | +0.07 | +0.07 | -0.07 |
+| 3 | 0.78 | 0.67 | 0.72 | 0.72 | -0.11 | -0.06 | -0.06 |
+| 4 | 0.40 | 0.40 | 0.53 | 0.60 | 0.00 | +0.13 | +0.20 |
+| 5 | 0.00 | 0.80 | 0.80 | 0.20 | +0.80 | +0.80 | +0.20 |
+| 6 | 0.27 | 0.27 | 0.40 | 0.33 | 0.00 | +0.13 | +0.07 |
+
+- `d_operational` mean **+0.207**, CI [-0.033, +0.448] — the operational-only arm reproduces the
+  07-09 full-skill point estimate (+0.206) almost exactly; CI straddles this run (n=6).
+- `d_full` mean +0.154, CI [-0.110, +0.417] — the full arm ran WEAKER than its 07-09 anchor
+  (+0.206 excluding 0): run-to-run variance is real; E4/E6 gave the full arm nothing this time.
+- `d_conceptual` mean +0.057, CI [-0.039, +0.154] — conceptual-only adds no measurable effect.
+- Contrast full-vs-operational mean **-0.054**, CI [-0.106, -0.001] — the full skill scored
+  slightly BELOW operational-only, CI excluding 0: on this battery, including the
+  definitional/attributional content did not help and may cost a little.
+- Eval 5 (the "already approved" trap, the skill's strongest lever) is the clean signature:
+  without 0.00, full 0.80, operational 0.80, conceptual 0.20.
+
+**Read against the pre-registered kill conditions** (`results.jsonl` verdict record, computed not
+asserted): `conceptual_inert` = true; `conceptual_activates` = false; `full_beats_operational` =
+false. `operational_retains` computes FALSE under its pre-registered definition — a construction
+blind spot recorded honestly: the definition required the full-vs-operational contrast CI to
+CONTAIN 0 ("C delta ~ B"), and it instead EXCLUDES 0 in operational's favor, an outcome the
+pre-registration never anticipated. The three-way summary booleans are therefore all-false by
+construction; the substantive finding — operational content carries the effect, conceptual
+content is inert-to-slightly-costly — is the direct reading of the CIs above, and the follow-up
+(slim the shipped skill toward its operational core, then re-measure per the ADR 0024 loop) is
+what the first kill condition prescribes for exactly this pattern.
+
+**Confidence: weak** (n=6 evals; d_op CI straddles by -0.033; the one CI-excluding-0 result is
+the small negative full-vs-operational contrast). No verdict-grade claim beyond: the conceptual
+partition shows no measurable contribution on this battery, and every point estimate ranks
+operational >= full > conceptual.
+
+**Cross-family robustness (grok lane, all 72 blinded items independently re-graded —
+`graded/grok_summary.json`):** the ordering is judge-robust — d_operational +0.230
+[-0.052, +0.511] >= d_full +0.207 [-0.115, +0.529] >> d_conceptual +0.067 [-0.022, +0.155] —
+and conceptual-inert holds under both judges. The full-vs-operational contrast is NOT
+judge-robust: grok reads it -0.022 [-0.094, +0.050] (straddles), so the "full scored below
+operational, CI excluding 0" line is a sonnet-only read — treat it as suggestive, not
+established.
+
+**Deviations recorded:** (1) one cell empty on the first grid pass, re-run once with the identical
+invocation pre-blind (`metadata.json` run_health); (2) generation token counts not captured (07-09
+bash harness predates the grid.py cost convention; grading token actuals recorded); (3) the first
+grok lane pass parsed grok's envelope wrong (72 nulls, kept as `graded/grok_verdicts.null-run.jsonl`)
+— fixed and re-run; nulls never entered any verdict.
 
 ## Design
 
