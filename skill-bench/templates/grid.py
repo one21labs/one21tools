@@ -24,7 +24,7 @@ HERE = Path(__file__).resolve().parent
 # ADAPT: path to skill-bench/scripts/lib — repo checkout shown; installed plugin:
 # Path(os.environ["CLAUDE_PLUGIN_ROOT"]) / "scripts" / "lib"
 sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
-from cost_gate import gate  # noqa: E402
+from cost_gate import gate, spent_so_far  # noqa: E402
 from hermetic_driver import (build_env, capture_artifacts, do_call,  # noqa: E402
                              fresh_copy, summarize_call)
 
@@ -93,7 +93,11 @@ def main():
     out = HERE / ("pilot-outputs" if args.pilot else "outputs")
     out.mkdir(exist_ok=True)
     env = build_env()
-    state = {"spent": 0.0, "halt": False}
+    # Seed with prior invocations' committed spend so the ceiling backstop below compares
+    # CUMULATIVE cost across checkpoint/resume, not this invocation's alone (#233).
+    state = {"spent": spent_so_far(out), "halt": False}
+    if state["spent"]:
+        print(f"resuming: ${state['spent']:.2f} already spent in {out.name}/", flush=True)
     lock = threading.Lock()
 
     if args.pilot:
