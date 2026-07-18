@@ -30,7 +30,9 @@ REPS = 3
 TIMEOUT_S = 600
 
 _raw = json.loads((REPO / "skills" / "building-skills" / "evals" / "evals.json").read_text(encoding="utf-8"))
-EVALS = {f'E{e["id"]}': {"task": e["prompt"], "expectations": e["expectations"]} for e in _raw["evals"]}
+DROPPED = {"E3", "E6"}  # saturated in the bare prescreen (1.00 >= 0.85) — metadata.json:prescreen
+EVALS = {f'E{e["id"]}': {"task": e["prompt"], "expectations": e["expectations"]}
+         for e in _raw["evals"] if f'E{e["id"]}' not in DROPPED}
 
 
 def treatment(name):
