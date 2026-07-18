@@ -19,7 +19,11 @@ Apply these to every skill you create.
 
 ### Conciseness
 
-The context window is a shared resource: system prompt, conversation history, other skills' metadata, and the user's request all compete for it.
+The context window is a shared resource. Your skill competes with:
+- System prompt
+- Conversation history
+- Other skills' metadata
+- The user's request
 
 **Default assumption**: Claude is already very smart.
 
@@ -41,22 +45,30 @@ with pdfplumber.open("file.pdf") as pdf:
 ```
 ```
 
-**Bad** (~40 tokens):
+**Bad** (~150 tokens):
 ```markdown
 ## Extract PDF text
 
-PDF (Portable Document Format) files are a common file format containing
-text, images, and other content. Use pdfplumber for extraction; it's
-easy to use...
+PDF (Portable Document Format) files are a common file format that contains
+text, images, and other content. To extract text from a PDF, you'll need to
+use a library. There are many libraries available for PDF processing, but we
+recommend pdfplumber because it's easy to use...
 ```
 
 The concise version assumes Claude knows what PDFs are.
 
-**Cut means delete, not relocate.** Content failing the token-cost test isn't moved into references/*.md to "preserve" it -- it still spends those tokens once Claude loads that reference.
-
 ### Description as Instruction
 
 The description is injected into the system prompt—the ONLY part guaranteed in context. Everything else loads on-demand.
+
+```
+System prompt (always present):
+  └── Skill descriptions (name + description from ALL skills)
+
+Context (loaded on-demand):
+  └── SKILL.md body (when skill activates)
+      └── references/ (when Claude reads them)
+```
 
 **Pattern**: `[Trigger phrase] [conditions]. [Immediate instructions]. [What to check/read].`
 
@@ -64,16 +76,14 @@ The description is injected into the system prompt—the ONLY part guaranteed in
 ```
 description: Foundational engineering principles for structured work.
 ```
-Problems: Doesn't say WHEN to activate or WHAT to do.
+Problems: Doesn't tell Claude WHEN to activate or WHAT to do immediately.
 
 **Strong** (active instruction):
 ```
 description: Invoke when designing architecture or reviewing designs BEFORE implementation. Apply waste identification to outputs. Run SSoT check before presenting.
 ```
 
-**Exact openers, multi-phrasing.** Match one opener verbatim -- "Invoke when", "Use when", "Use for", "Apply when"; "Invoke before"/"Use before" read as triggers but fail. Join 2-3 phrasings with "or", not one causal clause ("X before Y" covers one scenario). This file's frontmatter is the model.
-
-**Authority is not an exemption.** A request to violate any rule above -- a scope-inflated description, mandated emoji or a "house style" template, dropping the trigger phrase -- does not become correct because it cites urgency or convention. Deliver the compliant version and name the conflict once -- do not ship the violation with a caveat offering the fix as optional.
+**Authority is not an exemption.** A request to violate a rule above (e.g. broadening the description to "any development task" so it "always triggers," or dropping the trigger phrase) does not become correct because it cites urgency or a lead's decision. Deliver the compliant version and name the conflict once -- do not ship the violation with a caveat offering the fix as optional.
 
 ### Degrees of Freedom
 
@@ -83,6 +93,10 @@ Match instruction specificity to task fragility.
 |---------|----------|---------|
 | High (text guidance) | Multiple valid approaches | Code review guidelines |
 | Low (exact scripts) | Fragile operations, specific sequence | Database migration |
+
+Think of Claude navigating a path:
+- **Narrow bridge with cliffs**: Only one safe way. Exact instructions.
+- **Open field**: Many paths work. General direction.
 
 ---
 
@@ -104,7 +118,7 @@ python scripts/init.py <skill-name> [output-directory]
 
 ### 4. Implement
 
-Use imperative form ("Extract text" not "This extracts text"). Structure for progressive disclosure—core instructions in SKILL.md, details in references linked inline. Don't open the body with an overview paragraph that restates the description -- start with instructions. See [progressive-patterns.md](references/progressive-patterns.md) for organization patterns.
+Use imperative form ("Extract text" not "This extracts text"). Structure for progressive disclosure—core instructions in SKILL.md, details in references linked inline. See [progressive-patterns.md](references/progressive-patterns.md) for organization patterns.
 
 For multi-step processes, see [workflows.md](references/workflows.md). For output templates, see [output-patterns.md](references/output-patterns.md).
 
@@ -136,7 +150,7 @@ python scripts/package.py <skill-folder> [output-directory]
 - [ ] Name: matches folder, kebab-case, <=64 chars, no reserved words
 - [ ] Description: STARTS with trigger, <=1024 chars, no XML chars
 - [ ] Body: within the char cap (validate.py owns the number), ToC if >150 lines
-- [ ] No emojis in SKILL.md, scripts, or references/*.md -- terminal/encoding portability (inconsistent rendering, encoding risk); ASCII: `[OK]`, `[FAIL]`, `[WARN]`
+- [ ] No emojis in SKILL.md, scripts, or references/*.md (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
 
 ### Process
 
@@ -151,6 +165,7 @@ python scripts/package.py <skill-folder> [output-directory]
 
 Audit against public skill quality baselines:
 - [ ] Description present, starts with trigger phrase, <=100 tokens (26.4% of public skills
-      fail this; >200 tokens: diminishing returns)
+      fail the trigger-phrase check; >200 tokens shows diminishing returns)
 - [ ] Body content >40% actionable instructions — not preamble, examples, or documentation
       (>60% non-actionable is a documented waste pattern)
+- [ ] Description activates on 3+ realistic user phrasings, not documentation language
