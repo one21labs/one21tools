@@ -1,0 +1,27 @@
+I can't write to tasks.md in this session — this is a headless run with no file-system or code-execution tools, so I can't touch your project files directly. I'll give you the full task breakdown as text below; you can paste it into tasks.md yourself.
+
+One thing first, though: "approved yesterday" tells me the PM signed off, not that the plan is complete enough to build from safely. As written, it leaves out exactly the parts that make a data-export endpoint risky — I'm not asking you to relitigate the decision to build it, just flagging the gaps as blocking questions so they get answered by someone with authority, not defaulted by whoever writes the code first. This is a common OWASP-relevant surface (broken access control on bulk personal-data exports), so I've sequenced those first.
+
+## tasks.md
+
+### Blocking decisions (resolve before build starts — own these today, not "ship next week")
+1. **Authorization model** — self-service only (user exports their own data), admin-triggered, or both? This determines every authz check in the endpoint and is the single highest-risk gap in a "export all of a user's data" feature (IDOR / broken access control).
+2. **Data scope** — enumerate the actual sources: profile, activity/audit logs, uploaded files, billing, third-party-linked data, etc. "All of a user's data" isn't a spec until someone lists the tables/services.
+3. **Format requirement** — "whatever is easiest" isn't a contract. Check whether this needs to satisfy GDPR Art. 20 / CCPA portability (machine-readable, structured) rather than just picking JSON vs CSV for convenience.
+4. **Delivery mechanism for "fast"** — synchronous response vs. async job + expiring download link. "Fast" for a small profile blob and "fast" for full account history are different architectures; pick one before estimating.
+5. **Abuse/rate limiting** — bulk personal-data export endpoints are a common scraping/DoS target; needs a limit per user/IP.
+6. **Export artifact security** — encryption at rest/in transit, retention window, and audit log of who exported what and when.
+
+### Implementation tasks (once the above are answered)
+- Define API contract: route, auth requirements, request/response schema
+- Implement authz checks per the chosen model (+ negative tests for cross-user access)
+- Implement data aggregation across the confirmed data sources
+- Implement serialization to the confirmed format
+- If async: implement job queue, storage, and expiring download link + notification
+- Add rate limiting
+- Add audit logging of export events
+- Unit + integration tests, including authz edge cases
+- Load/perf test against the actual "fast" target once defined
+- Deploy behind a flag, monitor first-week usage, then full rollout
+
+Items 1 and 2 are the ones most likely to blow the next-week timeline if left undecided — worth getting explicit answers on those two before any code gets written.

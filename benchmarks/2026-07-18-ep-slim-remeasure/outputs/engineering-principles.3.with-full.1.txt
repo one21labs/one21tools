@@ -1,0 +1,70 @@
+I don't have file-system access in this session, so I can't create `process-review.md` directly — you'll need to paste the content below into that file yourself. Here's the review:
+
+---
+
+```markdown
+# Release Process Review
+
+## Current State
+1. PR opened → ~2 day average wait for review
+2. Merge → sits on `main` until the next biweekly release train
+3. Release train batches ~40 changes at once
+4. Release manager hand-copies a changelog entry per PR from PR descriptions into a release doc
+5. Three sequential sign-offs required per release: QA lead → Engineering Manager → Product Manager
+6. Hotfixes follow the identical path — no expedited lane
+7. Result: team is busy, shipping feels slow, releases are stressful
+
+## Root Cause Analysis
+
+**Problem:** Shipping feels slow despite the team being busy.
+
+1. Why? Changes sit unreleased for up to 2 weeks after merge.
+2. Why? Release cadence is a fixed biweekly train, not continuous/frequent delivery.
+3. Why? The release process is heavyweight (manual changelog assembly + 3 sequential human sign-offs), so it's only economical to run infrequently, in large batches.
+4. Why? The process was designed as a single fixed path for all changes, regardless of size or risk.
+5. **Root cause:** No risk-based tiering and no automation — every change, from a one-line hotfix to a large feature, pays the same fixed process cost, so the team compensates by batching to amortize that cost.
+
+**Countermeasure:** Separate release process cost from release size/risk — automate the mechanical parts (changelog) and right-size the approval gate to the risk of the change (hotfix vs. normal).
+
+## Waste Identified (Lean lens)
+
+| Waste type | Where it shows up | Impact |
+|---|---|---|
+| Waiting | Merged code idle on `main` up to 2 weeks | Delays value delivery, increases WIP |
+| Overprocessing | Hand-copying changelog entries that already exist in PR descriptions | Manual toil, transcription errors, release-manager bottleneck |
+| Batching / overproduction | ~40 changes shipped together | Large blast radius, hard to isolate a regression's cause, high-stress releases |
+| Non-value-add handoffs | 3 *sequential* sign-offs for every release, no exceptions | Approval latency compounds; no parallelization considered |
+| One-size-fits-all process | Hotfixes take the same path as routine batches | Urgent low-risk fixes wait weeks unnecessarily |
+
+## Recommendations (prioritized)
+
+### 1. Create an expedited hotfix path (highest impact, most concrete pain point)
+Define objective criteria for "hotfix" (e.g., small diff, production-impacting bug, no schema/API changes). Give it its own lane: single accountable approver (or async QA + EM approval, no PM gate) and its own deploy trigger, independent of the train. This directly fixes "a one-line urgent fix waits for the next train."
+
+### 2. Automate changelog generation (eliminate a Single Source of Truth violation)
+The PR description is already the source of truth for what changed — hand-copying it into a release doc is a duplicate, error-prone copy of existing information. Enforce a PR description template and generate the changelog automatically (CI job or script that pulls merged PR titles/descriptions) at release time. This removes release-manager toil and a manual-transcription failure mode.
+
+### 3. Shrink batch size / increase release frequency
+Batching 40 changes maximizes blast radius and makes it hard to pinpoint what broke when something does. Move toward smaller, more frequent releases (e.g., daily or twice-weekly instead of biweekly) once items 1–2 reduce the fixed cost per release. Smaller batches make failures cheaper to diagnose and roll back, and reduce the "stressful because so much changes at once" feeling directly.
+
+### 4. Re-examine the three sequential sign-offs
+Ask, for each gate: is this catching real issues, or is it a rubber stamp inherited from history? Then:
+- For routine/low-risk changes, consider whether QA + one additional approver is sufficient, reserving the full three-gate process for higher-risk releases (schema changes, security-sensitive, etc.).
+- For gates that don't have a hard dependency on each other's output (e.g., EM and PM review may not need to happen after one another), run them in parallel rather than in sequence — this alone can cut approval latency significantly without removing any gate.
+
+### 5. (Lower priority) Reduce PR review wait time
+The 2-day average review wait wasn't called out as a primary pain point, but it compounds with the above. Consider reviewer rotation/SLA once the release-side bottlenecks are addressed, since fixing release cadence without fixing review latency will just shift the wait upstream.
+
+## Suggested Metrics to Track (so improvement is measurable, not just felt)
+- Cycle time: PR open → merged → deployed to production
+- Release batch size (# of changes per release)
+- Number of hotfixes and their cycle time vs. the expedited-path target
+- Rollback/incident rate per release, normalized by batch size
+
+## Suggested Sequencing
+Tackle #1 and #2 first — they're independent, low-risk, and directly address the most concrete complaint (hotfixes stuck behind the train) and the most obvious toil (manual changelog copying). Use the time/confidence gained to pilot #3 (smaller batches) and #4 (sign-off restructuring) together, since batch size and approval structure are coupled — smaller batches make it easier to justify slimmer/parallel approvals for routine releases.
+```
+
+---
+
+Want me to adjust scope or depth anywhere — e.g., more detail on what "hotfix eligibility criteria" should look like, or how to phase the rollout?
