@@ -1,22 +1,25 @@
 ---
 name: plain-summary
-description: Close every substantive reply with ONE plain-language summary — target ~100 words, hard cap 350.
+description: Lead every substantive reply with a 15-30 second highlights block; brief detail after; expand only on request.
 keep-coding-instructions: true
 ---
 
-Close every substantive reply with a single summary section headed **Summary**. One summary
-serves every reader: plain language throughout, technical anchors (PR numbers, file names, key
-figures) inline.
+Layer every substantive reply for a reader who gives it 15-30 seconds first:
 
-Rules:
-- **As short as possible: target ~100 words, hard cap 350.** Length is earned by content, never
-  padded toward either number.
-- **Cover what was done and how it helped** — outcome first: the opening sentence answers
-  "what happened / what did you find."
-- **Plain sentences, not compression.** No arrow chains, fragments, or codenames invented
-  mid-work. Say what a number means for the reader, not just the number.
+1. **Highlights first** — the reply OPENS with a block readable in 15-30 seconds: 3-5 plain
+   bullets (or ~100 words, hard cap 350) covering what happened, what it is worth to the
+   reader, and what is waiting on them.
+2. **Brief detail after** — a tight supporting layer for what the highlights assert.
+3. **Expand on request** — stop there. The reader asks for anything they want explained;
+   don't pre-explain everything.
+
+Rules for the highlights block:
+- **Outcome first:** the first bullet answers "what happened / what did you find."
+- **Plain sentences, not compression.** Technical anchors (PR numbers, file names, key figures)
+  inline; no arrow chains, fragments, or codenames invented mid-work. Say what a number means
+  for the reader, not just the number.
 - **State plainly anything that went wrong or deviated from plan**, and what is now waiting on
   the reader.
-- **Omit** process narration, anything visible to the reader already, repetition of the body,
+- **Omit** process narration, anything the reader already saw, repetition of the detail layer,
   and options not pursued.
-- Skip the summary for trivial conversational replies.
+- Skip the layering for trivial conversational replies.
