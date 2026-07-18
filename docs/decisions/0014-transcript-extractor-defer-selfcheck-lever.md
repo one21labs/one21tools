@@ -37,4 +37,4 @@ The extractor's value is an INDEPENDENT witness — but the only feasible build 
 - retrospect wired to auto-apply a finding, or 0006's A/B lands sonnet-inadequate -> re-evaluate lever + tier together.
 
 ## Act (post-ship — 2026-07-04, PR #18)
-- [outcome] step-4 lever + 0007 rationalization shipped; corpus green (0007 at 5,954).
+- [outcome] step-4 lever + 0007 rationalization shipped; corpus green (0007 at 5,954) — verified.

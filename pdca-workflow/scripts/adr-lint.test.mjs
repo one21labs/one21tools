@@ -151,6 +151,31 @@ test("no unpointed amendment on the real corpus", () => {
   assert.deepEqual(hits, []);
 });
 
+// Outcome vocabulary (ADR 0079, spec check 13): a scorecard consumer classifies `- [outcome]`
+// rows on exactly one controlled word; a synonym or double-tag is unclassifiable and a dropped
+// miss reads as no miss.
+test("fires on an [outcome] row without exactly one of verified|violated|still-open", () => {
+  const files = [adr("0001-a.md", {
+    body: "\n# 0001\n\n- Date: 2026-06-27\n\n## Act (post-ship)\n- [outcome] H1 FALSIFIED judge-robust.\n- [outcome] verified then violated on rerun.\n",
+  })];
+  const { problems } = lint({ files });
+  assert.equal(problems.filter(p => /\[outcome\] row must carry exactly one/.test(p)).length, 2);
+  assert.match(problems[0], /has 0/);
+  assert.match(problems[1], /has 2/);
+});
+
+test("a controlled-vocabulary [outcome] row passes; prose mentioning the words is not a row", () => {
+  const files = [adr("0001-a.md", {
+    body: "\n# 0001\n\nProse saying verified and violated together is fine.\n\n## Act (post-ship)\n- [outcome] premise held under re-measure — verified.\n- [outcome] awaiting the A/B signal — still-open.\n",
+  })];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("no uncontrolled [outcome] row on the real corpus", () => {
+  const hits = lint({ files: corpus() }).problems.filter(p => /\[outcome\] row/.test(p));
+  assert.deepEqual(hits, []);
+});
+
 test("fires UNFALSIFIABLE when an ADR states no falsifiable criterion", () => {
   const files = [adr("0001-first.md", { noCriterion: true })];
   assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);

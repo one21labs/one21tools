@@ -117,7 +117,9 @@ A/B's outcome, a future retro miss), which it must NAME. A permanently out-of-sa
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
-restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say. Across the
+restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say. Each
+`- [outcome]` row carries exactly ONE of `verified` / `violated` / `still-open` (lint check 13,
+ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
 `[outcome]` lines) is the **assumption hit-rate** — the emergent, bottom-up quality signal of the
 loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, via

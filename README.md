@@ -1,109 +1,87 @@
 # one21tools
 
-Claude Code skills for software development and engineering workflows.
+Claude Code plugins that measure whether their own guidance works: skills are kept, improved, or
+reverted by hermetic paired evals — never on faith — plus a PM-led decision workflow whose
+records and gates are enforced in CI.
 
-**Goal: quality output, autonomously.** Claude Code as a real assistant that needs minimal
-direction and correction, and self-improves through the measured loop below — so mistakes reduce
-and quality rises over time. Everything here serves one of those two levers: raise the measured
-benefit-per-token of what Claude loads (quality), or move rules into surfaces that fire without a
-human catching the miss — shipped gates, hooks, and skills, not prose (autonomy). Work is
-prioritized against them.
-
-Built on manufacturing engineering principles — Lean, TPS, Deming — applied to AI-assisted development. Every skill is designed to give Claude the right context at the right altitude: no redundancy, no noise, no content Claude already knows. That token efficiency is enforced, not aspirational: SKILL.md bodies and references, ADRs, CLAUDE.md, and agent prompts are held to CI-checked character budgets.
-
-The differentiating idea: manufacturing quality principles translate directly to AI-assisted code. Lean's waste elimination becomes YAGNI and SSoT enforcement. Toyota's poka-yoke becomes boundary validation. Deming's "build quality in" becomes catching defects at source rather than inspecting them out downstream. The skills encode these as Claude directives.
-
-## Skills
-
-| Skill | What it does |
-|-------|--------------|
-| `code-standards` | Language-agnostic code quality standards: file headers, naming, error handling, logging. SSoT and altitude as the governing tests for what belongs in a comment. |
-| `engineering-principles` | Lean/TPS/Deming manufacturing principles applied to software, documentation, and process. Includes context engineering mapped to TPS. |
-| `building-skills` | Framework for creating, testing, and validating Claude Code skills. Covers conciseness, description-as-instruction, and iterative testing — plus the empirical skill-improvement loop below. |
-| `optimizing-context` | Patterns for structuring Claude's context efficiently: CLAUDE.md, skills, plugins, subagents, MCP, hooks. |
-
-## The skill-improvement loop
-
-Skills here are not shipped on faith — the dev/engineering skills carry eval sets and paired
-benchmarks, and pdca-workflow's flagship skills (`/decide`, `/retrospect`) carry outcome-level
-instruments (`benchmarks/2026-07-1{2,3,4}-pdca-*`, six of them: rubric-quality nulls vs
-cost-matched baselines everywhere — recorded, not spun — judge-robust for both cheap panel
-replacements; the measured values are the process guarantees, retrospect's FP discipline, and
-the independent-perspectives failure-anticipation edge; ADR 0057/0061 route the program).
-Measurements exist to **improve** the skills (raise benefit-per-token), not just gatekeep them.
-The loop (method home: `skill-bench/skills/bench/references/empirical-evals.md`; decision records:
-ADR 0019, 0023, 0024, 0025 in `docs/decisions/`):
-
-1. **Evals** — each measured dev/engineering skill has `evals/evals.json` (3+ cases,
-   schema-gated by `validate.py`); pdca-workflow skills are measured by the outcome
-   instruments above instead.
-2. **Hermetic paired benchmark** — each eval runs with and without the skill under a hermetic
-   executor (no installed plugins, no repo file access; ADR 0023 — a non-hermetic run is a
-   recorded confounded null, never a verdict).
-3. **Blind grading + prosecutor** — a grader blind to the arm scores each response against the
-   eval's expectations; every PASS is re-examined adversarially.
-4. **Verdict** — eval-clustered mean delta with a 95% CI, read against token cost
-   (`skill-bench/scripts/eval_verdict.py`). Keep, improve, or revert follows the
-   measurement (ADR 0024); results land as append-only snapshots under `benchmarks/<date>-*/`.
-5. **Description ablation** — the frontmatter description is the one always-loaded surface, so it
-   is trigger-tested separately (TP/FP on should-fire and adjacent should-not-fire queries) and
-   trimmed to the shortest text that holds recall
-   (`skill-bench/skills/bench/references/description-ablation.md`).
-
-All of this machinery is in-repo and self-contained (python3 + node + the `claude` CLI; trigger
-runs are Linux/WSL-only). No external skill or plugin needs to be installed to run it —
-`evals.json` keeps the upstream skill-creator schema for provenance, but execution no longer
-depends on skill-creator (ADR 0033).
-
-## Test machinery and gates
-
-| Piece | Where | What it enforces / does |
-|-------|-------|------------------------|
-| `validate.py` | `skills/building-skills/scripts/` | Skill shape: frontmatter, char budgets, emoji ban, eval schema. Run on every skill in CI. |
-| `eval_verdict.py` | `skill-bench/scripts/` | Benchmark JSON -> cost-per-benefit verdict; audits raw-sample completeness (ADR 0023). |
-| `run_eval.py` | `skill-bench/scripts/` | Vendored trigger runner (description ablation instrument; ADR 0033, `/bench trigger`). |
-| `skill-bench/scripts/lib/` | `skill-bench` plugin | Shared benchmark harness: IO + verdict math + hermetic driver + blind grading + cost gate + cross-family judge (`bench_io.py`, `verdict.py`, `judge.py`, ...), unit-tested. |
-| `adr-lint.mjs` | `pdca-workflow/scripts/` | Decision-log integrity (frontmatter, ids, cites, char budgets) plus agent char budgets and marketplace/plugin.json manifest drift. |
-| `check-workflow.mjs` | `scripts/` | Benchmark workflow files: syntax + explicit `model:` on every agent call (ADR 0029). |
-| `check-pr-body.mjs` | `scripts/` | Required `Retrospective:` line on every PR (ADR 0030). |
-| `gates.yml` | `.github/workflows/` | Runs all of the above as the required CI check (ADR 0012). |
-
-Judgment calls are decided, not accumulated: `docs/decisions/` is the ADR log (one decision per
-record, linted, version-agnostic). The repo dogfoods its own `pdca-workflow` plugin for this.
-
-## PDCA workflow plugin
-
-`pdca-workflow` packages a PM-led Plan-Do-Check-Act feedback loop — `/decide`, `/advise`,
-`/verify`, `/red-team`, `/retrospect`, `/pdca-init` — that you can drop into any project. After
-installing, run `/pdca-init` once per project to generate its CLAUDE.md and advisor panel, then
-`/decide` to decide your first judgment call. See
-[pdca-workflow/README.md](pdca-workflow/README.md) for the cycle, the agents, and the ADR system.
+**Goal: quality output, autonomously, judged as the person receiving it.** Two levers, and
+everything here serves one of them: raise the measured benefit-per-token of what Claude loads
+(quality), or move rules into surfaces that fire without a human catching the miss — gates,
+hooks, and skills, not prose (autonomy).
 
 ## Install
 
-Add the marketplace and install plugins from within Claude Code:
-
 ```
 /plugin marketplace add one21labs/one21tools
-/plugin install dev-skills@one21tools
-/plugin install engineering-skills@one21tools
-/plugin install pdca-workflow@one21tools
+/plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
+/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS applied to software)
+/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /pdca-init
+/plugin install skill-bench@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
 
-`dev-skills` bundles code-standards, building-skills, and optimizing-context. `engineering-skills` bundles engineering-principles. `pdca-workflow` adds the PM-led feedback loop (agents, skills, and a hook) — see the section above.
+Updates: `/plugin marketplace update one21tools`. Or clone and symlink individual skills:
+`ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
 
-To get updates after installation:
+Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are
+Linux/WSL-only); cross-family judging prefers a `grok` CLI and falls back to same-family with a
+recorded caveat. Installing the skills alone needs none of that.
 
-```
-/plugin marketplace update one21tools
-```
+## What changes after install
 
-Or clone and symlink individual skills without the plugin system:
+- The engineering skills fire on design, planning, waste, and SSoT questions and push back on
+  sunk-cost, premature abstraction, and copy-paste-under-deadline patterns — the behaviors the
+  eval battery below actually tests.
+- `/decide` runs a PM-led panel and records the call as a linted ADR; `/verify` and `/red-team`
+  gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
+  (structure, cites, char budgets) — not convention.
+- `/bench` measures any skill with paired with/without runs, blind grading, an adversarial
+  prosecutor pass, and pre-registered cost ceilings.
 
-```bash
-git clone https://github.com/one21labs/one21tools.git
-ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards
-```
+## Measured state (the honest block)
+
+Every differentiation claim here carries its measured status; `benchmarks/` holds the
+append-only evidence, one dated dir per run.
+
+- `code-standards`: KEEP, strong, judge-robust (2026-07-17 re-measure).
+- `engineering-principles`: improved version's benefit +0.206 mean fraction-met delta, 95% CI
+  [+0.038, +0.373] excluding zero — hermetic, blind + prosecutor (2026-07-09 re-measure).
+  Which content carries that delta (operational triggers vs concepts the model may already
+  know) is under measurement (#244).
+- `pdca-workflow` panel: honest nulls recorded — rubric-quality ~ cost-matched baselines across
+  six instruments; the measured survivors are the process guarantees (forced records, spend
+  gates), retrospect's false-positive halving, and an n=1 failure-anticipation edge
+  (pdca-workflow/README.md "Measured" section routes the program).
+- Cross-family judging: two caught verdict flips, nine robust holds (2026-07-17 re-grade).
+- The repo measures itself: `node scripts/scorecard.mjs` computes the decision corpus's
+  assumption hit-rate and audit coverage (a compass that fires reviews, never a CI block).
+
+## The improvement loop
+
+1. Each measured skill has `evals/evals.json` (3+ cases, schema-gated).
+2. Paired hermetic runs — with/without the skill, no repo access, no installed plugins; a
+   non-hermetic run is a recorded confounded null, never a verdict.
+3. Blind grading + a prosecutor re-examining every PASS.
+4. Verdict: eval-clustered mean delta with a 95% CI, read against token cost. Keep, improve, or
+   revert follows the measurement; results land under `benchmarks/<date>-*/`.
+5. Description ablation: the always-loaded frontmatter description is trigger-tested separately.
+
+Method home: `skill-bench/skills/bench/references/empirical-evals.md`.
+
+## Gates (required CI)
+
+`gates.yml` runs on every PR: skill shape + char budgets (`validate.py`), decision-log
+integrity + doc/agent budgets (`adr-lint.mjs`), every gate script's decision-logic tests,
+benchmark workflow checks, cross-file restatement, PR-body guards, and the fetch-audit
+requirement for new external references. Judgment calls are decided, not accumulated:
+`docs/decisions/` is the ADR log; the repo dogfoods its own `pdca-workflow` for every call
+recorded there.
+
+## Where the ideas come from
+
+Lean/TPS/Deming, applied: waste elimination becomes YAGNI and SSoT enforcement; poka-yoke
+becomes gates that make the error impossible rather than detected; "build quality in" becomes
+catching defects at source. The skills encode these as directives — and the loop above is what
+keeps them honest.
 
 ## License
 
