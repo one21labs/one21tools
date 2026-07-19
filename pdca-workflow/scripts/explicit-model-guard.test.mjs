@@ -21,7 +21,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -106,4 +106,19 @@ test("no docs/pdca marker -> no-op even on the deny case (ADR 0071)", { skip }, 
   const r = runToolInput({ prompt: "do the thing", description: "task" }, FIX_BARE);
   assert.equal(r.stdout, "");
   assert.equal(r.status, 0);
+});
+
+test("gate-hit telemetry (ADR 0080): deny appends exactly one line, allow appends none", { skip }, () => {
+  // Fresh fixture — FIX_ADOPTED is shared across cases, so counts there are not deterministic.
+  const fix = mkdtempSync(join(tmpdir(), "emg-telemetry-"));
+  try {
+    mkdirSync(join(fix, "docs", "pdca"), { recursive: true });
+    assert.ok(denies({ prompt: "do the thing" }, fix)); // decision unchanged with telemetry on
+    assert.ok(!denies({ prompt: "do the thing", model: "haiku" }, fix));
+    const log = readFileSync(join(fix, "docs", "pdca", "gate-hits.txt"), "utf8").trim().split("\n");
+    assert.equal(log.length, 1);
+    assert.match(log[0], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z gate-hit explicit-model-guard unset$/);
+  } finally {
+    rmSync(fix, { recursive: true, force: true });
+  }
 });

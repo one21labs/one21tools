@@ -28,19 +28,26 @@ root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
 PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 
-run_gate() {
-  out=$("$@" 2>&1) || { printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2; }
+run_gate() {  # $1 = gate name for telemetry; rest = the gate command
+  gname="$1"; shift
+  out=$("$@" 2>&1) || {
+    # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — appended
+    # after the failure is decided, error-suppressed; marker-guarded, never mkdir (ADR 0071).
+    # Line format home: scorecard.mjs parseGateHits.
+    { [ -d "$root/docs/pdca" ] && printf '%s gate-hit %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$gname" "$fp" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
+    printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2
+  }
 }
 
 case "$fp" in
   */skills/*)
     skilldir=$(printf '%s' "$fp" | sed -n 's/.*\(skills\/[^/]*\)\/.*/\1/p')
-    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
+    [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate validate.py "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in
-  */benchmarks/*.workflow.js) run_gate node "$root/scripts/check-workflow.mjs" ;;
+  */benchmarks/*.workflow.js) run_gate check-workflow.mjs node "$root/scripts/check-workflow.mjs" ;;
 esac
 case "$fp" in
-  */README.md|*/docs/*.md|*/benchmarks/*.md) run_gate node "$root/scripts/check-restatement.mjs" ;;
+  */README.md|*/docs/*.md|*/benchmarks/*.md) run_gate check-restatement.mjs node "$root/scripts/check-restatement.mjs" ;;
 esac
 exit 0
