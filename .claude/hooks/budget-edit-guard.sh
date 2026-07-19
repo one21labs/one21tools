@@ -55,6 +55,18 @@ try:
     # Deny only when the edit lands over cap AND does not shrink the file — an over-cap file
     # being cut toward compliance must never be trapped by its own guard.
     if len(out) > cap and len(out) > len(cur):
+        # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the
+        # deny below must print even if this append fails. Line format home: scorecard.mjs
+        # parseGateHits; docs/pdca marker check per ADR 0071, never mkdir.
+        try:
+            from datetime import datetime, timezone
+            pdca = os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", "."), "docs", "pdca")
+            if os.path.isdir(pdca):
+                with open(os.path.join(pdca, "gate-hits.txt"), "a", encoding="utf-8") as lf:
+                    lf.write(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                             + f" gate-hit budget-edit-guard {fp}\n")
+        except Exception:
+            pass
         reason = (f"budget-edit-guard (ADR 0060): this edit lands {fp} at {len(out)} chars, over its "
                   f"{cap} cap (current {len(cur)}, headroom {max(0, cap - len(cur))}, edit adds "
                   f"{len(out) - len(cur):+d}). Measure first; cut muda elsewhere in the file to fit "

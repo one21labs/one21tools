@@ -13,6 +13,10 @@
  * - outcome-audit coverage: accepted full-tier ADRs older than `ageDays` with no `## Act` are
  *   uncovered (Act-presence is the ship marker, so age is the mechanical proxy for
  *   shipped-but-unaudited). Lite share prints as a readout (lite ADRs carry no Act machinery).
+ * - gate hits by gate (ADR 0080): the local gate hooks append one line per FIRING (deny/exit-2)
+ *   to docs/pdca/gate-hits.txt; parseGateHits below is the line format's ONE home (hooks cite
+ *   it). Readout only — no bands until variance is known (ADR 0080 (d)); a malformed line is
+ *   fail-loud (listed, folds into PARTIAL); an ABSENT log post-ship is a true zero, stated.
  * - deferred instruments print NOT INSTRUMENTED every run and the aggregate verdict reads
  *   PARTIAL while any miss-class is uninstrumented — silence must never read as coverage.
  *
@@ -43,7 +47,7 @@ export const SCORECARD_CONFIG = {
   // Static NOT INSTRUMENTED list — printed every run so a green read-out can never imply
   // these miss-classes are measured (ADR 0079 BREAK-3 guard).
   deferred: [
-    { name: "defect-escape", reason: "no mechanical defect marker (no label; squash repo has no reverts)" },
+    { name: "defect-escape", reason: "no mechanical ESCAPE marker — gate-hits measure the caught side only (ADR 0080); squash repo has no reverts" },
     { name: "owner-intervention rate", reason: "no correction taxonomy; classifying a correction is an LLM call" },
     { name: "summary-truthfulness spot-audit", reason: "reference-veracity ships first (narrower, recorded catch)" },
   ],
@@ -82,12 +86,34 @@ export function parseAdrs(files) {
 
 const rate = (num, den) => (den === 0 ? null : num / den);
 
+// ONE home of the gate-hits line format (ADR 0080 (c)) — every gate hook cites this. A line is
+// `<ISO-8601 UTC> gate-hit <gate-name> <context…>`; context is free text to end of line.
+const GATE_HIT_LINE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z) gate-hit (\S+)(?: (.*))?$/;
+
+/**
+ * Pure parse of docs/pdca/gate-hits.txt. `text` null/undefined = file absent (post-ship that is
+ * a TRUE zero — the hooks log every fire — distinct from uninstrumented). Blank lines skipped;
+ * any other non-matching line is malformed: fail-loud downstream, never dropped.
+ */
+export function parseGateHits(text) {
+  if (text === null || text === undefined) return { present: false, hits: [], malformed: [] };
+  const hits = [], malformed = [];
+  text.replace(/\r\n/g, "\n").split("\n").forEach((line, i) => {
+    if (!line.trim()) return;
+    const m = line.match(GATE_HIT_LINE);
+    if (m) hits.push({ date: m[1], gate: m[2], context: m[3] ?? "" });
+    else malformed.push(i + 1);
+  });
+  return { present: true, hits, malformed };
+}
+
 /**
  * Pure decision logic per the metrics-engine.md contract. `today` is an ISO date string —
  * injected, never read from the clock, so runs are reproducible and testable.
- * Returns { rows, triggers, unparsed, deferred, verdictLine }.
+ * Returns { rows, triggers, unparsed, gateHits, deferred, verdictLine }. `gateHits` is a
+ * parseGateHits() result; omitted = absent log (backward-compatible).
  */
-export function analyze(adrs, config = SCORECARD_CONFIG, today) {
+export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parseGateHits(null)) {
   const outcomes = adrs.flatMap(a => a.outcomes);
   const unparsed = outcomes.filter(o => o.verdict === "unparsed");
   const n = v => outcomes.filter(o => o.verdict === v).length;
@@ -125,6 +151,19 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today) {
     sample: adrs.length, status: "readout",
     detail: `${adrs.filter(a => a.lite).length} lite of ${adrs.length} ADRs (lite carries no Act machinery)`,
   });
+  // Gate hits by gate (ADR 0080 (d)): readout, no bands until variance is known. `display`
+  // overrides the % formatting in main — this is a count, not a rate.
+  const byGate = {};
+  for (const h of gateHits.hits) byGate[h.gate] = (byGate[h.gate] ?? 0) + 1;
+  rows.push({
+    metric: "gate hits by gate (readout, no band)", value: null, display: `${gateHits.hits.length} hit(s)`,
+    sample: gateHits.hits.length, status: "readout",
+    detail: gateHits.present
+      ? (gateHits.hits.length
+        ? Object.entries(byGate).sort((a, b) => b[1] - a[1]).map(([g, n]) => `${g} ${n}`).join(", ")
+        : "log present, zero hits")
+      : "no gate-hits log — zero hits since instrumentation (ADR 0080), not uninstrumented",
+  });
 
   // Aggregate verdict — gated, not an adjacent note: PARTIAL while any miss-class is
   // uninstrumented or any row is unevaluated; the bare all-clear exists only when every
@@ -134,11 +173,12 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today) {
   if (config.deferred.length) parts.push(`${config.deferred.length} miss-class(es) uninstrumented`);
   if (unevaluated.length) parts.push(`${unevaluated.length} metric(s) not evaluated`);
   if (unparsed.length) parts.push(`${unparsed.length} unparseable outcome line(s)`);
+  if (gateHits.malformed.length) parts.push(`${gateHits.malformed.length} unparseable gate-hit line(s)`);
   const verdictLine = parts.length
     ? `PARTIAL — ${parts.join("; ")}${triggers.length ? `; ${triggers.length} trigger(s) fired` : ""}`
     : (triggers.length ? `${triggers.length} trigger(s) fired` : "No threshold fired — all metrics evaluated and clear");
 
-  return { rows, triggers, unparsed, deferred: config.deferred, verdictLine };
+  return { rows, triggers, unparsed, gateHits, deferred: config.deferred, verdictLine };
 }
 
 function main(argv) {
@@ -152,16 +192,21 @@ function main(argv) {
     console.error(`scorecard: cannot read ${dir}/ (need NNNN-*.md ADR files): ${e.message}`);
     process.exit(2);
   }
-  const { rows, triggers, unparsed, deferred, verdictLine } =
-    analyze(parseAdrs(files), SCORECARD_CONFIG, new Date().toISOString().slice(0, 10));
+  // Gate-hits log lives beside the decisions dir (docs/decisions -> docs/pdca, ADR 0080 (c)).
+  let gateHitsText = null;
+  try { gateHitsText = readFileSync(join(dir, "..", "pdca", "gate-hits.txt"), "utf8"); } catch { /* absent = true zero */ }
+  const { rows, triggers, unparsed, gateHits, deferred, verdictLine } =
+    analyze(parseAdrs(files), SCORECARD_CONFIG, new Date().toISOString().slice(0, 10), parseGateHits(gateHitsText));
 
   console.log(`scorecard — ${dir}/ (ADR 0079; compass, not a CI gate)`);
   for (const r of rows) {
-    const val = r.value === null ? "n/a" : `${(r.value * 100).toFixed(1)}%`;
+    const val = r.display ?? (r.value === null ? "n/a" : `${(r.value * 100).toFixed(1)}%`);
     console.log(`  ${r.metric}: ${val} [${r.status}] — ${r.detail}`);
   }
   for (const o of unparsed)
     console.log(`  UNPARSEABLE OUTCOME (not evaluated, excluded): ${o.adr}:${o.line}`);
+  for (const n of gateHits.malformed)
+    console.log(`  UNPARSEABLE GATE-HIT LINE (excluded): gate-hits.txt:${n}`);
   for (const d of deferred)
     console.log(`  NOT INSTRUMENTED: ${d.name} — ${d.reason}`);
   for (const t of triggers) console.log(`  TRIGGER: ${t}`);

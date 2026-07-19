@@ -8,6 +8,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/gate-pipe-guard.sh"
 pass=0; fail=0
 
+# Fixture project dir (ADR 0080): without it, root falls back to the runner's cwd and a deny
+# would append gate-hit telemetry into the REAL repo's docs/pdca/. No marker dir here, so the
+# decision cases below run telemetry-silent; the explicit telemetry cases add the marker.
+FIX=$(mktemp -d)
+trap 'rm -rf "$FIX"' EXIT
+export CLAUDE_PROJECT_DIR="$FIX"
+
 # $1 = case name, $2 = command string, $3 = "deny" or "allow"
 run_case() {
   name="$1"; cmd="$2"; expect="$3"
@@ -39,6 +46,19 @@ out=$(printf '' | bash "$HOOK")
 if printf '%s' "$out" | grep -q '"permissionDecision":"deny"'; then got=deny; else got=allow; fi
 if [ "$got" = "allow" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "allow: truly empty stdin fails open"
 else fail=$((fail+1)); printf 'FAIL: %s (got %s)\n' "allow: truly empty stdin fails open" "$got"; fi
+
+# --- Gate-hit telemetry (ADR 0080): marker-gated, one line per deny, none on allow ---
+if [ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "no docs/pdca marker: denies above logged nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "no docs/pdca marker: denies above logged nothing"; fi
+mkdir -p "$FIX/docs/pdca"
+run_case "deny unchanged with marker present (telemetry on)" 'node pdca-workflow/scripts/adr-lint.mjs docs | tail' deny
+if [ "$(grep -c 'gate-hit gate-pipe-guard adr-lint.mjs' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "deny appended exactly one gate-hit line"
+else fail=$((fail+1)); printf 'FAIL: %s log=[%s]\n' "deny appended exactly one gate-hit line" "$(cat "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)"; fi
+run_case "allow logs nothing (marker present)" 'node pdca-workflow/scripts/adr-lint.mjs docs && echo done' allow
+if [ "$(grep -c 'gate-hit' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "allow appended nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "allow appended nothing"; fi
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

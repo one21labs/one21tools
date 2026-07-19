@@ -71,6 +71,16 @@ big70=$(python3 -c "print('z'*70)")
 out=$(payload Write "$FIX/pdca-workflow/agents/pm.md" "content=$big70" | bash "$HOOK")
 printf '%s' "$out" | grep -q 'deny'; check "agent file held to agent cap" $?
 
+# 10-13. Gate-hit telemetry (ADR 0080): marker-gated, one line per deny, none on pass
+[ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; check "no docs/pdca marker: denies above logged nothing" $?
+mkdir -p "$FIX/docs/pdca"
+python3 -c "open('$FIX/CLAUDE.md','w').write('small')"
+out=$(payload Write "$FIX/CLAUDE.md" "content=$big" | bash "$HOOK")
+printf '%s' "$out" | grep -q '"permissionDecision": "deny"'; check "deny unchanged with marker present" $?
+[ "$(grep -c 'gate-hit budget-edit-guard' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; check "deny appended exactly one gate-hit line" $?
+out=$(payload Write "$FIX/CLAUDE.md" "content=fine" | bash "$HOOK")
+[ "$(grep -c 'gate-hit' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; check "pass appended nothing" $?
+
 rm -rf "$FIX"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" = "0" ]

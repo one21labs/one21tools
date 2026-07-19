@@ -78,5 +78,22 @@ out=$(printf '' | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK"); code=$?
 if [ "$code" = "0" ] && [ -z "$out" ]; then pass=$((pass+1)); printf 'PASS: allow: malformed/empty stdin fails open\n'
 else fail=$((fail+1)); printf 'FAIL: allow: malformed/empty stdin fails open (exit=%s out=[%s])\n' "$code" "$out"; fi
 
+# --- Gate-hit telemetry (ADR 0080): marker-gated, one line per deny with sub-guard context ---
+if [ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "no docs/pdca marker: denies above logged nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "no docs/pdca marker: denies above logged nothing"; fi
+mkdir -p "$FIX/docs/pdca"
+run_case "deny G2 unchanged with marker present (telemetry on)" "gh pr create --title x --body-file $BAD" deny "disclosure"
+if [ "$(grep -c 'gate-hit pr-create-guard missing-disclosure' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "G2 deny appended one line with sub-guard context"
+else fail=$((fail+1)); printf 'FAIL: %s log=[%s]\n' "G2 deny appended one line with sub-guard context" "$(cat "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)"; fi
+run_case "deny G3 unchanged with marker present" "gh pr create -R other/repo --title x --body-file $GOOD" deny "one21labs"
+if [ "$(grep -c 'gate-hit pr-create-guard external-repo' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "G3 deny appended one line with sub-guard context"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "G3 deny appended one line with sub-guard context"; fi
+run_case "allow logs nothing (marker present)" "gh pr create --title x --body-file $GOOD" allow
+if [ "$(grep -c 'gate-hit' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "2" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "allow appended nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "allow appended nothing"; fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

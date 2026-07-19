@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { parseAdrs, analyze, SCORECARD_CONFIG } from "./scorecard.mjs";
+import { parseAdrs, parseGateHits, analyze, SCORECARD_CONFIG } from "./scorecard.mjs";
 
 const TODAY = "2026-07-18";
 
@@ -131,6 +131,48 @@ test("coverage: aged Act-less full ADR is uncovered; young, lite, undated, non-a
   const lite = rows[3];
   assert.equal(lite.value, 1 / 6);  // readout row
   assert.equal(lite.status, "readout");
+});
+
+// --- Gate-hit telemetry (ADR 0080) ---
+
+test("parseGateHits: counts well-formed lines, flags malformed fail-loud, skips blanks", () => {
+  const text = [
+    "2026-07-19T01:00:00Z gate-hit adr-lint docs/decisions/0080-x.md",
+    "",
+    "2026-07-19T01:01:00Z gate-hit budget-edit-guard /some/CLAUDE.md",
+    "2026-07-19T01:02:00Z gate-hit adr-lint",                       // context optional
+    "not a gate hit line at all",                                   // malformed -> flagged
+    "2026-07-19 gate-hit adr-lint x",                               // bad timestamp -> flagged
+  ].join("\n");
+  const g = parseGateHits(text);
+  assert.equal(g.present, true);
+  assert.equal(g.hits.length, 3);
+  assert.deepEqual(g.hits.map(h => h.gate), ["adr-lint", "budget-edit-guard", "adr-lint"]);
+  assert.deepEqual(g.malformed, [5, 6]);
+});
+
+test("gate-hits breakdown row: per-gate counts sorted desc; malformed lines fold into PARTIAL", () => {
+  const text = [
+    "2026-07-19T01:00:00Z gate-hit adr-lint a.md",
+    "2026-07-19T01:01:00Z gate-hit adr-lint b.md",
+    "2026-07-19T01:02:00Z gate-hit gate-pipe-guard validate.py",
+    "garbage line",
+  ].join("\n");
+  const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified"] })]);
+  const { rows, verdictLine } = analyze(adrs, bareConfig(), TODAY, parseGateHits(text));
+  const gh = rows[4];
+  assert.equal(gh.status, "readout");
+  assert.equal(gh.sample, 3);
+  assert.equal(gh.detail, "adr-lint 2, gate-pipe-guard 1");
+  assert.match(verdictLine, /1 unparseable gate-hit line\(s\)/); // fail-loud, never dropped
+});
+
+test("absent gate-hits log: stated as a true zero, does not break the all-clear (readout, not uninstrumented)", () => {
+  const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified", "verified"] })]);
+  const { rows, verdictLine } = analyze(adrs, bareConfig(), TODAY); // no 4th arg = absent log
+  const gh = rows[4];
+  assert.match(gh.detail, /no gate-hits log — zero hits since instrumentation/);
+  assert.equal(verdictLine, "No threshold fired — all metrics evaluated and clear");
 });
 
 // Real-corpus regression (adr-lint.test.mjs corpus() convention): pins today's mined values so a
