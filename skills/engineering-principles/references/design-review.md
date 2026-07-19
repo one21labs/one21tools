@@ -11,17 +11,11 @@
 - [Review Process](#review-process)
 - [Anti-Patterns](#anti-patterns)
 
-Checklists to verify design completeness before implementation. Fixing design is cheap; fixing implementation is expensive.
+Checklists to verify design completeness before implementation.
 
 ## Core Principle
 
 **Design before implementation.** Outline before draft. Architecture before code. Spec before build.
-
-The parent-child relationship:
-- Design (parent) → Implementation (child)
-- Implementation follows from design
-- If design is wrong, implementation will be wrong
-- Rework is waste
 
 ## When to Use
 

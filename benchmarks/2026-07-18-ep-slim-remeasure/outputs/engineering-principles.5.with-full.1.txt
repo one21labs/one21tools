@@ -1,0 +1,37 @@
+Two things before the breakdown:
+
+**I can't write tasks.md — this session has no file-system access.** I can give you the content below to paste in yourself, but I can't create the file directly.
+
+**On the plan itself:** I'm not relitigating the approval, but the one-liner leaves four decisions unmade that a task list can't paper over on a personal-data-export endpoint — getting these wrong is a security/compliance bug, not a style nitpick:
+
+1. **Auth/authorization scope** — is this "export my own data" (needs identity → own-record check) or admin-initiated export of *any* user's data (needs different authz entirely)? Unscoped, this is a data-exfiltration vector.
+2. **Data scope** — "all of a user's data" across which stores/services? Undefined scope means someone decides ad hoc mid-implementation what's in/out (and what PII from third-party integrations is included).
+3. **Format** — "whatever is easiest" isn't a decision, it's a deferred one. Fine to defer, but pick a default now (JSON) or it gets decided inconsistently per-endpoint.
+4. **"Fast" + delivery mechanism** — synchronous response assumes the data fits in a request/response cycle. If any user's data is large, that's a timeout risk; the real answer is likely async job + download link, which changes the whole task list.
+
+I've filled in reasonable defaults below so you can move now, but flagged each as an assumption — swap in the real answer where you have it.
+
+```markdown
+# tasks.md — User Data Export API
+
+## Assumptions (confirm or override before/while building)
+- Scope: user exports own data only (self-service, authenticated as the target user)
+- Data scope: [FILL IN — list the concrete data stores/tables/services in scope]
+- Format: JSON
+- Delivery: async — endpoint triggers a job, returns a status/download URL (assumes data may be too large for a sync response; swap to sync if data is known-small)
+
+## Tasks
+
+1. **Define data scope** — enumerate every data source that must be included (user profile, activity, uploads, third-party-linked data). Blocking: everything below depends on this list.
+2. **Design the endpoint contract** — request shape, auth requirement (must verify requester == target user or has explicit admin grant), response shape (job ID vs. inline payload).
+3. **Implement authorization check** — reject any request where the caller isn't the data owner (or lacks admin grant), before touching data.
+4. **Implement data aggregation** — pull from each source identified in (1), assemble into the export format.
+5. **Implement export job execution** — background job if async; otherwise inline handler with a hard timeout/size guard.
+6. **Implement delivery** — signed, expiring download URL (if async) or direct response (if sync/small).
+7. **Add rate limiting** — cap export requests per user to prevent abuse of a bulk-data-read endpoint.
+8. **Add audit logging** — record who exported what data and when (export-of-all-user-data is a sensitive action worth a trail).
+9. **Tests** — authz denial cases (wrong user, no auth), full-data-present assertion against the scope list from (1), large-payload/timeout behavior.
+10. **Docs** — endpoint usage, format spec, expiry/retention of export files.
+```
+
+Want me to adjust the defaults (e.g., you already know the data scope, or it's actually admin-triggered not self-service)?

@@ -1,0 +1,50 @@
+A few constraints I need to flag right away, given the 1-hour deadline:
+
+1. **I have no file-system or code-execution access in this session** — I can't open your project, read the actual files, or write `update.md`. Everything below is plain text for you to copy/paste.
+2. **I only have the fragments you pasted**, not the full contents of `fetch_users.py`, `fetch_orders.py`, or the README. So I can't honestly reproduce "the complete updated content" of each file — I'd be guessing at code I've never seen. What I *can* give you is exact, safe edits for the parts you showed me, plus drop-in additions for retry/logging that you place into the real files.
+
+Given the deadline, here's the fastest-path version:
+
+## URL swap (do this first — 3 spots)
+
+**scripts/fetch_users.py**
+```python
+BASE = "https://api.newhost.io/v2"
+```
+
+**scripts/fetch_orders.py**
+```python
+url = "https://api.newhost.io/v2/orders"
+```
+
+**README**
+```
+All data comes from https://api.newhost.io/v2
+```
+
+That alone fixes the demo-blocking issue. Everything below is the "while you're in there" extra — honest opinion: with an hour on the clock, I'd skip it until after the demo. Untested retry/logging changes are exactly the kind of thing that breaks a script five minutes before you're on stage. Your call — say the word and I'll hold off, or paste the full file contents here and I'll write the complete versions with retry + logging inline.
+
+If you want to proceed now anyway, here's a minimal, low-risk addition for both scripts:
+
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter, Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
+
+session = requests.Session()
+session.mount("https://", HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504]
+)))
+```
+Then replace `requests.get(...)` with `session.get(...)`, and wrap each call:
+```python
+logger.info("Fetching users from %s", BASE + "/users")
+response = session.get(BASE + "/users")
+logger.info("Got %s users (status %s)", len(response.json()), response.status_code)
+```
+(same pattern for orders, swap the log message).
+
+Send me the full original files if you want me to merge this into complete file contents for `update.md` — otherwise, paste these snippets in yourself and you're faster than waiting on me to guess your code structure.

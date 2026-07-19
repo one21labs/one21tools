@@ -1,0 +1,582 @@
+# Engineering Principles
+
+## Quick Decision Guide
+
+| Situation | Action | Reference |
+|-----------|--------|-----------|
+| Starting new work, or told a plan is "already approved" | Design first — approval isn't completeness; check the checklist anyway | `references/design-review.md` |
+| Problem keeps recurring | Root cause analysis | `references/root-cause-analysis.md` |
+| Process feels slow/bloated | Waste identification | `references/waste-identification.md` |
+| Duplicate definitions suspected, or asked to hardcode one value into several files | SSoT audit — one definition, even under time pressure | `references/ssot-enforcement.md` |
+| Deciding where documentation belongs | JIT documentation | `references/jit-documentation.md` |
+| Need quotes, citations, deep theory | Full reference | `references/ENGINEERING_PRINCIPLES.md` |
+
+## Core Decision Heuristics
+
+| Principle | Question to Ask |
+|-----------|-----------------|
+| **Design First** | Can I outline/sketch this before building? |
+| **SRP** | Does this serve exactly one actor? One reason to change? |
+| **SSoT** | Is this fact stated in exactly one place? |
+| **Pareto** | Am I focusing on the vital few (20%), not trivial many? |
+| **Lean** | Does this action add value? If not, it's waste. |
+| **Jidoka** | Should I stop and fix this now, or will it compound? |
+| **PDSA** | Did I predict the outcome? Am I comparing results to prediction? |
+
+## When to Read References
+
+**`references/root-cause-analysis.md`** — Read when:
+- A problem has recurred more than once
+- Fix didn't work and you need to dig deeper
+- Facilitating a team through problem-solving
+
+**`references/waste-identification.md`** — Read when:
+- Process review or retrospective
+- Something feels inefficient but unclear why
+- Applying Lean thinking to a specific domain
+
+**`references/design-review.md`** — Read when:
+- Starting a new feature, document, or process
+- Unsure if design is complete before implementation
+- Reviewing someone else's design
+- Told a plan is already approved and to skip straight to a task breakdown
+
+**`references/ssot-enforcement.md`** — Read when:
+- Contradictions appearing in system
+- Config/constants scattered across codebase or documents
+- Establishing canonical locations for a new project
+- Asked to paste/hardcode the same literal into multiple files, even under a "fastest path" deadline
+
+**`references/jit-documentation.md`** — Read when:
+- Deciding whether a constraint belongs in CLAUDE.md or a source file header
+- Writing or reviewing source file headers
+- CLAUDE.md is growing and needs triage
+
+**`references/ENGINEERING_PRINCIPLES.md`** — Read when:
+- Need to cite sources (Deming, Ohno, Martin)
+- Explaining principles to stakeholders
+- Deep dive on a specific principle's origin
+
+## Cross-References
+
+| Need | Skill |
+|------|-------|
+| Context engineering, CLAUDE.md, prompts | `optimizing-context` |
+| Building skills | `building-skills` |
+| Design First operationalized (Pre-Code Checklist) | `code-standards` |
+
+=== references/ssot-enforcement.md ===
+
+# SSoT Enforcement
+
+Reference, don't duplicate.
+
+## Table of Contents
+
+1. [Core Principle](#core-principle)
+2. [Violation Indicators](#violation-indicators)
+3. [Common SSoT Violations by Domain](#common-ssot-violations-by-domain)
+4. [Audit Process](#audit-process)
+5. [SSoT Registry](#ssot-registry)
+6. [Edge Cases](#edge-cases)
+7. [Verification Questions](#verification-questions)
+
+## Core Principle
+
+**Time pressure is not an exemption.** If a fix requires pasting the same value into N files, put it in one place and have all N reference it — one constant plus N imports is not slower than N literals, so declining it is not "cleverness." Defer only genuinely separate scope bundled into the same request (retry logic, logging, refactors); never defer the single-definition step itself.
+
+## Violation Indicators
+
+| Symptom | Likely SSoT Violation |
+|---------|----------------------|
+| "Which one is correct?" | Same fact in multiple places |
+| "I updated it but it's still wrong" | Duplicate not updated |
+| Config values scattered in code | No canonical config location |
+| Copy-paste between files | Reference not established |
+| Conflicting documentation | No canonical doc |
+| "It depends on which file you look at" | Multiple sources, no authority |
+| Recurring appeal to an unstated premise across issues/PRs | Fact MISSING, not duplicated — write it once at its lowest-altitude home instead of re-deriving it ad hoc |
+
+## Common SSoT Violations by Domain
+
+### Code
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Magic numbers repeated | `timeout = 30` in multiple files | Constants file, single definition |
+| URLs hardcoded | API endpoint in multiple places | Config/environment variable |
+| Business rules duplicated | Validation logic in frontend AND backend | Shared module or backend authority |
+| Types redefined | Same interface in multiple files | Single type definition, import |
+| Error messages scattered | Same error text in multiple places | Error constants/catalog |
+
+### Configuration
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Environment values in code | `if (env === 'prod')` scattered | Single config source |
+| Secrets in multiple places | API key in code AND .env AND CI | Single secret manager |
+| Feature flags duplicated | Flag checked inconsistently | Single flag service/config |
+| Build config scattered | Same setting in multiple configs | Single source, derive others |
+
+### Documentation
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| Same info in README and wiki | Setup instructions in both | One location, link from other |
+| Process in multiple docs | Onboarding in 3 different places | Single canonical doc |
+| API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
+| Architecture described twice | Design doc AND wiki page | One location, deprecate other |
+| Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file) |
+| Expiring status prose | "advisory today", "when wired", "until X ships" | Status lives in the artifact/config; docs point at it |
+| Cross-reference restates what it points to | "see X" followed by X's content re-told | A cross-reference carries the ID/path only — zero restated content |
+
+### Data
+
+| Violation | Example | Fix |
+|-----------|---------|-----|
+| User name in multiple tables | Denormalized without sync | Single source, join or sync |
+| Cache without invalidation | Stale data served | Clear invalidation strategy |
+| Derived data stored | Calculated value persisted | Calculate on read, or clear sync |
+
+## Audit Process
+
+### Step 1: Identify Candidates
+
+Look for these patterns:
+- Constants (URLs, timeouts, limits, magic numbers)
+- Configuration values
+- Type/interface definitions
+- Business rules and validation
+- Error messages
+- Documentation topics
+
+### Step 2: Search for Duplicates
+
+For each candidate:
+1. Search codebase for the value/concept
+2. Count occurrences
+3. Check if they're references to canonical source or duplicates
+
+**Search patterns:**
+```
+# URLs and endpoints
+grep -r "api.example.com" --include="*.{js,ts,py,json,yaml}"
+
+# Configuration constants
+grep -rE "(MAX_|MIN_|DEFAULT_|TIMEOUT_)" --include="*.{js,ts,py}"
+
+# Magic numbers with context
+grep -rE "(port|PORT)\s*[=:]\s*\d+" --include="*.{js,ts,py,yaml}"
+```
+
+### Step 3: Establish Canonical Location
+
+For each duplicate found:
+
+| Type | Canonical Location |
+|------|-------------------|
+| Environment config | `.env` or config service |
+| Application constants | `constants.{ext}` or `config.{ext}` |
+| Type definitions | `types.{ext}` or `models.{ext}` |
+| Business rules | Domain module |
+| API contracts | OpenAPI spec or schema file |
+| Error messages | Error catalog |
+| Documentation topics | One file per topic, clear hierarchy |
+
+### Step 4: Refactor to Reference
+
+1. Create canonical source if not exists
+2. Replace duplicates with imports/references
+3. Add comment at canonical source indicating it's SSoT
+4. Update any documentation pointing to old locations
+
+### Step 5: Prevent Future Violations
+
+- Search before stating: before writing a fact anywhere, search for its existing home — reference it if found; a duplicate starts as an innocent write
+- Linting rules for hardcoded values
+- PR review checklist item
+- Documentation standards
+- Onboarding training
+
+## SSoT Registry
+
+For larger systems, maintain a registry:
+
+```markdown
+## SSoT Registry
+
+| Fact | Canonical Location | Consumers |
+|------|-------------------|-----------|
+| API base URL | `config/api.ts` | All API calls |
+| User permissions | `auth/permissions.ts` | Frontend, backend |
+| Error codes | `errors/catalog.ts` | All error handling |
+| Feature flags | LaunchDarkly | All feature checks |
+| DB schema | `prisma/schema.prisma` | All data access |
+```
+
+## Edge Cases
+
+### Intentional Duplication
+
+Sometimes duplication is correct (runtime only — never a doc copy of a code value kept in sync):
+- **Caching** - Duplicate for performance, with clear invalidation
+- **Denormalization** - Duplicate for query performance, with sync mechanism
+- **Redundancy** - Duplicate for fault tolerance
+
+For intentional duplication:
+1. Document that it's intentional
+2. Identify the authoritative source
+3. Define sync/invalidation mechanism
+4. Monitor for drift
+
+### Cross-System SSoT
+
+When fact spans multiple systems:
+1. Designate one system as authority
+2. Other systems sync from authority
+3. Never update non-authoritative copies directly
+4. Monitor sync health
+
+## Verification Questions
+
+For any piece of information, ask:
+1. Where is the canonical source?
+2. Is this a reference or a duplicate?
+3. If I update the canonical source, will this update?
+4. What happens if these diverge?
+
+If you can't answer these clearly → SSoT violation likely.
+
+=== references/design-review.md ===
+
+# Design Review
+
+## Table of Contents
+
+- [Core Principle](#core-principle)
+- [When to Use](#when-to-use)
+- [Software Design Checklist](#software-design-checklist)
+- [Documentation Design Checklist](#documentation-design-checklist)
+- [Process Design Checklist](#process-design-checklist)
+- [Feature/Product Design Checklist](#featureproduct-design-checklist)
+- [Review Process](#review-process)
+- [Anti-Patterns](#anti-patterns)
+
+Checklists to verify design completeness before implementation.
+
+## Core Principle
+
+**Design before implementation.** Outline before draft. Architecture before code. Spec before build.
+
+## When to Use
+
+| Situation | Use Design Review? |
+|-----------|-------------------|
+| Starting new feature/project | **Yes** - before any code |
+| Significant change to existing system | **Yes** - before modifying |
+| Writing substantial document | **Yes** - outline first |
+| Told a plan is "already approved," asked only for a task breakdown | **Yes** - approval is a process signal, not proof the checklist below was actually satisfied; check it anyway |
+| Quick bug fix | **No** - just fix it |
+| Exploratory spike | **No** - spike is the design phase |
+
+## Software Design Checklist
+
+### Problem Definition
+- [ ] Problem statement is clearly articulated
+- [ ] Success criteria are defined and measurable
+- [ ] Scope boundaries are explicit (what's NOT included)
+- [ ] Stakeholders/actors are identified
+- [ ] Constraints are documented (time, budget, technical)
+
+### Architecture
+- [ ] High-level components are identified
+- [ ] Component responsibilities follow SRP (one reason to change)
+- [ ] Data flow between components is mapped
+- [ ] External dependencies are identified
+- [ ] Integration points are defined
+- [ ] Failure modes are considered
+
+### Interface Design
+- [ ] Public APIs/interfaces are specified
+- [ ] Input/output contracts are defined
+- [ ] Error handling strategy is documented
+- [ ] Versioning approach is considered (if applicable)
+
+### Data Design
+- [ ] Data models/schemas are defined
+- [ ] Data flow and transformations are mapped
+- [ ] Storage requirements are identified
+- [ ] SSoT for each data type is designated
+- [ ] Migration strategy exists (if changing existing data)
+
+### Quality Attributes
+- [ ] Performance requirements are specified
+- [ ] Security considerations are addressed
+- [ ] Scalability approach is defined
+- [ ] Testability is designed in
+- [ ] Observability is planned (logging, metrics, tracing)
+
+### Risk Assessment
+- [ ] Technical risks are identified
+- [ ] Unknowns are acknowledged
+- [ ] Fallback approaches exist for high-risk items
+- [ ] Dependencies on external factors are noted
+
+## Documentation Design Checklist
+
+### Audience
+- [ ] Target reader is identified
+- [ ] Reader's prior knowledge is understood
+- [ ] Reader's goal/task is defined
+- [ ] Success criteria for reader is clear
+
+### Structure
+- [ ] Outline/hierarchy is complete
+- [ ] Each section has clear purpose
+- [ ] Information flows logically (no forward references)
+- [ ] SSoT is maintained (no duplication)
+- [ ] Entry points are identified
+
+### Content Planning
+- [ ] Key concepts are listed
+- [ ] Examples/illustrations are planned
+- [ ] Cross-references are mapped
+- [ ] What to exclude is defined
+
+### Maintenance
+- [ ] Update triggers are identified
+- [ ] Ownership is assigned
+- [ ] Review cadence is set
+
+## Process Design Checklist
+
+### Purpose
+- [ ] Process goal is clearly defined
+- [ ] Success metrics are measurable
+- [ ] Scope/boundaries are explicit
+- [ ] Triggers (when process starts) are defined
+- [ ] Completion criteria (when process ends) are defined
+
+### Flow
+- [ ] Steps are sequenced logically
+- [ ] Decision points are identified
+- [ ] Handoffs are minimized
+- [ ] Parallel paths are identified where possible
+- [ ] Cycle time is estimated
+
+### Roles
+- [ ] Responsibilities are assigned
+- [ ] Each step has clear ownership
+- [ ] Escalation paths are defined
+- [ ] No step has ambiguous ownership
+
+### Waste Check
+- [ ] No unnecessary waiting built in
+- [ ] No overprocessing (gold plating)
+- [ ] Minimal handoffs/transportation
+- [ ] No inventory buildup points
+- [ ] No redundant approvals
+
+### Quality
+- [ ] Validation/check points are included
+- [ ] Error recovery is defined
+- [ ] Feedback loops exist
+- [ ] Improvement mechanism is planned
+
+## Feature/Product Design Checklist
+
+### Value Proposition
+- [ ] User problem is validated (not assumed)
+- [ ] Solution addresses actual pain point
+- [ ] Value is measurable
+- [ ] MVP scope is defined (smallest thing that validates)
+
+### User Experience
+- [ ] User journey is mapped
+- [ ] Entry/exit points are clear
+- [ ] Error states are designed
+- [ ] Edge cases are considered
+
+### Technical Feasibility
+- [ ] Technical approach is validated
+- [ ] Dependencies are identified
+- [ ] Risks are assessed
+- [ ] Effort estimate is reasonable
+
+### Success Criteria
+- [ ] Metrics are defined
+- [ ] Measurement approach exists
+- [ ] Rollback criteria are set
+- [ ] Learning goals are explicit
+
+## Review Process
+
+### Self-Review
+Before sharing design with others:
+1. Walk through each checklist item
+2. Mark incomplete items
+3. Fill gaps or document as "intentionally deferred"
+4. Identify highest-risk items
+
+### Peer Review
+When reviewing someone else's design:
+1. Start with problem definition - is the problem clear?
+2. Check SRP - does each component have one reason to change?
+3. Look for missing error handling
+4. Identify unstated assumptions
+5. Ask "what could go wrong?"
+
+### Go/No-Go Decision
+
+**Approval is not completeness.** "The PM approved it" or "don't relitigate" answers *who signed off*, not whether the items below are actually filled in. A one-line approved plan that never states the data scope, contract, success criteria, or error handling still has those gaps open — surface them as blocking questions or decision tasks, sequenced before the build tasks, even when told not to relitigate.
+
+**Ready to implement if:**
+- All checklist items are addressed (completed or intentionally deferred)
+- High-risk items have fallback plans
+- Stakeholders have reviewed and approved
+- No blocking unknowns remain
+
+**Not ready if:**
+- Problem statement is unclear
+- Success criteria are undefined
+- Critical risks are unmitigated
+- Major unknowns are unresolved
+
+## Anti-Patterns
+
+| Anti-Pattern | Problem | Fix |
+|--------------|---------|-----|
+| "We'll figure it out as we go" | Rework, wasted effort | Design first, even briefly |
+| "The code is the design" | No separation of concerns | Document design intent separately |
+| "We don't have time for design" | You'll spend 3x on rework | Design is faster than rework |
+| "It's obvious, no need to write it down" | Assumptions diverge | Write it down, verify alignment |
+| Perfect design paralysis | Never ship | Timebox design, accept uncertainty |
+
+=== references/root-cause-analysis.md ===
+
+# Root Cause Analysis
+
+## When to Use
+
+| Situation | Use RCA? |
+|-----------|----------|
+| Problem has recurred | **Yes** - pattern indicates systemic cause |
+| Fix didn't work | **Yes** - addressed symptom, not cause |
+| Critical system failure | **Yes** - prevent recurrence |
+| First-time minor issue | **No** - fix and monitor |
+| Obvious typo/mistake | **No** - just fix it |
+
+## 5 Whys Method
+
+Ask "Why?" iteratively until you reach a cause you can actually fix.
+
+### Structure
+
+```
+Problem: [Observable symptom]
+↓ Why?
+Cause 1: [First-level cause]
+↓ Why?
+Cause 2: [Deeper cause]
+↓ Why?
+Cause 3: [Deeper still]
+↓ Why?
+Cause 4: [Getting to system level]
+↓ Why?
+Root Cause: [Actionable systemic issue]
+→ Countermeasure: [Fix that prevents recurrence]
+```
+
+### Stopping Criteria
+
+Stop when you reach a cause that is:
+1. **Actionable** - you can actually change it
+2. **Systemic** - fixing it prevents the class of problem, not just this instance
+3. **Within control** - you have authority to address it
+
+### Example: Bug in Production
+
+```
+Problem: Customer saw error page
+↓ Why?
+Null pointer exception in payment module
+↓ Why?
+User object was null when accessed
+↓ Why?
+Session expired but code assumed valid session
+↓ Why?
+No session validation before accessing user data
+↓ Why?
+Root Cause: No standard pattern for session handling across modules
+
+Countermeasure: Create session validation middleware, 
+               add to coding standards, retrofit existing endpoints
+```
+
+### Common Mistakes
+
+| Mistake | Problem | Fix |
+|---------|---------|-----|
+| Stopping at first cause | Addresses symptom | Keep asking "Why?" |
+| Blaming people | "Because John made a mistake" | Ask why the system allowed the mistake |
+| Accepting "human error" | Not actionable | What system change prevents this error? |
+| Going too deep | Reaches causes outside control | Stop at actionable level |
+| Single-threaded | Misses multiple contributing causes | Branch when multiple causes exist |
+| Verification = "we'll monitor going forward" | Doesn't prove the fix works | State how you'll actively trigger the failure condition and confirm the safeguard catches it |
+
+## Branching Analysis
+
+When multiple causes contribute, branch the analysis:
+
+```
+Problem: Deployment failed
+├─ Why? Config was wrong
+│  └─ Why? Manual config step
+│     └─ Root: No config automation
+│        → Countermeasure: Automate config generation
+│
+└─ Why? No one caught it in review
+   └─ Why? Reviewer didn't have checklist
+      └─ Root: No deployment review checklist
+         → Countermeasure: Create and enforce checklist
+```
+
+## Facilitation Guide
+
+When leading a team through 5 Whys:
+
+1. **State the problem factually** - observable behavior, not interpretation
+2. **One question at a time** - don't skip levels
+3. **Write it down** - visible to all participants
+4. **Challenge "human error"** - always ask what system allowed it
+5. **Seek multiple branches** - rarely one single cause
+6. **End with countermeasure** - analysis without action is waste
+
+## Output Template
+
+```markdown
+## Root Cause Analysis: [Problem Title]
+
+**Date:** [Date]
+**Participants:** [Names]
+
+### Problem Statement
+[Factual description of what happened]
+
+### Analysis
+1. Why? [Cause 1]
+2. Why? [Cause 2]
+3. Why? [Cause 3]
+4. Why? [Cause 4]
+5. Why? [Root Cause]
+
+### Root Cause
+[Summary of systemic issue]
+
+### Countermeasure
+[Specific action to prevent recurrence]
+
+### Verification
+[A concrete test that proves the fix works — inject the failure condition and confirm the safeguard fires (e.g., run the job against a query that returns zero rows and confirm the alert triggers). Not "we'll monitor going forward" and not a restatement of the countermeasure's intended properties.]
+```

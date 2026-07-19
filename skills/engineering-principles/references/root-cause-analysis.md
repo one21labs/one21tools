@@ -1,7 +1,5 @@
 # Root Cause Analysis
 
-Methodology for finding and fixing the actual cause of problems, not just symptoms.
-
 ## When to Use
 
 | Situation | Use RCA? |
@@ -125,9 +123,3 @@ When leading a team through 5 Whys:
 ### Verification
 [A concrete test that proves the fix works — inject the failure condition and confirm the safeguard fires (e.g., run the job against a query that returns zero rows and confirm the alert triggers). Not "we'll monitor going forward" and not a restatement of the countermeasure's intended properties.]
 ```
-
-## Deming's Insight
-
-> "94% of problems are management's responsibility (system), not worker's."
-
-If your root cause is "person X made a mistake," you haven't found the root cause. Ask: what about the system allowed or encouraged that mistake?
