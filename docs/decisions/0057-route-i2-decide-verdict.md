@@ -1,7 +1,7 @@
 ---
 id: 0057
 title: "Route the I2 /decide verdict: measured loop first, dual-judge headline, claim/routing split"
-status: proposed
+status: accepted
 summary: "Discharges ADR 0052's C~B trigger. All panel-composition change (incl. cut) goes through #180's arm-D loop; no candidate edit ships on assertion. Any v2/arm-D grid reports a dual-judge headline. The judge-sensitivity caveat ships now zero-spend; the trigger-text routing change is measurement-gated."
 ---
 
