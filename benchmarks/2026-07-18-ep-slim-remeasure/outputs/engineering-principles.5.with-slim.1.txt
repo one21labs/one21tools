@@ -1,0 +1,45 @@
+I can't write tasks.md — this session has no file-system or code-execution access, so I can't create or edit files here. I can give you the full task breakdown as text below for you to paste in.
+
+One thing before that, not to relitigate the approval, but to flag it as open: the plan as stated ("export all of a user's data," "whatever format is easiest," "should be fast," "next week") doesn't specify a few things that materially change the task list for an endpoint like this — particularly because "export all user data" is a common source of IDOR/data-leak bugs if authz scope isn't nailed down. Worth getting quick answers on, even if just via Slack rather than another meeting:
+
+1. **Data scope** — which services/tables count as "all data"? (profile, activity logs, billing, third-party-linked data?) Undefined scope means undefined done.
+2. **Authorization** — self-service only (user exports their own data), or can admins/support export on behalf of a user? This determines whether IDOR protection is a task.
+3. **Format contract** — "easiest" for whom — JSON dump, CSV, zip archive? Downstream consumers (if any) may care.
+4. **"Fast"** — no target given. Sync response, or async job + download link (matters a lot if data volume is large)?
+5. **PII/compliance** — any requirement to log exports or notify the user (common for data-export features under privacy regs)?
+
+If those are truly already decided and I'm just missing the notes, tell me the answers and I'll fold them in. Otherwise, here's the breakdown with the gaps called out as blocking sub-tasks up front so they don't get silently assumed:
+
+```markdown
+# User Data Export — Implementation Tasks
+
+## Blocking — resolve before build (est. gaps in the approved plan)
+- [ ] Confirm data scope: enumerate exactly which data sources/tables are included
+- [ ] Confirm authz model: self-service only vs. admin-initiated export
+- [ ] Confirm response contract: sync payload vs. async job + downloadable file
+- [ ] Confirm export format (JSON/CSV/zip) if any consumer depends on it
+- [ ] Confirm compliance requirements (audit log of exports, user notification)
+
+## Build
+- [ ] Define API contract (route, auth, request/response shape) per decisions above
+- [ ] Implement authorization check (user can only export their own data, unless admin path is approved)
+- [ ] Implement data aggregation across confirmed data sources
+- [ ] Implement serialization to chosen export format
+- [ ] Handle large-data path (pagination/streaming or async job) if sync response can't meet "fast"
+- [ ] Add rate limiting / abuse protection on the endpoint
+- [ ] Add error handling (partial data source failures, timeout, empty account)
+- [ ] Add logging/audit trail for export events (if required)
+
+## Test
+- [ ] Unit tests for aggregation and serialization logic
+- [ ] Authz tests: user cannot export another user's data (IDOR check)
+- [ ] Load/perf test against the "fast" target once defined
+- [ ] Edge cases: new user with no data, partially deleted account, large account
+
+## Ship
+- [ ] Add monitoring/alerting for endpoint errors and latency
+- [ ] Document endpoint (internal API docs)
+- [ ] Rollout plan (feature flag? staged rollout given 1-week timeline?)
+```
+
+Let me know the answers to the blocking items and I'll tighten the build tasks accordingly.

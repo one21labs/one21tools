@@ -1,0 +1,91 @@
+I don't have file-system or code-execution tools available in this session, so I can't write directly to `rca.md`. Here's the full post-incident analysis in markdown — copy it into that file.
+
+One structural note before the analysis: don't let "Priya skipped the manual step" become the root cause. Three *different* triggers (query change, schema rename, expired credential) produced the *identical* outcome (empty file, exit 0, client caught it first). That convergence is the signal — the system has a missing control at the point where all three failures funnel together (output validation before delivery), not three unrelated one-off mistakes. The analysis below branches accordingly.
+
+---
+
+```markdown
+## Root Cause Analysis: Nightly Customer-Export Job Silently Delivers Empty Files
+
+**Date:** 2026-07-18
+**Incident:** Third occurrence in two months of the nightly customer-export job producing an empty output file, exiting 0, generating no alert, and being delivered to the client — who discovered the problem before the team did.
+
+### Problem Statement
+
+On [date of this incident], an engineer (Priya, 6 weeks on the team) modified the export SQL query and did not perform the documented manual verification step ("after changing the query, run it once by hand and eyeball the row count"). The job ran, produced a zero-row output file, exited with status 0, triggered no alert, and the file was delivered to the client. The client identified the problem before the team did.
+
+This is the third occurrence of this exact outcome in two months:
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Expired credential, swallowed by error handling | Empty file, exit 0, no alert, client noticed first |
+| 2 | Schema rename broke the query silently | Empty file, exit 0, no alert, client noticed first |
+| 3 | Query change shipped without manual verification | Empty file, exit 0, no alert, client noticed first |
+
+Three unrelated triggers, one identical failure signature. That repetition — not any single trigger — is the actual problem to solve.
+
+### Analysis (branching 5 Whys)
+
+**Branch A — Why did this occurrence happen (the query change)?**
+1. Why did the export ship a broken query? → Priya changed the SQL and didn't run the manual verification step.
+2. Why didn't the step get run? → It's tribal knowledge documented in a wiki page, with no technical enforcement and no reason a new engineer would discover it exists at the moment they need it.
+3. Why is enforcement absent? → There is no automated gate between "query changed" and "query runs in production" — correctness depends entirely on the individual remembering an out-of-band manual step.
+4. Why was that considered sufficient? → The team's quality control for this pipeline was designed around trust/discipline, not around a system property that holds regardless of who's on shift or how new they are.
+
+→ **Root cause A:** No automated pre-production validation gate for changes to the export query. Correctness depends on an individual's memory of a wiki instruction.
+
+**Branch B — Why did zero rows get delivered without anyone (system or human) noticing before the client?**
+1. Why no alert? → Monitoring only checks process exit code.
+2. Why is exit code the only signal? → The job exits 0 whenever it completes without throwing, regardless of how many rows it wrote.
+3. Why does the job treat 0 rows as success? → "Job completed" and "job produced correct output" were never distinguished in the job's success criteria — it was built to answer "did it crash," not "is the output valid."
+4. Why wasn't output correctness ever added to that contract? → Monitoring was set up once, early, against the easiest available signal (exit code) and never revisited after the pipeline started handling something with real client-facing consequences.
+
+→ **Root cause B:** The definition of "job succeeded" is exit-code-only. Output validity (row count, file size, sanity vs. historical baseline) is not part of the completion contract.
+
+**Branch C — Why do three unrelated triggers all reach the client the same broken way?**
+1. Why do a query bug, a schema rename, and an expired credential all end in the same outcome? → All three failure paths converge on the same unguarded step: the file is written and delivered without anyone checking its contents first.
+2. Why is there no check at that convergence point? → There is no delivery gate in the pipeline architecture — "generate file" and "deliver file to client" are directly connected with nothing in between.
+3. Why has that gap persisted through three incidents? → The first two RCAs (if performed) apparently fixed the *specific* trigger (credential handling, schema coupling) rather than the *shared* downstream gap, so a new trigger just walked through the same open door.
+
+→ **Root cause C (the systemic one):** There is no validation/circuit-breaker between "export generated" and "export delivered." Any future bug — of any kind, in any part of the pipeline — will reach the client the same way these three did, because nothing stands in its way at the one point common to all of them.
+
+**Contributing factor — the credential incident specifically:**
+The expired credential was "swallowed" rather than failing the job. That's a distinct issue worth its own line item: broad/silent exception handling that allows the job to continue and exit 0 after an internal failure, instead of propagating the error. Worth an audit of the job's error handling independent of the export-validation fix, since the same pattern likely exists elsewhere in the pipeline.
+
+### Root Causes (ranked by leverage)
+
+1. **[Primary/systemic]** No output-validation gate exists between file generation and client delivery — this is the single point that would have caught all three incidents regardless of trigger.
+2. **[Contributing]** Success criteria for the job are exit-code-only; row count / output size were never made part of "done."
+3. **[Contributing]** The only defense against a bad query change is an unenforced manual wiki step, which is a single point of human failure with no technical backstop.
+4. **[Contributing, incident-1-specific]** Exception handling around credential failures swallows errors instead of failing the job loudly.
+
+### Countermeasures
+
+| # | Action | Root cause addressed | Priority |
+|---|--------|----------------------|----------|
+| 1 | Add a delivery gate: before the file is sent to the client, check row count > 0 and within N% of the trailing 7/30-day average (or a hard floor if seasonality is low). Fail closed — block delivery and page on-call — if the check fails. | C (systemic), B | **P0** |
+| 2 | Redefine job success to include output validation, not just exit code. Monitoring should alert on "0 rows written" or "file size anomaly" as a distinct, first-class failure signal, independent of exit code. | B | **P0** |
+| 3 | Add an automated pre-merge/pre-deploy check for export query changes: run the modified query against a recent snapshot (or prod, read-only) and require a human to confirm the row count before it ships, or auto-block if row count is 0 / wildly divergent from baseline. This replaces the manual wiki step with a technical gate that doesn't depend on memory. | A | **P0** |
+| 4 | Audit the job's exception handling for silent swallowing (starting with the credential-expiry path from incident 1); require failures to propagate and fail the job/alert rather than continue. | Contributing (credential) | P1 |
+| 5 | Retire the "run it once by hand and eyeball the row count" wiki instruction once #3 ships — a manual step that has now failed once shouldn't remain the documented process; if it's still needed as a backstop, it should be a checklist item enforced by the deploy tooling, not prose in a wiki. | A | P1 |
+| 6 | Revisit the two prior incident RCAs (schema rename, credential expiry) and confirm neither is *still open* — i.e., confirm #1 wasn't skipped last time on the assumption that fixing the specific trigger was enough. | C | P1 |
+
+### Verification
+
+Countermeasure #1/#2 verification (not "we'll monitor going forward" — an active injection test):
+- Point the export job at a query that deliberately returns 0 rows (e.g., a WHERE clause with an impossible condition) in a staging/test environment wired to the same delivery gate and monitoring.
+- Confirm: (a) the delivery gate blocks the file from reaching the client-delivery step, (b) an alert fires and pages on-call, (c) the job's terminal status reflects failure, not exit 0.
+- Repeat with a file that has rows but is a fraction of the historical baseline (e.g., 5% of average) to confirm the anomaly-threshold check, not just the zero-row check, actually fires.
+
+Countermeasure #3 verification:
+- Submit a test PR that changes the export query to one producing 0 rows against the validation snapshot; confirm the pre-deploy check blocks the merge/deploy without a human override.
+
+Countermeasure #4 verification:
+- Deliberately expire/invalidate the credential used by the job in a test run; confirm the job fails loudly (non-zero exit, alert) rather than completing with an empty file.
+
+### Notes on scope
+
+This RCA treats "empty file delivered to client, undetected" as the problem to eliminate structurally — via a delivery gate — rather than treating each trigger as a separate problem to patch. The recurrence across three unrelated causes is the evidence that trigger-level fixes alone have already been tried (implicitly, via whatever was done after incidents 1 and 2) and were insufficient.
+```
+
+Let me know if you want this scoped down (e.g., just the immediate P0 items) or expanded with owners/dates once you assign them.

@@ -1,0 +1,56 @@
+A quick heads-up: this session is headless — no file-system or code-execution access — so I can't actually create/write `tasks.md` for you. I'll give you the full task breakdown as plain text below so you can paste it in yourself.
+
+I'm not relitigating the plan's scope, but a few things it left silent are implementation decisions I have to make one way or another to write concrete tasks — I've marked each with **[ASSUMPTION]** so you can flip them fast if the PM meeting actually covered specifics I wasn't told.
+
+---
+
+```markdown
+# User Data Export — Implementation Tasks
+
+## Assumptions (flag if wrong)
+- [ASSUMPTION] Format: JSON (single file), easiest to implement and machine-readable.
+- [ASSUMPTION] Auth: endpoint only lets a user export their OWN data (session/token-authenticated), not arbitrary user IDs.
+- [ASSUMPTION] Delivery: async job -> generates file -> user downloads via signed URL (needed if "all data" is large; avoids request timeouts).
+- [ASSUMPTION] Scope: "all data" = every table/service with a foreign key to user_id. Needs a definitive list from data owners before coding starts.
+
+## 1. Scoping
+- [ ] Enumerate every data source containing user data (DB tables, other services, blob storage, analytics/event stores)
+- [ ] Confirm with PM/legal whether this needs to satisfy GDPR/CCPA export requirements (affects required fields, deadlines, audit logging)
+- [ ] Get sign-off on JSON as the export format
+
+## 2. API Design
+- [ ] Define endpoint contract: `POST /api/users/me/export` -> returns job id
+- [ ] Define status endpoint: `GET /api/exports/{job_id}` -> status + download URL when ready
+- [ ] Decide authz rule: user can only request their own export (no admin/other-user export in v1 unless required)
+- [ ] Rate-limit the endpoint (data export is a common abuse/scraping vector)
+
+## 3. Backend Implementation
+- [ ] Background job/worker to collect data from each identified source
+- [ ] Serialize collected data to JSON
+- [ ] Store export artifact in secure, access-controlled storage (e.g., private bucket) with expiring signed URL
+- [ ] Generate download link and notify user (email or in-app) when ready
+- [ ] Auto-delete export artifact after expiry window (avoid leaving PII dumps sitting around)
+
+## 4. Security Review
+- [ ] Confirm export cannot be triggered for/leak another user's data (IDOR check)
+- [ ] Confirm download links are per-user, expiring, and not guessable
+- [ ] Confirm sensitive fields (passwords, tokens, internal-only fields) are excluded from export
+- [ ] Add audit log entry each time an export is requested/downloaded
+
+## 5. Performance
+- [ ] Load-test against a large-account fixture to confirm the async pattern doesn't block/timeouts
+- [ ] Add basic job queue monitoring/alerting so stuck jobs are visible
+
+## 6. Testing
+- [ ] Unit tests: job creation, data collection per source, serialization
+- [ ] Integration test: full request -> job -> download flow
+- [ ] Security test: attempt cross-user export/download
+
+## 7. Ship
+- [ ] Feature-flag rollout (internal -> beta -> all users)
+- [ ] Docs: what data is included, how to request/download an export
+```
+
+---
+
+Two things worth a fast confirm from you (not the plan) before implementation starts: the full list of data sources in scope, and whether GDPR/CCPA compliance requirements apply — those change the task list materially and are cheap to nail down now vs. mid-build.
