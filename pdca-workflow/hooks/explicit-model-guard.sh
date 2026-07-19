@@ -27,6 +27,10 @@ has_model=$(printf '%s' "$scope" | grep -c '"model"[[:space:]]*:')
 subagent_type=$(printf '%s' "$scope" | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "general-purpose" ]; }; then
+  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
+  # below prints regardless; docs/pdca existence already established above (ADR 0071 marker),
+  # never mkdir. Line format home: the consumer's scorecard parser (scripts/scorecard.mjs).
+  { printf '%s gate-hit explicit-model-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${subagent_type:-unset}" >> "${CLAUDE_PROJECT_DIR:-.}/docs/pdca/gate-hits.txt"; } 2>/dev/null
   reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model (ADR 0040). Re-issue the call with model set explicitly to haiku, sonnet, or opus, matched to the task: haiku for mechanical/deterministic execution, sonnet for judgment-execution, opus for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
 fi

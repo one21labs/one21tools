@@ -41,6 +41,10 @@ for gate in $GATES; do
   first_op=$(printf '%s' "$folded" | grep -oE '@@AND@@|@@OR@@|;|\|' | head -1)
 
   if [ "$first_op" = "|" ]; then
+    # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
+    # below prints regardless; marker-guarded, never mkdir (ADR 0071). Format: scorecard.mjs.
+    root="${CLAUDE_PROJECT_DIR:-.}"
+    { [ -d "$root/docs/pdca" ] && printf '%s gate-hit gate-pipe-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$gate" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
     reason="Denied: $gate is a gate; piping it hides its exit code (a pipe reports the filter's exit status, not the gate's). Run it bare and read the output directly."
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
     exit 0

@@ -80,5 +80,21 @@ assert_exit "malformed/empty stdin -> fails open -> exit 0" 0 "$code"
 code=$(run "$REPO/skills/nonexistent-skill-xyz/SKILL.md")
 assert_exit "skills/<nonexistent>/SKILL.md -> dir guard skips gate -> exit 0" 0 "$code"
 
+# --- Gate-hit telemetry (ADR 0080): failure path, exercised in a mktemp fixture whose routed
+# gate script does not exist (node fails -> run_gate's failure branch), never the real repo. ---
+FIX=$(mktemp -d)
+trap 'rm -rf "$FIX"' EXIT
+json=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$FIX/README.md")
+code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "fixture README edit, gate script missing -> failure path -> exit 2" 2 "$code"
+if [ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "no docs/pdca marker: failure logged nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "no docs/pdca marker: failure logged nothing"; fi
+mkdir -p "$FIX/docs/pdca"
+code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "fixture failure with marker present -> still exit 2" 2 "$code"
+if [ "$(grep -c 'gate-hit check-restatement.mjs' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "failure appended exactly one gate-hit line naming the gate"
+else fail=$((fail+1)); printf 'FAIL: %s log=[%s]\n' "failure appended exactly one gate-hit line naming the gate" "$(cat "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)"; fi
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

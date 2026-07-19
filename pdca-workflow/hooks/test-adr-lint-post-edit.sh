@@ -72,9 +72,16 @@ trap 'rm -rf "$FIX_OK" "$FIX_BAD" "$FIX_NONE" "$FIX_NOMARK"' EXIT
 
 code=$(run "$FIX_OK" "$FIX_OK/docs/decisions/0001-good.md" "$REAL_PLUGIN_ROOT")
 assert_exit "valid ADR edit -> gate passes -> exit 0" 0 "$code"
+# Gate-hit telemetry (ADR 0080): a PASSING gate appends nothing.
+if [ ! -e "$FIX_OK/docs/pdca/gate-hits.txt" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "gate pass appended nothing"
+else fail=$((fail+1)); printf 'FAIL: %s\n' "gate pass appended nothing"; fi
 
 code=$(run "$FIX_BAD" "$FIX_BAD/docs/decisions/0001-bad.md" "$REAL_PLUGIN_ROOT")
 assert_exit "invalid ADR edit -> gate fails -> exit 2" 2 "$code"
+# Gate-hit telemetry (ADR 0080): the failure above appended exactly one line to the fixture's log.
+if [ "$(grep -c 'gate-hit adr-lint' "$FIX_BAD/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
+  pass=$((pass+1)); printf 'PASS: %s\n' "gate failure appended exactly one gate-hit line"
+else fail=$((fail+1)); printf 'FAIL: %s log=[%s]\n' "gate failure appended exactly one gate-hit line" "$(cat "$FIX_BAD/docs/pdca/gate-hits.txt" 2>/dev/null)"; fi
 
 code=$(run "$FIX_NONE" "$FIX_NONE/CLAUDE.md" "$REAL_PLUGIN_ROOT")
 assert_exit "marker present, no docs/decisions dir -> degrade gracefully -> exit 0" 0 "$code"
