@@ -43,6 +43,11 @@ esac
 [ -d "$root/docs/decisions" ] || exit 0
 
 out=$(node "${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs" "$root/docs/decisions" 2>&1) || {
+  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — appended
+  # after the failure is decided, error-suppressed; docs/pdca existence already established
+  # above (ADR 0071 marker), never mkdir. Line format home: the consumer's scorecard parser
+  # (this repo: scripts/scorecard.mjs parseGateHits).
+  { printf '%s gate-hit adr-lint %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$fp" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
   printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2
   exit 2
 }

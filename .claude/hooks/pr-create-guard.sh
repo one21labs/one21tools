@@ -34,7 +34,11 @@ input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$cmd" ] && exit 0
 
-deny() {
+deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
+  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
+  # below prints regardless; marker-guarded, never mkdir (ADR 0071). Format: scorecard.mjs.
+  ghroot="${CLAUDE_PROJECT_DIR:-.}"
+  { [ -d "$ghroot/docs/pdca" ] && printf '%s gate-hit pr-create-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${2:-}" >> "$ghroot/docs/pdca/gate-hits.txt"; } 2>/dev/null
   reason=$(printf '%s' "$1" | tr -d '"\\' | tr '\n\t' '  ')
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
   exit 0
@@ -54,7 +58,7 @@ repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo|-R)(=|[[:space:]]+)
 if [ -n "$repo" ]; then
   case "$repo" in
     one21labs/*) : ;;
-    *) deny "Denied by default: gh $kind create targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." ;;
+    *) deny "Denied by default: gh $kind create targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." external-repo ;;
   esac
 fi
 
@@ -63,7 +67,7 @@ bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file|-F)(=|[[:space:]
   | sed -E 's/^[[:space:]]*(--body-file|-F)(=|[[:space:]]+)//')
 if [ -z "$bf" ]; then
   if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body|-b)(=|[[:space:]]|$)'; then
-    deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first."
+    deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first." inline-body
   fi
   exit 0   # no body flags at all: let gh open its editor / error on its own
 fi
@@ -74,6 +78,6 @@ cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null
 body=$(cat "$bf" 2>/dev/null) || exit 0
 case "$body" in
   *'Disclosure: written by Claude'*) : ;;
-  *) deny "Denied: body file $bf is missing the Claude authorship disclosure line (CLAUDE.md: required on every issue and PR Claude writes, at creation time). Append: *Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*" ;;
+  *) deny "Denied: body file $bf is missing the Claude authorship disclosure line (CLAUDE.md: required on every issue and PR Claude writes, at creation time). Append: *Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*" missing-disclosure ;;
 esac
 exit 0
