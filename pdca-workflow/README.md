@@ -143,7 +143,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /plugin install pdca-workflow@one21tools
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
-/retrospect       # on-demand, when something felt wrong; improves the process
+/retrospect       # standing at session close + on demand (ADR 0081); improves the process
 ```
 
 All three skills are explicit-invoke only (`disable-model-invocation`) — the panel spends many
