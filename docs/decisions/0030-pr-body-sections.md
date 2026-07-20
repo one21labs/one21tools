@@ -2,15 +2,15 @@
 id: 0030
 title: "PR body: Purpose / Changes / Testing / Deferred; retrospect trigger (amended by ADR 0081)"
 status: accepted
-summary: "A PR body carries Purpose / Changes / Testing / Deferred. The per-PR retrospect mandate and its Retrospective: line stay removed (owner rework 2026-07-16, the ceremony cut): per-PR measurements found no quality edge and the ritual's green line manufactured false assurance. Retrospect trigger amended by ADR 0081: session-close standing + on-demand — the per-PR form stays dead. check-pr-body keeps only the ADR 0054 title/Partial contradiction guard."
+summary: "A PR body carries Purpose / Changes / Testing / Deferred. The per-PR retrospect mandate and its Retrospective: line stay removed: per-PR measurements found no quality edge and the ritual's green line manufactured false assurance. Retrospect trigger: session-close standing + on-demand (ADR 0081) — the per-PR form stays dead. check-pr-body keeps only the ADR 0054 title/Partial contradiction guard."
 ---
 
 # 0030 — PR body sections; retrospect trigger
 
 - Date: 2026-07-16
 
-Owner decision, recorded directly (2026-07-16); retrospect trigger amended by ADR 0081
-(2026-07-19). Enforced homes: `scripts/check-pr-body.mjs` (ADR 0054 guard only),
+Owner decision, recorded directly. Retrospect trigger home: ADR 0081. Enforced homes:
+`scripts/check-pr-body.mjs` (ADR 0054 guard only),
 `.claude/hooks/pr-create-guard.sh` (disclosure + body-file + external target), CLAUDE.md
 Shipping + the Muda forcing-functions line (the ADR 0081 closeout step).
 
