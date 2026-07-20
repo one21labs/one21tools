@@ -58,7 +58,7 @@ Reference, don't duplicate.
 | API docs vs code comments | Both describe same thing | Code is SSoT, generate docs |
 | Architecture described twice | Design doc AND wiki page | One location, deprecate other |
 | Constraint in CLAUDE.md and source header | Same fact in two always/JIT locations | See `jit-documentation.md` for placement rules |
-| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file) |
+| Backstory narrated in docs | "Learned" changelog, retired/renumbered-ID notes, how-it-got-here prose | git history is the SSoT for backstory — state current truth, delete the story outright; never relocate or condense it into any other document (ADRs, comments, a CHANGELOG, a wiki page, a new "history" file). A bare provenance POINTER (`#nnn`, an ADR ID, a commit hash) beside a stated constraint is a cite, not backstory; the retold incident around it is what gets cut |
 | Expiring status prose | "advisory today", "when wired", "until X ships" | Status lives in the artifact/config; docs point at it |
 | Cross-reference restates what it points to | "see X" followed by X's content re-told | A cross-reference carries the ID/path only — zero restated content |
 
