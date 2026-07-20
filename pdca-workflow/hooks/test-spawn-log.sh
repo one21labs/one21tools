@@ -25,8 +25,8 @@ LOG_REL="docs/pdca/session-log.txt"
 # All marker-present fixtures pre-create docs/pdca: it is the ADR 0071 adoption marker the hook
 # requires and never creates itself.
 
-# Cases 1-4: each panel primitive fires, bare and prefixed.
-for skill in advise red-team verify pdca-workflow:advise; do
+# Cases 1-6: each panel/loop primitive fires, bare and prefixed (retrospect: ADR 0081).
+for skill in advise red-team verify retrospect pdca-workflow:advise pdca-workflow:retrospect; do
   FIX=$(mktemp -d)
   mkdir -p "$FIX/docs/pdca"
   res=$(fire "$FIX" "{\"tool_name\":\"Skill\",\"tool_input\":{\"skill\":\"$skill\",\"args\":\"\"}}")

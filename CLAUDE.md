@@ -25,8 +25,10 @@ don't restate. Operationalized, not a slogan:
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
   Process-Level Poka-yoke.
 - **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
-  inline findings, never blocks. `/retrospect` is on-demand — run it when something felt wrong,
-  never as ritual.
+  inline findings, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
+  empty findings valid, never a green line.
+- **Two-why (ADR 0081):** before fixing any gate/CI/verifier failure: instance or class? which
+  rung should have caught it? "My error" never ends the chain.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
@@ -58,12 +60,10 @@ deterministic logic; a doc that restates them rots).
   fails the same way — PATCH the body via `gh api`.
 - **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
   findings; address each or say why not. Merging unread leaves muda on `main`.
-- **Squash-merge is the owner's per-PR call** (not automatic). After a squash-merge the branch still
-  shows commits "ahead" of `main`, so judge merged-ness by PR state + file diff, not
-  `git log main..branch` ahead-count. After any upstream PR merges, `git fetch` + rebase your live
-  branch onto `origin/main` before ranging, branching, or `/retrospect` — a stale local `main` re-adds the
-  squashed commits as a phantom range. Preview a branch/PR with three-dot
-  (`origin/main...branch`), never two-dot (ADR 0072).
+- **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
+  file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
+  before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges). Preview with
+  three-dot (`origin/main...branch`), never two-dot (ADR 0072).
 - PR body: Purpose / Changes / Testing / Deferred (ADR 0030); an added external ref carries its
   fetch-audit (`check-references`, ADR 0079).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
