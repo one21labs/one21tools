@@ -146,8 +146,10 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /retrospect       # standing at session close + on demand (ADR 0081); improves the process
 ```
 
-All three skills are explicit-invoke only (`disable-model-invocation`) — the panel spends many
-agents and writes files, so it never auto-fires.
+`/pdca-init` and `/decide` are explicit-invoke only (`disable-model-invocation`) — the panel
+spends many agents and writes files, so it never auto-fires. `/retrospect` is model-invocable
+but trigger-bound (ADR 0016): it fires only at its ADR 0081 triggers, so the session itself
+can discharge — and mark — the standing close-out.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).
