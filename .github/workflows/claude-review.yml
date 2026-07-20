@@ -46,6 +46,7 @@ jobs:
 
       - name: Claude advisory muda review
         if: steps.gate.outputs.ok == 'true'
+        id: review
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -55,6 +56,13 @@ jobs:
           # otherwise dies with "Could not fetch an OIDC token", turning the
           # advisory check red. Explicit token = no OIDC, works with the OAuth setup.
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Bash is DISABLED by default in the action (issue #253: the review ran
+          # 21 turns but its 5 attempts to read the diff / post the comment were all
+          # denied, so the check went green with ZERO comments on 4 straight PRs —
+          # silence indistinguishable from a clean diff). Grant the minimum the
+          # prompt requires: read the diff, post ONE comment. Nothing else.
+          claude_args: |
+            --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
           prompt: |
             Review ONLY this PR's diff. Flag muda per CLAUDE.md — duplicated logic,
             dead code or fields, premature abstraction, one-home / SSoT violations,
@@ -63,5 +71,16 @@ jobs:
             lower-altitude file — e.g. a README or ADR retelling a rule a skill
             reference or script owns — is a violation; it should cite, not restate.
             Be terse: cite file:line, group
-            findings, skip nits. Post a single PR comment. This is ADVISORY: never
-            block the merge; if the diff is clean, say so in one line.
+            findings, skip nits. Post a single PR comment (gh pr comment). This is
+            ADVISORY: never block the merge; if the diff is clean, say so in one line.
+
+      # Diagnosability (issue #253): the execution log is the only witness to
+      # in-runner permission denials — upload it every run so a silent review is
+      # never undiagnosable again.
+      - name: Upload execution log
+        if: steps.gate.outputs.ok == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-execution-log
+          path: ${{ steps.review.outputs.execution_file }}
+          if-no-files-found: ignore
