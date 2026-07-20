@@ -63,16 +63,30 @@ jobs:
           # prompt requires: read the diff, post ONE comment. Nothing else.
           claude_args: |
             --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
+          # Prompt mode injects NO PR context (the first live run guessed a PR
+          # number, got denied on discovery commands, then ended asking a human
+          # for approval in a headless job — the anatomy of the silent green
+          # check). So: inject the number, name the exact commands, forbid
+          # chaining (compound commands don't match single-prefix allow rules),
+          # and say it's headless.
           prompt: |
-            Review ONLY this PR's diff. Flag muda per CLAUDE.md — duplicated logic,
+            You are reviewing PR #${{ github.event.pull_request.number }} in
+            ${{ github.repository }}. This is a HEADLESS run: no human can answer
+            questions or approve commands — never end your turn waiting for
+            approval; if a command is denied, adapt using the allowed ones. Run
+            allowlisted commands as SINGLE commands, never chained with && or ;.
+            Read the diff with: gh pr diff ${{ github.event.pull_request.number }}
+            Review ONLY that diff. Flag muda per CLAUDE.md — duplicated logic,
             dead code or fields, premature abstraction, one-home / SSoT violations,
             drift — and any obvious correctness bug. One-home includes RESTATEMENT:
             an added line that repeats (even reworded) a fact whose home is a
             lower-altitude file — e.g. a README or ADR retelling a rule a skill
             reference or script owns — is a violation; it should cite, not restate.
-            Be terse: cite file:line, group
-            findings, skip nits. Post a single PR comment (gh pr comment). This is
-            ADVISORY: never block the merge; if the diff is clean, say so in one line.
+            Be terse: cite file:line, group findings, skip nits. Then post EXACTLY
+            ONE comment:
+            gh pr comment ${{ github.event.pull_request.number }} --body "<findings>"
+            This is ADVISORY: never block the merge; if the diff is clean, the
+            comment is one line saying so.
 
       # Diagnosability (issue #253): the execution log is the only witness to
       # in-runner permission denials — upload it every run so a silent review is
