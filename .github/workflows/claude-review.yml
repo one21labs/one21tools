@@ -56,19 +56,13 @@ jobs:
           # otherwise dies with "Could not fetch an OIDC token", turning the
           # advisory check red. Explicit token = no OIDC, works with the OAuth setup.
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          # Bash is DISABLED by default in the action (issue #253: the review ran
-          # 21 turns but its 5 attempts to read the diff / post the comment were all
-          # denied, so the check went green with ZERO comments on 4 straight PRs —
-          # silence indistinguishable from a clean diff). Grant the minimum the
-          # prompt requires: read the diff, post ONE comment. Nothing else.
+          # Bash is disabled by default in the action; without these grants the
+          # review cannot read the diff or post, and the check goes green while
+          # silent (#253). Exactly the commands the prompt names — nothing else.
           claude_args: |
-            --allowedTools "Bash(git diff:*),Bash(git log:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr comment:*)"
-          # Prompt mode injects NO PR context (the first live run guessed a PR
-          # number, got denied on discovery commands, then ended asking a human
-          # for approval in a headless job — the anatomy of the silent green
-          # check). So: inject the number, name the exact commands, forbid
-          # chaining (compound commands don't match single-prefix allow rules),
-          # and say it's headless.
+            --allowedTools "Bash(gh pr diff:*),Bash(gh pr comment:*)"
+          # Prompt mode injects no PR context; the run is headless; compound
+          # commands don't match single-prefix allow rules (#253).
           prompt: |
             You are reviewing PR #${{ github.event.pull_request.number }} in
             ${{ github.repository }}. This is a HEADLESS run: no human can answer
@@ -88,9 +82,7 @@ jobs:
             This is ADVISORY: never block the merge; if the diff is clean, the
             comment is one line saying so.
 
-      # Diagnosability (issue #253): the execution log is the only witness to
-      # in-runner permission denials — upload it every run so a silent review is
-      # never undiagnosable again.
+      # The execution log is the only witness to in-runner denials (#253).
       - name: Upload execution log
         if: steps.gate.outputs.ok == 'true' && always()
         uses: actions/upload-artifact@v4
