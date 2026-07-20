@@ -1,6 +1,6 @@
 ---
 name: retrospect
-description: Use when something in the shipped work felt wrong or worth learning from — on demand, never as per-PR ritual. Derives at least 2 routed process improvements from git history plus this session's friction, then applies or escalates each. Explicit-invoke only; never auto-fire.
+description: Use when a session closes (standing, ADR 0081) or when shipped work felt wrong or worth learning from — never as per-PR ritual. Derives routed process improvements from git history plus this session's friction (an empty result is valid), then applies or escalates each. Explicit-invoke only; never auto-fire.
 disable-model-invocation: true
 ---
 
@@ -8,13 +8,26 @@ disable-model-invocation: true
 
 Make the process better after shipping. The process half of the feedback system (the product
 half is `/decide` on user feedback). Explicit-invoke only: it spends an agent and edits
-process docs, so it must never auto-fire. Run it ON DEMAND — when friction recurred, a defect
-surprised you, or the work fought back — not as ritual; while the PR is still open is the
-useful moment, so findings can land in it.
+process docs, so it must never auto-fire. Two triggers (ADR 0081): SESSION CLOSE — standing,
+because at the moment of failure goal pressure narrows diagnosis and self-blame terminates
+why-chains, so the reflection step cannot be gated on the impaired judgment — and ON DEMAND
+while a PR is still open, so findings can land in it. The dead per-PR ritual (ADR 0030) stays
+dead: an EMPTY finding list is a valid result; output lands as diffs/issues/ADRs, never a
+green reassurance line.
 
 Arguments (optional): $ARGUMENTS = the git range or scope (e.g. `origin/main...HEAD`, a PR number).
 Default: `origin/main...HEAD` (this branch's work; three-dot against the remote tip, not stale
 local `main`).
+
+**Session-close mode (ADR 0081).** Scope = everything shipped since session start (list the
+merged PRs/commits). Step 4's friction hand-off is MANDATORY and enumerated as a checklist —
+user corrections, wrong guesses, rework, permission denials, gate/CI failures — each marked
+git-visible y/n. Invoke via this skill, not a raw agent spawn: the spawn-log line marks the
+run (a raw spawn only lowers 0081's measured compliance — session-end lines are the
+denominator). An adopted finding's artifact carries the literal token
+`Retrospect-Run: <UTC timestamp of the run's spawn-log line>` (commit trailer or issue-body
+line) — 0081's grep-able numerator. Step 2's material includes `docs/pdca/gate-hits.txt`
+(the agent's Method reads it).
 
 Run this loop:
 
@@ -34,10 +47,10 @@ Run this loop:
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
    git-visible miss is caught, a non-git-visible one is not.
-5. **Curate.** Dedupe the enumerated list; drop non-systemic items BEFORE counting toward the
-   at-least-2 (the enumerate-all above must not pressure the no-pad rule); keep only systemic
-   improvements (would recur), at least 2, cite-or-silence — never pad to a count. If under two
-   are real, say so.
+5. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
+   above must not pressure the no-pad rule); keep only systemic improvements (would recur),
+   cite-or-silence — as many as are REAL: zero is the expected result of a clean closeout
+   (ADR 0081), never pad to a count. If none are real, say so.
 6. **Route + act.** Route each improvement to its lowest home per the agent's analysis (it owns the
    routing rules). The agent's findings are advice — independently verify each against the repo and
    muda-assess whether the fix beats its cost before applying (a sub-agent's "apply directly" is a

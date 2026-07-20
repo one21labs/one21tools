@@ -177,14 +177,14 @@ test("absent gate-hits log: stated as a true zero, does not break the all-clear 
 
 // Real-corpus regression (adr-lint.test.mjs corpus() convention): pins today's mined values so a
 // parser regression that blanks rows or reclassifies outcomes fails loudly. Recompute on corpus change.
-test("real corpus: 12 verified / 2 violated / 3 still-open / 0 unparsed; hit-rate 2/14 evaluated", () => {
+test("real corpus: 12 verified / 3 violated / 3 still-open / 0 unparsed; hit-rate 3/15 evaluated", () => {
   const dir = "docs/decisions";
   const files = readdirSync(dir).filter(f => /^\d{4}-.*\.md$/.test(f))
     .map(name => ({ name, text: readFileSync(join(dir, name), "utf8").replace(/\r\n/g, "\n") }));
   const { rows, unparsed } = analyze(parseAdrs(files), SCORECARD_CONFIG, TODAY);
   assert.equal(unparsed.length, 0);
-  assert.equal(rows[0].sample, 14);
-  assert.ok(Math.abs(rows[0].value - 2 / 14) < 1e-9);
-  assert.equal(rows[0].status, "healthy"); // 14.3% < watchAbove 20%
-  assert.equal(rows[1].sample, 17);        // 12 + 2 + 3 classified
+  assert.equal(rows[0].sample, 15);
+  assert.ok(Math.abs(rows[0].value - 3 / 15) < 1e-9);
+  assert.equal(rows[0].status, "healthy"); // 20.0% is not ABOVE watchAbove 20%
+  assert.equal(rows[1].sample, 18);        // 12 + 3 + 3 classified
 });

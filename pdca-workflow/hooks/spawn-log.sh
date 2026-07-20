@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Skill) for the pdca-workflow plugin (ADR 0049 decision 2): append
-# one git-visible log line whenever one of the plugin's panel primitives -- advise, red-team,
-# verify -- is invoked, with or without the pdca-workflow: plugin prefix. Pure observability:
+# one git-visible log line whenever one of the plugin's panel/loop primitives -- advise,
+# red-team, verify, retrospect (the ADR 0081 closeout-denominator) -- is invoked, with or
+# without the pdca-workflow: plugin prefix. Pure observability:
 # ALWAYS exits 0, NEVER denies, never blocks -- the /retrospect git-signal arm reads the log
 # later to count panel spawns on a branch. One line per fire: ISO-8601 UTC date + skill name as
 # given. Cannot recurse: this hook fires on Skill tool use and only appends to a file (no skill,
@@ -36,7 +37,7 @@ skill=$(printf '%s' "$input" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\([^
 [ -z "$skill" ] && exit 0
 
 case "$skill" in
-  advise|red-team|verify|pdca-workflow:advise|pdca-workflow:red-team|pdca-workflow:verify)
+  advise|red-team|verify|retrospect|pdca-workflow:advise|pdca-workflow:red-team|pdca-workflow:verify|pdca-workflow:retrospect)
     root="${CLAUDE_PROJECT_DIR:-.}"
     [ -d "$root/docs/pdca" ] || exit 0
     printf '%s skill-spawn %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$skill" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
