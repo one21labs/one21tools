@@ -41,7 +41,13 @@ run_gate() {  # $1 = gate name for telemetry; rest = the gate command
 
 case "$fp" in
   */skills/*)
-    skilldir=$(printf '%s' "$fp" | sed -n 's/.*\(skills\/[^/]*\)\/.*/\1/p')
+    # Derive the skill dir RELATIVE to $root, preserving any plugin prefix (#256): a bare
+    # `skills/<name>` capture strips `pdca-workflow/`-style prefixes, so the dir guard below
+    # silently skipped every plugin-scoped skill. Normalize root's backslashes the same way as
+    # fp's, or the prefix strip fails on Windows and reintroduces the same silent skip.
+    rootn=$(printf '%s' "$root" | sed 's/\\\\/\//g; s/\\/\//g')
+    relfp=${fp#"$rootn"/}
+    skilldir=$(printf '%s' "$relfp" | sed -n 's/^\(.*skills\/[^/]*\)\/.*/\1/p')
     [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate validate.py "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in
