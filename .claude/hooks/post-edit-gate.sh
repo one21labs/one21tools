@@ -48,6 +48,10 @@ case "$fp" in
     # fp's, or the prefix strip fails on Windows and reintroduces the same silent skip.
     rootn=$(norm_slashes "$root")
     relfp=${fp#"$rootn"/}
+    # If the strip missed (root is the "." fallback, or carries a trailing slash), retry
+    # against $PWD — after `cd "$root"` above it IS the absolute root — else an absolute fp
+    # keeps its full prefix, the dir guard tests a nonsense path, and the gate silently skips.
+    [ "$relfp" = "$fp" ] && relfp=${fp#"$(norm_slashes "$PWD")"/}
     skilldir=$(printf '%s' "$relfp" | sed -n 's/^\(.*skills\/[^/]*\)\/.*/\1/p')
     [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate validate.py "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac

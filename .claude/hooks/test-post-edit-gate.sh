@@ -129,5 +129,11 @@ json=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$FIX/pdca
 code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
 assert_exit "fixture failing plugin skill -> validate.py runs via preserved prefix -> exit 2" 2 "$code"
 
+# Same failing skill with CLAUDE_PROJECT_DIR UNSET and cwd = fixture root: root falls back to
+# "." so the root-prefix strip misses the absolute fp; the $PWD fallback must rescue the
+# derivation or the gate silently skips (muda-review finding on this PR).
+code=$(cd "$FIX" && printf '%s' "$json" | env -u CLAUDE_PROJECT_DIR bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "unset CLAUDE_PROJECT_DIR, cwd=root -> \$PWD fallback still routes -> exit 2" 2 "$code"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
