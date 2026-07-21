@@ -22,6 +22,9 @@ Method:
   A gate-hit is a caught violation; recurring hits on one gate = a promotion candidate (ADR
   0080). Flag a panel fire with no matching judgment call in range (misfire) and a worthy call
   with no fire (miss) — zero lines ≠ no panel: raw agents skip the hook; check ADR `Panel:` lines.
+- **Repo hygiene (steward the state):** `git branch -r`, `git branch -vv`, `git worktree list` —
+  flag merged-PR leftovers, `claude/*` refs with no PR, gone-upstream locals, stray
+  worktrees/stashes; prefer the structural fix (a setting, a gate) over a vigilance rule.
 - **Session friction:** each supplied correction or wrong guess is a defect the process allowed —
   keep only systemic ones (would recur).
 - **Friction cross-check:** the supplied list is one unverified source — FLAG any git-visible
