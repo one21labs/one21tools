@@ -20,11 +20,11 @@ summary: "9 stale remote branches accumulated unseen (8 squash-merge leftovers +
   task).
 
 ## Decision
-The retrospect agent's Method gains one repo-hygiene bullet: `git branch -r`, `git branch -vv`,
-`git worktree list`; flag merged-PR leftovers, `claude/*` refs with no PR, gone-upstream locals,
-stray worktrees/stashes; prefer a structural fix (a setting, a gate) over a vigilance rule. No
-new agent, hook, or schedule. Complement, already applied at the source: `deleteBranchOnMerge`
-enabled on the repo, closing the squash-merge leak for all future merges.
+The retrospect agent's Method gains one repo-hygiene bullet — the command list and flagged
+classes live in `pdca-workflow/agents/retrospect.md` (its one home), governed by the principle:
+prefer a structural fix (a setting, a gate) over a vigilance rule. No new agent, hook, or
+schedule. Complement, already applied at the source: `deleteBranchOnMerge` enabled on the repo,
+closing the squash-merge leak for all future merges.
 
 ## Justification
 Custodial state had no owner, and a vigilance rule would leak (Process-Level Poka-yoke doctrine).
