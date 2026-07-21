@@ -1,14 +1,13 @@
 ---
 name: retrospect
-description: Use when a session closes (standing, ADR 0081) or when shipped work felt wrong or worth learning from — never as per-PR ritual. Derives routed process improvements from git history plus this session's friction (an empty result is valid), then applies or escalates each. Explicit-invoke only; never auto-fire.
-disable-model-invocation: true
+description: Use when a session closes (standing, ADR 0081) or when shipped work felt wrong or worth learning from — never as per-PR ritual. Derives routed process improvements from git history plus this session's friction (an empty result is valid), then applies or escalates each. Trigger-bound: fires only at those triggers, never outside them.
 ---
 
 # /retrospect — automate the PDCA Act loop
 
 Make the process better after shipping. The process half of the feedback system (the product
-half is `/decide` on user feedback). Explicit-invoke only: it spends an agent and edits
-process docs, so it must never auto-fire. Two triggers (ADR 0081): SESSION CLOSE — standing,
+half is `/decide` on user feedback). Trigger-bound (ADR 0016): it spends an agent and edits
+process docs, so it fires ONLY at the two ADR 0081 triggers, never outside them: SESSION CLOSE — standing,
 because at the moment of failure goal pressure narrows diagnosis and self-blame terminates
 why-chains, so the reflection step cannot be gated on the impaired judgment — and ON DEMAND
 while a PR is still open, so findings can land in it. The dead per-PR ritual (ADR 0030) stays

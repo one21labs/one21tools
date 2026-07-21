@@ -1,8 +1,8 @@
 ---
 id: 0016
-title: "Extract advise/verify/red-team as standalone, model-invocable panel primitives"
+title: "Standalone, model-invocable panel primitives: advise/verify/red-team; retrospect joins the set (trigger-bound)"
 status: accepted
-summary: "The /decide panel's three mechanisms ship as standalone pdca-workflow skills — advise (fresh unprimed advisors), verify (independent gate), red-team (adversary) — invocable situationally by the main agent or the user WITHOUT the full ceremony (no disable-model-invocation). /decide keeps its explicit-invoke restriction and becomes the composition + the ADR record; spawn/shape mechanics move to their one home in each primitive. Trade accepted: three always-loaded descriptions buy right-sized verification; REOPEN-IF a primitive auto-fires wastefully."
+summary: "The /decide panel's three mechanisms ship as standalone pdca-workflow skills — advise (fresh unprimed advisors), verify (independent gate), red-team (adversary) — invocable situationally by the main agent or the user WITHOUT the full ceremony (no disable-model-invocation). Retrospect joins the model-invocable set, trigger-bound to its ADR 0081 triggers — the session discharges and marks the standing close-out itself. /decide keeps its explicit-invoke restriction and becomes the composition + the ADR record; spawn/shape mechanics move to their one home in each primitive. Trade accepted: the always-loaded descriptions buy right-sized verification; REOPEN-IF a primitive auto-fires wastefully."
 ---
 
 # 0016 — standalone panel primitives (advise / verify / red-team)
@@ -17,6 +17,7 @@ summary: "The /decide panel's three mechanisms ship as standalone pdca-workflow 
 2. **Model-invocable** — none carries `disable-model-invocation`. Each spawns 1-3 agents (bounded, unlike the full panel); descriptions state tight "Use when" triggers so they fire on genuine need. The main agent and the user choose the piece the situation needs.
 3. **/decide becomes the composition.** It keeps: explicit-invoke, Inherit/Frame/Decide/Record, the roles table, BLOCK semantics. Its steps now invoke the primitives; spawn/shape mechanics moved to their ONE home in each primitive (the advisor-shape rule, the handoff-overwrite rule) — decide references, never restates. Net body shrink.
 4. **Escalation edge stays sharp:** a call that must be recorded (roadmap/product/policy) escalates to `/decide` — the `advise` skill says so; deciding without a record is drift.
+5. **Retrospect joins the model-invocable set (amended 2026-07-20, #260)** — flag removed, TRIGGER-BOUND: it fires only at its ADR 0081 triggers (session close, standing; on demand), stated in its description. Why: ADR 0081(d)'s run-marker is the spawn-log line, which fires only on Skill-tool invocation — the flag forced every autonomous closeout down the raw-agent path, so measured compliance read zero structurally, not behaviorally. The auto-spend concern the flag guarded is governed by 0081's explicit standing trigger. Retrospect inherits the REOPEN-IF below and ADR 0049's reactive misfire regime (its spawn-log already matches retrospect).
 
 ## Justification
 Right-sizing: most verification-worthy moments are smaller than a roadmap call; a primitive at 1-3 agents makes the Check step cheap enough to actually run. One-home: the spawn/selection rules sat inside a near-cap decide body; each now lives once, in its primitive, and decide references it. Cost is bounded and known: the three descriptions are always-loaded context; the panel machinery itself still loads on demand.
