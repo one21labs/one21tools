@@ -26,13 +26,13 @@ Same countermeasure family Toyota chose for the same failure mode in humans: a m
 - [checkable] the SessionEnd hook logs exactly one boundary line per end, none without the marker, and stays silent on an unwritable log — owner: `test-session-end-log.sh` (CI-globbed). result: verified — suite green.
 - [verified] the failure mode reproduced in-session: the cap failure was fixed as an instance (PR #251 trim commit) while the class gap sat in `budget-edit-guard.sh:14` vs `doc-budgets.md:52-56`, found only by the forced retrospect (#255).
 - [checkable] 0030's measurement does not cover this decision's granularity — its summary claims "no per-PR quality edge"; per-session close was never an arm. result: verified against `0030:5`.
-- [checkable-doc] no settled ADR contradicted: 0030 amended in place (its own REOPEN-IF standard met by the measured class-gap instance); 0068's friction channel is extended (checklist), not replaced; 0006's cheap tier for the retrospect agent unchanged; 0062's two-stage /decide routing untouched (retrospect is Act, not Plan); explicit-invoke stays (the skill never auto-fires — CLAUDE.md's standing step is the trigger, a person/session still invokes it). result: verified against each.
+- [checkable-doc] no settled ADR contradicted: 0030 amended in place (its own REOPEN-IF standard met by the measured class-gap instance); 0068's friction channel is extended (checklist), not replaced; 0006's cheap tier for the retrospect agent unchanged; 0062's two-stage /decide routing untouched (retrospect is Act, not Plan); invocation policy homes in 0016 (retrospect model-invocable, trigger-bound — the session itself discharges and marks the standing duty). result: verified against each.
 
 ## Rejected alternatives
 - Keep judgment-gated on-demand only — the gate is the impaired judgment; the session holding the real finding was the one that needed an owner prod.
 - Restore the per-PR ritual — 0030's observed green-line pathology was real; the form stays dead, only the function returns at coarser granularity.
 - Prompt-only instruction, no structural step — instructs the moment that is impaired; rejected by the same logic as detect-vs-prevent rungs.
-- Auto-fire via hook — hooks cannot spawn agents, and silent auto-spend violates the explicit-invoke doctrine; the SessionEnd hook records the boundary instead of forcing the act.
+- Auto-fire via hook — hooks cannot spawn agents, and silent auto-spend violates the trigger-bound invocation doctrine (0016); the SessionEnd hook records the boundary instead of forcing the act.
 - Mint the 0.5/run band now — n=1, no variance, no exposure story: exactly what 0080 forbids; a pre-registered review /decide replaces the cutline.
 
 ## Revisit triggers
