@@ -19,7 +19,7 @@ Falsifiable criterion (study-level): after the in-repo pass over the (a) corpus,
 
 **(b) Mining + priming controls — ENDORSE #268's in-repo-first, AMEND.** In-repo mining runs BEFORE any external taxonomy read (external categories prime pattern-matching onto them — ADR 0059's contamination channel). The two seeds are SEEDS, not templates: the pass hunts ANY recurring mode, not more narrowing instances. Each candidate is a neutral, falsifiable hypothesis ("does mode X recur or was it one-off?"), never "X is a class" (ADR 0059). POSITIVE CONTROL: the pass must re-derive a KNOWN at-bar class from the corpus unaided (ADR 0076's estimate-guess, or 0081/0083's instances); a pass that cannot is a demonstrated mining failure, not a null. The external prior-art pass (ADR 0042) runs strictly AFTER and may only (i) name/classify a confirmed in-repo class or (ii) seed NEW hypotheses for a future scoped pass — never lower (c)'s bar.
 
-**(c) Evidence bar.** >=2 independent cited instances promote anecdote -> class (ENDORSE #268). Independent = distinct SESSIONS / dated windows — PR/commit distinctness ALONE is insufficient (one session ships many PRs here: 04b1263 #262 and 0fc88f7 #263, merged 3 min apart). Each instance cites a commit SHA, issue/PR number, or a `gate-hits.txt`/`session-log.txt` line. A sub-bar candidate is LOGGED in the #268 thread (cite-or-silence, ADR 0080), neither promoted nor discarded.
+**(c) Evidence bar.** >=2 independent cited instances promote anecdote -> class (ENDORSE #268). Independent = distinct SESSIONS / dated windows — PR/commit distinctness ALONE is insufficient (one session ships many PRs here: 04b1263 #262 and 0fc88f7 #263, merged 3 min apart). Each instance cites a commit SHA, issue/PR number, or a `gate-hits.txt`/`session-log.txt` line. A sub-bar candidate is LOGGED in the #268 thread (cite-or-silence, ADR 0001), neither promoted nor discarded.
 
 **(d) Budget + spend gate.** Unit = agent-sessions/tokens — a mining study, not an API grid, so ADR 0076's $/cell prior-lookup is N/A (stated, not skipped). Prior = THIS /decide's own mining session, the explicit measured analog (ADR 0076's pilot-before-number intent): ~2-3 agent-sessions, LOW-CONFIDENCE. Ceiling = 2x = ~6 (ADR 0073). Cost-pilot (ADR 0042/0065): the FIRST pass IS the pilot, but a zero-candidate result is NOT auto-null — it gates on (f) first.
 
@@ -28,7 +28,7 @@ Falsifiable criterion (study-level): after the in-repo pass over the (a) corpus,
 **(f) Stop rule — null vs corpus-insufficient (pre-declared).** Already-mitigated classes (0081, 0083, 0076's estimate-guess) do NOT count toward the null — the study seeks NEW classes. A zero/thin result is a valid NULL only if the (b) positive control PASSED and each in-scope stream covers its window (per (a)); if either fails it is "corpus insufficient", NOT "no classes exist" -> instrument-first (promote gate-hits / session-end telemetry, ADR 0080), never conclude absence. A qualified null -> record in #268, STOP, no escalation (ADR 0059).
 
 ## Justification
-Cost ~0 to scope, gating a study whose two priors were both found by luck not method. In-repo-first is ADR 0059's contamination control; the >=2 bar is ADR 0080's cite-or-silence applied to class-claims; the positive control + coverage gate stop a lazy zero-pass masquerading as a null. The spend gate reuses cost-pilot (ADR 0042) and the 2x ceiling (ADR 0073).
+Cost ~0 to scope, gating a study whose two priors were both found by luck not method. In-repo-first is ADR 0059's contamination control; the >=2 bar is cite-or-silence (ADR 0001) applied to class-claims; the positive control + coverage gate stop a lazy zero-pass masquerading as a null. The spend gate reuses cost-pilot (ADR 0042) and the 2x ceiling (ADR 0073).
 
 ## Assumptions
 - [unverifiable] WEAKEST — the null's meaning rides on it: committed artifacts UNDER-capture failure modes (a clean-shipped narrowing leaves no scar; the empty 0081 series makes it concrete), so a zero result may be corpus-blindness. The (f) gate converts most such cases to "corpus insufficient". REOPEN-IF a qualified null is recorded AND a later incidental discovery surfaces a class the mined corpus already contained -> the method missed it, not absent; re-scope toward instrumentation.
@@ -40,7 +40,7 @@ Cost ~0 to scope, gating a study whose two priors were both found by luck not me
 - Read external taxonomies first, then mine — inverts ADR 0059's control; #268's own instinct, correctly.
 - Bar = 1 instance, or independence by PR/commit alone — an anecdote is not a class, and one session ships many PRs here (gameable).
 - Zero-candidate = automatic null — a corpus-blind pass would score a false null; (f) gates it.
-- tier: lite — a live REOPEN-IF plus open assumptions; lite is settled-only.
+- tier: lite — a live REOPEN-IF plus open assumptions; lite is settled-only (ADR 0020).
 - Batch findings into one end-of-study ADR — contradicts the owner's record-when-found directive (#268) and ADR 0021.
 
 ## Revisit triggers
