@@ -19,7 +19,9 @@ Per call, write an ADR to `docs/decisions/` from the template, making the weakes
 the most visible line in it. Draft to the template's stated margin and measure the char count
 once before finalizing, and confirm `tier: lite` eligibility in the same pass (no live
 REOPEN-IF / open assumption — lint rejects it) — don't write long and trim in passes; if the Decision prescribes literal
-wording for a shipped home (CLAUDE.md, an agent, another doc), check THAT file's headroom too. On a split panel, find the reframe that captures the value both
+wording for a shipped home (CLAUDE.md, an agent, another doc), check THAT file's headroom too;
+before ruling a structural edit to a validator-gated file, run that validator once — never
+reason from memory of its rules. On a split panel, find the reframe that captures the value both
 sides want before you tally — most ties are false either/ors (split by population/segment;
 separate cheap-now from full-later). On a design call the tie-break is poka-yoke — prefer making
 the error impossible over merely detecting it; before endorsing a sync/generator/guard for a

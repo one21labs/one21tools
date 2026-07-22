@@ -8,8 +8,7 @@ disable-model-invocation: true
 
 Decide a judgment call as a dialectic of advisors, one accountable decider, and an independent
 verification gate — never parallel-and-average. This skill IS the workflow's system of record; no
-separate doc restates it. Explicit-invoke only (`disable-model-invocation`): the panel spends 10+
-agents and writes ADRs.
+separate doc restates it.
 
 **Trigger.** A roadmap/product change, an open judgment call, or ANY user feedback (bug report,
 feature ask, behavioral observation). Route it here — never fix a feedback item directly before
@@ -76,7 +75,8 @@ retrospective cheaper) — each agent's frontmatter `model:` is the SSoT for its
    (`id`/`title`/`status`/`summary`; version-agnostic — ship-state derives from `## Act`; lint
    spec: `references/adr-lint.md`; rules + shared register:
    `docs/decisions/README.md`). If a roadmap/changelog/tracker exists, mirror
-   build-order/ship-state there referencing the ADR ID. Spawned experiments: a
+   build-order/ship-state there referencing the ADR ID. Ship the ADR as read back from
+   disk, never an agent's chat echo. Spawned experiments: a
    neutral falsifiable hypothesis (ADR 0059).
 8. **Iterate the system.** Fold what you learned (a missing field, a better stop rule) back into
    its home — an agent file, this skill, or CLAUDE.md. Automate this Act loop with `/retrospect`.
