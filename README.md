@@ -83,6 +83,14 @@ becomes gates that make the error impossible rather than detected; "build qualit
 catching defects at source. The skills encode these as directives — and the loop above is what
 keeps them honest.
 
+## Provenance
+
+What comes from whom (ADR 0085): the repo owner supplies the direction, the principles, and the
+requirements; Claude produces the implementation — code, prose mechanics, records — under that
+direction. This default speaks for the whole repo. Where it fails for a doc read standalone, that
+doc carries a single inline note at the point of deviation (exemplar:
+`skills/engineering-principles/references/ENGINEERING_PRINCIPLES.md`).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
