@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
 # Decision-logic test for post-edit-gate.sh. Runnable on git-bash:
-# `bash test-post-edit-gate.sh`. Uses the REAL repo as CLAUDE_PROJECT_DIR (read-only: the gate
-# scripts under test -- validate.py, check-restatement.mjs, check-workflow.mjs -- only read
-# files, this test writes nothing into the repo) so the routing exercises the genuine scripts and
-# a genuine skill/benchmark fixture, not stubs. The repo root is derived from this script's own
-# location (two dirs up), so the suite runs everywhere the repo is checked out, CI included;
-# SKIPs (exit 0) only if that derivation doesn't land in a repo checkout.
+# `bash test-post-edit-gate.sh`. Uses the REAL repo as CLAUDE_PROJECT_DIR so the routing
+# exercises the genuine scripts and a genuine skill/benchmark fixture, not stubs. The gate
+# scripts under test only read files, but the hook itself WRITES gate-hit telemetry (ADR 0080)
+# whenever a routed gate genuinely fails mid-suite -- so the real repo's log is snapshotted
+# before the real-repo cases and restored on exit (#256; the pre-0080 "writes nothing" premise
+# no longer holds). The repo root is derived from this script's own location (two dirs up), so
+# the suite runs everywhere the repo is checked out, CI included; SKIPs (exit 0) only if that
+# derivation doesn't land in a repo checkout.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/post-edit-gate.sh"
 REPO="$(cd "$HERE/../.." && pwd)"
 [ -f "$REPO/scripts/check-restatement.mjs" ] || { echo "SKIP: repo root not found at $REPO"; exit 0; }
+
+# Snapshot the real telemetry log around the whole suite (restore even on mid-run kill).
+GHLOG="$REPO/docs/pdca/gate-hits.txt"
+GHSNAP=""; FIX=""
+[ -f "$GHLOG" ] && { GHSNAP=$(mktemp); cp "$GHLOG" "$GHSNAP"; }
+cleanup() {
+  if [ -n "$GHSNAP" ]; then cp "$GHSNAP" "$GHLOG"; rm -f "$GHSNAP"
+  elif [ -f "$GHLOG" ]; then rm -f "$GHLOG"; fi
+  [ -n "$FIX" ] && rm -rf "$FIX"
+}
+trap cleanup EXIT
 
 pass=0; fail=0
 assert_exit() {
@@ -80,10 +93,19 @@ assert_exit "malformed/empty stdin -> fails open -> exit 0" 0 "$code"
 code=$(run "$REPO/skills/nonexistent-skill-xyz/SKILL.md")
 assert_exit "skills/<nonexistent>/SKILL.md -> dir guard skips gate -> exit 0" 0 "$code"
 
+# --- Plugin-scoped skills (#256): the derivation must preserve the plugin prefix so the dir
+# guard resolves; the old bare `skills/<name>` capture silently skipped these. ---
+# A real, currently-passing plugin skill routes and passes.
+code=$(run "$REPO/pdca-workflow/skills/retrospect/SKILL.md")
+assert_exit "pdca-workflow/skills/* edit -> prefix preserved, validate.py passes -> exit 0" 0 "$code"
+
+# Nonexistent plugin-scoped skill dir -> the dir guard still skips.
+code=$(run "$REPO/pdca-workflow/skills/nonexistent-skill-xyz/SKILL.md")
+assert_exit "pdca-workflow/skills/<nonexistent> -> dir guard skips gate -> exit 0" 0 "$code"
+
 # --- Gate-hit telemetry (ADR 0080): failure path, exercised in a mktemp fixture whose routed
 # gate script does not exist (node fails -> run_gate's failure branch), never the real repo. ---
 FIX=$(mktemp -d)
-trap 'rm -rf "$FIX"' EXIT
 json=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$FIX/README.md")
 code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
 assert_exit "fixture README edit, gate script missing -> failure path -> exit 2" 2 "$code"
@@ -95,6 +117,23 @@ assert_exit "fixture failure with marker present -> still exit 2" 2 "$code"
 if [ "$(grep -c 'gate-hit check-restatement.mjs' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; then
   pass=$((pass+1)); printf 'PASS: %s\n' "failure appended exactly one gate-hit line naming the gate"
 else fail=$((fail+1)); printf 'FAIL: %s log=[%s]\n' "failure appended exactly one gate-hit line naming the gate" "$(cat "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)"; fi
+
+# A FAILING plugin-scoped skill, real validate.py copied into the fixture: exit 2 proves the
+# gate actually RAN for a prefixed path. Under the stripped-prefix bug this silently skipped
+# and exited 0 -- indistinguishable from a pass in the real-repo case above, so only a failing
+# skill can pin the regression.
+mkdir -p "$FIX/skills/building-skills/scripts" "$FIX/pdca-workflow/skills/badskill"
+cp "$REPO/skills/building-skills/scripts/validate.py" "$FIX/skills/building-skills/scripts/"
+printf 'no frontmatter at all\n' > "$FIX/pdca-workflow/skills/badskill/SKILL.md"
+json=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$FIX/pdca-workflow/skills/badskill/SKILL.md")
+code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "fixture failing plugin skill -> validate.py runs via preserved prefix -> exit 2" 2 "$code"
+
+# Same failing skill with CLAUDE_PROJECT_DIR UNSET and cwd = fixture root: root falls back to
+# "." so the root-prefix strip misses the absolute fp; the $PWD fallback must rescue the
+# derivation or the gate silently skips (muda-review finding on this PR).
+code=$(cd "$FIX" && printf '%s' "$json" | env -u CLAUDE_PROJECT_DIR bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "unset CLAUDE_PROJECT_DIR, cwd=root -> \$PWD fallback still routes -> exit 2" 2 "$code"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

@@ -23,7 +23,8 @@ input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$fp" ] && exit 0
 # Normalize JSON-escaped Windows backslashes to forward slashes for case matching.
-fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
+norm_slashes() { printf '%s' "$1" | sed 's/\\\\/\//g; s/\\/\//g'; }
+fp=$(norm_slashes "$fp")
 root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
 PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
@@ -41,7 +42,17 @@ run_gate() {  # $1 = gate name for telemetry; rest = the gate command
 
 case "$fp" in
   */skills/*)
-    skilldir=$(printf '%s' "$fp" | sed -n 's/.*\(skills\/[^/]*\)\/.*/\1/p')
+    # Derive the skill dir RELATIVE to $root, preserving any plugin prefix (#256): a bare
+    # `skills/<name>` capture strips `pdca-workflow/`-style prefixes, so the dir guard below
+    # silently skipped every plugin-scoped skill. Normalize root's backslashes the same way as
+    # fp's, or the prefix strip fails on Windows and reintroduces the same silent skip.
+    rootn=$(norm_slashes "$root")
+    relfp=${fp#"$rootn"/}
+    # If the strip missed (root is the "." fallback, or carries a trailing slash), retry
+    # against $PWD — after `cd "$root"` above it IS the absolute root — else an absolute fp
+    # keeps its full prefix, the dir guard tests a nonsense path, and the gate silently skips.
+    [ "$relfp" = "$fp" ] && relfp=${fp#"$(norm_slashes "$PWD")"/}
+    skilldir=$(printf '%s' "$relfp" | sed -n 's/^\(.*skills\/[^/]*\)\/.*/\1/p')
     [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate validate.py "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in
