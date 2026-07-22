@@ -126,6 +126,19 @@ def find_self_referential_script_paths(text: str, folder_name: str) -> List[int]
     return offenders
 
 
+def skill_body_chars(content: str) -> int:
+    """R4 body-char count for a SKILL.md text: chars past the frontmatter block, plus everything
+    in the frontmatter beyond the first two lines (name/description carry their own caps) — else
+    a `details: |` block scalar or a duplicated key would smuggle unbounded prose past the cap.
+    Whole text if the frontmatter is malformed. Also imported by the repo's budget-edit-guard
+    hook to project post-edit sizes — the counting logic lives here only (ADR 0060)."""
+    m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
+    if not m:
+        return len(content)
+    fm_lines = m.group(1).strip().split('\n')
+    return len(content[m.end():].strip()) + len('\n'.join(fm_lines[2:]).strip())
+
+
 def validate_name(name: str) -> tuple[bool, str]:
     """R2.2-R2.8: the name rules, shared with init.py (ADR 0010). Excludes the folder-match
     check (R2.9), which needs an existing folder and stays in validate_skill."""
@@ -291,11 +304,7 @@ def validate_skill(skill_path: Path) -> ValidationResult:
     # normalizes newlines to \n (universal newlines), so counts are checkout-agnostic like charLen.
     body = content[match.end():]
     body_norm = body.strip()
-    # Everything in the frontmatter beyond the first two lines (name/description, which carry their
-    # own caps) counts toward the body budget — else a `details: |` block scalar or a DUPLICATED
-    # name:/description: key would smuggle unbounded prose past the cap.
-    extra_fm = "\n".join(lines[2:])
-    body_chars = len(body_norm) + len(extra_fm.strip())
+    body_chars = skill_body_chars(content)
     line_count = len(body_norm.split('\n')) if body_norm else 0
 
     # R4.1: max chars

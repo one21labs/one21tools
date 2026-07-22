@@ -6,8 +6,9 @@
 #
 # Caps come from their one homes at fire time — pdca-workflow/scripts/char-budget.mjs (node
 # import) for the doc/ADR/agent classes, skills/building-skills/scripts/validate.py (python
-# import) for SKILL.md bodies and skill references (#255) — no duplicated numbers.
-# BUDGET_GUARD_CAPS_JSON overrides for tests/consumers without node.
+# import: caps, R4 body math, TOC_RE) for SKILL.md bodies and skill references (#255) — no
+# duplicated numbers or counting logic. BUDGET_GUARD_CAPS_JSON overrides caps for tests/consumers
+# without node; skill-class sizing still imports validate.py (that class fails open without it).
 # Size math mirrors charLen (CRLF normalized). Lite ADRs (`tier: lite` in the RESULTING text) get
 # the lite cap. Fails OPEN on any parse/import error — a broken hook must never block edits.
 input=$(cat)
@@ -19,6 +20,7 @@ case "$fp" in
 esac
 
 root="${CLAUDE_PROJECT_DIR:-.}"
+export VP_PATH="$root/skills/building-skills/scripts/validate.py"
 caps="${BUDGET_GUARD_CAPS_JSON:-}"
 if [ -z "$caps" ]; then
   export CB_PATH="$root/pdca-workflow/scripts/char-budget.mjs"
@@ -29,7 +31,7 @@ if [ -z "$caps" ]; then
   # Skill-class caps live in validate.py (ADR 0009) — same live-import rule. On bridge failure,
   # keep the node caps: the doc/ADR/agent classes stay guarded; skill-class lookups then miss
   # their keys and fail open in the main block.
-  export VP_PATH="$root/skills/building-skills/scripts/validate.py" CB_CAPS_JSON="$caps"
+  export CB_CAPS_JSON="$caps"
   merged=$(python3 - 2>/dev/null <<'BRIDGE'
 import importlib.util, json, os
 spec = importlib.util.spec_from_file_location("v", os.environ["VP_PATH"])
@@ -63,25 +65,25 @@ try:
         if not old or old not in cur:
             sys.exit(0)  # the Edit itself will fail; not this hook's job
         out = cur.replace(old, new) if ti.get("replace_all") else cur.replace(old, new, 1)
-    def body_chars(t):
-        # Mirrors validate.py R4: name/description lines excluded; extra frontmatter counts.
-        m = re.match(r"^---\n(.*?)\n---", t, re.DOTALL)
-        if not m:
-            return len(t)
-        fm = m.group(1).strip().split("\n")
-        return len(t[m.end():].strip()) + len("\n".join(fm[2:]).strip())
-    toc_re = re.compile(r"(?im)^##\s*(table of contents|toc|contents)\b")  # = validate.py TOC_RE
+    def vp_mod():
+        # validate.py owns the R4 body math and TOC_RE — import, never mirror (poka-yoke:
+        # a local copy would silently drift when validate.py's rules change).
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("v", os.environ["VP_PATH"])
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
     size_out, size_cur, unit, hint = len(out), len(cur), "chars", ""
     if re.search(r"docs/decisions/[^/]+\.md$", fp):
         cap = caps["lite"] if re.search(r"^tier:\s*lite\s*$", out[:800], re.M) else caps["adr"]
     elif re.search(r"pdca-workflow/agents/[^/]+\.md$", fp):
         cap = caps["agent"]
     elif re.search(r"skills/[^/]+/SKILL\.md$", fp):
-        cap = caps["skill"]
-        size_out, size_cur, unit = body_chars(out), body_chars(cur), "body chars"
+        cap, vp = caps["skill"], vp_mod()
+        size_out, size_cur, unit = vp.skill_body_chars(out), vp.skill_body_chars(cur), "body chars"
     elif re.search(r"skills/[^/]+/references/[^/]+\.md$", fp):
         cap = caps["ref"]
-        if not toc_re.search(out) and caps["refToc"] < cap:
+        if not vp_mod().TOC_RE.search(out) and caps["refToc"] < cap:
             cap = caps["refToc"]
             if size_out <= caps["ref"]:
                 hint = f" Adding '## Table of Contents' raises the cap to {caps['ref']}."
