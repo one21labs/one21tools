@@ -1,10 +1,12 @@
 # Engineering Principles
 
-## Table of Contents
+## Table of Contents (major sections)
 
-[Foundations](#foundations) | [Key Quotes](#key-quotes) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [5 Whys](#root-cause-analysis-5-whys) | [Design First](#design-first-implementation-second) | [Process](#process-principles) | [Pareto](#pareto-application-guide) | [5S](#5s-applied-to-software) | [Lean by Domain](#lean-applicability-by-domain) | [Docs for AI](#documentation-for-ai-consumption) | [Application Hierarchy](#application-hierarchy) | [References](#references)
+[Foundations](#foundations) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [Process](#process-principles) | [Application Hierarchy](#application-hierarchy) | [References](#references)
 
 Manufacturing engineering principles for all work - software, documentation, processes, and physical workspaces. They synthesize Lean and Agile foundations for modern software development and engineering workflows.
+
+Provenance: the principles and guidance in this file originated with the repo owner in conversation; structure, wording, and examples are Claude's rendering of them (repo README, Provenance).
 
 ## Foundations
 
