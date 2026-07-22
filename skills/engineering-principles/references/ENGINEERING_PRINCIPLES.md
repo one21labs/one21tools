@@ -1,6 +1,6 @@
 # Engineering Principles
 
-## Table of Contents
+## Table of Contents (major sections)
 
 [Foundations](#foundations) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [Process](#process-principles) | [Application Hierarchy](#application-hierarchy) | [References](#references)
 
