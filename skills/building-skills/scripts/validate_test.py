@@ -16,11 +16,30 @@ from pathlib import Path
 
 from validate import (
     validate_skill,
+    skill_body_chars,
     BODY_MAX_CHARS,
     REFERENCE_MAX_CHARS,
     REFERENCE_TOC_THRESHOLD,
     EVALS_MIN_CASES,
 )
+
+
+class TestSkillBodyChars(unittest.TestCase):
+    """skill_body_chars is also imported by the repo's budget-edit-guard hook (ADR 0060) to
+    project post-edit sizes -- pin its contract, including the malformed-frontmatter branch
+    validate_skill itself never reaches (it early-returns on broken frontmatter)."""
+
+    def test_name_description_lines_excluded(self):
+        fm = "---\nname: x\ndescription: Use when testing.\n---\n"
+        self.assertEqual(skill_body_chars(fm + "abcde"), 5)
+
+    def test_extra_frontmatter_counts(self):
+        fm = "---\nname: x\ndescription: Use when testing.\ndetails: zz\n---\n"
+        self.assertEqual(skill_body_chars(fm + "abcde"), 5 + len("details: zz"))
+
+    def test_malformed_frontmatter_counts_whole_text(self):
+        self.assertEqual(skill_body_chars("no frontmatter here"),
+                         len("no frontmatter here"))
 
 # A minimal valid frontmatter opening (name FIRST, description SECOND starting with a trigger
 # phrase); make_skill closes it with ---, injecting any extra frontmatter lines before the fence.

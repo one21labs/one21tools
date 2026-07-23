@@ -103,6 +103,12 @@ assert_exit "pdca-workflow/skills/* edit -> prefix preserved, validate.py passes
 code=$(run "$REPO/pdca-workflow/skills/nonexistent-skill-xyz/SKILL.md")
 assert_exit "pdca-workflow/skills/<nonexistent> -> dir guard skips gate -> exit 0" 0 "$code"
 
+# A scripts/ file inside a skill whose FOLDER NAME ends in "skills": the old greedy `.*skills\/`
+# capture matched the folder-name suffix, derived skills/building-skills/scripts as the skill
+# dir, and failed the gate on a missing SKILL.md. "skills" must match as a whole path component.
+code=$(run "$REPO/skills/building-skills/scripts/validate.py")
+assert_exit "skill folder ending in -skills, scripts/ file -> component-anchored derivation -> exit 0" 0 "$code"
+
 # --- Gate-hit telemetry (ADR 0080): failure path, exercised in a mktemp fixture whose routed
 # gate script does not exist (node fails -> run_gate's failure branch), never the real repo. ---
 FIX=$(mktemp -d)
