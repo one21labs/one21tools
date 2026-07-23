@@ -52,7 +52,10 @@ case "$fp" in
     # against $PWD — after `cd "$root"` above it IS the absolute root — else an absolute fp
     # keeps its full prefix, the dir guard tests a nonsense path, and the gate silently skips.
     [ "$relfp" = "$fp" ] && relfp=${fp#"$(norm_slashes "$PWD")"/}
-    skilldir=$(printf '%s' "$relfp" | sed -n 's/^\(.*skills\/[^/]*\)\/.*/\1/p')
+    # "skills" must match as a WHOLE path component — a greedy `.*skills\/` also matched folder
+    # names merely ENDING in "skills" (skills/building-skills/scripts/x derived .../scripts as
+    # the skill dir and failed the gate on a missing SKILL.md).
+    skilldir=$(printf '%s' "$relfp" | sed -n 's/^\(\(.*\/\)\{0,1\}skills\/[^/]*\)\/.*/\1/p')
     [ -n "$skilldir" ] && [ -d "$root/$skilldir" ] && run_gate validate.py "$PY" "$root/skills/building-skills/scripts/validate.py" "$root/$skilldir" ;;
 esac
 case "$fp" in

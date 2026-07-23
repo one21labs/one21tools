@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Decision-logic test for budget-edit-guard.sh (CLAUDE.md Never rule). Runnable:
-# `bash test-budget-edit-guard.sh`. Uses a mktemp fixture + BUDGET_GUARD_CAPS_JSON override —
-# never the real repo files, no node needed. Asserts deny JSON on over-cap, silence otherwise.
+# `bash test-budget-edit-guard.sh`. Mutates only a mktemp fixture + BUDGET_GUARD_CAPS_JSON
+# override; the real validate.py is copied in read-only (it owns the R4 body math the hook
+# imports). Only the cap-bridge cases need node (they self-skip without it). Asserts deny JSON
+# on over-cap, silence otherwise.
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HOOK="$HERE/budget-edit-guard.sh"
-export BUDGET_GUARD_CAPS_JSON='{"doc":100,"adr":100,"lite":40,"agent":60}'
+export BUDGET_GUARD_CAPS_JSON='{"doc":100,"adr":100,"lite":40,"agent":60,"skill":50,"ref":120,"refToc":60}'
 pass=0; fail=0
 
 check() {
@@ -27,7 +29,8 @@ PY
 
 FIX=$(mktemp -d)
 export CLAUDE_PROJECT_DIR="$FIX"
-mkdir -p "$FIX/docs/decisions" "$FIX/pdca-workflow/agents"
+mkdir -p "$FIX/docs/decisions" "$FIX/pdca-workflow/agents" "$FIX/skills/building-skills/scripts"
+cp "$HERE/../../skills/building-skills/scripts/validate.py" "$FIX/skills/building-skills/scripts/"
 
 # 1. Write over the doc cap -> deny with reason
 big=$(python3 -c "print('x'*150)")
@@ -80,6 +83,52 @@ printf '%s' "$out" | grep -q '"permissionDecision": "deny"'; check "deny unchang
 [ "$(grep -c 'gate-hit budget-edit-guard' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; check "deny appended exactly one gate-hit line" $?
 out=$(payload Write "$FIX/CLAUDE.md" "content=fine" | bash "$HOOK")
 [ "$(grep -c 'gate-hit' "$FIX/docs/pdca/gate-hits.txt" 2>/dev/null)" = "1" ]; check "pass appended nothing" $?
+
+# 14-21. Skill class (#255): SKILL.md body cap, reference ToC-threshold cap, over-match fail-open
+mkdir -p "$FIX/skills/demo/references/sub"
+skbig=$(python3 -c "print('---\nname: demo\ndescription: Use when testing\n---\n' + 's'*60)")
+out=$(payload Write "$FIX/skills/demo/SKILL.md" "content=$skbig" | bash "$HOOK")
+printf '%s' "$out" | grep -q 'deny'; check "SKILL.md body over cap denied" $?
+skok=$(python3 -c "print('---\nname: demo\ndescription: Use when testing\n---\n' + 's'*45)")
+out=$(payload Write "$FIX/skills/demo/SKILL.md" "content=$skok" | bash "$HOOK")
+[ -z "$out" ]; check "SKILL.md counts body only: name/description lines free" $?
+skfm=$(python3 -c "print('---\nname: demo\ndescription: Use when testing\ndetails: ' + 'e'*50 + '\n---\nshort')")
+out=$(payload Write "$FIX/skills/demo/SKILL.md" "content=$skfm" | bash "$HOOK")
+printf '%s' "$out" | grep -q 'deny'; check "extra frontmatter counts toward body cap" $?
+refbig=$(python3 -c "print('r'*70)")
+out=$(payload Write "$FIX/skills/demo/references/guide.md" "content=$refbig" | bash "$HOOK")
+printf '%s' "$out" | grep -q 'deny'; check "no-ToC reference held to ToC threshold" $?
+printf '%s' "$out" | grep -q 'Table of Contents'; check "deny reason offers the ToC remedy" $?
+reftoc=$(python3 -c "print('## Table of Contents\n' + 'r'*70)")
+out=$(payload Write "$FIX/skills/demo/references/guide.md" "content=$reftoc" | bash "$HOOK")
+[ -z "$out" ]; check "ToC reference allowed past the threshold" $?
+refmax=$(python3 -c "print('## Table of Contents\n' + 'r'*130)")
+out=$(payload Write "$FIX/skills/demo/references/guide.md" "content=$refmax" | bash "$HOOK")
+printf '%s' "$out" | grep -q 'deny'; check "ToC reference still held to the hard cap" $?
+python3 -c "open('$FIX/skills/demo/SKILL.md','w').write('---\nname: demo\ndescription: Use when testing\n---\n' + 's'*80)"
+out=$(payload Edit "$FIX/skills/demo/SKILL.md" "old_string=$(python3 -c "print('s'*21)")" "new_string=s" | bash "$HOOK")
+[ -z "$out" ]; check "shrinking over-cap skill body allowed" $?
+out=$(payload Write "$FIX/skills/demo/references/sub/deep.md" "content=$(python3 -c "print('n'*200)")" | bash "$HOOK")
+[ -z "$out" ]; check "nested references/ over-match fails open" $?
+
+# 22-24. Cap bridge: caps live-imported from the fixture's char-budget.mjs + the real
+# validate.py (needs node, like the real hook path)
+if command -v node >/dev/null 2>&1; then
+  mkdir -p "$FIX/pdca-workflow/scripts" "$FIX/skills/bridge"
+  printf '%s\n' "export const DOC_BUDGETS = {'CLAUDE.md': 100};" \
+    "export const ADR_CHAR_BUDGET = 100;" "export const LITE_ADR_CHAR_BUDGET = 40;" \
+    "export const AGENT_CHAR_BUDGET = 60;" > "$FIX/pdca-workflow/scripts/char-budget.mjs"
+  saved="$BUDGET_GUARD_CAPS_JSON"; unset BUDGET_GUARD_CAPS_JSON
+  skhuge=$(python3 -c "print('---\nname: bridge\ndescription: Use when testing\n---\n' + 's'*6100)")
+  out=$(payload Write "$FIX/skills/bridge/SKILL.md" "content=$skhuge" | bash "$HOOK")
+  printf '%s' "$out" | grep -q 'deny'; check "cap bridge: skill caps live-imported from validate.py" $?
+  rm "$FIX/skills/building-skills/scripts/validate.py"
+  out=$(payload Write "$FIX/skills/bridge/SKILL.md" "content=$skhuge" | bash "$HOOK")
+  [ -z "$out" ]; check "missing validate.py: skill class fails open" $?
+  out=$(payload Write "$FIX/CLAUDE.md" "content=$big" | bash "$HOOK")
+  printf '%s' "$out" | grep -q 'deny'; check "missing validate.py: doc classes still guarded" $?
+  export BUDGET_GUARD_CAPS_JSON="$saved"
+fi
 
 rm -rf "$FIX"
 printf '%d passed, %d failed\n' "$pass" "$fail"
