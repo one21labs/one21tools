@@ -20,6 +20,13 @@ Rules for the highlights block:
   for the reader, not just the number.
 - **State plainly anything that went wrong or deviated from plan**, and what is now waiting on
   the reader.
+- **No repo jargon in the highlights.** Record ids, internal class labels, and codenames mean
+  nothing at 15-30 seconds; say the thing itself in plain words.
 - **Omit** process narration, anything the reader already saw, repetition of the detail layer,
   and options not pursued.
 - Skip the layering for trivial conversational replies.
+
+Closing a major effort (a shipped PR, a completed study) requires a full plain-language
+briefing — written as if the reader has forgotten the context: what the work was about, what
+was done, how it helped, and what happens next. Ending a major effort without this briefing
+is itself a failure (owner, 23-Jul-2026).

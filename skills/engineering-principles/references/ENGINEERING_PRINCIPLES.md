@@ -85,9 +85,11 @@ apply to the process itself, not just the product.**
 - **Why**: a self-improving loop's characteristic failure is silent self-degradation — a stale
   hook enforcing retired policy, a gamed metric, an unsourced claim. Product guards never
   notice loop-drift; process guards make it loud.
-- **Trust corollary**: metrics are gates, period — never optimization targets. A gameable
-  metric invites optimizing the number instead of the work (a gamed line cap became a char
-  cap), and gaming or misreporting is a catastrophic, possibly unrecoverable, trust failure.
+- **Trust but verify** (owner, 23-Jul-2026): blind trust is dangerous — a wired guard, a
+  green check, a claimed coverage counts only while something verifies it still holds; watch
+  the watchers. Corollary: metrics are gates, never optimization targets — a gameable metric
+  invites optimizing the number, and gaming or misreporting is a catastrophic, possibly
+  unrecoverable, trust failure.
 
 ## Root Cause Analysis (5 Whys)
 
