@@ -32,15 +32,13 @@ Unit widened from one work item to one cohesive work package, on the owner's quo
 combine "wherever it makes sense — for efficiency and practicality". The fresh adversary broke
 the first draft's similarity-based cohesion tests (review story / revert boundary / surface
 overlap): two were satisfiable by construction, and on live pairs the test admitted the wrong
-batch while rejecting the intended one. So batching is by DECLARATION or NECESSITY only —
-either the owner names several targets in the arguments (ADR 0051's principle: batching is
-declared, never inferred), or a joiner is admitted because shipping the lead forces edits to a
-file the joiner also needs, or invalidates the joiner's recorded fix. Each joiner is declared
-with its coupling in the PR body and closing summary, making the tripwire below fireable.
-Loosely-related items take ADR 0056's route instead — successive invocations landing per the
-consumer repo's shipping rules (in this repo: the open session PR). Parallel lanes stay scoped
-to independence of judgment (advisors/verifiers/red-team) as the consumer repo's rules invoke
-them — ADR 0062's panel economics stand; never parallel co-authoring of unrelated items.
+batch while rejecting the intended one. Result: batching only by owner DECLARATION in the
+arguments (ADR 0051's principle: declared, never inferred) or by NECESSITY coupling, every
+joiner declared alongside its coupling — which is what makes the tripwire above fireable. The
+operative words for both, and for parallel-lane scope (ADR 0062's panel economics stand), live
+in the command body per the Decision's one-home clause. Loosely-related items take ADR 0056's
+route instead — successive invocations landing per the consumer repo's shipping rules (in this
+repo: the open session PR).
 
 ## Revisit triggers
 - Claude Code ships bare-name or aliasable plugin commands → revisit the original bare `/MSH-baby` want.
