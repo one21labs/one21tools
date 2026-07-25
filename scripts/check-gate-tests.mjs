@@ -262,6 +262,13 @@ export function matcherMatchesTool(matcher, tool) {
   }
 }
 
+/** One home of the canary-reachability predicate: some registration for this hook covers the
+ *  canary's event, and its matcher covers the canary's tool (tool omitted = matcherless event).
+ *  Shared by the pure findings pass and the runner so the two can never drift. */
+export function canaryReachable(registrations, canary) {
+  return registrations.some((r) => r.event === canary.event && (canary.tool == null || matcherMatchesTool(r.matcher, canary.tool)));
+}
+
 /**
  * Pure registration-surface verdicts (ADR 0086 (c)). registrations: detailed rows (above).
  * hookInfo: Map(path -> {exists, executable, text}). enforceExecutable=false skips the
@@ -293,8 +300,7 @@ export function findCanaryRegistrationFindings({ registrations, hookInfo, enforc
       findings.push({ kind: "hook", path, expected: `${path}:${mf.line}`, reason: `malformed canary declaration: ${mf.error}` });
     }
     for (const c of canaries) {
-      const reachable = regs.some((r) => r.event === c.event && (c.tool == null || matcherMatchesTool(r.matcher, c.tool)));
-      if (!reachable) {
+      if (!canaryReachable(regs, c)) {
         findings.push({ kind: "hook", path, expected: `${path}:${c.line}`, reason: `declared input class unreachable: no ${c.event} registration${c.tool ? ` whose matcher covers tool ${c.tool}` : ""} (ADR 0086; the spawn-log Agent-surface scar)` });
       }
     }
@@ -419,7 +425,7 @@ function runCanaries(root, registrations, hookInfo) {
     if (!info.exists) continue;
     const regs = registrations.filter((r) => r.path === path);
     for (const c of parseCanaries(info.text).canaries) {
-      if (!regs.some((r) => r.event === c.event && (c.tool == null || matcherMatchesTool(r.matcher, c.tool)))) continue;
+      if (!canaryReachable(regs, c)) continue;
       const fixture = mkdtempSync(join(tmpdir(), "canary-"));
       try {
         // docs/pdca is the ADR 0071 adoption marker most hooks are gated on.
