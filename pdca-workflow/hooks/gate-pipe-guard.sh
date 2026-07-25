@@ -24,6 +24,12 @@
 # later invocation of the same gate name in one chained command is not separately checked -- rare
 # in practice, and the composite command still gets caught by whichever pipe follows the first
 # hit's segment in the common case). No jq (git-bash safe). Fails OPEN on malformed/empty stdin.
+#
+# liveness: per-event-exempt -- a deny fires only on a piped-gate command, which may
+# legitimately never occur in a window (ADR 0086 (b)). Canary: the one GATES entry.
+# Declaration grammar home: the consumer repo's check-gate-tests (this repo:
+# scripts/check-gate-tests.mjs).
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"node pdca-workflow/scripts/adr-lint.mjs docs/decisions | head"}},"expect":{"deny":true}}
 input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)/\1/p')
 [ -z "$cmd" ] && exit 0

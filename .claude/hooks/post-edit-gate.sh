@@ -19,6 +19,14 @@
 # with a violation history (README.md, docs/**, benchmarks/**, per ADR 0046) keeps a full-tree
 # run from firing on every .md edit. A per-file mode would need a check-restatement.mjs change
 # and would complicate the pure detect() signature its tests rely on.
+#
+# liveness: per-event-exempt -- the observable fire (exit 2 + stderr) is contingent on a
+# FAILING gate run, which may legitimately never occur in a window (ADR 0086 (b)). Canaries:
+# one per routing case arm, each with a fixture the gate must fail on -- reaching the arm
+# without observing the gate's verdict would be vacuous. Grammar: scripts/check-gate-tests.mjs.
+# canary: {"event":"PostToolUse","tool":"Edit","copy":["skills/building-skills/scripts/validate.py"],"files":{"skills/foo/SKILL.md":"just a body with no frontmatter"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md"}},"expect":{"exit":2}}
+# canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-workflow.mjs"],"files":{"benchmarks/x.workflow.js":"const r = await agent(\"do the thing\", {label: \"x\"});"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/benchmarks/x.workflow.js"}},"expect":{"exit":2}}
+# canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-restatement.mjs"],"files":{"README.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa","docs/a.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/README.md"}},"expect":{"exit":2}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$fp" ] && exit 0

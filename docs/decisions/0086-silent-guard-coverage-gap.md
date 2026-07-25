@@ -29,7 +29,7 @@ Five scars across >=5 sessions with detection rung NONE is the exact promotion l
 
 ## Assumptions
 - [unverifiable] WEAKEST — canaries can themselves go vacuous (the ADR 0069 pattern one level up): a canary that self-skips would re-create FM-1 inside its own mitigation. Bounded, not eliminated, by canaries living in check-gate-tests (rung 4, CI-visible, itself test-covered). REOPEN-IF a guard fails silently in a class (a) or (c) claims to cover -> the instrument under-covers; re-scope before trusting it again.
-- [checkable] the session-end root cause is determinable and one of the three named candidates. owner: #276. result: pending — if it is "sessions rarely end", the fix is re-scoping 0081(d)'s metric, not repairing the hook.
+- [checkable] the session-end root cause is determinable and one of the three named candidates. owner: #276. result: determined, but a FOURTH mechanism — the hook file shipped mode 644, so the harness's direct invocation of the registered path died on Permission denied and failed open (the #84/#85 scar class re-instanced inside this very ADR's first target; reproduced headless pre-fix, first boundary logged post-chmod 2026-07-25). Fix: chmod + the (c) exec-bit canary. 0081(d) keeps its metric un-rescoped; cloud-session boundaries remain uncommittable and unclean local exits unlogged — a persistent observed&lt;expected undercount the readout states rather than hides.
 - [checkable-doc] no settled ADR contradicted: 0069 extended not re-litigated; 0079(a) readout-only honored; 0080(d) absent-log semantics honored; 0047 promotion licensed by cited scars; 0084(e)/(f) followed. result: verified.
 - [checkable] 0086 is free and max+1: highest on origin/main is 0085. owner: PM. result: verified.
 

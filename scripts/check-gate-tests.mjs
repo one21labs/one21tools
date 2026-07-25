@@ -31,6 +31,20 @@
  * real .sh (MJS_GRANDFATHERED_HOOKS) keeps that path, covered by a `node --test` glob; every
  * other hook must carry the .sh suite.
  *
+ * Mechanism, invocation-path canaries (ADR 0086, #276): every registered hook must also (a)
+ * exist at its resolved path and be EXECUTABLE — the harness invokes the registered path
+ * directly, so a 644 hook dies on Permission denied and fails open silently (the #84/#85 scar,
+ * re-instanced by session-end-log.sh) — (b) carry a `# liveness:` classification its header
+ * declares (consumed by scripts/scorecard.mjs's liveness readout, ADR 0086 (b)), and (c) pass
+ * one behavioral canary per DECLARED input class: `# canary: {json}` lines in the hook header
+ * name a synthetic representative (event, tool, stdin, expected effect); this gate asserts the
+ * registration reaches the hook for that class (event registered, matcher covers the tool) and
+ * EXECUTES the real hook file against the synthetic input in a throwaway fixture, asserting
+ * the declared effect (deny / exit code / log append). A hook with zero canary lines
+ * is not failed — its undeclared surface stays rung NONE, stated by the scorecard readout,
+ * never claimed watched (ADR 0086 (e)). The declaration GRAMMAR's one home is the comment
+ * block above parseLivenessDeclaration/parseCanaries below; hook headers cite this file.
+ *
  * DESIGN CONSTRAINTS: zero dependencies; findMissingTests() is PURE (no fs — takes gatesYml text,
  * hook-registration texts, and an `existingFiles.has(path)` duck-typed lookup) so the decision
  * logic is unit-testable, matching check-restatement.mjs's detect()/main() split. main() is the
@@ -39,8 +53,10 @@
  * Usage: node scripts/check-gate-tests.mjs [root]
  * Exit 1 listing every wired gate/hook missing a CI-visible decision-logic test; exit 0 otherwise.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, existsSync, statSync, mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { join, dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const GATES_WORKFLOW = ".github/workflows/gates.yml";
@@ -50,7 +66,9 @@ const GATES_WORKFLOW = ".github/workflows/gates.yml";
 export const MJS_GRANDFATHERED_HOOKS = new Set([
   "pdca-workflow/hooks/explicit-model-guard.sh",
 ]);
-const HOOK_REGISTRATIONS = [
+/** The repo's hook-registration files — ONE home; scripts/scorecard.mjs imports this for its
+ *  liveness readout (ADR 0086). */
+export const HOOK_REGISTRATIONS = [
   { path: "pdca-workflow/hooks/hooks.json", pluginRoot: "pdca-workflow" },
   { path: ".claude/settings.json", pluginRoot: "." },
   { path: ".claude/settings.local.json", pluginRoot: "." },
@@ -144,10 +162,12 @@ export function globCoversPath(glob, path) {
   return re.test(path);
 }
 
-/** Bash hook script paths (posix, repo-root-relative) registered in a hooks.json/settings
- *  "hooks" block's `command` fields. Returns [] on absent/malformed input — a missing or
- *  hookless registration file is not this gate's failure mode. */
-export function extractRegisteredHooks(registrationText, pluginRoot) {
+/** Detailed hook registrations — [{event, matcher, path}] for every command hook in a
+ *  hooks.json/settings "hooks" block, keeping the EVENT name and matcher regex the harness
+ *  dispatches on (matcher null = the event carries no per-tool matcher, e.g. SessionEnd).
+ *  Returns [] on absent/malformed input — a missing or hookless registration file is not this
+ *  gate's failure mode. */
+export function extractRegisteredHooksDetailed(registrationText, pluginRoot) {
   let parsed;
   try {
     parsed = JSON.parse(registrationText);
@@ -157,20 +177,156 @@ export function extractRegisteredHooks(registrationText, pluginRoot) {
   const out = [];
   const hooks = parsed && typeof parsed === "object" ? parsed.hooks : null;
   if (!hooks || typeof hooks !== "object") return out;
-  for (const event of Object.values(hooks)) {
-    if (!Array.isArray(event)) continue;
-    for (const matcher of event) {
-      for (const h of matcher?.hooks ?? []) {
+  for (const [event, entries] of Object.entries(hooks)) {
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      for (const h of entry?.hooks ?? []) {
         if (h?.type !== "command" || typeof h.command !== "string") continue;
         const resolved = h.command
           .replaceAll("${CLAUDE_PLUGIN_ROOT}", pluginRoot)
           .replaceAll("${CLAUDE_PROJECT_DIR}", ".");
         const m = resolved.match(/([^\s'"]+\.sh)\b/);
-        if (m) out.push(m[1].replace(/^\.\//, "").replaceAll("\\", "/"));
+        if (m) out.push({
+          event,
+          matcher: typeof entry.matcher === "string" ? entry.matcher : null,
+          path: m[1].replace(/^\.\//, "").replaceAll("\\", "/"),
+        });
       }
     }
   }
-  return [...new Set(out)];
+  return out;
+}
+
+/** Bash hook script paths (posix, repo-root-relative) registered in a hooks.json/settings
+ *  "hooks" block's `command` fields — derived from the detailed extraction (one home). */
+export function extractRegisteredHooks(registrationText, pluginRoot) {
+  return [...new Set(extractRegisteredHooksDetailed(registrationText, pluginRoot).map((r) => r.path))];
+}
+
+// ---- ADR 0086: guard-liveness declarations + invocation-path canaries ----------------------
+// ONE home of the declaration grammar hook headers carry:
+//   `# liveness: boundary-coupled ...` or `# liveness: per-event-exempt ...` — the per-guard
+//     classification ADR 0086 (b) requires; consumed by scripts/scorecard.mjs's liveness
+//     readout. Mandatory for every wired hook (an unclassified silent guard is unjudgeable).
+//   `# canary: {json}` — one line per DECLARED input class. Keys: event (required); tool
+//     (matched against the registered matcher; omit for matcherless events); stdin (object
+//     piped to the hook); env (extra env vars); copy (repo-relative files copied into the
+//     fixture); files ({relpath: content} written into the fixture); expect — exactly one of
+//     {"deny":true} | {"exit":N} | {"append":"<fixture relpath>","match":"<regex>"}.
+//     The substrings "__FIXTURE__" / "__REPO__" in stdin/env/files
+//     values resolve at run time to the throwaway fixture dir / the repo root.
+
+export const LIVENESS_CLASSES = ["boundary-coupled", "per-event-exempt"];
+
+/** First `# liveness:` header line's class: a LIVENESS_CLASSES member, "invalid" for an
+ *  unrecognized word (fail-loud, never silently unclassified), or null when absent. */
+export function parseLivenessDeclaration(shText) {
+  const m = (shText ?? "").match(/^#\s*liveness:\s*(\S+)/m);
+  if (!m) return null;
+  return LIVENESS_CLASSES.includes(m[1]) ? m[1] : "invalid";
+}
+
+/** Every `# canary: {json}` line, parsed. A line that fails to parse or lacks
+ *  event/stdin/a recognized expect is reported in `malformed` (fail-loud, never skipped). */
+export function parseCanaries(shText) {
+  const canaries = [];
+  const malformed = [];
+  (shText ?? "").split("\n").forEach((line, i) => {
+    // Any `# canary:` line is either parsed or reported malformed — a typo'd declaration must
+    // never silently vanish (that would re-create FM-1 inside its own mitigation).
+    const m = line.match(/^#\s*canary:\s*(.*)$/);
+    if (!m) return;
+    try {
+      const decl = JSON.parse(m[1]);
+      const known = Object.keys(decl.expect ?? {}).filter((k) => ["deny", "exit", "append"].includes(k));
+      if (typeof decl.event !== "string" || typeof decl.stdin !== "object" || decl.stdin === null || known.length !== 1) {
+        throw new Error("canary needs event, stdin, and exactly one of expect deny/exit/append");
+      }
+      canaries.push({ line: i + 1, ...decl });
+    } catch (e) {
+      malformed.push({ line: i + 1, error: String(e.message ?? e) });
+    }
+  });
+  return { canaries, malformed };
+}
+
+/** Harness matcher semantics: the matcher string is a regex TESTED against the tool name;
+ *  absent/empty matches every tool; an unparseable matcher matches nothing (fail-loud via the
+ *  reachability finding, never a silent pass). */
+export function matcherMatchesTool(matcher, tool) {
+  if (matcher == null || matcher === "") return true;
+  try {
+    return new RegExp(matcher).test(tool ?? "");
+  } catch {
+    return false;
+  }
+}
+
+/** One home of the canary-reachability predicate: some registration for this hook covers the
+ *  canary's event, and its matcher covers the canary's tool (tool omitted = matcherless event).
+ *  Shared by the pure findings pass and the runner so the two can never drift. */
+export function canaryReachable(registrations, canary) {
+  return registrations.some((r) => r.event === canary.event && (canary.tool == null || matcherMatchesTool(r.matcher, canary.tool)));
+}
+
+/**
+ * Pure registration-surface verdicts (ADR 0086 (c)). registrations: detailed rows (above).
+ * hookInfo: Map(path -> {exists, executable, text}). enforceExecutable=false skips the
+ * exec-bit check (win32 checkouts carry no mode bits). Findings share findMissingTests's
+ * row shape. A hook with zero canary lines is NOT failed here (ADR 0086 (e)).
+ */
+export function findCanaryRegistrationFindings({ registrations, hookInfo, enforceExecutable = true }) {
+  const findings = [];
+  const byPath = new Map();
+  for (const r of registrations) {
+    if (!byPath.has(r.path)) byPath.set(r.path, []);
+    byPath.get(r.path).push(r);
+  }
+  for (const [path, regs] of byPath) {
+    const info = hookInfo.get(path) ?? { exists: false, executable: false, text: null };
+    if (!info.exists) {
+      findings.push({ kind: "hook", path, expected: path, reason: "registered hook file does not exist — unreachable (ADR 0086)" });
+      continue;
+    }
+    if (enforceExecutable && !info.executable) {
+      findings.push({ kind: "hook", path, expected: `${path} mode +x`, reason: "registered hook not executable — the harness invokes the path directly, so it dies on Permission denied and fails open silently (ADR 0086; the session-end-log scar)" });
+    }
+    const cls = parseLivenessDeclaration(info.text);
+    if (!LIVENESS_CLASSES.includes(cls)) {
+      findings.push({ kind: "hook", path, expected: "# liveness: boundary-coupled|per-event-exempt", reason: cls === "invalid" ? "liveness classification is not a recognized class (ADR 0086 (b))" : "wired hook carries no liveness classification (ADR 0086 (b))" });
+    }
+    const { canaries, malformed } = parseCanaries(info.text);
+    for (const mf of malformed) {
+      findings.push({ kind: "hook", path, expected: `${path}:${mf.line}`, reason: `malformed canary declaration: ${mf.error}` });
+    }
+    for (const c of canaries) {
+      if (!canaryReachable(regs, c)) {
+        findings.push({ kind: "hook", path, expected: `${path}:${c.line}`, reason: `declared input class unreachable: no ${c.event} registration${c.tool ? ` whose matcher covers tool ${c.tool}` : ""} (ADR 0086; the spawn-log Agent-surface scar)` });
+      }
+    }
+  }
+  return findings;
+}
+
+/** Pure verdict on one executed canary. run: {status, stdout, appendText} where appendText is
+ *  the expect.append target's content (null if absent). Returns null on pass, else the
+ *  failure reason. */
+export function evaluateCanaryRun(expect, run) {
+  if (expect.deny) {
+    return /"permissionDecision"\s*:\s*"deny"/.test(run.stdout ?? "") ? null : "expected a deny decision; none was printed";
+  }
+  if (expect.exit !== undefined) {
+    return run.status === expect.exit ? null : `expected exit ${expect.exit}, got ${run.status}`;
+  }
+  if (expect.append) {
+    if (run.appendText == null) return `expected append target ${expect.append} to exist; it does not`;
+    try {
+      return new RegExp(expect.match ?? "", "m").test(run.appendText) ? null : `append target ${expect.append} does not match /${expect.match}/`;
+    } catch {
+      return `invalid match regex /${expect.match}/`;
+    }
+  }
+  return "unrecognized expect shape";
 }
 
 /**
@@ -251,6 +407,48 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
   return missing;
 }
 
+/** IO half of the canary check: build a throwaway fixture per REACHABLE canary, execute the
+ *  real hook file against the declared stdin, and judge via evaluateCanaryRun (the pure half).
+ *  Unreachable canaries are skipped here — findCanaryRegistrationFindings already reported
+ *  them. */
+function runCanaries(root, registrations, hookInfo) {
+  const findings = [];
+  const repoAbs = resolve(root);
+  for (const [path, info] of hookInfo) {
+    if (!info.exists) continue;
+    const regs = registrations.filter((r) => r.path === path);
+    for (const c of parseCanaries(info.text).canaries) {
+      if (!canaryReachable(regs, c)) continue;
+      const fixture = mkdtempSync(join(tmpdir(), "canary-"));
+      try {
+        // docs/pdca is the ADR 0071 adoption marker most hooks are gated on.
+        mkdirSync(join(fixture, "docs", "pdca"), { recursive: true });
+        const sub = (s) => s.replaceAll("__FIXTURE__", fixture).replaceAll("__REPO__", repoAbs);
+        for (const rel of c.copy ?? []) {
+          mkdirSync(dirname(join(fixture, rel)), { recursive: true });
+          copyFileSync(join(root, rel), join(fixture, rel));
+        }
+        for (const [rel, content] of Object.entries(c.files ?? {})) {
+          mkdirSync(dirname(join(fixture, rel)), { recursive: true });
+          writeFileSync(join(fixture, rel), sub(content));
+        }
+        const env = { ...process.env, CLAUDE_PROJECT_DIR: fixture };
+        for (const [k, v] of Object.entries(c.env ?? {})) env[k] = sub(v);
+        const res = spawnSync("bash", [join(root, path)], { input: sub(JSON.stringify(c.stdin)), env, encoding: "utf8", timeout: 60000 });
+        let appendText = null;
+        if (c.expect.append) {
+          try { appendText = readFileSync(join(fixture, c.expect.append), "utf8"); } catch { appendText = null; }
+        }
+        const err = evaluateCanaryRun(c.expect, { status: res.status, stdout: res.stdout ?? "", appendText });
+        if (err) findings.push({ kind: "hook", path, expected: `${path}:${c.line}`, reason: `canary failed — dead on a declared input class (ADR 0086): ${err}` });
+      } finally {
+        rmSync(fixture, { recursive: true, force: true });
+      }
+    }
+  }
+  return findings;
+}
+
 function main(argv) {
   const root = argv[2] && !argv[2].startsWith("--") ? argv[2] : ".";
   const read = (relPath) => {
@@ -273,17 +471,38 @@ function main(argv) {
 
   const existingFiles = { has: (relPath) => existsSync(join(root, relPath)) };
 
-  const missing = findMissingTests({ gatesYml, hookRegistrations, existingFiles, readFile: read });
+  // Derived from the SAME read as findMissingTests's input — one read+parse pass over the
+  // registration files (the extract findMissingTests re-runs internally stays behind its pure
+  // signature boundary).
+  const registrations = hookRegistrations.flatMap(({ text, pluginRoot }) => extractRegisteredHooksDetailed(text, pluginRoot));
+  const hookInfo = new Map();
+  for (const r of registrations) {
+    if (hookInfo.has(r.path)) continue;
+    const abs = join(root, r.path);
+    let executable = false;
+    try { executable = (statSync(abs).mode & 0o111) !== 0; } catch { /* exists=false below */ }
+    hookInfo.set(r.path, { exists: existsSync(abs), executable, text: read(r.path) });
+  }
+
+  const missing = [
+    ...findMissingTests({ gatesYml, hookRegistrations, existingFiles, readFile: read }),
+    ...findCanaryRegistrationFindings({ registrations, hookInfo, enforceExecutable: process.platform !== "win32" }),
+    ...runCanaries(root, registrations, hookInfo),
+  ];
   const wiredCount = extractWiredGates(gatesYml).length + extractPyGates(gatesYml).length;
-  const hookCount = new Set(hookRegistrations.flatMap((r) => extractRegisteredHooks(r.text, r.pluginRoot))).size;
+  const hookCount = hookInfo.size;
+  const canaryCount = [...hookInfo.values()].reduce((n, i) => n + parseCanaries(i.text).canaries.length, 0);
+  const undeclared = [...hookInfo.entries()].filter(([, i]) => i.exists && parseCanaries(i.text).canaries.length === 0).map(([p]) => p);
 
   if (missing.length) {
-    console.error(`check-gate-tests: ${missing.length} wired gate/hook missing a CI-visible decision-logic test:`);
+    console.error(`check-gate-tests: ${missing.length} wired gate/hook finding(s):`);
     for (const m of missing) console.error(`  [${m.kind}] ${m.path} -> expected ${m.expected} (${m.reason})`);
-    console.error("No gate ships without a decision-logic test (ADR 0047).");
+    console.error("No gate ships without a decision-logic test (ADR 0047); no wired hook without a live invocation path (ADR 0086).");
     process.exit(1);
   }
-  console.log(`check-gate-tests: ${wiredCount} wired gate(s), ${hookCount} registered hook(s), all have CI-visible tests.`);
+  // Info only, never a failure: a canary-less hook's surface is rung NONE (ADR 0086 (e)).
+  if (undeclared.length) console.log(`check-gate-tests: hooks with no declared canary classes (surface unwatched, ADR 0086 (e)): ${undeclared.join(", ")}`);
+  console.log(`check-gate-tests: ${wiredCount} wired gate(s), ${hookCount} registered hook(s), ${canaryCount} canary class(es) — tests + invocation paths verified.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv);
