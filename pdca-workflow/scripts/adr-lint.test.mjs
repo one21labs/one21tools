@@ -9,9 +9,9 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings } from "./adr-lint.mjs";
+import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings, repoFileList } from "./adr-lint.mjs";
 import { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { basename } from "node:path";
 
 // The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
@@ -275,6 +275,98 @@ test("lite: still subject to version-agnostic and dangling-cite guards", () => {
   const { problems } = lint({ files });
   assert.ok(problems.some(p => /release version/.test(p)));
   assert.ok(problems.some(p => /dangling ADR cite/.test(p)));
+});
+
+// Lite `Enforced:` gate (ADR 0087): positive bar — line present, cited file tokens resolve
+// against `repoFiles` (exact path or basename), token-free free-form passes.
+const REPO = ["scripts/gate.test.mjs", ".github/workflows/gates.yml", "docs/notes.md"];
+const liteAdr = (name, body) => adr(name, { tier: "lite", noCriterion: true, body });
+
+test("lite: a missing 'Enforced:' line fires (settled = enforced somewhere findable)", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Decision: x\n- Why: y\n")];
+  assert.match(lint({ files }).problems[0], /no 'Enforced:' line/);
+});
+
+test("lite: an exact-path citation resolves against repoFiles", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: `scripts/gate.test.mjs` (CI).\n")];
+  assert.deepEqual(lint({ files, repoFiles: REPO }).problems, []);
+});
+
+test("lite: a bare-basename citation resolves, line-number suffix ignored (the corpus cites `gates.yml`, `verifier.md:22-24`)", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: gates.yml + notes.md:22-24.\n")];
+  assert.deepEqual(lint({ files, repoFiles: REPO }).problems, []);
+});
+
+test("lite: a citation resolving nowhere fires, naming the token (stale-citation rot)", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: `benchmarks/lib/run.mjs` per CI.\n")];
+  const { problems } = lint({ files, repoFiles: REPO });
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /not on disk: benchmarks\/lib\/run\.mjs/);
+});
+
+test("lite: a token-free free-form 'Enforced:' passes (ADR 0075 'absence' precedent)", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: absence (nothing to drift).\n")];
+  assert.deepEqual(lint({ files, repoFiles: REPO }).problems, []);
+});
+
+test("lite: a token on a wrapped continuation line is still checked", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: the gate\n  wired in ghost.test.mjs there.\n")];
+  assert.match(lint({ files, repoFiles: REPO }).problems[0], /ghost\.test\.mjs/);
+});
+
+test("lite: without repoFiles resolution is skipped, presence still enforced", () => {
+  const present = [liteAdr("0001-a.md", "\n# 0001\n\n- Enforced: no-such-file.mjs.\n")];
+  assert.deepEqual(lint({ files: present }).problems, []);
+  const absent = [liteAdr("0002-b.md", "\n# 0002\n\n- Decision: x\n")];
+  assert.match(lint({ files: absent }).problems[0], /no 'Enforced:' line/);
+});
+
+test("lite: an 'Enforced:' only in the frontmatter summary does not satisfy presence", () => {
+  const files = [adr("0001-a.md", {
+    tier: "lite", noCriterion: true, summary: "Enforced: x.mjs",
+    body: "\n# 0001\n\n- Decision: x\n",
+  })];
+  assert.match(lint({ files }).problems[0], /no 'Enforced:' line/);
+});
+
+test("a full ADR needs no 'Enforced:' line (the gate is lite-only)", () => {
+  assert.deepEqual(lint({ files: clean() }).problems, []);
+});
+
+test("lite: a prose mention before the real line does not shadow it — ALL occurrences are validated (the 0087 self-shape)", () => {
+  const files = [liteAdr("0001-a.md",
+    "\n# 0001\n\n- Decision: an `Enforced:` line must be present.\n- Enforced: ghost.test.mjs (CI).\n")];
+  assert.match(lint({ files, repoFiles: REPO }).problems[0], /ghost\.test\.mjs/);
+});
+
+test("lite: an UNQUOTED prose mention cannot shadow the real line's token validation (matchAll, not first-match, is load-bearing)", () => {
+  const files = [liteAdr("0001-a.md",
+    "\n# 0001\n\n- Decision: an Enforced: line must be present.\n- Enforced: ghost.test.mjs (CI).\n")];
+  assert.match(lint({ files, repoFiles: REPO }).problems[0], /ghost\.test\.mjs/);
+});
+
+test("lite: a backtick-quoted `Enforced:` is prose about the marker and does not satisfy presence", () => {
+  const files = [liteAdr("0001-a.md", "\n# 0001\n\n- Decision: the `Enforced:` line matters.\n")];
+  assert.match(lint({ files }).problems[0], /no 'Enforced:' line/);
+});
+
+test("repoFileList skips .git and node_modules but returns nested real files", () => {
+  const abs = mkdtempSync(join(AGENT_ROOT, "tmp-walk-fixture-"));
+  try {
+    for (const d of [".git", "node_modules", "src"]) mkdirSync(join(abs, d));
+    writeFileSync(join(abs, ".git", "hidden.mjs"), "");
+    writeFileSync(join(abs, "node_modules", "dep.mjs"), "");
+    writeFileSync(join(abs, "src", "real.mjs"), "");
+    assert.deepEqual(repoFileList(abs).sort(), ["src/real.mjs"]);
+  } finally {
+    rmSync(abs, { recursive: true, force: true });
+  }
+});
+
+test("every real lite ADR passes the Enforced gate against the real repo walk (measured zero-false-positive claim, mechanized)", () => {
+  const hits = lint({ files: corpus(), repoFiles: repoFileList(AGENT_ROOT) }).problems
+    .filter(p => /Enforced/.test(p));
+  assert.deepEqual(hits, []);
 });
 
 // Decision-set advisory (ADR 0051 as amended): multiple new ADRs in one change get a
