@@ -42,9 +42,16 @@ import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR
  * (defaults from char-budget.mjs in main(); passed in so the decision logic stays unit-testable).
  * Returns { problems: string[] } — empty = corpus OK.
  */
-export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET }) {
+export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET, repoFiles }) {
   const problems = [];
   const adrs = [];
+
+  // Lite `Enforced:` resolution (ADR 0087): `repoFiles` is the repo-relative file list the cited
+  // tokens resolve against (main() walks the tree; omit to skip resolution — presence is still
+  // checked). Basename matching is deliberate: Enforced lines legitimately cite bare filenames
+  // (`gates.yml`, `verifier.md:22-24`); a basename that still exists is grep-findable.
+  const repoPaths = repoFiles && new Set(repoFiles);
+  const repoBases = repoFiles && new Set(repoFiles.map(p => p.split("/").pop()));
 
   for (const { name, text } of files) {
     const fm = text.match(/^---\n([\s\S]*?)\n---/);
@@ -112,6 +119,26 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
         problems.push(`${a.name}: lite ADR carries a revisit trigger/open assumption — graduate it to a full ADR`);
       if (overBudget(a.chars, liteBudget))
         problems.push(`${a.name}: ${a.chars} chars > ${liteBudget}-char lite budget`);
+      // Positive lite bar (ADR 0087): settled = "enforced by a test/script/commit"
+      // (adr-template.md lite shape) — so the line must EXIST, and any file-like token it cites
+      // must still resolve (a deleted/renamed enforcement file = rotted citation). Token-free
+      // free-form ("absence", a CI-run description) passes: whether such text truly enforces is
+      // review's semantic call, not lint's. Frontmatter is stripped so a summary mention can't
+      // satisfy presence, and a backtick-quoted `Enforced:` is prose ABOUT the marker, not the
+      // marker (0087 itself discusses the rule; the real line is never backtick-quoted). ALL
+      // unquoted occurrences are validated — first-occurrence-only let a prose mention shadow
+      // the real line, leaving the gate vacuous on exactly the records that discuss enforcement.
+      // Each region spans its line plus wrapped continuation lines.
+      const regions = [...a.text.replace(/^---\n[\s\S]*?\n---/, "")
+        .matchAll(/(?<!`)Enforced:[ \t]*([^\n]*(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*)/g)];
+      if (!regions.length)
+        problems.push(`${a.name}: lite ADR has no 'Enforced:' line (settled = enforced somewhere findable — adr-template.md lite shape)`);
+      else if (repoFiles) {
+        const tokens = regions.flatMap(r => r[1].match(/[\w./-]*[\w-]\.(?:mjs|js|ts|md|sh|yml|yaml|json|py|txt)\b/g) ?? []);
+        const missing = [...new Set(tokens)].filter(t => !repoPaths.has(t) && !repoBases.has(t.split("/").pop()));
+        if (missing.length)
+          problems.push(`${a.name}: 'Enforced:' cites file(s) not on disk: ${missing.join(", ")} — stale citation (re-cite or restore)`);
+      }
       continue; // the falsifiability gate below is a FULL-ADR requirement (settled = nothing to test)
     }
 
@@ -234,6 +261,26 @@ export function marginWarnings(newEntries, files, margin = ADR_CHAR_MARGIN) {
     .map(({ name, text }) => `${name}: ${text.length} chars > ~${margin} drafting margin (adr-template.md) — no room for \`## Act\` at ship time`);
 }
 
+// IO helper (ADR 0087): repo-relative file list for the lite `Enforced:` resolution check.
+// A plain walk, not `git ls-files` — the gate needs no git at run time, and "exists on disk"
+// (not "is tracked") is the bar. Only .git/node_modules are skipped; symlinked dirs read as
+// files (no cycle risk). Exported so the test can run the real-corpus case through it.
+export function repoFileList(root = ".") {
+  const skip = new Set([".git", "node_modules"]);
+  const out = [];
+  const stack = [""];
+  while (stack.length) {
+    const rel = stack.pop();
+    for (const e of readdirSync(rel ? join(root, rel) : root, { withFileTypes: true })) {
+      if (skip.has(e.name)) continue;
+      const p = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) stack.push(p);
+      else out.push(p);
+    }
+  }
+  return out;
+}
+
 function main(argv) {
   const args = argv.slice(2);
   const dir = args.find(a => !a.startsWith("--")) ?? "docs/decisions";
@@ -256,7 +303,7 @@ function main(argv) {
     console.log(`  ${name}: ${text.length} chars`);
 
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
-  const { problems } = lint({ files, budget });
+  const { problems } = lint({ files, budget, repoFiles: repoFileList() });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));

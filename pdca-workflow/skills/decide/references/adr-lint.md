@@ -46,6 +46,16 @@ summary: "<one line for the skim catalog>"
    falsifiability gate (settled = nothing left to test), but REJECTED if it carries a revisit
    trigger or open assumption (`REOPEN-IF`, a `## Revisit triggers` section, or an `[unverifiable]`
    bullet): that means the decision isn't actually settled, so it must graduate to a full ADR.
+   Positive bar (ADR 0087): the body must also carry an `Enforced:` line (settled = enforced
+   somewhere findable — the lite shape in adr-template.md), and every file-like token it cites
+   (a closed extension list: mjs/js/ts/md/sh/yml/yaml/json/py/txt) must resolve on disk: exact
+   repo-relative path or basename anywhere in the tree (`.git`/`node_modules` excluded; a `:NN`
+   line suffix is ignored). ALL unquoted occurrences of the marker are validated — a
+   backtick-quoted mention is prose about the marker, not the marker, and satisfies nothing
+   (first-occurrence-only would let prose shadow the real line; an UNQUOTED prose mention alone
+   does still satisfy presence — accepted residual, it can never shadow token validation). A
+   token-free free-form line ("absence", a CI-run description) passes — whether it truly
+   enforces is review's semantic call, not lint's.
 7. **Budget** — no ADR exceeds its char budget: caps live in `char-budget.mjs` (never restated here; configurable via
    `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
    `char-budget.mjs`; full budget rationale (why chars not lines, no-exemptions rule) in
