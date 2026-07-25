@@ -29,7 +29,7 @@
  *   Exit: 0 = corpus OK · 1 = problems found · 2 = cannot read decisionsDir.
  */
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS } from "./char-budget.mjs";
 
@@ -385,8 +385,13 @@ function main(argv) {
 
   // Doc-indexed constant cross-check (ADR 0088) over the indexScanSet selection. A file that
   // vanishes between the walk and this read is the same #282 fixture race — skip it.
+  // `dir` arrives verbatim from argv, and the plugin's post-edit hook passes an ABSOLUTE path
+  // while repoFiles are cwd-relative — normalize here or the decisions-dir exclusion silently
+  // fails open and every ADR edit false-positives on as-of-decision numbers (found by the
+  // #286-session retrospect; regression pinned in test-adr-lint-post-edit.sh).
+  const scanDir = relative(".", dir) || ".";
   const mdDocs = [];
-  for (const p of indexScanSet(repoFiles, dir)) {
+  for (const p of indexScanSet(repoFiles, scanDir)) {
     try { mdDocs.push({ name: p, text: readFileSync(p, "utf8") }); }
     catch (e) { if (e.code !== "ENOENT") throw e; }
   }
