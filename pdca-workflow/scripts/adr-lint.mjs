@@ -31,7 +31,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS } from "./char-budget.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
 // location — see char-budget.mjs's header comment: a fixed offset from this file would break a
@@ -65,7 +65,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     else if (props.id !== name.slice(0, 4)) problems.push(`${name}: id ${props.id} != filename`);
     if (!props.title) problems.push(`${name}: missing frontmatter title`);
     if (!props.summary) problems.push(`${name}: missing frontmatter summary`);
-    adrs.push({ name, id: name.slice(0, 4), text, chars: text.length, lite: props.tier === "lite" });
+    adrs.push({ name, id: name.slice(0, 4), text, chars: text.length, lite: props.tier === "lite", status: props.status ?? "" });
   }
 
   // Unique ids (parallel branches grabbing the same int).
@@ -168,8 +168,72 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     }
   }
 
+  // Stale status on recorded discharge (ADR 0088): "ADR NNNN ... discharged" is a state-changing
+  // event usually written into a SIBLING file; if NNNN itself still says `status: proposed`, the
+  // record and the state drifted (0057 sat proposed 5 days after 0062 recorded its loop
+  // discharged). The unit is a `;`-split clause of one line — the split that dodged the corpus's
+  // one near-false-positive: a discharge clause sharing its line with an unrelated then-proposed
+  // cite. A 4-digit token counts only if it is an id on disk and not date-adjacent.
+  for (const a of adrs) {
+    const flagged = new Set();
+    for (const line of a.text.split("\n")) {
+      for (const clause of line.split(";")) {
+        if (!/discharg/i.test(clause)) continue;
+        for (const m of clause.matchAll(/(?<![#\d-])(\d{4})(?![\d-])/g)) {
+          const t = byId.get(m[1]);
+          if (m[1] !== a.id && t && /^proposed/.test(t.status) && !flagged.has(m[1])) {
+            flagged.add(m[1]);
+            problems.push(`${a.name}: records ADR ${m[1]} discharged, but ${m[1]} is still status: proposed — flip its status or amend the record`);
+          }
+        }
+      }
+    }
+  }
+
   return { problems };
 }
+
+/**
+ * Doc-indexed constant cross-check (ADR 0088): an .md line that backtick-names a char-budget.mjs
+ * scalar constant AND contains a 3+-digit number must include that constant's CURRENT value —
+ * doc-budgets.md indexes the caps for navigation and its header forbids drift, but a stale
+ * NUMBER is invisible to check-restatement (which matches prose). Presence-direction only:
+ * extra numbers on the line are fine (a tok-estimate column, a margin), so the corpus measures
+ * zero false positives. `docs` = [{ name, text }] candidate .md files — the CALLER excludes
+ * docs/decisions/ (records hold as-of-decision numbers, e.g. 0067's then-current margin).
+ * `constants` = {NAME: number} scalars; `docBudgets` = the DOC_BUDGETS map — a line naming
+ * `DOC_BUDGETS` plus a backticked filename matching a key's basename must show that key's value.
+ */
+export function docIndexDrift(docs, constants, docBudgets = {}) {
+  const problems = [];
+  const budgetByBase = new Map(Object.entries(docBudgets).map(([p, v]) => [p.split("/").pop(), v]));
+  for (const { name, text } of docs) {
+    text.split("\n").forEach((line, i) => {
+      const nums = (line.match(/\d{1,3}(?:,\d{3})+|\d{3,}/g) ?? []).map(n => Number(n.replace(/,/g, "")));
+      if (!nums.length) return;
+      const demand = Object.entries(constants).filter(([c]) => line.includes(`\`${c}\``));
+      if (line.includes("`DOC_BUDGETS`"))
+        for (const m of line.matchAll(/`([^`]+\.md)`/g)) {
+          const v = budgetByBase.get(m[1].split("/").pop());
+          if (v !== undefined) demand.push([m[1], v]);
+        }
+      for (const [label, v] of demand)
+        if (!nums.includes(v))
+          problems.push(`${name}:${i + 1}: cites ${label} beside number(s) ${nums.join(",")} but its current value is ${v} — stale index (derive from char-budget.mjs)`);
+    });
+  }
+  return problems;
+}
+
+// Doc-selection for docIndexDrift (ADR 0088): every .md OUTSIDE the decisions dir — records
+// legitimately hold as-of-decision numbers. `dir` arrives verbatim from argv, so normalize a
+// trailing slash (bash tab-completion appends one) or the exclusion silently fails open and
+// the gate false-positives on historical ADR numbers. Exported so a test binds the SHIPPED
+// filter, not a re-implementation.
+export const indexScanSet = (repoFiles, dir) => {
+  const d = dir.replace(/\/+$/, "");
+  return repoFiles.filter(p => p.endsWith(".md") && !p.startsWith(`${d}/`));
+};
 
 /**
  * Advisory decision-set note (ADR 0051 as amended): when a change introduces more than one new
@@ -303,10 +367,17 @@ function main(argv) {
     console.log(`  ${name}: ${text.length} chars`);
 
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
-  const { problems } = lint({ files, budget, repoFiles: repoFileList() });
+  const repoFiles = repoFileList();
+  const { problems } = lint({ files, budget, repoFiles });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));
+
+  // Doc-indexed constant cross-check (ADR 0088) over the indexScanSet selection.
+  const mdDocs = indexScanSet(repoFiles, dir)
+    .map(p => ({ name: p, text: readFileSync(p, "utf8") }));
+  problems.push(...docIndexDrift(mdDocs,
+    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS));
 
   // PR-scoped advisories: CI's PR-only step passes the diff-added ADR files (ADR 0051/0067).
   const newArg = args.find(a => a.startsWith("--new-adrs="));

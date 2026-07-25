@@ -3,14 +3,14 @@ id: 0067
 title: "Advisory drafting-margin WARN on new full ADRs in adr-lint"
 status: accepted
 tier: lite
-summary: "adr-lint prints an advisory WARN (never a failure) when a --new-adrs full ADR exceeds ADR_CHAR_MARGIN (5,000) — the margin that reserves ## Act room. Scoped to PR-added ADRs so the 22+ legacy near-cap ADRs stay quiet; lite ADRs exempt. Closes #174."
+summary: "adr-lint prints an advisory WARN (never a failure) when a --new-adrs full ADR exceeds ADR_CHAR_MARGIN — the margin that reserves ## Act room. Scoped to PR-added ADRs so the 22+ legacy near-cap ADRs stay quiet; lite ADRs exempt. Closes #174."
 ---
 
 # 0067 — advisory drafting-margin WARN on new full ADRs
 
 - Decision: `adr-lint.mjs` gains `marginWarnings()` — an advisory WARN, never an exit-code
   change, when a full ADR in the `--new-adrs` set (CI passes the PR's added ADR files, ADR
-  0051 plumbing) exceeds `ADR_CHAR_MARGIN` (5,000, new constant in `char-budget.mjs`). Lite
+  0051 plumbing) exceeds `ADR_CHAR_MARGIN` (a `char-budget.mjs` constant). Lite
   ADRs are exempt (own cap, no Act machinery); the legacy corpus is never swept.
 - Why: the template's margin prose is routinely ignored — 22+ ADRs sit at 5,900-6,000 with no
   `## Act` room left, and a PM agent drafted to 5,984 with the margin instruction in its own

@@ -9,9 +9,10 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings, repoFileList } from "./adr-lint.mjs";
-import { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, AGENT_CHAR_BUDGET } from "./char-budget.mjs";
+import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings, repoFileList, docIndexDrift, indexScanSet } from "./adr-lint.mjs";
+import { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, AGENT_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET, DOC_BUDGETS } from "./char-budget.mjs";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { basename } from "node:path";
 
 // The real ADR corpus as lint() consumes it (CRLF-normalized, matching adr-lint main() + charLen).
@@ -351,7 +352,9 @@ test("lite: a backtick-quoted `Enforced:` is prose about the marker and does not
 });
 
 test("repoFileList skips .git and node_modules but returns nested real files", () => {
-  const abs = mkdtempSync(join(AGENT_ROOT, "tmp-walk-fixture-"));
+  // OS tmpdir, NOT the repo root: a fixture in the repo root races the sibling suites' surface
+  // tests (check-restatement walks the real tree mid-run and ENOENTs on the vanishing dir).
+  const abs = mkdtempSync(join(tmpdir(), "walk-fixture-"));
   try {
     for (const d of [".git", "node_modules", "src"]) mkdirSync(join(abs, d));
     writeFileSync(join(abs, ".git", "hidden.mjs"), "");
@@ -367,6 +370,124 @@ test("every real lite ADR passes the Enforced gate against the real repo walk (m
   const hits = lint({ files: corpus(), repoFiles: repoFileList(AGENT_ROOT) }).problems
     .filter(p => /Enforced/.test(p));
   assert.deepEqual(hits, []);
+});
+
+// Stale status on recorded discharge (ADR 0088): a `;`-split clause recording "ADR NNNN ...
+// discharged" fails while NNNN's frontmatter is still `status: proposed`.
+test("discharge: a clause recording an ADR discharged fires while the target is still proposed", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nADR 0002's gating loop is discharged (plateau).\n" }),
+    adr("0002-b.md", { status: "proposed" }),
+  ];
+  assert.match(lint({ files }).problems[0],
+    /0001-a\.md: records ADR 0002 discharged, but 0002 is still status: proposed/);
+});
+
+test("discharge: an accepted target stays quiet", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nADR 0002's gating loop is discharged (plateau).\n" }),
+    adr("0002-b.md"),
+  ];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("discharge: clause isolation — a proposed cite outside the discharge clause is not flagged (the 0057:28 shape)", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n- [checkable-doc] discharges 0002:40; 0003 (proposed) owns the judge. result: verified.\n" }),
+    adr("0002-b.md"),
+    adr("0003-c.md", { status: "proposed" }),
+  ];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("discharge: a date-adjacent 4-digit token never matches even when an ADR with that id exists", () => {
+  const files = [
+    adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nDISCHARGED 2026-07-14 per re-grade.\n" }),
+    adr("2026-x.md", { id: "2026", status: "proposed" }),
+  ];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("discharge: a self-cite in a discharge clause stays quiet", () => {
+  const files = [adr("0001-a.md", { body: "\n# 0001\n\n## Decision\nADR 0001 discharges its own precondition.\n" })];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("discharge: no stale-discharge problem on the real corpus", () => {
+  const hits = lint({ files: corpus() }).problems.filter(p => /discharged, but/.test(p));
+  assert.deepEqual(hits, []);
+});
+
+// Doc-indexed constant cross-check (ADR 0088): a doc line naming a char-budget constant beside
+// a number must include that constant's current value; presence-direction only.
+const CONSTS = { FOO_CAP: 9000, BAR_CAP: 1500 };
+
+test("docIndexDrift: a line naming a constant beside its current value passes", () => {
+  const docs = [{ name: "doc.md", text: "| ADR | **9,000** | `x.mjs` (`FOO_CAP`) |\n" }];
+  assert.deepEqual(docIndexDrift(docs, CONSTS), []);
+});
+
+test("docIndexDrift: a stale number fires naming file:line, constant, and current value", () => {
+  const docs = [{ name: "doc.md", text: "intro\nthe cap is **6,000** (`FOO_CAP`)\n" }];
+  const problems = docIndexDrift(docs, CONSTS);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /doc\.md:2: cites FOO_CAP beside number\(s\) 6000 but its current value is 9000/);
+});
+
+test("docIndexDrift: extra numbers on the line are fine (presence-direction only)", () => {
+  const docs = [{ name: "doc.md", text: "| **9,000**; margin **8,000** | ~2,250 | (`FOO_CAP`) |\n" }];
+  assert.deepEqual(docIndexDrift(docs, CONSTS), []);
+});
+
+test("docIndexDrift: a constant mention with no 3+-digit number on the line is skipped", () => {
+  const docs = [{ name: "doc.md", text: "caps live in `FOO_CAP`, never restated here (2 pp)\n" }];
+  assert.deepEqual(docIndexDrift(docs, CONSTS), []);
+});
+
+test("docIndexDrift: comma and plain number formats both satisfy the demand", () => {
+  const docs = [{ name: "a.md", text: "`BAR_CAP` is 1500 chars\n" }, { name: "b.md", text: "`BAR_CAP` is 1,500 chars\n" }];
+  assert.deepEqual(docIndexDrift(docs, CONSTS), []);
+});
+
+test("docIndexDrift: DOC_BUDGETS plus a keyed filename demands that key's value (basename match)", () => {
+  const budgets = { "CLAUDE.md": 6000, "a/b/template.md": 6000 };
+  const ok = [{ name: "doc.md", text: "| `CLAUDE.md` | **6,000** | `DOC_BUDGETS` |\n" }];
+  assert.deepEqual(docIndexDrift(ok, {}, budgets), []);
+  const stale = [{ name: "doc.md", text: "| `template.md` | **5,000** | `DOC_BUDGETS` |\n" }];
+  assert.match(docIndexDrift(stale, {}, budgets)[0], /cites template\.md beside number\(s\) 5000 but its current value is 6000/);
+});
+
+test("docIndexDrift: a filename beside numbers WITHOUT `DOC_BUDGETS` on the line demands nothing", () => {
+  const budgets = { "CLAUDE.md": 6000 };
+  const docs = [{ name: "doc.md", text: "edit `CLAUDE.md` to 4,000 chars someday\n" }];
+  assert.deepEqual(docIndexDrift(docs, {}, budgets), []);
+});
+
+test("indexScanSet: excludes the decisions dir with or without trailing slash(es), keeps other .md", () => {
+  const files = ["docs/decisions/0001-a.md", "docs/other.md", "README.md", "x/y.md", "x/z.mjs"];
+  const expected = ["docs/other.md", "README.md", "x/y.md"];
+  assert.deepEqual(indexScanSet(files, "docs/decisions"), expected);
+  assert.deepEqual(indexScanSet(files, "docs/decisions/"), expected);
+  assert.deepEqual(indexScanSet(files, "docs/decisions//"), expected);
+});
+
+test("docIndexDrift: the real living docs match char-budget.mjs (the PR #251 class, mechanized via the SHIPPED selection)", () => {
+  const docs = indexScanSet(repoFileList(AGENT_ROOT), "docs/decisions")
+    .map(p => ({ name: p, text: readFileSync(join(AGENT_ROOT, p), "utf8") }));
+  // Vacuity pin (char-budget.test.mjs convention): an empty walk must fail HERE, not pass [].
+  assert.ok(docs.some(d => d.name.endsWith("doc-budgets.md")), "walk must include the indexed doc");
+  assert.ok(docs.every(d => !d.name.startsWith("docs/decisions/")), "decisions dir must be excluded");
+  assert.deepEqual(docIndexDrift(docs,
+    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS), []);
+});
+
+test("docIndexDrift: WITHOUT the decisions-dir exclusion the real corpus false-positives (the exclusion is load-bearing)", () => {
+  const all = repoFileList(AGENT_ROOT).filter(p => p.endsWith(".md"))
+    .map(p => ({ name: p, text: readFileSync(join(AGENT_ROOT, p), "utf8") }));
+  const problems = docIndexDrift(all,
+    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS);
+  assert.ok(problems.some(p => p.startsWith("docs/decisions/")),
+    "expected at least one as-of-decision number to fire when records are scanned");
 });
 
 // Decision-set advisory (ADR 0051 as amended): multiple new ADRs in one change get a
