@@ -99,5 +99,56 @@ code=${res%%|*}
 check "no docs/pdca marker -> exit 0, no log, dir NOT created" $? "code=$code"
 rm -rf "$FIX"
 
+# Cases 12-13 (ADR 0086 / #276 Agent|Task surface): a plugin-owned agent spawn logs one
+# agent-spawn line, via either tool name the matcher covers.
+for tool in Agent Task; do
+  FIX=$(mktemp -d)
+  mkdir -p "$FIX/docs/pdca"
+  res=$(fire "$FIX" "{\"tool_name\":\"$tool\",\"tool_input\":{\"subagent_type\":\"pdca-workflow:retrospect\",\"prompt\":\"go\"}}")
+  code=${res%%|*}; out=${res#*|}
+  n=$( [ -f "$FIX/$LOG_REL" ] && grep -cE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z agent-spawn pdca-workflow:retrospect$' "$FIX/$LOG_REL" || echo 0 )
+  [ "$code" = "0" ] && [ "$n" = "1" ] && ! printf '%s' "$out" | grep -q permissionDecision
+  check "$tool pdca-workflow:retrospect -> exit 0, one agent-spawn line, no deny" $? "code=$code lines=$n out=[$out]"
+  rm -rf "$FIX"
+done
+
+# Case 14: a non-plugin agent (general-purpose) does NOT log.
+FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
+res=$(fire "$FIX" '{"tool_name":"Agent","tool_input":{"subagent_type":"general-purpose","prompt":"x"}}')
+code=${res%%|*}
+[ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
+check "non-plugin agent (general-purpose) -> exit 0, no log" $? "code=$code"
+rm -rf "$FIX"
+
+# Case 15: Agent input with NO subagent_type -> fails open, no log.
+FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
+res=$(fire "$FIX" '{"tool_name":"Agent","tool_input":{"prompt":"x"}}')
+code=${res%%|*}
+[ "$code" = "0" ] && [ ! -f "$FIX/$LOG_REL" ]
+check "Agent without subagent_type -> fails open, no log" $? "code=$code"
+rm -rf "$FIX"
+
+# Case 16: a literal "subagent_type" phrase inside the prompt VALUE is JSON-escaped and must
+# not be read as the key -- the real key wins (explicit-model-guard.sh safety argument).
+FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
+res=$(fire "$FIX" '{"tool_name":"Agent","tool_input":{"prompt":"say \"subagent_type\":\"evil\" aloud","subagent_type":"pdca-workflow:verifier"}}')
+code=${res%%|*}
+n=$( [ -f "$FIX/$LOG_REL" ] && grep -c ' agent-spawn pdca-workflow:verifier$' "$FIX/$LOG_REL" || echo 0 )
+[ "$code" = "0" ] && [ "$n" = "1" ] && ! grep -q evil "$FIX/$LOG_REL"
+check "escaped subagent_type in prompt value -> real key logged, not the decoy" $? "code=$code lines=$n content=[$(cat "$FIX/$LOG_REL" 2>/dev/null)]"
+rm -rf "$FIX"
+
+# Case 17: Skill tool input is untouched by the Agent branch (regression guard on the
+# tool_name dispatch): a Skill fire still logs skill-spawn, never agent-spawn.
+FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
+fire "$FIX" '{"tool_name":"Skill","tool_input":{"skill":"verify"}}' >/dev/null
+grep -q ' skill-spawn verify$' "$FIX/$LOG_REL" && ! grep -q ' agent-spawn ' "$FIX/$LOG_REL"
+check "Skill fire logs skill-spawn only (dispatch regression)" $? "content=[$(cat "$FIX/$LOG_REL" 2>/dev/null)]"
+rm -rf "$FIX"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

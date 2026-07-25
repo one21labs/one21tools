@@ -7,7 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { parseAdrs, parseGateHits, analyze, SCORECARD_CONFIG } from "./scorecard.mjs";
+import { parseAdrs, parseGateHits, analyze, countSessionLogLines, SCORECARD_CONFIG } from "./scorecard.mjs";
 
 const TODAY = "2026-07-18";
 
@@ -187,4 +187,83 @@ test("real corpus: 12 verified / 3 violated / 3 still-open / 0 unparsed; hit-rat
   assert.ok(Math.abs(rows[0].value - 3 / 15) < 1e-9);
   assert.equal(rows[0].status, "healthy"); // 20.0% is not ABOVE watchAbove 20%
   assert.equal(rows[1].sample, 18);        // 12 + 3 + 3 classified
+});
+
+// ---- ADR 0086 guard-liveness readout -------------------------------------------------------
+
+const LIVE_HOOKS = [
+  { path: "h/exempt.sh", classification: "per-event-exempt" },
+  { path: "h/coupled.sh", classification: "boundary-coupled" },
+];
+const series = (over = {}) => ({
+  series: "session-end", guard: "h/coupled.sh", wired: true, evaluated: true,
+  expected: 3, observed: 0, detail: "d", ...over,
+});
+const cleanAdrs = () => parseAdrs([adrFile("0001", { outcomes: ["verified", "verified", "verified"] })]);
+
+test("liveness: wired + expected>0 + observed=0 is NOT FIRING — row, trigger, and verdict part", () => {
+  const { rows, triggers, verdictLine } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series()] });
+  const row = rows.find(r => r.metric === "liveness: session-end");
+  assert.equal(row.status, "NOT FIRING");
+  assert.equal(row.display, "0 observed / 3 expected");
+  assert.ok(triggers.some(t => t.startsWith("NOT-FIRING liveness session-end")));
+  assert.match(verdictLine, /1 wired guard\(s\) NOT FIRING/);
+});
+
+test("liveness: nonzero observed is a readout, never a flag; so is unwired", () => {
+  const { rows: r1, triggers: t1 } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ observed: 1 })] });
+  assert.equal(r1.find(r => r.metric === "liveness: session-end").status, "readout");
+  assert.ok(!t1.some(t => t.startsWith("NOT-FIRING")));
+  const { rows: r2 } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ wired: false })] });
+  assert.equal(r2.find(r => r.metric === "liveness: session-end").status, "readout");
+});
+
+test("liveness: zero expected boundaries is a readout — absence of the boundary is not guard death", () => {
+  const { triggers } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ expected: 0 })] });
+  assert.ok(!triggers.some(t => t.startsWith("NOT-FIRING")));
+});
+
+test("liveness: an unevaluated series reads not-evaluated and forces PARTIAL — unknown is never healthy", () => {
+  const { rows, verdictLine } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ evaluated: false, reason: "gh unavailable" })] });
+  assert.match(rows.find(r => r.metric === "liveness: session-end").status, /not evaluated \(gh unavailable\)/);
+  assert.match(verdictLine, /PARTIAL/);
+});
+
+test("liveness: per-event-exempt guards are listed as exempt, never silence-inferred dead", () => {
+  const { rows, triggers, verdictLine } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ observed: 2 })] });
+  const exempt = rows.find(r => r.metric.startsWith("liveness-exempt"));
+  assert.equal(exempt.status, "readout");
+  assert.match(exempt.detail, /h\/exempt\.sh/);
+  assert.ok(!triggers.some(t => t.includes("exempt")));
+  // Fully declared + evaluated + clear: the all-clear line survives liveness being present.
+  assert.equal(verdictLine, "No threshold fired — all metrics evaluated and clear");
+});
+
+test("liveness: an undeclared wired guard is stated as rung NONE and forces PARTIAL, never presented as watched", () => {
+  const hooks = [...LIVE_HOOKS, { path: "h/mystery.sh", classification: null }];
+  const { rows, verdictLine } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks, series: [series({ observed: 2 })] });
+  const row = rows.find(r => r.metric.startsWith("liveness UNDECLARED"));
+  assert.match(row.detail, /h\/mystery\.sh — NOT watched/);
+  assert.match(verdictLine, /1 wired guard\(s\) undeclared for liveness/);
+});
+
+test("countSessionLogLines: pattern + since filter on ISO-stamped lines; null text is zero", () => {
+  const log = [
+    "2026-07-18T10:00:00Z session-end clear",
+    "2026-07-21T10:00:00Z session-end logout",
+    "2026-07-22T10:00:00Z skill-spawn retrospect",
+    "2026-07-23T10:00:00Z agent-spawn pdca-workflow:retrospect",
+    "garbage line",
+  ].join("\n");
+  assert.equal(countSessionLogLines(log, /^session-end /, "2026-07-20"), 1);
+  assert.equal(countSessionLogLines(log, /^session-end /, ""), 2);
+  assert.equal(countSessionLogLines(log, /^(skill-spawn|agent-spawn) \S*retrospect$/, "2026-07-20"), 2);
+  assert.equal(countSessionLogLines(null, /x/, ""), 0);
 });

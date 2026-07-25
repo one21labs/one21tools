@@ -30,6 +30,13 @@
 # an env-var-prefixed invocation (`FOO=1 gh pr create` -- not at a command-word position, a
 # documented miss that CI's check-pr-body backstop still catches); a QUOTED --body-file path
 # (extraction ends at the quote, so no body flag is seen -- same miss class).
+#
+# liveness: per-event-exempt -- a deny fires only on a violating create command, which may
+# legitimately never occur in a window (ADR 0086 (b)). Canaries: one per sub-guard (G3
+# external target, G1 inline body, G2 missing disclosure). Grammar: scripts/check-gate-tests.mjs.
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -R evil/repo --title t --body-file b.md"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t --body hello"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t --body-file b.md"}},"expect":{"deny":true}}
 input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$cmd" ] && exit 0

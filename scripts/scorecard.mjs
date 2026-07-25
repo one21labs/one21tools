@@ -17,6 +17,13 @@
  *   to docs/pdca/gate-hits.txt; parseGateHits below is the line format's ONE home (hooks cite
  *   it). Readout only — no bands until variance is known (ADR 0080 (d)); a malformed line is
  *   fail-loud (listed, folds into PARTIAL); an ABSENT log post-ship is a true zero, stated.
+ * - guard-liveness readout (ADR 0086): for guards DECLARED boundary-coupled (the `# liveness:`
+ *   header line each wired hook carries; grammar home: check-gate-tests.mjs), compare an
+ *   independently logged expected series against the guard's observed firings — wired +
+ *   expected>0 + observed=0 prints NOT FIRING. Guards declared per-event-exempt are listed,
+ *   never silence-inferred dead (a deny guard at zero hits is healthy); wired guards with NO
+ *   valid declaration are listed as rung NONE — never presented as watched (ADR 0086 (e)).
+ *   Readout only, never a gate; an unavailable count source prints not-evaluated, never zero.
  * - deferred instruments print NOT INSTRUMENTED every run and the aggregate verdict reads
  *   PARTIAL while any miss-class is uninstrumented — silence must never read as coverage.
  *
@@ -32,9 +39,11 @@
  * TESTING: scorecard.test.mjs (`node --test scripts/*.test.mjs` from the repo root).
  * Usage: node scripts/scorecard.mjs [decisionsDir]   (default: docs/decisions)
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { HOOK_REGISTRATIONS, extractRegisteredHooksDetailed, parseLivenessDeclaration } from "./check-gate-tests.mjs";
 
 export const SCORECARD_CONFIG = {
   // Bands are config, not engine (metrics-engine.md): dormant until variance justifies tuning.
@@ -44,6 +53,24 @@ export const SCORECARD_CONFIG = {
     triggerMsg: "run /decide: uncheckable-claim drift (ADR 0079)" },
   coverage: { minSample: 5, watchAbove: 0.30, ageDays: 14,
     triggerMsg: "run /decide: outcome-audit coverage decay (ADR 0079)" },
+  // Boundary-coupled liveness comparisons (ADR 0086 (a)) main() knows how to count. The
+  // per-guard CLASSIFICATION lives in each hook's `# liveness:` header (its one home); this
+  // table only parameterizes the expected/observed sources for the boundary-coupled ones.
+  // muda-review is a workflow guard, not a hook, so its classification is declared here.
+  liveness: [
+    { series: "session-end", guard: ".claude/hooks/session-end-log.sh",
+      wiredSince: "2026-07-20",  // ADR 0081 wiring landed on main 2026-07-20T05:36Z (b3afdb8)
+      expectedDesc: "distinct Claude-Session commit trailers in window",
+      observedDesc: "session-end lines" },
+    { series: "retrospect-spawn", guard: "pdca-workflow/hooks/spawn-log.sh",
+      wiredSince: "2026-07-20",  // retrospect arm + Retrospect-Run token shipped with ADR 0081
+      expectedDesc: "distinct Retrospect-Run commit trailers",
+      observedDesc: "retrospect skill-spawn/agent-spawn lines" },
+    { series: "muda-review", guard: ".github/workflows/claude-review.yml",
+      wiredSince: "2026-07-20",  // first observed advisory comment 2026-07-20T06:31Z
+      expectedDesc: "merged PRs in window",
+      observedDesc: "merged PRs carrying a github-actions[bot] advisory comment" },
+  ],
   // Static NOT INSTRUMENTED list — printed every run so a green read-out can never imply
   // these miss-classes are measured (ADR 0079 BREAK-3 guard).
   deferred: [
@@ -108,12 +135,27 @@ export function parseGateHits(text) {
 }
 
 /**
+ * Pure count of session-log lines whose ISO timestamp is >= `since` (lexicographic on ISO-8601)
+ * and whose post-timestamp remainder matches `pattern`. null/absent text counts zero.
+ */
+export function countSessionLogLines(text, pattern, since = "") {
+  if (!text) return 0;
+  return text.replace(/\r\n/g, "\n").split("\n").filter(l => {
+    const m = l.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z) (.*)$/);
+    return m && m[1] >= since && pattern.test(m[2]);
+  }).length;
+}
+
+/**
  * Pure decision logic per the metrics-engine.md contract. `today` is an ISO date string —
  * injected, never read from the clock, so runs are reproducible and testable.
  * Returns { rows, triggers, unparsed, gateHits, deferred, verdictLine }. `gateHits` is a
- * parseGateHits() result; omitted = absent log (backward-compatible).
+ * parseGateHits() result; omitted = absent log (backward-compatible). `liveness` (ADR 0086),
+ * when provided, is { hooks: [{path, classification}], series: [{series, guard, wired,
+ * expected, observed, evaluated, reason?, detail}] } — counts are INJECTED (main computes
+ * them) so this stays clock/fs/network-free.
  */
-export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parseGateHits(null)) {
+export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parseGateHits(null), liveness = null) {
   const outcomes = adrs.flatMap(a => a.outcomes);
   const unparsed = outcomes.filter(o => o.verdict === "unparsed");
   const n = v => outcomes.filter(o => o.verdict === v).length;
@@ -165,6 +207,41 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
       : "no gate-hits log — zero hits since instrumentation (ADR 0080), not uninstrumented",
   });
 
+  // Guard-liveness readout (ADR 0086): NOT FIRING only on wired + expected>0 + observed=0;
+  // per-event-exempt guards are listed, never silence-inferred; undeclared wired guards are
+  // stated as rung NONE, never presented as watched (0086 (e)).
+  let notFiring = [], undeclaredGuards = [];
+  if (liveness) {
+    for (const s of liveness.series) {
+      let status;
+      if (!s.evaluated) status = `not evaluated (${s.reason ?? "source unavailable"})`;
+      else if (s.wired && s.expected > 0 && s.observed === 0) { status = "NOT FIRING"; notFiring.push(s.series); }
+      else status = "readout";
+      rows.push({
+        metric: `liveness: ${s.series}`, value: null,
+        display: s.evaluated ? `${s.observed} observed / ${s.expected} expected` : "n/a",
+        sample: s.evaluated ? s.expected : 0, status,
+        detail: `${s.guard}${s.detail ? ` — ${s.detail}` : ""}`,
+      });
+      if (status === "NOT FIRING") triggers.push(
+        `NOT-FIRING liveness ${s.series}: wired guard, ${s.expected} expected boundary event(s), zero observed — root-cause before trusting green (ADR 0086)`);
+    }
+    const exempt = liveness.hooks.filter(h => h.classification === "per-event-exempt").map(h => h.path);
+    if (exempt.length) rows.push({
+      metric: "liveness-exempt guards (declared per-event, ADR 0086 (b))", value: null,
+      display: `${exempt.length} guard(s)`, sample: exempt.length, status: "readout",
+      detail: `zero hits is a legitimate state for: ${exempt.join(", ")}`,
+    });
+    undeclaredGuards = liveness.hooks
+      .filter(h => h.classification !== "per-event-exempt" && h.classification !== "boundary-coupled")
+      .map(h => h.path);
+    if (undeclaredGuards.length) rows.push({
+      metric: "liveness UNDECLARED wired guards (rung NONE, ADR 0086 (e))", value: null,
+      display: `${undeclaredGuards.length} guard(s)`, sample: undeclaredGuards.length, status: "readout",
+      detail: `${undeclaredGuards.join(", ")} — NOT watched; their silence is unjudged`,
+    });
+  }
+
   // Aggregate verdict — gated, not an adjacent note: PARTIAL while any miss-class is
   // uninstrumented or any row is unevaluated; the bare all-clear exists only when every
   // metric was evaluated and clear AND nothing is deferred.
@@ -174,11 +251,75 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
   if (unevaluated.length) parts.push(`${unevaluated.length} metric(s) not evaluated`);
   if (unparsed.length) parts.push(`${unparsed.length} unparseable outcome line(s)`);
   if (gateHits.malformed.length) parts.push(`${gateHits.malformed.length} unparseable gate-hit line(s)`);
+  if (notFiring.length) parts.push(`${notFiring.length} wired guard(s) NOT FIRING`);
+  if (undeclaredGuards.length) parts.push(`${undeclaredGuards.length} wired guard(s) undeclared for liveness`);
   const verdictLine = parts.length
     ? `PARTIAL — ${parts.join("; ")}${triggers.length ? `; ${triggers.length} trigger(s) fired` : ""}`
     : (triggers.length ? `${triggers.length} trigger(s) fired` : "No threshold fired — all metrics evaluated and clear");
 
   return { rows, triggers, unparsed, gateHits, deferred: config.deferred, verdictLine };
+}
+
+/**
+ * IO half of the liveness readout (ADR 0086): enumerate wired hooks + their declared
+ * classifications, and count each boundary-coupled series' expected/observed from its
+ * INDEPENDENT source (git trailers, the session log, the GitHub API). Every count failure
+ * degrades to evaluated:false for THAT series — an unavailable source must read as
+ * not-evaluated, never as a zero.
+ */
+function collectLiveness(root, seriesConfig) {
+  const read = (rel) => { try { return readFileSync(join(root, rel), "utf8"); } catch { return null; } };
+  const regs = HOOK_REGISTRATIONS.flatMap(({ path, pluginRoot }) => {
+    const text = read(path);
+    return text == null ? [] : extractRegisteredHooksDetailed(text, pluginRoot);
+  });
+  const hooks = [...new Set(regs.map(r => r.path))].map(path => ({
+    path, classification: parseLivenessDeclaration(read(path)),
+  }));
+  const wiredPaths = new Set(hooks.map(h => h.path));
+  const sessionLog = read("docs/pdca/session-log.txt");
+  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+  const distinctTrailers = (key, since) => new Set(
+    git("log", `--since=${since}`, `--format=%(trailers:key=${key},valueonly)`)
+      .split("\n").map(s => s.trim()).filter(Boolean)).size;
+
+  const series = [];
+  for (const s of seriesConfig) {
+    const base = { series: s.series, guard: s.guard };
+    try {
+      if (s.series === "session-end") {
+        series.push({ ...base, wired: wiredPaths.has(s.guard), evaluated: true,
+          expected: distinctTrailers("Claude-Session", s.wiredSince),
+          observed: countSessionLogLines(sessionLog, /^session-end /, s.wiredSince),
+          detail: `${s.observedDesc} vs ${s.expectedDesc} since ${s.wiredSince}` });
+      } else if (s.series === "retrospect-spawn") {
+        series.push({ ...base, wired: wiredPaths.has(s.guard), evaluated: true,
+          expected: distinctTrailers("Retrospect-Run", s.wiredSince),
+          observed: countSessionLogLines(sessionLog, /^(skill-spawn|agent-spawn) \S*retrospect$/, s.wiredSince),
+          detail: `${s.observedDesc} vs ${s.expectedDesc} since ${s.wiredSince}` });
+      } else if (s.series === "muda-review") {
+        const gh = (...args) => execFileSync("gh", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+        const mergedNums = new Set(JSON.parse(gh("pr", "list", "--state", "merged", "--limit", "200",
+          "--search", `merged:>=${s.wiredSince}`, "--json", "number")).map(p => p.number));
+        // --paginate concatenates page arrays back-to-back; splice them into one array (this
+        // gh version has no --slurp).
+        const commented = new Set(JSON.parse(gh("api", "--paginate",
+          `repos/one21labs/one21tools/issues/comments?since=${s.wiredSince}T00:00:00Z&per_page=100`)
+          .replace(/\]\s*\[/g, ","))
+          .filter(c => c?.user?.login === "github-actions[bot]")
+          .map(c => Number((c.issue_url ?? "").split("/").pop()))
+          .filter(n => mergedNums.has(n)));
+        series.push({ ...base, wired: existsSync(join(root, s.guard)), evaluated: true,
+          expected: mergedNums.size, observed: commented.size,
+          detail: `${s.observedDesc} vs ${s.expectedDesc} since ${s.wiredSince}` });
+      } else {
+        series.push({ ...base, evaluated: false, reason: "no counter implemented for this series" });
+      }
+    } catch {
+      series.push({ ...base, evaluated: false, reason: "count source unavailable (git/gh query failed)" });
+    }
+  }
+  return { hooks, series };
 }
 
 function main(argv) {
@@ -195,8 +336,11 @@ function main(argv) {
   // Gate-hits log lives beside the decisions dir (docs/decisions -> docs/pdca, ADR 0080 (c)).
   let gateHitsText = null;
   try { gateHitsText = readFileSync(join(dir, "..", "pdca", "gate-hits.txt"), "utf8"); } catch { /* absent = true zero */ }
+  // Liveness inputs (ADR 0086): repo root sits two levels above the decisions dir.
+  let liveness = null;
+  try { liveness = collectLiveness(join(dir, "..", ".."), SCORECARD_CONFIG.liveness); } catch { liveness = null; }
   const { rows, triggers, unparsed, gateHits, deferred, verdictLine } =
-    analyze(parseAdrs(files), SCORECARD_CONFIG, new Date().toISOString().slice(0, 10), parseGateHits(gateHitsText));
+    analyze(parseAdrs(files), SCORECARD_CONFIG, new Date().toISOString().slice(0, 10), parseGateHits(gateHitsText), liveness);
 
   console.log(`scorecard — ${dir}/ (ADR 0079; compass, not a CI gate)`);
   for (const r of rows) {
