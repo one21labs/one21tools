@@ -43,7 +43,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { HOOK_REGISTRATIONS, extractRegisteredHooksDetailed, parseLivenessDeclaration } from "./check-gate-tests.mjs";
+import { HOOK_REGISTRATIONS, LIVENESS_CLASSES, extractRegisteredHooksDetailed, parseLivenessDeclaration } from "./check-gate-tests.mjs";
 
 export const SCORECARD_CONFIG = {
   // Bands are config, not engine (metrics-engine.md): dormant until variance justifies tuning.
@@ -233,7 +233,7 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
       detail: `zero hits is a legitimate state for: ${exempt.join(", ")}`,
     });
     undeclaredGuards = liveness.hooks
-      .filter(h => h.classification !== "per-event-exempt" && h.classification !== "boundary-coupled")
+      .filter(h => !LIVENESS_CLASSES.includes(h.classification))
       .map(h => h.path);
     if (undeclaredGuards.length) rows.push({
       metric: "liveness UNDECLARED wired guards (rung NONE, ADR 0086 (e))", value: null,
