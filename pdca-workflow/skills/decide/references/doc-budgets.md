@@ -6,6 +6,13 @@ its enforcement home (`char-budget.mjs`); the table below indexes them for navig
 second source. The one-home / drift *rule* lives in CLAUDE.md "Docs — one home per fact"; this file
 owns the *ladder* that rule ranks by.
 
+## Table of Contents
+- [Altitude ladder](#altitude-ladder)
+- [Budgeted docs](#budgeted-docs)
+- [Editing a budgeted doc](#editing-a-budgeted-doc--measure-first-never-iterate-against-the-gate)
+- [Method](#method--chars---tokens)
+- [Extending the budget](#extending-the-budget--evaluation)
+
 ## Altitude ladder
 
 The tier order a fact's home is ranked against (high -> low):
@@ -26,7 +33,7 @@ breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A cop
 | README | `README.md` | none | — | — |
 | CLAUDE.md | `CLAUDE.md` | **6,000** (~2 pp) | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | CLAUDE.md | pdca-init's `claude-md-template.md` (the scaffold it copies) | **6,000** | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
-| docs | `docs/decisions/NNNN-*.md` (ADR) | **9,000**; draft margin **8,000** | ~2,250 | `char-budget.mjs` (`ADR_CHAR_BUDGET`) |
+| docs | `docs/decisions/NNNN-*.md` (ADR) | **9,000**; draft margin **8,000** | ~2,250 | `char-budget.mjs` (`ADR_CHAR_BUDGET`, margin `ADR_CHAR_MARGIN`) |
 | docs | `docs/decisions/NNNN-*.md` (lite ADR, `tier: lite`) | **1,500** (~0.5 pp) | ~375 | `char-budget.mjs` (`LITE_ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/README.md` (ADR guide) | none | — | — |
 | agent | `pdca-workflow/agents/*.md` | **3,500** | ~875 | `char-budget.mjs` (`AGENT_CHAR_BUDGET`) |
