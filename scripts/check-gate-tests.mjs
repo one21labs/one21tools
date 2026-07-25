@@ -40,7 +40,7 @@
  * name a synthetic representative (event, tool, stdin, expected effect); this gate asserts the
  * registration reaches the hook for that class (event registered, matcher covers the tool) and
  * EXECUTES the real hook file against the synthetic input in a throwaway fixture, asserting
- * the declared effect (deny / exit code / log append / output). A hook with zero canary lines
+ * the declared effect (deny / exit code / log append). A hook with zero canary lines
  * is not failed — its undeclared surface stays rung NONE, stated by the scorecard readout,
  * never claimed watched (ADR 0086 (e)). The declaration GRAMMAR's one home is the comment
  * block above parseLivenessDeclaration/parseCanaries below; hook headers cite this file.
@@ -212,8 +212,8 @@ export function extractRegisteredHooks(registrationText, pluginRoot) {
 //     (matched against the registered matcher; omit for matcherless events); stdin (object
 //     piped to the hook); env (extra env vars); copy (repo-relative files copied into the
 //     fixture); files ({relpath: content} written into the fixture); expect — exactly one of
-//     {"deny":true} | {"exit":N} | {"append":"<fixture relpath>","match":"<regex>"} |
-//     {"output":"<regex>"}. The substrings "__FIXTURE__" / "__REPO__" in stdin/env/files
+//     {"deny":true} | {"exit":N} | {"append":"<fixture relpath>","match":"<regex>"}.
+//     The substrings "__FIXTURE__" / "__REPO__" in stdin/env/files
 //     values resolve at run time to the throwaway fixture dir / the repo root.
 
 export const LIVENESS_CLASSES = ["boundary-coupled", "per-event-exempt"];
@@ -238,7 +238,7 @@ export function parseCanaries(shText) {
     if (!m) return;
     try {
       const decl = JSON.parse(m[1]);
-      const known = Object.keys(decl.expect ?? {}).filter((k) => ["deny", "exit", "append", "output"].includes(k));
+      const known = Object.keys(decl.expect ?? {}).filter((k) => ["deny", "exit", "append"].includes(k));
       if (typeof decl.event !== "string" || typeof decl.stdin !== "object" || decl.stdin === null || known.length !== 1) {
         throw new Error("canary needs event, stdin, and exactly one of expect deny/exit/append/output");
       }
@@ -292,7 +292,7 @@ export function findCanaryRegistrationFindings({ registrations, hookInfo, enforc
       findings.push({ kind: "hook", path, expected: `${path} mode +x`, reason: "registered hook not executable — the harness invokes the path directly, so it dies on Permission denied and fails open silently (ADR 0086; the session-end-log scar)" });
     }
     const cls = parseLivenessDeclaration(info.text);
-    if (cls !== "boundary-coupled" && cls !== "per-event-exempt") {
+    if (!LIVENESS_CLASSES.includes(cls)) {
       findings.push({ kind: "hook", path, expected: "# liveness: boundary-coupled|per-event-exempt", reason: cls === "invalid" ? "liveness classification is not a recognized class (ADR 0086 (b))" : "wired hook carries no liveness classification (ADR 0086 (b))" });
     }
     const { canaries, malformed } = parseCanaries(info.text);
@@ -324,13 +324,6 @@ export function evaluateCanaryRun(expect, run) {
       return new RegExp(expect.match ?? "", "m").test(run.appendText) ? null : `append target ${expect.append} does not match /${expect.match}/`;
     } catch {
       return `invalid match regex /${expect.match}/`;
-    }
-  }
-  if (expect.output) {
-    try {
-      return new RegExp(expect.output, "m").test(run.stdout ?? "") ? null : `stdout does not match /${expect.output}/`;
-    } catch {
-      return `invalid output regex /${expect.output}/`;
     }
   }
   return "unrecognized expect shape";

@@ -502,5 +502,5 @@ test("evaluateCanaryRun: each expect shape passes on its effect and names the mi
   assert.equal(evaluateCanaryRun({ append: "l.txt", match: " session-end clear$" }, { status: 0, stdout: "", appendText: "2026-01-01T00:00:00Z session-end clear\n" }), null);
   assert.match(evaluateCanaryRun({ append: "l.txt", match: "x$" }, { status: 0, stdout: "", appendText: null }), /to exist/);
   assert.match(evaluateCanaryRun({ append: "l.txt", match: "nope" }, { status: 0, stdout: "", appendText: "other\n" }), /does not match/);
-  assert.equal(evaluateCanaryRun({ output: "warn" }, { status: 0, stdout: "a warn b" }), null);
+  assert.match(evaluateCanaryRun({ frobnicate: true }, { status: 0, stdout: "" }), /unrecognized expect/);
 });
