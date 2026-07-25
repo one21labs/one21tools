@@ -1,12 +1,30 @@
 #!/usr/bin/env bash
-# PreToolUse hook (matcher: Skill) for the pdca-workflow plugin (ADR 0049 decision 2): append
-# one git-visible log line whenever one of the plugin's panel/loop primitives -- advise,
-# red-team, verify, retrospect (the ADR 0081 closeout-denominator) -- is invoked, with or
-# without the pdca-workflow: plugin prefix. Pure observability:
-# ALWAYS exits 0, NEVER denies, never blocks -- the /retrospect git-signal arm reads the log
-# later to count panel spawns on a branch. One line per fire: ISO-8601 UTC date + skill name as
-# given. Cannot recurse: this hook fires on Skill tool use and only appends to a file (no skill,
-# agent, or tool is invoked from here).
+# PreToolUse hook (matchers: Skill AND Agent|Task -- both wired in hooks.json) for the
+# pdca-workflow plugin (ADR 0049 decision 2; Agent|Task surface added for ADR 0086 / #276):
+# append one git-visible log line whenever a panel/loop primitive is invoked, on EITHER of its
+# two observable tool surfaces:
+#   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect (the ADR 0081
+#     closeout-denominator), with or without the pdca-workflow: plugin prefix.
+#   - Agent/Task tool: `agent-spawn <subagent_type>` for any PLUGIN-OWNED agent
+#     (subagent_type `pdca-workflow:*`) -- the surface panel agents actually spawn through,
+#     which the Skill matcher never sees (#276: the ADR 0086 red-team run and a /retrospect
+#     run were both zero-logged).
+# SLASH-COMMAND COUNTING (#276 build decision): a user-typed /retrospect or /advise loads skill
+# content with NO Skill tool call, so the command invocation itself is unobservable to hooks;
+# it is counted at the Agent layer when the loaded skill spawns its pdca-workflow:* agent --
+# the one tool surface that path does cross.
+# Pure observability: ALWAYS exits 0, NEVER denies, never blocks -- the /retrospect git-signal
+# arm reads the log later to count panel spawns on a branch. One line per fire: ISO-8601 UTC
+# date + event tag + name as given. Cannot recurse: this hook fires on Skill/Agent tool use and
+# only appends to a file (no skill, agent, or tool is invoked from here).
+#
+# liveness: boundary-coupled -- a retrospect run's adoption artifact carries a Retrospect-Run
+# commit trailer (an independently logged series in git); expected vs observed compared by
+# scripts/scorecard.mjs (ADR 0086). Declaration grammar home: scripts/check-gate-tests.mjs.
+# canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"red-team"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn red-team$"}}
+# canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"pdca-workflow:retrospect"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn pdca-workflow:retrospect$"}}
+# canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"subagent_type":"pdca-workflow:retrospect","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:retrospect$"}}
+# canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"pdca-workflow:red-team","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:red-team$"}}
 #
 # LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt. Chosen because (verified against
 # this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/,
@@ -26,21 +44,43 @@
 #
 # ACCEPTED LIMITATIONS: a bare `verify` invocation also matches the Claude Code built-in verify
 # skill, not only pdca-workflow's -- an over-log (one extra counted line), never a miss; the log
-# records the name exactly as invoked so the reader can tell the prefixed form apart. Skill name
-# extraction uses the house no-jq sed pattern ([^"]* stops at the first quote), which is exact
-# here because a skill name contains no quotes. Fails OPEN (exit 0, no log line) on
-# malformed/empty stdin or a missing skill field. UNDER-log: a panel run via raw Agent-tool
-# subagents (plugin skills not loaded) never fires the Skill matcher -- zero lines is not proof
-# of zero panels; the retrospect agent cross-checks ADR Panel: lines for exactly this reason.
+# records the name exactly as invoked so the reader can tell the prefixed form apart. A Skill
+# invocation that goes on to spawn a pdca-workflow:* agent logs on BOTH surfaces (one
+# skill-spawn + one agent-spawn) -- an over-log, never a miss; the distinct event tags let a
+# reader dedup. CONSUMER-NAMED advisor agents (built from advisor-template.md with repo-local
+# names) spawn outside the pdca-workflow:* namespace and are NOT agent-logged -- a generic
+# plugin cannot know consumer agent names; zero agent-spawn lines is not proof of zero panels,
+# and the retrospect agent cross-checks ADR Panel: lines for exactly this reason. Name
+# extraction uses the house no-jq sed pattern ([^"]* stops at the first quote), exact here
+# because skill/agent names contain no quotes; a literal "subagent_type" phrase inside a prompt
+# string VALUE is JSON-escaped (\") and lacks the contiguous bytes the pattern requires (same
+# safety argument as explicit-model-guard.sh). Fails OPEN (exit 0, no log line) on
+# malformed/empty stdin or a missing skill/subagent_type field.
 input=$(cat)
-skill=$(printf '%s' "$input" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-[ -z "$skill" ] && exit 0
+tool=$(printf '%s' "$input" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
-case "$skill" in
-  advise|red-team|verify|retrospect|pdca-workflow:advise|pdca-workflow:red-team|pdca-workflow:verify|pdca-workflow:retrospect)
-    root="${CLAUDE_PROJECT_DIR:-.}"
-    [ -d "$root/docs/pdca" ] || exit 0
-    printf '%s skill-spawn %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$skill" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
+log_line() {  # $1 = event tag, $2 = name as given
+  root="${CLAUDE_PROJECT_DIR:-.}"
+  [ -d "$root/docs/pdca" ] || return 0
+  printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
+}
+
+case "$tool" in
+  Skill)
+    skill=$(printf '%s' "$input" | sed -n 's/.*"skill"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    [ -z "$skill" ] && exit 0
+    case "$skill" in
+      advise|red-team|verify|retrospect|pdca-workflow:advise|pdca-workflow:red-team|pdca-workflow:verify|pdca-workflow:retrospect)
+        log_line skill-spawn "$skill" ;;
+    esac
+    ;;
+  Agent|Task)
+    agent=$(printf '%s' "$input" | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+    [ -z "$agent" ] && exit 0
+    case "$agent" in
+      pdca-workflow:*)
+        log_line agent-spawn "$agent" ;;
+    esac
     ;;
 esac
 exit 0

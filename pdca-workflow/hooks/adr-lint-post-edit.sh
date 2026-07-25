@@ -21,6 +21,15 @@
 # `*/CLAUDE.md`) re-runs the SAME root-CLAUDE.md check rather than checking the nested file --
 # harmless over-trigger (wastes one run), not a false negative on the file that was actually
 # edited (there is no per-file budget for a nested CLAUDE.md to miss).
+#
+# liveness: per-event-exempt -- the observable fire (exit 2 + stderr) is contingent on a
+# FAILING lint run, which may legitimately never occur in a window (ADR 0086 (b)). Canaries:
+# one per routing case arm, each against a fixture corpus the lint must fail on. Declaration
+# grammar home: the consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
+# canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-bad.md"}},"expect":{"exit":2}}
+# canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md"}},"expect":{"exit":2}}
+# canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md"}},"expect":{"exit":2}}
+# canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/.claude-plugin/plugin.json"}},"expect":{"exit":2}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$fp" ] && exit 0

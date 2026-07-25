@@ -18,6 +18,13 @@
 # docs/pdca/ dir (scaffolded by /pdca-init). Everywhere else this is a no-op -- a session-wide
 # install must not impose tier discipline on repos that never opted in (ADR 0050). Stdin is
 # drained BEFORE the marker check so the harness never sees a broken pipe.
+#
+# liveness: per-event-exempt -- a deny fires only on an unmodeled general-purpose/absent-type
+# call, which may legitimately never occur in a window (ADR 0086 (b)). Canaries: the two
+# denied input shapes, one per tool name the matcher covers. Declaration grammar home: the
+# consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
+# canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"prompt":"do the thing"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose","prompt":"do the thing"}},"expect":{"deny":true}}
 input=$(cat)
 [ -d "${CLAUDE_PROJECT_DIR:-.}/docs/pdca" ] || exit 0
 scope=$(printf '%s' "$input" | sed -n 's/.*\("tool_input".*\)/\1/p')

@@ -10,10 +10,16 @@ import {
   extractShInvocations,
   globCoversPath,
   extractRegisteredHooks,
+  extractRegisteredHooksDetailed,
   extractPyGates,
   extractPyTestExecutions,
   selfSkipLines,
   findMissingTests,
+  parseLivenessDeclaration,
+  parseCanaries,
+  matcherMatchesTool,
+  findCanaryRegistrationFindings,
+  evaluateCanaryRun,
 } from "./check-gate-tests.mjs";
 
 // hooks.json fixture registering one hook, plugin style.
@@ -350,4 +356,151 @@ test("the same hook passes once the path root is derived (and without readFile t
     findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles }),
     []
   );
+});
+
+// ---- ADR 0086: liveness declarations, canary parsing, registration reachability ------------
+
+test("extractRegisteredHooksDetailed keeps event + matcher; extractRegisteredHooks derives paths from it", () => {
+  const text = JSON.stringify({
+    hooks: {
+      PreToolUse: [
+        { matcher: "Agent|Task", hooks: [
+          { type: "command", command: "${CLAUDE_PLUGIN_ROOT}/hooks/a.sh" },
+          { type: "command", command: "${CLAUDE_PLUGIN_ROOT}/hooks/b.sh" },
+        ] },
+      ],
+      SessionEnd: [
+        { hooks: [{ type: "command", command: "${CLAUDE_PROJECT_DIR}/.claude/hooks/end.sh" }] },
+      ],
+    },
+  });
+  const detailed = extractRegisteredHooksDetailed(text, "pdca-workflow");
+  assert.deepEqual(detailed, [
+    { event: "PreToolUse", matcher: "Agent|Task", path: "pdca-workflow/hooks/a.sh" },
+    { event: "PreToolUse", matcher: "Agent|Task", path: "pdca-workflow/hooks/b.sh" },
+    { event: "SessionEnd", matcher: null, path: ".claude/hooks/end.sh" },
+  ]);
+  assert.deepEqual(extractRegisteredHooks(text, "pdca-workflow"),
+    ["pdca-workflow/hooks/a.sh", "pdca-workflow/hooks/b.sh", ".claude/hooks/end.sh"]);
+});
+
+test("parseLivenessDeclaration: both classes parse, unknown word is 'invalid', absence is null", () => {
+  assert.equal(parseLivenessDeclaration("#!/bin/bash\n# liveness: boundary-coupled -- note\n"), "boundary-coupled");
+  assert.equal(parseLivenessDeclaration("# liveness: per-event-exempt -- deny-only\n"), "per-event-exempt");
+  assert.equal(parseLivenessDeclaration("# liveness: sometimes\n"), "invalid");
+  assert.equal(parseLivenessDeclaration("# no declaration here\n"), null);
+});
+
+test("parseCanaries: well-formed lines parse with line numbers; bad JSON and missing keys are malformed, never dropped", () => {
+  const text = [
+    "#!/bin/bash",
+    '# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash"},"expect":{"deny":true}}',
+    '# canary: {not json}',
+    '# canary: {"event":"PreToolUse","stdin":{"x":1},"expect":{"frobnicate":true}}',
+    '# canary: {"event":"SessionEnd","stdin":{"reason":"clear"},"expect":{"append":"docs/pdca/session-log.txt","match":" session-end clear$"}}',
+  ].join("\n");
+  const { canaries, malformed } = parseCanaries(text);
+  assert.equal(canaries.length, 2);
+  assert.equal(canaries[0].line, 2);
+  assert.equal(canaries[1].event, "SessionEnd");
+  assert.equal(malformed.length, 2);
+  assert.deepEqual(malformed.map((m) => m.line), [3, 4]);
+});
+
+test("matcherMatchesTool: regex test semantics, empty/null matches all, unparseable matches nothing", () => {
+  assert.ok(matcherMatchesTool("Agent|Task", "Agent"));
+  assert.ok(matcherMatchesTool("Agent|Task", "Task"));
+  assert.ok(!matcherMatchesTool("Skill", "Agent"));
+  assert.ok(matcherMatchesTool(null, "Anything"));
+  assert.ok(matcherMatchesTool("", "Anything"));
+  assert.ok(!matcherMatchesTool("(", "Agent"));
+});
+
+const HOOK_TEXT_OK = [
+  "# liveness: per-event-exempt -- x",
+  '# canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill"},"expect":{"deny":true}}',
+].join("\n");
+
+test("findCanaryRegistrationFindings: a fully declared, reachable, executable hook yields no findings", () => {
+  const registrations = [{ event: "PreToolUse", matcher: "Skill", path: "h/a.sh" }];
+  const hookInfo = new Map([["h/a.sh", { exists: true, executable: true, text: HOOK_TEXT_OK }]]);
+  assert.deepEqual(findCanaryRegistrationFindings({ registrations, hookInfo }), []);
+});
+
+test("findCanaryRegistrationFindings: missing file, non-executable file, and missing liveness each fail", () => {
+  const registrations = [
+    { event: "PreToolUse", matcher: "Skill", path: "h/gone.sh" },
+    { event: "PreToolUse", matcher: "Skill", path: "h/noexec.sh" },
+    { event: "PreToolUse", matcher: "Skill", path: "h/undeclared.sh" },
+  ];
+  const hookInfo = new Map([
+    ["h/gone.sh", { exists: false, executable: false, text: null }],
+    ["h/noexec.sh", { exists: true, executable: false, text: HOOK_TEXT_OK }],
+    ["h/undeclared.sh", { exists: true, executable: true, text: "# nothing declared\n" }],
+  ]);
+  const f = findCanaryRegistrationFindings({ registrations, hookInfo });
+  assert.equal(f.length, 3);
+  assert.match(f.find((x) => x.path === "h/gone.sh").reason, /does not exist/);
+  assert.match(f.find((x) => x.path === "h/noexec.sh").reason, /not executable/);
+  assert.match(f.find((x) => x.path === "h/undeclared.sh").reason, /no liveness classification/);
+});
+
+test("findCanaryRegistrationFindings: enforceExecutable=false spares the mode check (win32)", () => {
+  const registrations = [{ event: "PreToolUse", matcher: "Skill", path: "h/noexec.sh" }];
+  const hookInfo = new Map([["h/noexec.sh", { exists: true, executable: false, text: HOOK_TEXT_OK }]]);
+  assert.deepEqual(findCanaryRegistrationFindings({ registrations, hookInfo, enforceExecutable: false }), []);
+});
+
+test("findCanaryRegistrationFindings: the spawn-log scar — a declared class whose tool no registered matcher covers fails", () => {
+  // Hook declares an Agent-surface canary but is registered on Skill only.
+  const text = [
+    "# liveness: boundary-coupled -- x",
+    '# canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent"},"expect":{"append":"docs/pdca/session-log.txt","match":"agent-spawn"}}',
+  ].join("\n");
+  const registrations = [{ event: "PreToolUse", matcher: "Skill", path: "h/spawn.sh" }];
+  const hookInfo = new Map([["h/spawn.sh", { exists: true, executable: true, text }]]);
+  const f = findCanaryRegistrationFindings({ registrations, hookInfo });
+  assert.equal(f.length, 1);
+  assert.match(f[0].reason, /unreachable: no PreToolUse registration whose matcher covers tool Agent/);
+});
+
+test("findCanaryRegistrationFindings: a canary event with no registration for that event fails; matcherless events accept any canary tool omission", () => {
+  const text = [
+    "# liveness: boundary-coupled -- x",
+    '# canary: {"event":"SessionEnd","stdin":{"reason":"clear"},"expect":{"append":"l.txt","match":"end"}}',
+  ].join("\n");
+  const wrongEvent = [{ event: "PreToolUse", matcher: null, path: "h/end.sh" }];
+  const hookInfo = new Map([["h/end.sh", { exists: true, executable: true, text }]]);
+  const f = findCanaryRegistrationFindings({ registrations: wrongEvent, hookInfo });
+  assert.equal(f.length, 1);
+  assert.match(f[0].reason, /no SessionEnd registration/);
+  const rightEvent = [{ event: "SessionEnd", matcher: null, path: "h/end.sh" }];
+  assert.deepEqual(findCanaryRegistrationFindings({ registrations: rightEvent, hookInfo }), []);
+});
+
+test("findCanaryRegistrationFindings: malformed canary lines are findings (fail-loud), zero canaries is not", () => {
+  const malformedText = "# liveness: per-event-exempt -- x\n# canary: {broken\n";
+  const bare = "# liveness: per-event-exempt -- x\n";
+  const registrations = [
+    { event: "PreToolUse", matcher: "Bash", path: "h/m.sh" },
+    { event: "PreToolUse", matcher: "Bash", path: "h/bare.sh" },
+  ];
+  const hookInfo = new Map([
+    ["h/m.sh", { exists: true, executable: true, text: malformedText }],
+    ["h/bare.sh", { exists: true, executable: true, text: bare }],
+  ]);
+  const f = findCanaryRegistrationFindings({ registrations, hookInfo });
+  assert.equal(f.length, 1);
+  assert.match(f[0].reason, /malformed canary/);
+});
+
+test("evaluateCanaryRun: each expect shape passes on its effect and names the miss otherwise", () => {
+  assert.equal(evaluateCanaryRun({ deny: true }, { status: 0, stdout: '{"hookSpecificOutput":{"permissionDecision":"deny"}}' }), null);
+  assert.match(evaluateCanaryRun({ deny: true }, { status: 0, stdout: "" }), /expected a deny/);
+  assert.equal(evaluateCanaryRun({ exit: 2 }, { status: 2, stdout: "" }), null);
+  assert.match(evaluateCanaryRun({ exit: 2 }, { status: 0, stdout: "" }), /expected exit 2, got 0/);
+  assert.equal(evaluateCanaryRun({ append: "l.txt", match: " session-end clear$" }, { status: 0, stdout: "", appendText: "2026-01-01T00:00:00Z session-end clear\n" }), null);
+  assert.match(evaluateCanaryRun({ append: "l.txt", match: "x$" }, { status: 0, stdout: "", appendText: null }), /to exist/);
+  assert.match(evaluateCanaryRun({ append: "l.txt", match: "nope" }, { status: 0, stdout: "", appendText: "other\n" }), /does not match/);
+  assert.match(evaluateCanaryRun({ frobnicate: true }, { status: 0, stdout: "" }), /unrecognized expect/);
 });

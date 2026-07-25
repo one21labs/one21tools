@@ -11,6 +11,16 @@
 # without node; skill-class sizing still imports validate.py (that class fails open without it).
 # Size math mirrors charLen (CRLF normalized). Lite ADRs (`tier: lite` in the RESULTING text) get
 # the lite cap. Fails OPEN on any parse/import error — a broken hook must never block edits.
+#
+# liveness: per-event-exempt -- a deny fires only on an over-cap edit attempt, which may
+# legitimately never occur in a window (ADR 0086 (b)). Canaries: one per case-arm file class
+# (the documented coverage list -- the #255 gap was exactly a missing class); tiny env caps
+# force the deny path. Declaration grammar home: scripts/check-gate-tests.mjs.
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-canary.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md","content":"---\nname: foo\ndescription: d\n---\n\nThis body is definitely longer than ten characters."}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/references/r.md","content":"A reference body with no table of contents and well over ten characters."}},"expect":{"deny":true}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 case "$fp" in
