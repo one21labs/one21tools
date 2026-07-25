@@ -366,6 +366,24 @@ test("repoFileList skips .git and node_modules but returns nested real files", (
   }
 });
 
+test("repoFileList skips a subdir that vanishes mid-walk (#282) but throws on missing root / non-ENOENT", () => {
+  const d = (name, isDir) => ({ name, isDirectory: () => isDir });
+  const enoent = () => Object.assign(new Error("ENOENT: vanished"), { code: "ENOENT" });
+  const fake = (p) => {
+    if (p === "R") return [d("keep.md", false), d("ghost", true), d("src", true)];
+    if (p === join("R", "src")) return [d("real.mjs", false)];
+    throw enoent(); // "ghost" vanished between discovery and read — the concurrent-fixture race
+  };
+  assert.deepEqual(repoFileList("R", fake).sort(), ["keep.md", "src/real.mjs"]);
+  // A missing ROOT is caller error, not a race: the gate must not go silently vacuous.
+  assert.throws(() => repoFileList("gone", () => { throw enoent(); }), /ENOENT/);
+  // Only ENOENT is tolerated — any other failure still surfaces.
+  assert.throws(
+    () => repoFileList("R", (p) => { if (p === "R") return [d("bad", true)]; throw Object.assign(new Error("EIO"), { code: "EIO" }); }),
+    /EIO/,
+  );
+});
+
 test("every real lite ADR passes the Enforced gate against the real repo walk (measured zero-false-positive claim, mechanized)", () => {
   const hits = lint({ files: corpus(), repoFiles: repoFileList(AGENT_ROOT) }).problems
     .filter(p => /Enforced/.test(p));

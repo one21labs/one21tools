@@ -122,12 +122,21 @@ export function detect(files, { window = WINDOW, allowPairs = ALLOW_PAIRS } = {}
   }).sort((x, y) => y.words - x.words);
 }
 
-function mdFiles(dir, out = []) {
+// Walk tolerates entries that vanish between discovery and stat/descent (#282: sibling test
+// fixtures come and go in the repo root under the concurrent `node --test` run) — ONLY ENOENT,
+// and never for the root itself (the top-level readdir throws), so the gate cannot go silently
+// vacuous. Exported so the tolerance is testable.
+export function mdFiles(dir, out = []) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (SKIP.test(p)) continue;
-    if (statSync(p).isDirectory()) mdFiles(p, out);
-    else if (e.endsWith(".md")) out.push(p);
+    let st;
+    try { st = statSync(p); }
+    catch (err) { if (err.code === "ENOENT") continue; throw err; }
+    if (st.isDirectory()) {
+      try { mdFiles(p, out); }
+      catch (err) { if (err.code !== "ENOENT") throw err; }
+    } else if (e.endsWith(".md")) out.push(p);
   }
   return out;
 }
@@ -137,10 +146,12 @@ function main(argv) {
   const root = args.find(a => !a.startsWith("--")) ?? ".";
   const window = Number((args.find(a => a.startsWith("--window=")) ?? `--window=${WINDOW}`).split("=")[1]);
 
-  const files = mdFiles(root).map(p => ({
-    name: relative(root, p).replaceAll("\\", "/"),
-    text: readFileSync(p, "utf8"),
-  }));
+  const files = [];
+  for (const p of mdFiles(root)) {
+    // Same #282 race: a walked file can vanish before this read — skip it.
+    try { files.push({ name: relative(root, p).replaceAll("\\", "/"), text: readFileSync(p, "utf8") }); }
+    catch (e) { if (e.code !== "ENOENT") throw e; }
+  }
 
   const spans = detect(files, { window });
   if (spans.length) {
