@@ -89,6 +89,19 @@ machinery:
     hit-rate scorecard) classifies on. A free-text synonym ("FALSIFIED") or a double-tag is
     unclassifiable — and a dropped miss reads as no miss.
 
+14. **Stale status on recorded discharge** (ADR 0088; a corpus check) — a `;`-split clause of a
+    line containing "discharg" that cites an ADR id existing on disk FAILS if that ADR's
+    frontmatter is still `status: proposed`: the state-changing event was recorded into a
+    sibling file and the target's status never flipped. The clause (not the whole line) is the
+    unit, so an unrelated proposed cite sharing the line stays quiet; date-adjacent and
+    unknown 4-digit tokens never match.
+15. **Doc-indexed constant cross-check** (`docIndexDrift`, ADR 0088; a `main()` guard over every
+    .md OUTSIDE the decisions dir) — a line that backtick-names a `char-budget.mjs` scalar
+    constant (or `DOC_BUDGETS` plus a backticked filename matching a key's BASENAME) and contains
+    a 3+-digit number must include that constant's current value: comma-insensitive,
+    presence-direction only (extra numbers on the line are fine). The decisions dir is excluded
+    because records legitimately hold as-of-decision numbers.
+
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 
 ## Run / install
