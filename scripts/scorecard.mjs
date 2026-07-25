@@ -301,6 +301,12 @@ function collectLiveness(root, seriesConfig) {
         const gh = (...args) => execFileSync("gh", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
         const mergedNums = new Set(JSON.parse(gh("pr", "list", "--state", "merged", "--limit", "200",
           "--search", `merged:>=${s.wiredSince}`, "--json", "number")).map(p => p.number));
+        if (mergedNums.size >= 200) {
+          // Fail-loud, never silently truncate (this module's own doctrine): a saturated query
+          // cap means the denominator is unknown, not 200.
+          series.push({ ...base, evaluated: false, reason: "merged-PR query cap (200) saturated — denominator unknown" });
+          continue;
+        }
         // --paginate concatenates page arrays back-to-back; splice them into one array (this
         // gh version has no --slurp).
         const commented = new Set(JSON.parse(gh("api", "--paginate",
