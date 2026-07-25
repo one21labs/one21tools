@@ -328,14 +328,24 @@ export function marginWarnings(newEntries, files, margin = ADR_CHAR_MARGIN) {
 // IO helper (ADR 0087): repo-relative file list for the lite `Enforced:` resolution check.
 // A plain walk, not `git ls-files` — the gate needs no git at run time, and "exists on disk"
 // (not "is tracked") is the bar. Only .git/node_modules are skipped; symlinked dirs read as
-// files (no cycle risk). Exported so the test can run the real-corpus case through it.
-export function repoFileList(root = ".") {
+// files (no cycle risk). A subdir that vanishes between discovery and read is skipped (#282:
+// sibling test fixtures come and go in the repo root under the concurrent `node --test` run) —
+// ONLY ENOENT, and never for the root itself, so the gate cannot go silently vacuous.
+// Exported so the test can run the real-corpus case through it; `readdir` injectable so the
+// vanish race is testable deterministically.
+export function repoFileList(root = ".", readdir = readdirSync) {
   const skip = new Set([".git", "node_modules"]);
   const out = [];
   const stack = [""];
   while (stack.length) {
     const rel = stack.pop();
-    for (const e of readdirSync(rel ? join(root, rel) : root, { withFileTypes: true })) {
+    let entries;
+    try { entries = readdir(rel ? join(root, rel) : root, { withFileTypes: true }); }
+    catch (e) {
+      if (e.code === "ENOENT" && rel) continue;
+      throw e;
+    }
+    for (const e of entries) {
       if (skip.has(e.name)) continue;
       const p = rel ? `${rel}/${e.name}` : e.name;
       if (e.isDirectory()) stack.push(p);
@@ -373,9 +383,13 @@ function main(argv) {
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));
 
-  // Doc-indexed constant cross-check (ADR 0088) over the indexScanSet selection.
-  const mdDocs = indexScanSet(repoFiles, dir)
-    .map(p => ({ name: p, text: readFileSync(p, "utf8") }));
+  // Doc-indexed constant cross-check (ADR 0088) over the indexScanSet selection. A file that
+  // vanishes between the walk and this read is the same #282 fixture race — skip it.
+  const mdDocs = [];
+  for (const p of indexScanSet(repoFiles, dir)) {
+    try { mdDocs.push({ name: p, text: readFileSync(p, "utf8") }); }
+    catch (e) { if (e.code !== "ENOENT") throw e; }
+  }
   problems.push(...docIndexDrift(mdDocs,
     { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS));
 
