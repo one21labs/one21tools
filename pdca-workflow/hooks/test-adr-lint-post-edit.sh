@@ -44,7 +44,8 @@ tier: lite
 ---
 # 0001: Test fixture ADR
 
-Decision: use a lite-tier ADR for hook-test fixtures. Enforced by this fixture file existing.
+Decision: use a lite-tier ADR for hook-test fixtures.
+Enforced: this fixture file existing (token-free free-form).
 EOF
 cat > "$FIX_OK/CLAUDE.md" <<'EOF'
 # Fixture project
