@@ -126,9 +126,7 @@ code=$(printf '' | CLAUDE_PROJECT_DIR="$FIX_OK" CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN
 assert_exit "malformed/empty stdin -> fails open -> exit 0" 0 "$code"
 
 # --- ADR 0088 exclusion must survive the hook's ABSOLUTE-dir invocation (the #286-session
-# scar): the hook passes "$root/docs/decisions" verbatim while adr-lint's repo walk yields
-# cwd-relative paths, so an unnormalized dir silently defeats the decisions-dir exclusion and
-# an as-of-decision number beside a char-budget constant name false-fails every ADR edit. ---
+# scar; root cause + normalization rationale: adr-lint.mjs, the scanDir comment). ---
 FIX_HIST=$(mktemp -d)
 mkdir -p "$FIX_HIST/docs/decisions" "$FIX_HIST/docs/pdca"
 cat > "$FIX_HIST/docs/decisions/0001-hist.md" <<'EOF'
