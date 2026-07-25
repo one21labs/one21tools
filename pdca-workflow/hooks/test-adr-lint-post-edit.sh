@@ -125,5 +125,26 @@ assert_exit "out-of-repo path, project has no docs/decisions -> degrade graceful
 code=$(printf '' | CLAUDE_PROJECT_DIR="$FIX_OK" CLAUDE_PLUGIN_ROOT="$REAL_PLUGIN_ROOT" bash "$HOOK"; echo $?)
 assert_exit "malformed/empty stdin -> fails open -> exit 0" 0 "$code"
 
+# --- ADR 0088 exclusion must survive the hook's ABSOLUTE-dir invocation (the #286-session
+# scar; root cause + normalization rationale: adr-lint.mjs, the scanDir comment). ---
+FIX_HIST=$(mktemp -d)
+mkdir -p "$FIX_HIST/docs/decisions" "$FIX_HIST/docs/pdca"
+cat > "$FIX_HIST/docs/decisions/0001-hist.md" <<'EOF'
+---
+id: "0001"
+title: "Test fixture ADR with as-of-decision number"
+status: accepted
+summary: "Holds a historical char-budget constant value that must stay excluded from docIndexDrift."
+tier: lite
+---
+# 0001: historical number fixture
+
+Decision: at decision time `ADR_CHAR_BUDGET` was 6,000 chars; records keep as-of-decision numbers.
+Enforced: this fixture file existing (token-free free-form).
+EOF
+code=$(run "$FIX_HIST" "$FIX_HIST/docs/decisions/0001-hist.md" "$REAL_PLUGIN_ROOT")
+assert_exit "as-of-decision constant number in an ADR -> excluded via the hook's absolute dir -> exit 0" 0 "$code"
+rm -rf "$FIX_HIST"
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
