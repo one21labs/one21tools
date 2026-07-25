@@ -240,7 +240,7 @@ export function parseCanaries(shText) {
       const decl = JSON.parse(m[1]);
       const known = Object.keys(decl.expect ?? {}).filter((k) => ["deny", "exit", "append"].includes(k));
       if (typeof decl.event !== "string" || typeof decl.stdin !== "object" || decl.stdin === null || known.length !== 1) {
-        throw new Error("canary needs event, stdin, and exactly one of expect deny/exit/append/output");
+        throw new Error("canary needs event, stdin, and exactly one of expect deny/exit/append");
       }
       canaries.push({ line: i + 1, ...decl });
     } catch (e) {
@@ -471,10 +471,10 @@ function main(argv) {
 
   const existingFiles = { has: (relPath) => existsSync(join(root, relPath)) };
 
-  const registrations = HOOK_REGISTRATIONS.flatMap(({ path, pluginRoot }) => {
-    const text = read(path);
-    return text == null ? [] : extractRegisteredHooksDetailed(text, pluginRoot);
-  });
+  // Derived from the SAME read as findMissingTests's input — one read+parse pass over the
+  // registration files (the extract findMissingTests re-runs internally stays behind its pure
+  // signature boundary).
+  const registrations = hookRegistrations.flatMap(({ text, pluginRoot }) => extractRegisteredHooksDetailed(text, pluginRoot));
   const hookInfo = new Map();
   for (const r of registrations) {
     if (hookInfo.has(r.path)) continue;
