@@ -2,15 +2,19 @@
  * check-restatement.test.mjs — decision-logic test for check-restatement.mjs (ADR 0046; "no
  * process-gating script without a test of its decision logic"). Pins: a >=window shared word
  * span across two files is flagged; below-window, fenced-code, frontmatter, and ADR-metadata
- * duplication is not; allowlisted pairs are excluded; and the deployed gate passes on the
- * repo itself — the surface a consumer invokes (gates.yml).
+ * duplication is not; allowlisted pairs are excluded; the walk skips entries that vanish
+ * mid-run (#282); and the deployed gate passes on the repo itself — the surface a consumer
+ * invokes (gates.yml).
  * Run: node --test scripts/*.test.mjs from the repo root.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { detect, allowed, WINDOW } from "./check-restatement.mjs";
+import { mkdtempSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { detect, allowed, mdFiles, WINDOW } from "./check-restatement.mjs";
 
 const SPAN = "the quick brown fox jumps over the lazy dog again and again today"; // 13 words
 // Seed goes LAST, immediately before any appended payload — the differing word breaks the
@@ -78,6 +82,20 @@ test("recall regression: a real #88-class verbatim restatement is caught", () =>
     { name: "skills/x/references/empirical-evals.md", text: filler("beta") + real },
   ]);
   assert.equal(spans.length, 1);
+});
+
+test("walk skips an entry that vanishes between readdir and stat (#282) but throws on a missing root", () => {
+  const abs = mkdtempSync(join(tmpdir(), "restate-walk-"));
+  try {
+    writeFileSync(join(abs, "real.md"), "# real\n");
+    // A dangling symlink deterministically reproduces the race: readdir lists it, stat ENOENTs.
+    symlinkSync(join(abs, "never-existed"), join(abs, "ghost.md"));
+    assert.deepEqual(mdFiles(abs).map(p => relative(abs, p)), ["real.md"]);
+    // A missing ROOT is caller error, not a race: the gate must not go silently vacuous.
+    assert.throws(() => mdFiles(join(abs, "nope")), /ENOENT/);
+  } finally {
+    rmSync(abs, { recursive: true, force: true });
+  }
 });
 
 test("surface: the deployed gate passes on the repo itself", () => {
