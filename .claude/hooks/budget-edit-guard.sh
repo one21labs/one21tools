@@ -28,6 +28,9 @@ fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([
 # the PREVENT rung never ran. Latent rather than live — Claude Code passes absolute paths — but a
 # guard with a path shape that silently skips is the class this repo keeps finding.
 case "$fp" in /*) ;; "") ;; *) fp="${CLAUDE_PROJECT_DIR:-.}/$fp" ;; esac
+export BUDGET_GUARD_FP="$fp"   # the python body must see the NORMALIZED path too:
+                               # normalizing only for the case filter left Edit on a
+                               # relative path reading an empty file and allowing.
 case "$fp" in
   */CLAUDE.md|CLAUDE.md|*/docs/decisions/*.md|*/pdca-workflow/agents/*.md|*claude-md-template.md) ;;
   */skills/*/SKILL.md|*/skills/*/references/*.md) ;;
@@ -65,7 +68,12 @@ import json, os, re, sys
 try:
     hook = json.loads(os.environ["HOOK_INPUT"])
     ti = hook.get("tool_input") or {}
-    fp = ti.get("file_path") or ""
+    # The NORMALIZED path from the shell, not the raw one: normalizing only for the case filter
+    # left an Edit on a relative path opening nothing (cwd != project root), yielding empty
+    # current text, so `old not in cur` short-circuited to allow. Write hid it, because Write
+    # never reads the file — which is why the first regression fixture passed while Edit stayed
+    # bypassable.
+    fp = os.environ.get("BUDGET_GUARD_FP") or ti.get("file_path") or ""
     caps = json.loads(os.environ["BUDGET_GUARD_CAPS_JSON"])
     def norm(s):
         return s.replace("\r\n", "\n")

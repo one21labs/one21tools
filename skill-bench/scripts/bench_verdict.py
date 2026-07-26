@@ -3,7 +3,7 @@
 judge, and NO new generation spend (ADR 0055). This is the generalized #172 cross-family prototype.
 
 Two modes:
-  --judge grok|claude   re-grade the committed normalized cells with that judge (grade+prosecute),
+  --judge <backend>     re-grade the committed normalized cells with that judge (grade+prosecute),
                         then compute arm means, the clustered treatment-control delta (KEEP/CUT;
                         pair from --primary, default C,B), per-expectation.
   --judge both          run the chosen judge AND load the committed baseline verdicts, then emit the

@@ -83,7 +83,7 @@ pre-registration of this class:
    ```
    echo '{"clusters":10,"sd_hi":0.26,"equivalence_margin":0.05,
           "author_arms":["ours"],"losing_outcomes":["ours"]}' \
-     | python3 skill-bench/scripts/lib/prereg_guard.py -
+     | python3 "${CLAUDE_PLUGIN_ROOT}/scripts/lib/prereg_guard.py" -
    ```
 
    It exits non-zero, naming how many clusters the stated claim actually costs, when a margin is

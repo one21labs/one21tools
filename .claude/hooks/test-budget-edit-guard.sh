@@ -139,6 +139,17 @@ rel=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/decision
 case "$rel" in *'"deny"'*) check "relative file_path is guarded like an absolute one" 0 ;;
   *) check "relative file_path is guarded like an absolute one" 1 "(got: $rel)" ;; esac
 
+# The Edit shape with cwd != project root. The first relative-path fixture used Write only, and
+# Write never opens the file — so it passed while Edit stayed bypassable. A regression test that
+# covers the easy half of a bug is worse than none: it reports the bug fixed.
+ED=$(mktemp -d); mkdir -p "$ED/docs/decisions"; printf 'x%.0s' $(seq 1 200) > "$ED/docs/decisions/0099-r.md"
+edout=$(cd "$ED" && printf '%s' "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"docs/decisions/0099-r.md\",\"old_string\":\"x\",\"new_string\":\"$(printf 'y%.0s' $(seq 1 300))\"}}" \
+  | BUDGET_GUARD_CAPS_JSON='{"doc":10,"adr":10,"lite":10,"agent":10,"skill":10,"ref":10,"refToc":10}' \
+    CLAUDE_PROJECT_DIR="$ED" bash "$HOOK" 2>/dev/null)
+rm -rf "$ED"
+case "$edout" in *'"deny"'*) check "relative file_path on an EDIT is guarded (cwd != project root)" 0 ;;
+  *) check "relative file_path on an EDIT is guarded (cwd != project root)" 1 "(got: $edout)" ;; esac
+
 rm -rf "$FIX"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" = "0" ]
