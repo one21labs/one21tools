@@ -9,15 +9,11 @@ summary: "A PR body carries Purpose / Changes / Testing / Deferred. The per-PR r
 
 - Date: 2026-07-16
 
-Owner decision, recorded directly. Retrospect trigger home: ADR 0081. Enforced homes:
-`scripts/check-pr-body.mjs` (ADR 0054 guard only),
-`.claude/hooks/pr-create-guard.sh` (disclosure + body-file + external target), CLAUDE.md
-Shipping + the Muda forcing-functions line (the ADR 0081 closeout step).
+Owner decision, recorded directly. Retrospect trigger home: ADR 0081. Enforced: `scripts/check-pr-body.mjs`
+(ADR 0054 guard only), `.claude/hooks/pr-create-guard.sh` (disclosure + body-file + external target).
 
 - [unverifiable] session-close output (ADR 0081) does not regrow the green-line rot — REOPEN-IF
-  a closeout emits findings with no routed artifact (the citing-artifact gap, observable in
-  0081 (d)'s readout independent of its keep/demote outcome): that re-opens the FORM question
-  here, not just the trigger question there.
+  a closeout emits findings with no routed artifact: that re-opens the FORM question here.
 
 ## Act (post-ship — 2026-07-19)
 - [outcome] on-demand-only retrospects catch what the per-PR ritual caught — violated: the

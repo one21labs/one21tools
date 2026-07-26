@@ -148,13 +148,14 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 ## Lite tier
 
-For SETTLED decisions only — the boundary is mechanical, not judgment: **a decision that carries a
-live revisit trigger or an open assumption needs a full ADR; one that is settled (no trigger,
-enforced by a test/script/commit) records as `tier: lite`.** Same directory, same catalog, same id
-sequence; `adr-lint` enforces the tier (the rejection predicate is adr-lint.md check 6 — canonical
-there, not restated here; a failing record graduates to a full ADR). **Budget:
-≤1,500 chars** (`LITE_ADR_CHAR_BUDGET`); the criterion gate does not apply (settled = nothing left
-to test). Shape — three parts, no panel/assumptions/alternatives machinery:
+The DEFAULT tier (ADR 0062). The corpus exists to stop a future session RE-DECIDING a settled call (ADR 0092). Lite carries
+exactly the fields that do that and nothing else. The boundary is mechanical: a decision whose
+REASONING must survive — tagged assumptions someone must resolve, or an `## Assumptions` block —
+graduates to a full ADR; everything else is lite, INCLUDING a decision with a reopen-if.
+(A reopen-if no longer forces full tier: dropping it from the cheap tier is what pushed
+churn-preventing records into the expensive one.) `adr-lint` enforces this — predicate at
+adr-lint.md check 6, canonical there. **Budget: the `LITE_ADR_CHAR_BUDGET` cap in
+`char-budget.mjs`** (a ceiling, not a target); the falsifiability gate does not apply.
 
 ```
 ---
@@ -169,11 +170,15 @@ summary: "<one line for the skim catalog>"
 
 - Decision: <what, in one or two fragments>
 - Why: <the one load-bearing reason>
+- Rejected: <what was considered and why not — the field that stops it being re-proposed>
+- Reopen-if: <the condition that would legitimately revisit it; omit only if none exists>
 - Enforced: <test / script / gate file that makes it stick>
 ```
 
-If a lite record later gains a trigger (something changed), graduate it: rewrite as a full ADR in
-place, same id — the tier field is state, not history.
+`Rejected:` and `Reopen-if:` are the anti-churn pair — a reader who knows what was already
+weighed, and what would justify reopening, does not re-litigate. Omit `Rejected:` only when
+nothing was seriously considered. If a lite record later needs tracked assumptions, graduate it:
+rewrite as a full ADR in place, same id — the tier field is state, not history.
 
 ## Shared assumption register
 

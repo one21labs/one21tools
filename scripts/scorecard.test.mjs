@@ -179,18 +179,18 @@ test("absent gate-hits log: stated as a true zero, does not break the all-clear 
 // parser regression that blanks rows or reclassifies outcomes fails loudly. Recompute on corpus change.
 // Deliberately pinned to the live corpus: it catches an unintended outcome-label change. Update
 // the numbers ONLY alongside a deliberate corpus edit, and say which in the commit — the
-// 2026-07-26 outcome audit moved it from 12/3/3 by correcting two dishonest labels (ADR 0041's
-// unsupported `verified`, ADR 0040's stale `still-open`) and recording two verified Act blocks.
-test("real corpus: 16 verified / 3 violated / 3 still-open / 0 unparsed; hit-rate 3/19 evaluated", () => {
+// 2026-07-26: the ADR 0092 compaction cut most `## Act` blocks along with the process machinery
+// they belonged to, so the sample dropped 19 -> 7. The metric is now n=7 (see ADR 0092).
+test("real corpus: 6 verified / 1 violated / 2 still-open / 0 unparsed; hit-rate 1/7 evaluated", () => {
   const dir = "docs/decisions";
   const files = readdirSync(dir).filter(f => /^\d{4}-.*\.md$/.test(f))
     .map(name => ({ name, text: readFileSync(join(dir, name), "utf8").replace(/\r\n/g, "\n") }));
   const { rows, unparsed } = analyze(parseAdrs(files), SCORECARD_CONFIG, TODAY);
   assert.equal(unparsed.length, 0);
-  assert.equal(rows[0].sample, 19);
-  assert.ok(Math.abs(rows[0].value - 3 / 19) < 1e-9);
-  assert.equal(rows[0].status, "healthy"); // 15.8%
-  assert.equal(rows[1].sample, 22);        // 16 + 3 + 3 classified
+  assert.equal(rows[0].sample, 7);
+  assert.ok(Math.abs(rows[0].value - 1 / 7) < 1e-9);
+  assert.equal(rows[0].status, "healthy"); // 14.3%
+  assert.equal(rows[1].sample, 9);         // 6 + 1 + 2 classified
 });
 
 // ---- ADR 0086 guard-liveness readout -------------------------------------------------------
