@@ -21,8 +21,8 @@ Take the first step below that fits.
 **1. See what you already have.**
 
 ```
-python3 -c "import sys; sys.path.insert(0, __import__("os").environ["CLAUDE_PLUGIN_ROOT"] + "/scripts/lib"); import judge; \
-print([n for n in judge.BACKENDS if judge.cli_available(n)])"
+python3 -c 'import os, sys; sys.path.insert(0, os.environ["CLAUDE_PLUGIN_ROOT"] + "/scripts/lib"); import judge; \
+print([n for n in judge.BACKENDS if judge.cli_available(n)])'
 ```
 
 Anything besides `claude` alone means you already have a cross-family judge and `--judge auto`
