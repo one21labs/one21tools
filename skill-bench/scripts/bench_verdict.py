@@ -21,7 +21,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
-from judge import make_judge, met_map, JudgeError, cli_available, CachedJudge  # noqa: E402
+from judge import (make_judge, met_map, JudgeError, cli_available, CachedJudge,  # noqa: E402
+                   BACKENDS)
 
 
 def load_dir(d):
@@ -88,8 +89,13 @@ def summarize(cells, x, y):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", required=True)
-    ap.add_argument("--judge", choices=["auto", "grok", "claude", "both"], default="auto",
-                    help="auto = grok if available else claude (cross-family preferred)")
+    # Choices are DERIVED from judge.BACKENDS, never restated: a registry entry that the CLI
+    # cannot name is a backend nobody can reach. Adding `copilot` and `command` to the registry
+    # left this list behind, so both were unreachable here until the muda-review caught it.
+    ap.add_argument("--judge", choices=["auto", *sorted(BACKENDS), "both"], default="auto",
+                    help="auto = the first reachable backend in judge.AUTO_ORDER, preferring "
+                         "cross-family; both = chosen judge + committed baseline, with the "
+                         "divergence diagnostic")
     ap.add_argument("--out", default="-")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--limit", type=int, default=0)

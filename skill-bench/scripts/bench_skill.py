@@ -15,7 +15,7 @@ import argparse, json, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
-from judge import make_judge, met_map  # noqa: E402
+from judge import make_judge, met_map, BACKENDS  # noqa: E402
 from substrate import make_substrate  # noqa: E402
 from spend_guard import add_spend_flag, require_yes  # noqa: E402
 
@@ -51,8 +51,10 @@ def main():
     ap.add_argument("--evals", required=True, help="JSON list of {id, task, expectations[]}")
     ap.add_argument("--with-cmd", required=True, help="argv (JSON list) for the skill-loaded arm")
     ap.add_argument("--without-cmd", required=True, help="argv (JSON list) for the bare arm")
-    ap.add_argument("--judge", choices=["auto", "grok", "claude"], default="auto",
-                    help="auto = grok if available else claude (cross-family preferred)")
+    # Derived from judge.BACKENDS, never restated — see the same note in bench_verdict.py.
+    ap.add_argument("--judge", choices=["auto", *sorted(BACKENDS)], default="auto",
+                    help="auto = the first reachable backend in judge.AUTO_ORDER, preferring "
+                         "cross-family")
     ap.add_argument("--substrate", choices=["native", "promptfoo"], default="native")
     ap.add_argument("--reps", type=int, default=3,
                     help="generations per task x arm (a single pass cannot separate reliably-good "
