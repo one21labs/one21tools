@@ -16,7 +16,7 @@ requirement (ADR 0085 marks both directions) — it came out of measuring what c
 actually did, not from the brief.
 
 Backends:
-  GrokJudge    -> grok -p --json-schema         (default; grok.com subscription = zero marginal cost)
+  GrokJudge    -> grok -p --json-schema         (grok.com subscription = zero marginal cost)
   CopilotJudge -> copilot -p --output-format json (gpt/gemini/kimi via GitHub Copilot's router)
   CommandJudge -> $SKILL_BENCH_JUDGE_CMD        (bring your own: local server, in-house wrapper)
   ClaudeJudge  -> claude -p --output-format json (same-family baseline / A-B judge comparison)

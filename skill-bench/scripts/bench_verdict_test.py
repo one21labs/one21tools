@@ -26,6 +26,59 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(d["mean"], 0.0)
         self.assertEqual(d["n_clusters"], 2)
 
+    def test_every_registered_judge_backend_is_reachable_from_both_CLIs(self):
+        # A backend in judge.BACKENDS that argparse rejects is a backend nobody can use. Adding
+        # `copilot` and `command` to the registry left both entry points' hard-coded choices
+        # behind, so both were unreachable until a review caught it; the choices are now derived
+        # from the registry and this test is what keeps them derived.
+        import subprocess
+        import judge
+        here = os.path.dirname(os.path.abspath(__file__))
+        for script in ("bench_verdict.py", "bench_skill.py"):
+            for name in judge.BACKENDS:
+                r = subprocess.run([sys.executable, os.path.join(here, script), "--judge", name],
+                                   capture_output=True, text=True)
+                self.assertNotIn("invalid choice", r.stderr,
+                                 f"{script} rejects registered backend {name!r}")
+
+    def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
+        # The interval width was never exercised: clustered_delta's construction had no test, and
+        # keep_verdict's tests hand-fed synthetic ci95 dicts, so a flat 1.96 shipped unnoticed
+        # across every benchmark this repo ran (all clustered on 4-6 evals, where 1.96 understates
+        # the interval by 31-62%). Pin the multiplier at the cluster counts actually used.
+        self.assertAlmostEqual(bs.t95(3), 3.182)    # G=4: 62% wider than 1.96
+        self.assertAlmostEqual(bs.t95(5), 2.571)    # G=6: 31% wider
+        self.assertAlmostEqual(bs.t95(30), 2.042)
+        self.assertAlmostEqual(bs.t95(99), bs.Z95)  # beyond the table, t and z agree
+
+    def test_ci_width_matches_a_hand_computed_four_cluster_interval(self):
+        # Four clusters, control flat at 0.25, treatment 0.25/0.50/0.75/1.00 -> per-scenario
+        # deltas 0.0, 0.25, 0.50, 0.75. mean 0.375, stdev 0.32275, se 0.16137.
+        #   t(df=3) = 3.182 -> half-width 0.5135 -> CI [-0.138, 0.888], spans zero -> WEAK
+        #   old z  = 1.960 -> half-width 0.3163 -> CI [ 0.059, 0.691], clears zero -> "STRONG"
+        # Same data, opposite confidence label. This fixture is the regression itself.
+        treatment = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 0], [1, 1, 1, 1]]
+        cells = []
+        for i, t_met in enumerate(treatment):
+            cells.append(cell(f"c{i}", "C", f"S{i}", t_met))
+            cells.append(cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertEqual(d["n_clusters"], 4)
+        self.assertAlmostEqual(d["t_crit"], 3.182)
+        self.assertAlmostEqual(d["mean"], 0.375)
+        half = (d["ci95"][1] - d["ci95"][0]) / 2
+        self.assertAlmostEqual(half, 0.5135, places=3)
+        self.assertEqual(bs.keep_verdict(d)["confidence"], "weak")
+        # And the old multiplier really would have said otherwise — not a hypothetical.
+        self.assertGreater(d["mean"] - bs.Z95 * (half / d["t_crit"]), 0)
+
+    def test_a_single_cluster_yields_no_interval_rather_than_a_fabricated_one(self):
+        cells = [cell("c", "C", "S1", [1, 1, 1, 1]), cell("b", "B", "S1", [0, 0, 0, 0])]
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertEqual(d["n_clusters"], 1)
+        self.assertNotEqual(d["ci95"][0], d["ci95"][0])  # NaN: one cluster carries no width
+        self.assertEqual(bs.keep_verdict(d)["confidence"], "weak")
+
     def test_keep_verdict_direction_and_confidence(self):
         pos = {"mean": 0.2, "ci95": [0.05, 0.35]}
         self.assertEqual(bs.keep_verdict(pos)["verdict"], "KEEP")

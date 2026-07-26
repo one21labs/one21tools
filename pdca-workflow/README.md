@@ -109,7 +109,7 @@ skills/
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-commands/      MSH-baby — ship one highest-value cohesive work package end to end, autonomously
+commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
 scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each)
                  the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
@@ -147,13 +147,15 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
 /retrospect       # standing at session close + on demand (ADR 0081); improves the process
-/pdca-workflow:MSH-baby [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
+/pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
 ```
 
-`/pdca-init` and `/decide` are explicit-invoke only (`disable-model-invocation`) — the panel
-spends many agents and writes files, so it never auto-fires. `/retrospect` is model-invocable
-but trigger-bound (ADR 0016): it fires only at its ADR 0081 triggers, so the session itself
-can discharge — and mark — the standing close-out.
+`/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
+project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (ADR 0016):
+it fires only at its ADR 0081 triggers, so the session itself can discharge — and mark — the
+standing close-out. `/decide` no longer carries the flag either, so it is reachable by the model;
+ADR 0016's Enforced set does not yet cover it, and what conditions should bind a panel that
+spends many agents and writes files is an open decision, not something this README settles.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).

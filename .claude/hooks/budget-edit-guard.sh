@@ -23,6 +23,17 @@
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/references/r.md","content":"A reference body with no table of contents and well over ten characters."}},"expect":{"deny":true}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+# Normalize JSON-escaped Windows backslashes first — both sibling hooks do this and regression-test
+# it; this one never got that half, so a backslash path matched no arm and the PREVENT rung skipped.
+fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
+# Normalize to absolute BEFORE the case arms. Every arm below is written `*/dir/...`, which needs
+# a literal `/` ahead of `dir`, so a repo-relative file_path fell straight through to exit 0 and
+# the PREVENT rung never ran. Latent rather than live — Claude Code passes absolute paths — but a
+# guard with a path shape that silently skips is the class this repo keeps finding.
+case "$fp" in /*) ;; "") ;; *) fp="${CLAUDE_PROJECT_DIR:-.}/$fp" ;; esac
+export BUDGET_GUARD_FP="$fp"   # the python body must see the NORMALIZED path too:
+                               # normalizing only for the case filter left Edit on a
+                               # relative path reading an empty file and allowing.
 case "$fp" in
   */CLAUDE.md|CLAUDE.md|*/docs/decisions/*.md|*/pdca-workflow/agents/*.md|*claude-md-template.md) ;;
   */skills/*/SKILL.md|*/skills/*/references/*.md) ;;
@@ -60,7 +71,12 @@ import json, os, re, sys
 try:
     hook = json.loads(os.environ["HOOK_INPUT"])
     ti = hook.get("tool_input") or {}
-    fp = ti.get("file_path") or ""
+    # The NORMALIZED path from the shell, not the raw one: normalizing only for the case filter
+    # left an Edit on a relative path opening nothing (cwd != project root), yielding empty
+    # current text, so `old not in cur` short-circuited to allow. Write hid it, because Write
+    # never reads the file — which is why the first regression fixture passed while Edit stayed
+    # bypassable.
+    fp = os.environ.get("BUDGET_GUARD_FP") or ti.get("file_path") or ""
     caps = json.loads(os.environ["BUDGET_GUARD_CAPS_JSON"])
     def norm(s):
         return s.replace("\r\n", "\n")
