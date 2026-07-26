@@ -42,6 +42,11 @@ import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR
  * (defaults from char-budget.mjs in main(); passed in so the decision logic stays unit-testable).
  * Returns { problems: string[] } — empty = corpus OK.
  */
+// A markdown bullet or field runs from its own line through any wrapped continuation lines —
+// it ends at the next bullet, heading, or blank line. Used by both the `Enforced:` region scan
+// and the falsifiability bullet scan; they had this pattern copy-pasted (muda review, #295).
+const WRAPPED = String.raw`(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*`;
+
 export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET, repoFiles }) {
   const problems = [];
   const adrs = [];
@@ -132,7 +137,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
       // the real line, leaving the gate vacuous on exactly the records that discuss enforcement.
       // Each region spans its line plus wrapped continuation lines.
       const regions = [...a.text.replace(/^---\n[\s\S]*?\n---/, "")
-        .matchAll(/(?<!`)Enforced:[ \t]*([^\n]*(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*)/g)];
+        .matchAll(new RegExp(String.raw`(?<!\`)Enforced:[ \t]*([^\n]*${WRAPPED})`, "g"))];
       if (!regions.length)
         problems.push(`${a.name}: lite ADR has no 'Enforced:' line (settled = enforced somewhere findable — adr-template.md lite shape)`);
       else if (repoFiles) {
@@ -150,8 +155,12 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     // author's line happened to wrap — a trap that reported "no falsifiable criterion" at a record
     // that stated one (scar: ADR 0093, 26-Jul). Stray REOPEN-IFs elsewhere (## Revisit triggers)
     // still don't count, which was the reason for the same-bullet rule in the first place.
-    const hasRevisitable = /^[ \t]*[-*][ \t]*\[unverifiable\][\s\S]*?REOPEN-IF/im.test(
-      (a.text.match(/^[ \t]*[-*][ \t]*\[unverifiable\][^\n]*(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*/gim) ?? []).join("\n"));
+    // Test each bullet SEPARATELY. Joining them and testing once would let a REOPEN-IF in a
+    // later [unverifiable] bullet satisfy an earlier one that has none — same fail-open the
+    // same-bullet rule exists to prevent, reintroduced by the fix for the line-wrap trap.
+    const hasRevisitable = (a.text.match(
+      new RegExp(String.raw`^[ \t]*[-*][ \t]*\[unverifiable\][^\n]*${WRAPPED}`, "gim")) ?? [])
+      .some(bullet => /REOPEN-IF/i.test(bullet));
     if (!hasCriterion && !hasRevisitable)
       problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
 

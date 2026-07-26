@@ -44,6 +44,9 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import NamedTuple
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
+from spend_guard import add_spend_flag, require_yes  # noqa: E402
+
 
 # VENDORED: minimal inline copy of skill-creator/scripts/utils.py:parse_skill_md, so this file
 # needs no `scripts.utils` package-relative import and runs as a standalone script.
@@ -416,7 +419,7 @@ def main():
     parser.add_argument("--trigger-threshold", type=float, default=0.5, help="Trigger rate threshold")
     parser.add_argument("--model", default=None, help="Model to use for claude -p (default: user's configured model)")
     parser.add_argument("--verbose", action="store_true", help="Print progress to stderr")
-    parser.add_argument("--yes", action="store_true", help="confirm paid trigger runs (spend guard)")
+    add_spend_flag(parser, "paid trigger runs")
     args = parser.parse_args()
 
     eval_set = json.loads(Path(args.eval_set).read_text())
@@ -427,12 +430,8 @@ def main():
         sys.exit(1)
 
     n_runs = planned_runs(len(eval_set), args.runs_per_query)
-    print(f"[cost] {len(eval_set)} queries x {args.runs_per_query} runs = {n_runs} paid "
-          f"`claude -p` sessions (model={args.model or 'configured default'})", file=sys.stderr)
-    if not args.yes:
-        print("Refusing to spend without --yes (spend guard). Re-run with --yes to proceed.",
-              file=sys.stderr)
-        sys.exit(2)
+    require_yes(args.yes, f"{len(eval_set)} queries x {args.runs_per_query} runs = {n_runs} paid "
+                          f"`claude -p` sessions (model={args.model or 'configured default'})")
 
     name, original_description, content = parse_skill_md(skill_path)
     description = args.description or original_description

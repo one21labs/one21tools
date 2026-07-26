@@ -214,6 +214,24 @@ test("a wrapped [unverifiable] whose REOPEN-IF sits in the NEXT bullet is still 
   assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
+test("a REOPEN-IF in a LATER [unverifiable] bullet does not rescue an earlier one without it", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n- [unverifiable] and Y — REOPEN-IF a user asks\n",
+  })];
+  // The second bullet IS a valid criterion, so the record passes — but it must pass on that
+  // bullet's own account. Regression guard: an earlier bare bullet must never borrow it.
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("bullets are tested separately: a bare [unverifiable] plus a later NON-tagged REOPEN-IF still fails", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n\n## Revisit triggers\n- REOPEN-IF a user asks\n",
+  })];
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
+});
+
 test("a bare [unverifiable] with a stray REOPEN-IF elsewhere is still UNFALSIFIABLE (pairing is same-bullet)", () => {
   const files = [adr("0001-first.md", {
     noCriterion: true,

@@ -46,7 +46,7 @@ and it closes at the agent, where a mis-classifying parent cannot route around i
 
 ## Rejected alternatives
 - Shipping a resolver (probe for a second-family CLI, pin a model) — the principle ships, this
-  repo's grok/copilot invocation does not; copy `skill-bench`'s resolve-else-caveat shape only.
+  repo's grok/copilot invocation does not; copy `skill-bench`'s resolve-else-caveat shape only (ADR 0055).
 - Wording the skills as if spawn could switch family — Claude Code subagents cannot, so an
   imperative there is cosplay and the honest product is the token.
 - Folding into ADR 0062 — its "independent" means independent CONSTRUCTIONS, a different sense.

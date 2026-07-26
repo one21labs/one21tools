@@ -54,9 +54,11 @@ vendored trigger runner (ADR 0033) on a flat eval set of `{query, should_trigger
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-path <dir> \
-  --model <pinned-model> --num-workers 1 --timeout 240 [--description "<variant text>"]
+  --model <pinned-model> --num-workers 1 --timeout 240 --yes \
+  [--description "<variant text>"]
 ```
 
+- Prints the run count and **refuses to spend without `--yes`** (spend guard), as `skill` does.
 - Linux/WSL-only (#170 hard problem 4) — document, don't silently degrade.
 - `--num-workers 1` is MANDATORY (concurrent workers collapse rates toward 1/N); a timeout is a
   null measurement, never a False. Report only matched-protocol A/B deltas, never absolute rates.
