@@ -133,9 +133,14 @@ fi
 # A repo-RELATIVE file_path must be guarded identically to an absolute one. Every case arm is
 # written */dir/..., which needs a literal "/" ahead of dir, so before path normalization a
 # relative path fell through to exit 0 and the PREVENT rung silently did not run.
+# Isolated root: CLAUDE_PROJECT_DIR="$PWD" pointed the guard's gate-hit telemetry at the REAL
+# docs/pdca/gate-hits.txt, appending a synthetic catch on every run — the same pollution fixed in
+# test-backstory-edit-guard, in a fixture written the same session, left unfixed in the sibling.
+RD=$(mktemp -d); mkdir -p "$RD/docs/decisions" "$RD/docs/pdca"; : > "$RD/docs/pdca/gate-hits.txt"
 rel=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/decisions/0099-rel.md","content":"well over a ten char cap"}}' \
   | BUDGET_GUARD_CAPS_JSON='{"doc":10,"adr":10,"lite":10,"agent":10,"skill":10,"ref":10,"refToc":10}' \
-    CLAUDE_PROJECT_DIR="$PWD" bash "$HOOK" 2>/dev/null)
+    CLAUDE_PROJECT_DIR="$RD" bash "$HOOK" 2>/dev/null)
+rm -rf "$RD"
 case "$rel" in *'"deny"'*) check "relative file_path is guarded like an absolute one" 0 ;;
   *) check "relative file_path is guarded like an absolute one" 1 "(got: $rel)" ;; esac
 
