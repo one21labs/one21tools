@@ -17,7 +17,7 @@ without the full ceremony. `/decide` composes it over every ADR.
    verdict or the reasoning that produced them (uncontaminated is the point). A claim about this
    loop's own behaviour is one the agent will REFUSE — it inherits the maker's lineage (ADR 0093
    defines the class and owns why). Send that claim to a checker of a different lineage instead:
-   another vendor's CLI, a second account, a person. With none configured it comes back
+   another vendor's CLI, or a person. With none configured it comes back
    `FRAME-UNCHECKED`, which is the honest answer rather than a failed run.
 3. It reproduces every claim against the real code and produced output — the method and grading
    rules live in the `verifier` agent's own prompt, not here.

@@ -17,7 +17,7 @@ ADR folds a safety caveat in as a BLOCKER.
    real product — abuse cases, boundary breaks, wrong-assumption probes — grounded in code.
    A candidate about this loop's own behaviour it will REFUSE — it holds the very priors the
    attack has to target (class + why: ADR 0093). Hand that one to an adversary of another
-   lineage — a different vendor's CLI, a second account, a person — aimed at what the candidate
+   lineage — a different vendor's CLI, or a person — aimed at what the candidate
    takes for granted rather than at its argument. Nobody available: `FRAME-UNCHECKED`.
 
 ## Return

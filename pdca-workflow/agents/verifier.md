@@ -36,7 +36,8 @@ Given a decision record (or a set of review claims), do this:
    algorithm against the project's core module — it is the product).
 
 Output:
-- A short verdict per claim/assumption: CONFIRMED / REFUTED / UNVERIFIABLE (+ why). Account for
+- A short verdict per claim/assumption: CONFIRMED / REFUTED / UNVERIFIABLE / FRAME-UNCHECKED
+  (+ why). Account for
   EVERY claim you were given — a returned set smaller than the input is REFUTED-by-omission, not a
   silent pass.
 - **BLOCKERS:** any verified correctness or safety finding that should stop the decision as

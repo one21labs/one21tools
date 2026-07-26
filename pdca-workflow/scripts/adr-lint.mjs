@@ -145,7 +145,13 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     }
 
     const hasCriterion = /^\s*[-*]\s*\[(?:checkable|checkable-doc|contradiction)\]/m.test(a.text);
-    const hasRevisitable = /^\s*[-*]\s*\[unverifiable\][^\n]*REOPEN-IF/im.test(a.text);
+    // Same-BULLET, not same-LINE: a bullet runs to the next bullet, heading, or blank line, so a
+    // wrapped REOPEN-IF still counts. The old `[^\n]*` form silently voided the criterion when the
+    // author's line happened to wrap — a trap that reported "no falsifiable criterion" at a record
+    // that stated one (scar: ADR 0093, 26-Jul). Stray REOPEN-IFs elsewhere (## Revisit triggers)
+    // still don't count, which was the reason for the same-bullet rule in the first place.
+    const hasRevisitable = /^[ \t]*[-*][ \t]*\[unverifiable\][\s\S]*?REOPEN-IF/im.test(
+      (a.text.match(/^[ \t]*[-*][ \t]*\[unverifiable\][^\n]*(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*/gim) ?? []).join("\n"));
     if (!hasCriterion && !hasRevisitable)
       problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
 

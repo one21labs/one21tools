@@ -198,6 +198,22 @@ test("an [unverifiable] with no REOPEN-IF is still UNFALSIFIABLE (no fake-criter
   assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
+test("a WRAPPED [unverifiable] bullet keeps its REOPEN-IF (same-bullet, not same-line)", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X, which nothing in-sandbox\n  settles today. REOPEN-IF a user asks -> revisit\n",
+  })];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("a wrapped [unverifiable] whose REOPEN-IF sits in the NEXT bullet is still UNFALSIFIABLE", () => {
+  const files = [adr("0001-first.md", {
+    noCriterion: true,
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the market wants X\n  and nothing settles it\n- [verified] REOPEN-IF a user asks\n",
+  })];
+  assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
+});
+
 test("a bare [unverifiable] with a stray REOPEN-IF elsewhere is still UNFALSIFIABLE (pairing is same-bullet)", () => {
   const files = [adr("0001-first.md", {
     noCriterion: true,
