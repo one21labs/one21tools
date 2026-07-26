@@ -116,27 +116,6 @@ export function extractPyTestExecutions(gatesYml) {
   return { globs: [...new Set(globs)], direct: [...new Set(direct)] };
 }
 
-/** The gate-pipe guards' declared coverage: the basenames in a guard's `GATES="..."` line. The
- *  guards are hand-maintained mirrors of what CI runs (they cannot read gates.yml at tool-call
- *  time), so `guardedGateGaps` below re-derives the comparison in CI instead. */
-export function extractGuardedGates(guardText) {
-  // Tolerate the assignment shapes a shellcheck-motivated reformat produces (`readonly`/`export`,
-  // leading indent). A strict `^GATES="` anchor would return [] on such an edit and then report
-  // EVERY wired gate as unguarded — a repo-wide false failure from a no-op change (red-team).
-  const m = guardText.match(/^[ \t]*(?:readonly[ \t]+|export[ \t]+|declare[ \t]+(?:-\S+[ \t]+)*)?GATES=(["'])([^"']*)\1/m);
-  return m ? m[2].split(/\s+/).filter(Boolean) : [];
-}
-
-/** Gates wired in gates.yml whose basename NO gate-pipe guard covers — piping such a gate hides
- *  its exit code with no deny and no telemetry. The mirror drifted twice unnoticed
- *  (check-references.mjs at introduction, check-relocated-paths.mjs at ADR 0089); this closes it
- *  by derivation rather than by a second hand-maintained list (CLAUDE.md: delete the mirror). */
-export function guardedGateGaps(gatesYml, guardTexts) {
-  const guarded = new Set(guardTexts.flatMap(extractGuardedGates));
-  return [...extractWiredGates(gatesYml), ...extractPyGates(gatesYml)]
-    .filter((p) => !guarded.has(p.slice(p.lastIndexOf("/") + 1)));
-}
-
 /** Line numbers where a variable assignment's VALUE starts with a literal absolute path root —
  *  the self-skip signature (ADR 0069): such a test SKIPs everywhere but one machine. Matches
  *  any assignment shape (export/readonly/local/declare prefixes, any-case names); a value whose
@@ -514,23 +493,10 @@ function main(argv) {
     hookInfo.set(r.path, { exists: existsSync(abs), executable, text: read(r.path) });
   }
 
-  // Every gate-pipe guard's declared coverage, read from the hooks themselves (their GATES line
-  // is the SSoT for what they protect).
-  const guardTexts = [...hookInfo.entries()]
-    .filter(([p]) => p.endsWith("gate-pipe-guard.sh"))
-    .map(([, i]) => i.text)
-    .filter(Boolean);
-
   const missing = [
     ...findMissingTests({ gatesYml, hookRegistrations, existingFiles, readFile: read }),
     ...findCanaryRegistrationFindings({ registrations, hookInfo, enforceExecutable: process.platform !== "win32" }),
     ...runCanaries(root, registrations, hookInfo),
-    ...guardedGateGaps(gatesYml, guardTexts).map((path) => ({
-      kind: "gate",
-      path,
-      expected: "a gate-pipe-guard.sh GATES entry",
-      reason: "wired in gates.yml but no gate-pipe guard covers its basename — piping it hides its exit code with no deny",
-    })),
   ];
   const wiredCount = extractWiredGates(gatesYml).length + extractPyGates(gatesYml).length;
   const hookCount = hookInfo.size;

@@ -60,10 +60,12 @@ Telegraphic fragments, not prose — one full sentence for the crux (load-bearin
 assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
 visible line. **Budget: the `ADR_CHAR_BUDGET` cap in `char-budget.mjs`** (sized with slack — the cap stops bloat, never forces word-golf) — a char count can't
 be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
-an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to the margin (`ADR_CHAR_MARGIN`) and
-measure once (`node -e` char count) before finalizing** — don't write long and trim in N passes.
-The margin also reserves room for the `## Act` block appended at ship (below); an ADR finalized
-at the cap edge forces a trim at close time.
+an over-budget ADR is rewritten under the cap, not grandfathered. **The cap and the margin
+(`ADR_CHAR_MARGIN`) are CEILINGS, never targets — write the fewest chars that carry the decision
+and stop.** A record near the margin should read as forced by the content, not as budget spent;
+"draft to the margin" is not the instruction. Measure once (`node -e` char count) before
+finalizing — don't write long and trim in N passes. The margin also reserves room for the
+`## Act` block appended at ship (below).
 Over budget = bloat or a missed lower home: relocate to a lower home; keep the crux + every
 cite + the falsifiable criterion. `adr-lint` enforces the cap.
 

@@ -30,6 +30,11 @@ summary: "A decidable requirement is never homed in prose — its core needs an 
 
 **(c) three-dot-diff hook — WARN + counted.** Repeat scar (21706df, PR#59) earns a rung-2 nudge; two-dot intent is undecidable, deny false-blocks (precondition ii). The warn appends to a counted session log (shared with ADR 0049's spawn-log); deny only after zero false-positives on `origin/main..` there.
 
+**(NOTE, 2026-07-26) The PR#134 pipe-mask scar named in Context got NO wave-1 remedy** — (a) lists
+four items and a pipe guard is not among them. A `gate-pipe-guard.sh` was nonetheless built citing
+"ADR 0047 wave-1" authority this record never granted, and was deleted 2026-07-26 as undecided
+(ADR 0091). The scar remains unremedied here; do not read (a) as covering it.
+
 **(d) Workflow-tool seam — NAME, do not mechanize.** ADR 0040's deny hook matches Agent|Task only and check-workflow lints benchmarks/** only, so an ad-hoc Workflow-script agent() outside benchmarks/ bypasses both. No scar -> the bar blocks it (home in the revisit trigger).
 
 ## Justification

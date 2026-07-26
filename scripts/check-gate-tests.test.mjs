@@ -20,8 +20,6 @@ import {
   matcherMatchesTool,
   findCanaryRegistrationFindings,
   evaluateCanaryRun,
-  extractGuardedGates,
-  guardedGateGaps,
 } from "./check-gate-tests.mjs";
 
 // hooks.json fixture registering one hook, plugin style.
@@ -507,53 +505,6 @@ test("evaluateCanaryRun: each expect shape passes on its effect and names the mi
   assert.match(evaluateCanaryRun({ frobnicate: true }, { status: 0, stdout: "" }), /unrecognized expect/);
 });
 
-// --- gate-pipe guard coverage (the mirror-drift check) ---------------------------------------
-
-const guard = (list) => `#!/usr/bin/env bash\n# header\nGATES="${list}"\nfor gate in $GATES; do :; done\n`;
-
-test("extractGuardedGates reads the GATES line; absent or unquoted yields none", () => {
-  assert.deepEqual(extractGuardedGates(guard("a.mjs b.py")), ["a.mjs", "b.py"]);
-  assert.deepEqual(extractGuardedGates(guard("")), []);
-  assert.deepEqual(extractGuardedGates("#!/usr/bin/env bash\necho no gates here\n"), []);
-  // Only a line-initial GATES= assignment counts — a mention inside prose must not parse.
-  assert.deepEqual(extractGuardedGates('# see GATES="not-real.mjs" in the header\n'), []);
-});
-
-test("guardedGateGaps flags a CI-wired gate no guard covers, across both guards' union", () => {
-  const yml = [
-    "      - run: node --test scripts/*.test.mjs",
-    "      - run: node pdca-workflow/scripts/adr-lint.mjs docs/decisions",
-    "      - run: node scripts/check-restatement.mjs",
-    "      - run: node scripts/check-relocated-paths.mjs",
-    "      - run: python3 skills/building-skills/scripts/validate.py skills/x",
-  ].join("\n");
-  // Split across two guard files exactly as the repo does (plugin guards its own gate).
-  const covered = [guard("adr-lint.mjs"), guard("check-restatement.mjs check-relocated-paths.mjs validate.py")];
-  assert.deepEqual(guardedGateGaps(yml, covered), []);
-
-  // Drop the newest gate from the mirror — the real ADR 0089 scar.
-  const drifted = [guard("adr-lint.mjs"), guard("check-restatement.mjs validate.py")];
-  assert.deepEqual(guardedGateGaps(yml, drifted), ["scripts/check-relocated-paths.mjs"]);
-});
-
-test("guardedGateGaps matches on BASENAME, so a moved gate stays covered", () => {
-  const yml = "      - run: node tools/nested/check-restatement.mjs";
-  assert.deepEqual(guardedGateGaps(yml, [guard("check-restatement.mjs")]), []);
-});
-
-test("guardedGateGaps reports every uncovered gate, not just the first", () => {
-  const yml = [
-    "      - run: node scripts/a-gate.mjs",
-    "      - run: python3 scripts/b_gate.py",
-  ].join("\n");
-  assert.deepEqual(guardedGateGaps(yml, [guard("")]), ["scripts/a-gate.mjs", "scripts/b_gate.py"]);
-});
-
-test("guardedGateGaps ignores `node --test` lines (test globs are not gates)", () => {
-  const yml = "      - run: node --test scripts/*.test.mjs pdca-workflow/scripts/*.test.mjs";
-  assert.deepEqual(guardedGateGaps(yml, [guard("")]), []);
-});
-
 // --- ADR 0069 vacuity detection now spans all three gate languages -----------------------------
 
 test("selfSkipLines flags JS and Python machine-bound assignments, not just shell", () => {
@@ -593,11 +544,3 @@ test("no readFile supplied keeps pre-0069 behaviour (no vacuity claim without th
   assert.deepEqual(findMissingTests({ gatesYml, hookRegistrations: [], existingFiles }), []);
 });
 
-test("extractGuardedGates survives a defensible shell reformat (readonly/export/indent/quotes)", () => {
-  // A strict ^GATES=" anchor returned [] here, which would report EVERY wired gate as unguarded.
-  assert.deepEqual(extractGuardedGates('readonly GATES="a.mjs b.py"\n'), ["a.mjs", "b.py"]);
-  assert.deepEqual(extractGuardedGates('export GATES="a.mjs"\n'), ["a.mjs"]);
-  assert.deepEqual(extractGuardedGates('  GATES="a.mjs"\n'), ["a.mjs"]);
-  assert.deepEqual(extractGuardedGates("GATES='a.mjs b.py'\n"), ["a.mjs", "b.py"]);
-  assert.deepEqual(extractGuardedGates('# prose mentioning GATES="fake.mjs" in a header\n'), []);
-});

@@ -2,7 +2,7 @@
 id: 0071
 title: "Hooks firing scope: per-project opt-in via the docs/pdca/ marker"
 status: accepted
-summary: "Resolves ADR 0050's needs-design (issue #212): pdca-workflow's enforcement hooks are per-project opt-in, gated on one adoption marker — the docs/pdca/ dir, scaffolded by /pdca-init and never created by a hook. explicit-model-guard, spawn-log, and adr-lint-post-edit no-op without it; gate-pipe-guard stays as-is (self-scoped by trigger). spawn-log's unconditional mkdir is removed. The parked hooks-only carrier plugin stays parked: self-scoped hooks make the plugin a no-op outside adopting projects, so packaging needs no change. Native enabledPlugins documented as the whole-plugin scoping mechanism."
+summary: "Resolves ADR 0050's needs-design (issue #212): pdca-workflow's enforcement hooks are per-project opt-in, gated on one adoption marker — the docs/pdca/ dir, scaffolded by /pdca-init and never created by a hook. explicit-model-guard, spawn-log, and adr-lint-post-edit no-op without it (gate-pipe-guard was left as-is here; deleted 2026-07-26 as undecided). spawn-log's unconditional mkdir is removed. The parked hooks-only carrier plugin stays parked: self-scoped hooks make the plugin a no-op outside adopting projects, so packaging needs no change. Native enabledPlugins documented as the whole-plugin scoping mechanism."
 ---
 
 # 0071 — hooks fire per-project, opt-in via docs/pdca/
@@ -23,8 +23,8 @@ summary: "Resolves ADR 0050's needs-design (issue #212): pdca-workflow's enforce
 ## Decision
 1. **Per-project opt-in, one adoption marker: `docs/pdca/`.** explicit-model-guard.sh,
    spawn-log.sh, and adr-lint-post-edit.sh exit 0 unless `$CLAUDE_PROJECT_DIR/docs/pdca` exists.
-   gate-pipe-guard.sh is unchanged — it only matches invocations of the plugin's own gate
-   (adr-lint.mjs), which a non-adopting project never runs.
+   (gate-pipe-guard.sh was left unchanged here for the same reason; it has since been DELETED —
+   built without a deciding record, removed 2026-07-26, question re-posed unanchored.)
 2. **A hook never creates the marker.** spawn-log's `mkdir -p` is removed; it logs only where
    docs/pdca/ already exists. A hook that mkdir'd its own opt-in marker would opt every project
    in on the first builtin-`verify` invocation — the exact write-pollution ADR 0050 rules out.

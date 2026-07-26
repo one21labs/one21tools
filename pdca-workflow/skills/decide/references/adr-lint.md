@@ -106,7 +106,8 @@ A failure prints the offending files and exits non-zero; a clean corpus exits ze
 
 ## Run / install
 ```
-# never pipe — gate-pipe-guard denies it; output is short enough to read unpiped
+# run it so the EXIT CODE survives: bare, or redirect to a file, or `set -o pipefail` first —
+# a bare pipe reports the filter's status, not the gate's, and a red gate then reads green
 node scripts/adr-lint.mjs                  # lints ./docs/decisions, char budget from char-budget.mjs
 node scripts/adr-lint.mjs docs/decisions --budget=8000
 node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)
