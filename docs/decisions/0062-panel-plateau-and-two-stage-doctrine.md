@@ -2,7 +2,7 @@
 id: 0062
 title: "Panel plateau: re-scope /decide to a two-stage gate; two-stage doctrine; marginal dollar to #186 Phase-1"
 status: accepted
-summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-go default, full panel only for high-stakes gate-passers, forced-record guarantee kept. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first."
+summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-go default, full panel only for high-stakes gate-passers, forced-record guarantee kept. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first. Amended 26-Jul-2026 (#236): advisor BREADTH saturates but adversary DEPTH does not — a Check phase ends at the first round that changes nothing in the artifact, n=1."
 ---
 
 # 0062 — panel plateau + two-stage doctrine
@@ -57,3 +57,6 @@ it exists for, at ~0 re-scope cost.
 - A third construction refutes the failure-anticipation gap, or escalation is never invoked over
   a run of high-stakes calls -> graduate re-scope to full cut.
 - Poka-yoke lite-template fields make the DoD properties structural -> Phase-1 collapses to nothing.
+- (Decision 4) Round one comes back dry on three separate PRs -> the depth rule drops to a single
+  round. Or a PR needs more rounds than the owner will pay for -> depth gets a hard ceiling, and
+  the ceiling is recorded here rather than left to judgment.
