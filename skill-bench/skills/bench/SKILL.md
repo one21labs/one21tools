@@ -1,6 +1,6 @@
 ---
 name: bench
-description: Use when deciding whether a Claude Code skill earns its context cost, when re-scoring benchmark evidence you already have, or when testing whether a skill's description actually fires. Grades with a model from another family, so the maker is not the judge.
+description: Use when deciding whether a Claude Code skill earns its context cost, when re-scoring benchmark evidence you already have, or when testing whether a skill's description actually fires.
 ---
 
 # /bench
@@ -12,17 +12,17 @@ measure and interpret the KEEP/CUT verdict. Invoke a subcommand explicitly.
 ## `verdict` — re-judge existing results (no generation spend)
 
 Recompute a decision-outcome verdict from an already-graded, blinded benchmark dir, swapping only
-the judge. The only cost is judge calls (grok is subscription-billed; `--cache` needs no CLI at all).
+the judge. The only cost is judge calls (`--cache` needs no CLI at all).
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
-  --judge auto|grok|claude|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
+  --judge auto|<backend>|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
   [--out report.json]
 ```
 
 - `--dir` must hold `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
-- `--judge auto` (default) uses grok if available else claude; `both` adds the judge-divergence
-  diagnostic (agreement, kappa, verdict flip). See [judging.md](references/judging.md).
+- `--judge auto` (default) resolves a backend per [judging.md](references/judging.md); `both` adds
+  the judge-divergence diagnostic (agreement, kappa, verdict flip).
 - Emits arm means, clustered C-B with 95% CI, KEEP/CUT, per-expectation, and `notional_cost_usd`.
   See [cost-and-verdict.md](references/cost-and-verdict.md).
 - `--cells-out` also writes per-cell re-graded verdicts (jsonl) — the substrate for computing a
