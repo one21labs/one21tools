@@ -40,8 +40,10 @@ export const overBudget = (chars, cap) => chars > cap;
 // larger cap (e.g. a review-system reference) adds its entry here.
 export const DOC_BUDGETS = {
   "CLAUDE.md": 6000, // ~2 pp, the always-loaded layer
-  // The scaffold consumers copy to their own CLAUDE.md — held to the same cap so the copy can't
-  // ship over the budget it teaches (#164: two under-cap PRs merge-skewed it to 6047).
+  // SOURCE-REPO ONLY — prune this entry when vendoring. The path exists only where the plugin is
+  // developed, not where it is installed, so in a consumer checkout it is inert (the walk is
+  // ENOENT-tolerant). Kept here so the scaffold can't ship over the budget it teaches
+  // (#164: two under-cap PRs merge-skewed it to 6047).
   "pdca-workflow/skills/pdca-init/references/claude-md-template.md": 6000,
 };
 

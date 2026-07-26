@@ -302,7 +302,8 @@ function manifestPairs() {
 
 // Both agent homes get the same budget + name-matches-filename checks: the plugin's shipped
 // meta-roles (pdca-workflow/agents) and this repo's advisor panel (.claude/agents, ADR 0028).
-// Both walks are ENOENT-tolerant, so a consumer with neither dir is unaffected.
+// Both walks are ENOENT-tolerant, so a consumer with neither dir is unaffected. `pdca-workflow/
+// agents` is a SOURCE-REPO path — inert once vendored; a consumer keeps only `.claude/agents`.
 export function agentProblems(dirs = ["pdca-workflow/agents", ".claude/agents"]) {
   const out = [];
   for (const d of dirs) {
