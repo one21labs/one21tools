@@ -1,27 +1,26 @@
 ---
 id: 0093
-title: "Self-referential loop claims need cross-family independence in verify/red-team"
+title: "Self-referential loop claims need cross-family independence, not just a fresh same-family checker"
 status: accepted
 tier: lite
-summary: "#236 (26-Jul): a same-family stack (fresh verifier, red-team, ~20 sweep lanes) missed 3 defects a cross-family agent caught, all claims about the session's own blind spots/remedy/diagnosis. verify/red-team SKILL.md now name that claim class as needing a checker independent of the thing tested. No backend hardcoded (ADR 0050)."
+summary: "26-Jul-2026 (#236): a fresh same-family verifier + red-team + ~20 lanes over one session's own work missed three defects, all claims about the SELF; a cross-family agent found all three. Fresh clears contaminated reasoning, not shared priors. No backend ships (ADR 0050)."
 ---
 
-# 0093 — cross-family independence for self-referential loop claims
+# 0093 — cross-family independence for self-referential claims
 
-- Decision: `/verify` and `/red-team` SKILL.md each gain: a claim about the loop's OWN
-  behavior (its blind spots, its remedy's shape, its diagnosis's completeness) needs a checker
-  independent of the thing tested — prefer a different model family for that class; same-family
-  freshness clears contaminated reasoning, not shared priors. No backend ships in the plugin
-  (ADR 0050); an adopter without a second family states the self-family caveat, never a silent
-  substitution.
-- Why: #236's 26-Jul session ran fresh verifier + red-team + ~20 sweep lanes on its own work,
-  caught real defects, then a cross-family agent found 3 more — all self-referential (a zombie
-  issue an artifact-deletion audit didn't grep for; an additive fix for an additive bias; its
-  own diagnosis's unbuilt half). Same-family is uncontaminated by the session's reasoning but
-  shares its priors — verifies frame-internal claims, can't see the frame.
-- Rejected: hardcoding a cross-family backend into the shipped agent prompts — violates ADR
-  0050; the fallback contract (#236, 18-Jul) covers second-family-less adopters already,
-  mirroring `judge.py`'s `resolve_judge`/`SAME_FAMILY_NOTE`.
-- Reopen-if: a same-family construction catches this same blind-spot class -> demote to
-  advisory-only.
-- Enforced: `pdca-workflow/skills/verify/SKILL.md` + `pdca-workflow/skills/red-team/SKILL.md`.
+- Decision: a self-referential claim binds the SPAWN step of both check primitives — the checker
+  comes from a lineage other than the maker's (model size and context freshness are not lineage),
+  and an adopter with only one lineage checks anyway but must carry the shortfall into the result
+  instead of absorbing it. Each primitive words its own degraded outcome. No backend ships.
+- Why: 26-Jul, a fresh same-family verifier + red-team + ~20 sweep lanes over one session's own
+  work caught real defects and missed three, all self-referential: an issue still demanding a
+  mechanism the session had just deleted; an additive remedy for an additive bias; the unbuilt
+  half of its own diagnosis. A cross-family agent found all three. Fresh clears contaminated
+  REASONING, not shared PRIORS — same-family sees frame-internal claims, never the frame.
+- Rejected: hardcoding a cross-family backend into the shipped prompts — ADR 0050 forbids the
+  dependency, and #236's fallback contract already covers adopters with no second family
+  (mirroring `judge.py`'s resolve_judge / SAME_FAMILY_NOTE). Also rejected: folding this into
+  ADR 0062 — its "independent" means independent CONSTRUCTIONS, a different sense; bolting this
+  onto a spend/plateau record is topic drift and buries the reopen-if.
+- Reopen-if: a same-family construction catches this blind-spot class -> demote to advisory.
+- Enforced: `pdca-workflow/skills/verify/SKILL.md`, `pdca-workflow/skills/red-team/SKILL.md`.
