@@ -553,3 +553,42 @@ test("guardedGateGaps ignores `node --test` lines (test globs are not gates)", (
   const yml = "      - run: node --test scripts/*.test.mjs pdca-workflow/scripts/*.test.mjs";
   assert.deepEqual(guardedGateGaps(yml, [guard("")]), []);
 });
+
+// --- ADR 0069 vacuity detection now spans all three gate languages -----------------------------
+
+test("selfSkipLines flags JS and Python machine-bound assignments, not just shell", () => {
+  assert.deepEqual(selfSkipLines('const REPO = "/home/ajmcc/one21tools";'), [1]);
+  assert.deepEqual(selfSkipLines('REPO = "/Users/ajmcc/one21tools"'), [1]);
+  assert.deepEqual(selfSkipLines('let root = "C:/Users/ajmcc/repo"'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/one21tools"'), [1]); // shell, unchanged
+});
+
+test("selfSkipLines spares derived roots in every language", () => {
+  assert.deepEqual(selfSkipLines('const REPO = process.cwd();'), []);
+  assert.deepEqual(selfSkipLines('REPO = os.path.dirname(__file__)'), []);
+  assert.deepEqual(selfSkipLines('root=$(cd "$(dirname "$0")/../.." && pwd)'), []);
+});
+
+test("an .mjs gate whose CI-visible test is machine-bound now FAILS (was unguarded)", () => {
+  const gatesYml = ["run: node --test scripts/*.test.mjs", "run: node scripts/a-gate.mjs"].join("\n");
+  const existingFiles = new Set(["scripts/a-gate.test.mjs"]);
+  const readFile = (p) => (p === "scripts/a-gate.test.mjs" ? 'const REPO = "/home/ajmcc/x";\n' : null);
+  const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles, readFile });
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].reason, /self-skips via hard-coded absolute path/);
+});
+
+test("a .py gate whose executed test is machine-bound now FAILS", () => {
+  const gatesYml = ["run: python3 x/g.py", "run: python3 x/g_test.py"].join("\n");
+  const existingFiles = new Set(["x/g_test.py"]);
+  const readFile = (p) => (p === "x/g_test.py" ? 'REPO = "/home/ajmcc/x"\n' : null);
+  const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles, readFile });
+  assert.equal(missing.length, 1);
+  assert.match(missing[0].reason, /ADR 0069/);
+});
+
+test("no readFile supplied keeps pre-0069 behaviour (no vacuity claim without the text)", () => {
+  const gatesYml = ["run: node --test scripts/*.test.mjs", "run: node scripts/a-gate.mjs"].join("\n");
+  const existingFiles = new Set(["scripts/a-gate.test.mjs"]);
+  assert.deepEqual(findMissingTests({ gatesYml, hookRegistrations: [], existingFiles }), []);
+});

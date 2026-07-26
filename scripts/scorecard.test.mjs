@@ -254,6 +254,23 @@ test("liveness: an undeclared wired guard is stated as rung NONE and forces PART
   assert.match(verdictLine, /1 wired guard\(s\) undeclared for liveness/);
 });
 
+test("liveness: a boundary-coupled guard with NO configured series is surfaced, not silently dropped", () => {
+  // Before this check the hook produced zero rows of any kind — its declaration read as watched
+  // while nothing watched it (the ADR 0086 (e) failure mode, one level up).
+  const hooks = [...LIVE_HOOKS, { path: "h/forgotten.sh", classification: "boundary-coupled" }];
+  const { rows, verdictLine } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks, series: [series({ observed: 2 })] });
+  const row = rows.find(r => r.metric.startsWith("liveness UNDECLARED"));
+  assert.match(row.detail, /h\/forgotten\.sh \(declared boundary-coupled, no configured series\)/);
+  assert.match(verdictLine, /1 wired guard\(s\) undeclared for liveness/);
+});
+
+test("liveness: a boundary-coupled guard WITH its series stays out of the unwatched list", () => {
+  const { rows } = analyze(cleanAdrs(), bareConfig(), TODAY, parseGateHits(null),
+    { hooks: LIVE_HOOKS, series: [series({ observed: 2 })] });
+  assert.equal(rows.find(r => r.metric.startsWith("liveness UNDECLARED")), undefined);
+});
+
 test("countSessionLogLines: pattern + since filter on ISO-stamped lines; null text is zero", () => {
   const log = [
     "2026-07-18T10:00:00Z session-end clear",
