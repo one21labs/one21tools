@@ -8,7 +8,7 @@ determined by the passed `env` plus that file (inject `env` for tests)."""
 import json, os
 
 DEFAULTS = {
-    "judge": "auto",          # auto = grok if available else claude (cross-family preferred)
+    "judge": "auto",          # auto = first reachable in judge.AUTO_ORDER (cross-family first)
     "substrate": "native",    # native | promptfoo
     "workers": 8,
     "grade_expectations": 4,  # decision-outcome rubric arity; skill evals set their own

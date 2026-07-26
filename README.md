@@ -23,8 +23,8 @@ Updates: `/plugin marketplace update one21tools`. Or clone and symlink individua
 `ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
 
 Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are
-Linux/WSL-only); cross-family judging prefers a `grok` CLI and falls back to same-family with a
-recorded caveat. Installing the skills alone needs none of that.
+Linux/WSL-only); cross-family judging uses any foreign-vendor CLI you have or wire yourself, and
+falls back to same-family with a recorded caveat. Installing the skills alone needs none of that.
 
 ## What changes after install
 

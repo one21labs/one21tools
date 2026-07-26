@@ -16,10 +16,10 @@ outside this plugin's shipped files, so no link survives an install.
 ## Architecture: bespoke layer on a rented substrate
 
 ```
-  /bench (verdict | skill | trigger)                  <- one explicit-invoke skill, subcommands
+  /bench (verdict | skill | trigger)                  <- one skill, three subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
-  cross-family judge (grok default) | verdict.py         keep in-repo; no vendor sells this
+  cross-family judge (pluggable) | verdict.py            keep in-repo; no vendor sells this
   ---------------------------------------------------
   hermetic_driver adapter interface                   <- swappable RUNNER
      -> promptfoo (npx, version-pinned; CI regression gating)
@@ -40,8 +40,8 @@ holding normalization fixed so the judge family was the only changed variable. F
 
 The same-family judge was lenient **and** hid the panel's edge (the exp-2 "falsifiable criterion"
 ceiling at 0.88-flat under opus broke to C 0.83 / B 0.54 under grok). The judge changed the verdict,
-so the judge is a first-class, reported variable — default `grok-4.5`, `--judge both` for the
-divergence diagnostic. Seed implementation: `scripts/lib/crossfamily_judge.py` (from the prototype).
+so the judge is a first-class, reported variable. `--judge both` gives the divergence diagnostic;
+`skills/bench/references/judging.md` owns which backend `auto` resolves to and how to wire your own.
 
 ### grok CLI notes (installed build 0.2.99; docs lag the binary)
 - Headless: `grok -p <prompt>` or `--prompt-file <path>`; `--output-format json`; `--json-schema <schema>`
@@ -87,7 +87,7 @@ ADR 0058). What a consumer must provide / knows:
 
 ## Status
 Runnable: `/bench` with `verdict` + `skill` + `trigger` subcommands (native substrate +
-availability-aware cross-family judge with grok->claude fallback + deterministic cost accounting),
+availability-aware pluggable cross-family judge + deterministic cost accounting),
 harness lib moved in (M1), config layer + consumer-layout test (M2), canonical templates
 (`templates/`), #191 infrastructure-vs-quality hardening (ERROR cells, capture symmetry,
 per-cell attribution), registered in the marketplace.

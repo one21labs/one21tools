@@ -1,7 +1,6 @@
 ---
 name: decide
-description: Use when deciding a roadmap or product judgment call, or on any user feedback such as a bug report, feature ask, or behavioral observation. Runs the PM-led panel and records the decision as an ADR. Explicit-invoke only; never auto-fire.
-disable-model-invocation: true
+description: Use when deciding a roadmap or product judgment call, or on any user feedback such as a bug report, feature ask, or behavioral observation. Runs the PM-led panel and records the decision as an ADR.
 ---
 
 # /decide — PM-led decision panel (PDCA Plan + Check)

@@ -1,28 +1,28 @@
 ---
 name: bench
-description: Use when deciding whether a Claude Code skill earns its context cost, when re-scoring benchmark evidence you already have, or when testing whether a skill's description actually fires. Grades with a model from another family, so the maker is not the judge.
+description: Use when deciding whether a Claude Code skill earns its context cost, when re-scoring benchmark evidence you already have, or when testing whether a skill's description actually fires.
 ---
 
 # /bench
 
-Measure a skill's value, or re-judge existing evidence — honestly. The deterministic parts (arms,
+Measure a skill's value, or re-judge existing evidence. The deterministic parts (arms,
 grading rubric, prosecutor, verdict math, cost) are tested scripts; your job is to choose what to
 measure and interpret the KEEP/CUT verdict. Invoke a subcommand explicitly.
 
 ## `verdict` — re-judge existing results (no generation spend)
 
 Recompute a decision-outcome verdict from an already-graded, blinded benchmark dir, swapping only
-the judge. The only cost is judge calls (grok is subscription-billed; `--cache` needs no CLI at all).
+the judge. The only cost is judge calls (`--cache` needs no CLI at all).
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
-  --judge auto|grok|claude|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
+  --judge auto|<backend>|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
   [--out report.json]
 ```
 
 - `--dir` must hold `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
-- `--judge auto` (default) uses grok if available else claude; `both` adds the judge-divergence
-  diagnostic (agreement, kappa, verdict flip). See [judging.md](references/judging.md).
+- `--judge auto` (default) resolves a backend per [judging.md](references/judging.md); `both` adds
+  the judge-divergence diagnostic (agreement, kappa, verdict flip).
 - Emits arm means, clustered C-B with 95% CI, KEEP/CUT, per-expectation, and `notional_cost_usd`.
   See [cost-and-verdict.md](references/cost-and-verdict.md).
 - `--cells-out` also writes per-cell re-graded verdicts (jsonl) — the substrate for computing a
@@ -69,7 +69,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
   measured confound. `auto` prefers your configured judge, then grok, copilot, then claude with a
   caveat. Wire what you have via [judging.md](references/judging.md); a judge that cannot name its
   model is refused, not counted as independent.
-- Cost is priced notionally at published rates (deterministic) even when marginally free.
+- Cost is priced notionally at published rates even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.
 - **No primed conclusions (ADR 0059):** every pre-registration, experiment issue, and eval title
@@ -96,7 +96,9 @@ New benchmark dirs start from the canonical templates in `templates/` (grid runn
 grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs
 the Claude Code `Workflow` tool (#170 hard problem 3); without it, grade serially via `claude -p`.
 
-Method foundations ship WITH this skill (ADR 0063 Call 2 as reworked — the measurement product
-owns its method): [pre-registration.md](references/pre-registration.md),
+Method foundations ship WITH this skill (ADR 0063):
+[pre-registration.md](references/pre-registration.md),
 [empirical-evals.md](references/empirical-evals.md),
-[description-ablation.md](references/description-ablation.md). skill-bench installs standalone.
+[description-ablation.md](references/description-ablation.md),
+[evaluating-your-own-work.md](references/evaluating-your-own-work.md) — read before you design a
+run against a skill you wrote. skill-bench installs standalone.

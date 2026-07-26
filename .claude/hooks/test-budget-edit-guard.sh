@@ -130,6 +130,34 @@ if command -v node >/dev/null 2>&1; then
   export BUDGET_GUARD_CAPS_JSON="$saved"
 fi
 
+# A repo-RELATIVE file_path must be guarded identically to an absolute one. Every case arm is
+# written */dir/..., which needs a literal "/" ahead of dir, so before path normalization a
+# relative path fell through to exit 0 and the PREVENT rung silently did not run.
+# Isolated root: CLAUDE_PROJECT_DIR="$PWD" pointed the guard's gate-hit telemetry at the REAL
+# docs/pdca/gate-hits.txt, appending a synthetic catch on every run — the same pollution fixed in
+# test-backstory-edit-guard, in a fixture written the same session, left unfixed in the sibling.
+RD=$(mktemp -d); mkdir -p "$RD/docs/decisions" "$RD/docs/pdca"; : > "$RD/docs/pdca/gate-hits.txt"
+rel=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/decisions/0099-rel.md","content":"well over a ten char cap"}}' \
+  | BUDGET_GUARD_CAPS_JSON='{"doc":10,"adr":10,"lite":10,"agent":10,"skill":10,"ref":10,"refToc":10}' \
+    CLAUDE_PROJECT_DIR="$RD" bash "$HOOK" 2>/dev/null)
+rm -rf "$RD"
+case "$rel" in *'"deny"'*) check "relative file_path is guarded like an absolute one" 0 ;;
+  *) check "relative file_path is guarded like an absolute one" 1 "(got: $rel)" ;; esac
+
+# The Edit shape with cwd GENUINELY != project root. A first cut ran `cd "$ED"` while
+# CLAUDE_PROJECT_DIR was also "$ED" — cwd EQUALLED the project root, so the fixture passed
+# against both the fixed and the bugged hook. It pinned nothing. RED-checked now.
+# The Edit shape with cwd != project root. The first relative-path fixture used Write only, and
+# Write never opens the file — so it passed while Edit stayed bypassable. A regression test that
+# covers the easy half of a bug is worse than none: it reports the bug fixed.
+ED=$(mktemp -d); mkdir -p "$ED/docs/decisions"; printf 'x%.0s' $(seq 1 200) > "$ED/docs/decisions/0099-r.md"
+edout=$(cd /tmp && printf '%s' "{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"docs/decisions/0099-r.md\",\"old_string\":\"x\",\"new_string\":\"$(printf 'y%.0s' $(seq 1 300))\"}}" \
+  | BUDGET_GUARD_CAPS_JSON='{"doc":10,"adr":10,"lite":10,"agent":10,"skill":10,"ref":10,"refToc":10}' \
+    CLAUDE_PROJECT_DIR="$ED" bash "$HOOK" 2>/dev/null)
+rm -rf "$ED"
+case "$edout" in *'"deny"'*) check "relative file_path on an EDIT is guarded (cwd != project root)" 0 ;;
+  *) check "relative file_path on an EDIT is guarded (cwd != project root)" 1 "(got: $edout)" ;; esac
+
 rm -rf "$FIX"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" = "0" ]

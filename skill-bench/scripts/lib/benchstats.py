@@ -11,6 +11,28 @@ from collections import defaultdict
 
 EXP_IDS = (1, 2, 3, 4)
 
+# Two-sided 95% t critical values by degrees of freedom (df = clusters - 1). Every benchmark this
+# repo has run clustered on 4-6 evals, where the normal approximation this replaced (a flat 1.96)
+# understates the interval by 31-62% — at G=4 the correct multiplier is 3.182, not 1.96. Two
+# recorded confidence labels were "strong" only because of that (see the ADR/issue for the
+# recomputation; no recorded DECISION reversed). Small hard-coded table because the harness is
+# stdlib-only by constraint; above df=30 the t and normal quantiles agree to ~2%.
+_T95 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306,
+        9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
+        16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086, 21: 2.080, 22: 2.074,
+        23: 2.069, 24: 2.064, 25: 2.060, 26: 2.056, 27: 2.052, 28: 2.048, 29: 2.045,
+        30: 2.042}
+Z95 = 1.96
+
+
+def t95(df):
+    """Two-sided 95% critical value at `df` degrees of freedom. Exported so a consumer can show
+    the multiplier its interval used; an interval whose width nobody can attribute is not a
+    reported uncertainty. df < 1 has no interval (the caller returns NaN before reaching here)."""
+    if df < 1:
+        return float("nan")
+    return _T95.get(df, Z95)
+
 
 def fraction_met(met):
     """Arity-generic: fraction of this cell's expectations met. Works for the fixed 4-expectation
@@ -37,8 +59,13 @@ def clustered_delta(cells, x, y):
         return {"mean": float("nan"), "ci95": [float("nan")] * 2, "per_scenario": {}, "n_clusters": 0}
     m = statistics.mean(deltas)
     se = (statistics.stdev(deltas) / math.sqrt(len(deltas))) if len(deltas) > 1 else float("nan")
-    ci = [m - 1.96 * se, m + 1.96 * se] if se == se else [float("nan")] * 2
-    return {"mean": m, "ci95": ci, "per_scenario": per, "n_clusters": len(deltas)}
+    crit = t95(len(deltas) - 1)
+    ci = [m - crit * se, m + crit * se] if se == se else [float("nan")] * 2
+    return {"mean": m, "ci95": ci, "per_scenario": per, "n_clusters": len(deltas),
+            # The multiplier is reported, not implied: at these cluster counts it is the single
+            # largest determinant of whether a verdict reads "strong", and a reader who cannot see
+            # it cannot tell a wide interval from a wrong one.
+            "t_crit": crit}
 
 
 def per_expectation(cells):

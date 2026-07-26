@@ -9,13 +9,14 @@ Eval file: JSON list of {"id","task","expectations":[...]}. Arms: {"with":[argv.
 where the task text is appended as the final CLI arg. Substrate + judge are injected so the
 orchestration core (grade_all/aggregate) is unit-testable offline (see bench_skill_test.py).
 
-Explicit-invoke only; prints a cost estimate and requires --yes before any paid generation.
+Prints a cost estimate and refuses to spend without --yes (the refusal ADR 0016 made the
+condition for /bench being model-invocable at all).
 """
 import argparse, json, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
-from judge import make_judge, met_map  # noqa: E402
+from judge import make_judge, met_map, BACKENDS  # noqa: E402
 from substrate import make_substrate  # noqa: E402
 from spend_guard import add_spend_flag, require_yes  # noqa: E402
 
@@ -51,8 +52,10 @@ def main():
     ap.add_argument("--evals", required=True, help="JSON list of {id, task, expectations[]}")
     ap.add_argument("--with-cmd", required=True, help="argv (JSON list) for the skill-loaded arm")
     ap.add_argument("--without-cmd", required=True, help="argv (JSON list) for the bare arm")
-    ap.add_argument("--judge", choices=["auto", "grok", "claude"], default="auto",
-                    help="auto = grok if available else claude (cross-family preferred)")
+    # Derived from judge.BACKENDS, never restated — see the same note in bench_verdict.py.
+    ap.add_argument("--judge", choices=["auto", *sorted(BACKENDS)], default="auto",
+                    help="auto = the first reachable backend in judge.AUTO_ORDER, preferring "
+                         "cross-family")
     ap.add_argument("--substrate", choices=["native", "promptfoo"], default="native")
     ap.add_argument("--reps", type=int, default=3,
                     help="generations per task x arm (a single pass cannot separate reliably-good "
@@ -72,7 +75,7 @@ def main():
                        f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})")
 
     sub = make_substrate(a.substrate)
-    judge = make_judge(a.judge)  # 'auto' falls back grok->claude; raises with remedy if none
+    judge = make_judge(a.judge)  # 'auto' resolves per judge.AUTO_ORDER; raises with remedy if none
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     tasks = [e["task"] for e in evals]

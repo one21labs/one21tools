@@ -1,19 +1,19 @@
 ---
 id: 0082
-title: "MSH-baby ships as a pdca-workflow plugin command (first commands/ surface)"
+title: "MSH ships as a pdca-workflow plugin command (first commands/ surface)"
 status: accepted
-summary: "/pdca-workflow:MSH-baby ('Make Shit Happen') — ship ONE highest-value cohesive work package end to end, autonomously, per invocation; extra issues batch only by owner declaration or necessity coupling, each declared in the PR body. Lives at pdca-workflow/commands/MSH-baby.md. Command, not skill: must never be model-invoked, adds no always-loaded description. Namespaced (plugin commands cannot be bare-named). Body stays thin, deferring to the consumer repo's CLAUDE.md."
+summary: "/pdca-workflow:MSH ('Make Shit Happen') — ship ONE highest-value cohesive work package end to end, autonomously, per invocation; extra issues batch only by owner declaration or necessity coupling, each declared in the PR body. Lives at pdca-workflow/commands/MSH.md. Command, not skill: must never be model-invoked, adds no always-loaded description. Namespaced (plugin commands cannot be bare-named). Body stays thin, deferring to the consumer repo's CLAUDE.md."
 ---
 
-# 0082 — MSH-baby plugin command
+# 0082 — MSH plugin command
 
 - Date: 2026-07-21
 - Owner: PM (owner-directed: a typed command that "just executes" one item)
-- Context: bare `/MSH-baby` is impossible for a plugin-shipped command (plugin commands are always
+- Context: bare `/MSH` is impossible for a plugin-shipped command (plugin commands are always
   namespaced); the owner accepted the namespaced form over a repo-local alias.
 
 ## Decision
-`pdca-workflow/commands/MSH-baby.md`, user-typed only: take the argument target(s) as the
+`pdca-workflow/commands/MSH.md`, user-typed only: take the argument target(s) as the
 owner-declared package, or survey the repo's open work; ship exactly ONE cohesive package per
 invocation under the consumer repo's standing rules; close with a shipped/value/owner-action
 summary; name the runner-up, don't start it. Unit = one cohesive WORK PACKAGE, not one item (owner
@@ -35,6 +35,6 @@ consumer repo's CLAUDE.md. No enforcing gate: a prompt file has no decision logi
 - Repo-local `.claude/commands/` only — not delivered to installers.
 
 ## Revisit triggers
-- Claude Code ships bare-name or aliasable plugin commands -> revisit the bare `/MSH-baby` want.
+- Claude Code ships bare-name or aliasable plugin commands -> revisit the bare `/MSH` want.
 - A run violates one-package scope, joins an issue without substantiated coupling, or omits the
   closing summary -> tighten the body.

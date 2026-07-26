@@ -32,6 +32,10 @@
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/.claude-plugin/plugin.json"}},"expect":{"exit":2}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+# Normalize to absolute before the case arms below: each is written */dir/..., needing a
+# literal "/" ahead of dir, so a repo-relative file_path silently skipped the lint. Third
+# copy of this skeleton; the shared-helper fix is tracked separately.
+case "$fp" in /*) ;; "") ;; *) fp="${CLAUDE_PROJECT_DIR:-.}/$fp" ;; esac
 [ -z "$fp" ] && exit 0
 # Normalize JSON-escaped Windows backslashes to forward slashes for case matching.
 fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
