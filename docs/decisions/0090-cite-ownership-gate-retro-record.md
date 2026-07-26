@@ -2,7 +2,7 @@
 id: 0090
 title: "Retroactive record: semantic cite-ownership gate (check-cite-ownership.mjs)"
 status: accepted
-summary: "Records the gate CLAUDE.md required before build and didn't get: TERMS is a scar-backed list of exactly two, ownership keyed on uncredited-occurrence within tuned asymmetric windows (60 fwd / 25 back / 30 bind, measured), rung 4 FAIL under ADR 0047. Names the live limitation: a term with two legitimate owners for two concepts (append-only: ADR 0019 vs 0041) leaves the gate silent on a wrong-concept cite naming either owner."
+summary: "Retroactive record for check-cite-ownership.mjs, which shipped as a blocking gate with no ADR. Fixes the omission and names the live two-owner limitation."
 ---
 
 # 0090 — semantic cite-ownership gate, written after the fact
@@ -32,6 +32,5 @@ The gate is real, tested (21 cases), and already caught real corpus mistakes pre
 - WARN instead of FAIL — the predicate judges a mechanical text fact, not intent; 0047(ii)'s carve-out doesn't apply.
 
 ## Revisit triggers
-- A term earns a third TERMS entry only via its own recorded mis-cite — absent that, TERMS stays at two.
 - A THIRD concept collides on an existing term -> the per-ADR ownership model needs a concept-tag extension, not just prose discipline.
 - The two-owner residue recurs on a DIFFERENT term pair -> promote from "name the concept in prose" to a structural fix rather than repeating the patch.
