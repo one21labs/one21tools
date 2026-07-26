@@ -98,3 +98,10 @@ manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls
 CI-runnable, needs authenticated grok). Promptfoo generation is wired into
 `/bench skill` (`--substrate promptfoo`, M4, proven live). Rationale lives in the source repo's
 `docs/decisions/0055-*` and `0063-*`, which do not ship with the plugin.
+
+## Provenance
+
+Direction, principles, and requirements for this plugin originate with the repo owner; Claude
+authors the implementation — harness code, rubric and doc mechanics, records — under that
+direction (ADR 0085). Where a specific design call is the owner's, the file says so at the point
+it applies: `scripts/lib/judge.py` carries the environment-general judge direction, for one.

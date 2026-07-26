@@ -12,16 +12,61 @@ Foundations for grading validity (blinding, planted-defect calibration, prosecut
 owned by [empirical-evals.md](empirical-evals.md); this file covers only what
 is specific to the pluggable judge.
 
-## Selecting the judge
+## Wiring a judge for YOUR machine
 
-`--judge auto` (the default) prefers grok (cross-family) and falls back to claude when the grok CLI
-is absent — not every machine has it. On fallback the run prints a caveat and records it in the
-report: grading is now same-family, so the self-preference caveat is back in force (absolute rates
-inflate, the verdict can shift). An explicit `--judge grok` on a machine without grok fails with a
-remedy rather than silently substituting; use `auto` to degrade gracefully.
+The judge is whichever cross-family model you can already reach. This plugin does not assume the
+CLIs its authors happened to have, so setting it up is a short walk rather than an install list.
+Take the first step below that fits.
 
-Resolution order for the grok binary: the library-only `bin=` constructor arg (no CLI flag), then
-`$GROK_BIN`, then `PATH`, then the default installer location. The claude judge resolves `claude` on `PATH`.
+**1. See what you already have.**
+
+```
+python3 -c "import sys; sys.path.insert(0,'skill-bench/scripts/lib'); import judge; \
+print([n for n in judge.BACKENDS if judge.cli_available(n)])"
+```
+
+Anything besides `claude` alone means you already have a cross-family judge and `--judge auto`
+will pick it. Preference order is `command`, `grok`, `copilot`, then `claude` — a judge you
+configured on purpose outranks one merely found on PATH.
+
+**2. A shipped backend installed off PATH.** Point its variable at the binary — `$GROK_BIN`,
+`$COPILOT_BIN`. This is the common case, not the exception: editors and extensions routinely
+bundle a CLI somewhere PATH never sees.
+
+**3. Any other model — the general case.** Set two variables and you are done, no code change:
+
+```
+export SKILL_BENCH_JUDGE_CMD='ollama run mistral'   # reads the prompt on stdin, answers on stdout
+export SKILL_BENCH_JUDGE_MODEL='mistral-7b'         # what it actually calls
+```
+
+A local model server, a vendor CLI with no backend here, or an in-house wrapper all qualify. The
+model id is required rather than decorative: the report has to state whose judgement it carries,
+and a judge that cannot name itself cannot evidence independence. An unset or same-family id fails
+at construction with that reason, instead of producing a confounded number.
+
+**4. Nothing cross-family reachable.** `auto` falls back to claude, prints the caveat, and records
+it in the report. Matched-protocol A/B deltas remain usable; absolute rates inflate.
+
+To add a named backend permanently, add one entry to `BACKENDS` in `scripts/lib/judge.py` — the
+resolver is data-driven, so no branch anywhere needs editing.
+
+## Knowing the grade really left the family
+
+A cross-family judge is only cross-family if you know which model answered, and a router that
+picks per call may pick the generator's own family. GitHub Copilot's `auto` mode was measured
+listing `claude-haiku-4.5` among its candidates for a single request (26-Jul-2026), so a backend
+that cannot pin a model reads the answering model back from each response and raises rather than
+returning a grade whose independence was assumed. `CommandJudge` gets the same treatment through
+its declared model id.
+
+Copilot specifically cannot be pinned on every plan: `--model <id>` is entitlement-gated and on a
+restricted plan rejects every id the CLI itself lists — including the one `auto` then selects. That
+is why the backend runs `auto` and verifies afterwards instead of asking for a model up front. If
+your plan does grant explicit selection, `--model` on a pinned foreign id is the stronger setup.
+
+Resolution order for a shipped backend's binary: the library-only `bin=` constructor arg (no CLI
+flag), then its `$*_BIN` variable, then `PATH`, then the vendor's default installer location.
 
 ## Grading pipeline
 

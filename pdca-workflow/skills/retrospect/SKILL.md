@@ -37,11 +37,13 @@ Run this loop:
 3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
    stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
    analysis and the routing rules — don't restate them.
-4. **Add session friction.** YOU (in the main conversation, which the isolated agent cannot see)
-   list this session's friction — every DISTINCT user correction, wrong guess, or rework — and hand
-   it to the agent. Mark each item git-visible? (yes/no) — the agent can only corroborate the yes
-   class. Self-check before handing off: "did the user correct anything not reflected in a
-   commit?" — add those items; that class has no other witness (ADR 0014).
+4. **Add session friction — by re-reading the user's messages, not recalling them.** YOU (in the
+   main conversation, which the isolated agent cannot see) walk this session's USER turns in order
+   and list two classes: every DISTINCT correction, wrong guess, or rework; AND every request whose
+   delivery you cannot now point at. Recall drops both silently and without a symptom — a mining
+   pass on 26-Jul found two asks marked done and never built, neither of them remembered. Hand the
+   list to the agent, each item marked git-visible? (yes/no) — it can only corroborate the yes
+   class; an item with no commit has no other witness (ADR 0014).
    Enumerate each before deduping (dedupe happens at Curate); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
