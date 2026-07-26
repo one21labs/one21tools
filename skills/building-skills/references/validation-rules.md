@@ -18,8 +18,8 @@ Read this when validating skill structure or debugging validation failures.
 ## Running Validation
 
 ```bash
-python scripts/validate.py <skill-folder>
-python scripts/validate.py --help
+python3 scripts/validate.py <skill-folder>
+python3 scripts/validate.py --help
 ```
 
 ---

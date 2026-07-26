@@ -13,8 +13,8 @@ Evidence Sources:
 - Reserved words (anthropic, claude): Confirmed by upload testing
 
 Usage:
-    python validate.py <skill-folder>
-    python validate.py --help
+    python3 validate.py <skill-folder>
+    python3 validate.py --help
 """
 import json
 import re
@@ -405,7 +405,7 @@ Evals (evals/evals.json, optional):
 
 NEXT STEP
 =========
-  python package.py <skill-folder> [output-dir]
+  python3 package.py <skill-folder> [output-dir]
 """)
     parser.add_argument("skill_directory", type=Path)
     args = parser.parse_args()
@@ -420,7 +420,7 @@ NEXT STEP
         print("[OK] Valid")
         for w in result.warnings:
             print(f"  [WARN] {w}")
-        print(f"\nNext: python package.py {args.skill_directory}")
+        print(f"\nNext: python3 package.py {args.skill_directory}")
         return 0
     else:
         print(f"[FAIL] {result.error}")

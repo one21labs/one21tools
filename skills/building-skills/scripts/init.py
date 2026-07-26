@@ -6,8 +6,8 @@ Creates valid skill directory structure with TODO placeholders.
 Validates the name immediately via validate.py's shared validate_name (ADR 0010).
 
 Usage:
-    python init.py <skill-name> [output-directory]
-    python init.py my-skill ./skills
+    python3 init.py <skill-name> [output-directory]
+    python3 init.py my-skill ./skills
 
 Creates:
     <output-directory>/<skill-name>/
@@ -65,7 +65,7 @@ NAME RULES
 
 EXAMPLE
 =======
-  python init.py pdf-processor ./my-skills
+  python3 init.py pdf-processor ./my-skills
   
   Creates: ./my-skills/pdf-processor/SKILL.md
 
@@ -73,8 +73,8 @@ NEXT STEPS
 ==========
   1. Edit SKILL.md - replace TODO placeholders
   2. Add scripts/, references/, assets/ as needed
-  3. Validate: python validate.py <skill-folder>
-  4. Package: python package.py <skill-folder>
+  3. Validate: python3 validate.py <skill-folder>
+  4. Package: python3 package.py <skill-folder>
 """)
     parser.add_argument("skill_name", help="Name for the skill (kebab-case)")
     parser.add_argument("output_directory", type=Path, nargs='?', default=Path('.'),
