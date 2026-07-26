@@ -1,7 +1,6 @@
 ---
 name: bench
-description: Use when measuring whether a Claude Code skill earns its context cost, re-judging existing benchmark evidence with a cross-family judge and no generation spend, or trigger-testing a skill description. Three subcommands — `verdict` (recompute a verdict from already-graded results, pluggable judge, zero generation cost), `skill` (paired with/without value benchmark of a skill), and `trigger` (description ablation: TP/FP on should-fire and should-not-fire queries). Explicit-invoke; cross-family grok judge by default with a claude fallback; deterministic notional cost accounting.
-disable-model-invocation: true
+description: Use when deciding whether a Claude Code skill earns its context cost, when re-scoring benchmark evidence you already have, or when testing whether a skill's description actually fires. Grades with a model from another family, so the maker is not the judge.
 ---
 
 # /bench
@@ -55,9 +54,11 @@ vendored trigger runner (ADR 0033) on a flat eval set of `{query, should_trigger
 
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-path <dir> \
-  --model <pinned-model> --num-workers 1 --timeout 240 [--description "<variant text>"]
+  --model <pinned-model> --num-workers 1 --timeout 240 --yes \
+  [--description "<variant text>"]
 ```
 
+- Prints the run count and **refuses to spend without `--yes`** (spend guard), as `skill` does.
 - Linux/WSL-only (#170 hard problem 4) — document, don't silently degrade.
 - `--num-workers 1` is MANDATORY (concurrent workers collapse rates toward 1/N); a timeout is a
   null measurement, never a False. Report only matched-protocol A/B deltas, never absolute rates.

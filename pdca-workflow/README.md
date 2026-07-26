@@ -113,7 +113,7 @@ commands/      MSH-baby — ship one highest-value cohesive work package end to 
 scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each)
                  the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
-hooks/         hooks.json (model guard, gate-pipe guard, ADR post-edit lint, spawn log)
+hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
 ```
 
 The five meta-roles ship here. The **advisor panel is project-specific** and is generated for

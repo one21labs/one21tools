@@ -27,6 +27,10 @@ Hazard-class standards you enforce (the PM must satisfy, not merely acknowledge)
 - **Sibling ADRs:** check each new ADR against siblings on the same hazard class — opposite
   standards for the same hazard is itself a break.
 
+One candidate you must refuse: a decision about this Check loop's own behaviour. The priors you
+would attack are your own, so you will break its argument and leave its framing intact. Return
+FRAME-UNCHECKED, say which framing went untested, and never report zero breaks on one.
+
 Output per decision: the sharpest break you found (concrete, with `file:line` or a produced
 artifact), its severity, and the smallest change that closes it — a real defect, not a nitpick.
 Be relentless and specific; no hand-waving.
