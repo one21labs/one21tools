@@ -198,6 +198,36 @@ test("an [unverifiable] with no REOPEN-IF is still UNFALSIFIABLE (no fake-criter
   assert.match(lint({ files }).problems[0], /UNFALSIFIABLE/);
 });
 
+test("a FRAME-UNCHECKED bullet with no recorded probe is flagged", () => {
+  const files = [adr("0001-first.md", {
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the loop misses X — FRAME-UNCHECKED — REOPEN-IF a lane appears\n",
+  })];
+  assert.match(lint({ files }).problems[0], /record no probe/);
+});
+
+test("a FRAME-UNCHECKED bullet recording its probe passes, including `Probed: none`", () => {
+  for (const probe of ["Probed: grok, copilot", "Probed: none"]) {
+    const files = [adr("0001-first.md", {
+      body: `\n# 0001\n\n## Assumptions\n- [unverifiable] the loop misses X — FRAME-UNCHECKED (${probe}) — REOPEN-IF a lane appears\n`,
+    })];
+    assert.deepEqual(lint({ files }).problems, [], probe);
+  }
+});
+
+test("a FRAME-UNCHECKED bullet's probe may wrap onto a continuation line", () => {
+  const files = [adr("0001-first.md", {
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the loop misses X — FRAME-UNCHECKED, REOPEN-IF a lane appears.\n  Probed: none\n",
+  })];
+  assert.deepEqual(lint({ files }).problems, []);
+});
+
+test("a probe recorded in a DIFFERENT bullet does not satisfy an unprobed FRAME-UNCHECKED", () => {
+  const files = [adr("0001-first.md", {
+    body: "\n# 0001\n\n## Assumptions\n- [unverifiable] the loop misses X — FRAME-UNCHECKED — REOPEN-IF a lane appears\n- [verified] Probed: grok\n",
+  })];
+  assert.match(lint({ files }).problems[0], /record no probe/);
+});
+
 test("a WRAPPED [unverifiable] bullet keeps its REOPEN-IF (same-bullet, not same-line)", () => {
   const files = [adr("0001-first.md", {
     noCriterion: true,

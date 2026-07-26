@@ -16,9 +16,11 @@ without the full ceremony. `/decide` composes it over every ADR.
 2. **Spawn the `verifier` agent fresh** — pass the claims and the paths, never the desired
    verdict or the reasoning that produced them (uncontaminated is the point). A claim about this
    loop's own behaviour is one the agent will REFUSE — it inherits the maker's lineage (ADR 0093
-   defines the class and owns why). Send that claim to a checker of a different lineage instead:
-   another vendor's CLI, or a person. With none configured it comes back
-   `FRAME-UNCHECKED`, which is the honest answer rather than a failed run.
+   defines the class and owns why). Route that claim out instead, don't just note it:
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs" --claim-file <file>` finds whichever
+   foreign-vendor CLI this machine has, sends the claim, and reports which model answered. Exit 3
+   is `FRAME-UNCHECKED` — no lane, or a lane that answered from the maker's own family. Record the
+   lanes it probed (`--list`); an unprobed FRAME-UNCHECKED is indistinguishable from not looking.
 3. It reproduces every claim against the real code and produced output — the method and grading
    rules live in the `verifier` agent's own prompt, not here.
 

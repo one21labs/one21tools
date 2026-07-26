@@ -74,6 +74,14 @@ test("an allowlisted pair is excluded; the same span elsewhere is not", () => {
   assert.ok(!allowed(".claude/agents/one.md", "docs/other.md"));
 });
 
+test("shipped plugin READMEs may share the Provenance default (ADR 0085 as amended)", () => {
+  // Each plugin is installed standalone, so the repo README that would otherwise own this fact is
+  // invisible to its audience — the copy in each README is the delivery, not debt.
+  assert.ok(allowed("pdca-workflow/README.md", "skill-bench/README.md"));
+  assert.ok(allowed("skill-bench/README.md", "pdca-workflow/README.md"));  // order-independent
+  assert.ok(!allowed("pdca-workflow/README.md", "README.md"));             // repo README not exempt
+});
+
 test("recall regression: a real #88-class verbatim restatement is caught", () => {
   // The pre-cleanup corpus's duplicated evals-protocol sentence (issue #88, Cleanup A).
   const real = "a fresh claude b writes the expectations not the skill's author an author grades their own intent a fresh instance grades the artifact";
