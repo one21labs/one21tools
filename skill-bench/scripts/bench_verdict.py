@@ -129,7 +129,7 @@ def main():
                         "CLI is available — reporting a single-judge verdict instead")
     primary = "auto" if a.judge in ("auto", "both") else a.judge
     try:
-        judge = make_judge(primary)  # may fall back grok->claude; raises with remedy if none
+        judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none
     except JudgeError:
         if not cache:
             raise  # a live re-grade genuinely needs a judge CLI

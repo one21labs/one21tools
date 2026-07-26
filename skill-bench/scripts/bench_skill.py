@@ -9,7 +9,8 @@ Eval file: JSON list of {"id","task","expectations":[...]}. Arms: {"with":[argv.
 where the task text is appended as the final CLI arg. Substrate + judge are injected so the
 orchestration core (grade_all/aggregate) is unit-testable offline (see bench_skill_test.py).
 
-Explicit-invoke only; prints a cost estimate and requires --yes before any paid generation.
+Prints a cost estimate and refuses to spend without --yes (the refusal ADR 0016 made the
+condition for /bench being model-invocable at all).
 """
 import argparse, json, os, sys
 
@@ -74,7 +75,7 @@ def main():
                        f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})")
 
     sub = make_substrate(a.substrate)
-    judge = make_judge(a.judge)  # 'auto' falls back grok->claude; raises with remedy if none
+    judge = make_judge(a.judge)  # 'auto' resolves per judge.AUTO_ORDER; raises with remedy if none
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     tasks = [e["task"] for e in evals]

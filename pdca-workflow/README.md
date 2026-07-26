@@ -150,10 +150,10 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
 ```
 
-`/pdca-init` and `/decide` are explicit-invoke only (`disable-model-invocation`) — the panel
-spends many agents and writes files, so it never auto-fires. `/retrospect` is model-invocable
-but trigger-bound (ADR 0016): it fires only at its ADR 0081 triggers, so the session itself
-can discharge — and mark — the standing close-out.
+`/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
+project, so it never auto-fires. `/decide` and `/retrospect` are model-invocable but
+trigger-bound (ADR 0016): each fires only at its own trigger, so the session itself can
+discharge — and mark — the standing close-out rather than waiting to be typed at.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).
