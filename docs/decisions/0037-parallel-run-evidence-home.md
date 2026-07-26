@@ -14,6 +14,6 @@ summary: "The parallel #41 gradient run and its #30 replication record merged fr
   evidence dirs merged, branch deleted after merge, ADR 0035 repointed.
 - Why: ADR 0035's verified numbers and revisit trigger were resolvable only against a ref that
   could vanish without review; on-main is the only home a future session reliably finds.
-- Enforced: this landing PR; the append-only rule (ADR 0019) + CLAUDE.md Shipping (owner review).
+- Enforced: this landing PR; the append-only result-snapshot rule (ADR 0019) + CLAUDE.md Shipping (owner review).
 - [checkable] the landed results.jsonl carries the exact numbers ADR 0035 cites — result:
   verified at landing (adopt_tiered=false, tokens 8.823x, wall 4.811x, usd 4.123x).

@@ -123,7 +123,9 @@ shared register** — the named issues stay open carrying that cite. Otherwise t
 the same question weeks apart in two records, and neither knows. Append `## Act` after the work
 ships; omit lines with nothing to say. Each
 `- [outcome]` row carries exactly ONE of `verified` / `violated` / `still-open` (lint check 13,
-ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. Across the
+ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. **Correcting a
+mislabelled row: split it in two (one status each) or explain WITHOUT naming the old status word
+— saying "corrected from `verified`" puts two status words in the row and fails the lint.** Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
 `[outcome]` lines) is the **assumption hit-rate** — the emergent, bottom-up quality signal of the
 loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, via

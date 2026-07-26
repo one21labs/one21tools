@@ -43,9 +43,9 @@ cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*
 
 # Repo-local gate scripts NOT shipped by any plugin (ADR 0046 "instance tooling"), plus the
 # dev-skills-adjacent scripts that ship no gate-pipe guard of their own.
-# Kept in sync with gates.yml by check-gate-tests.mjs (guardedGateGaps) — this list is a mirror,
-# and it drifted twice (check-references.mjs at introduction, check-relocated-paths.mjs at ADR
-# 0089) before that check existed. Adding a gate to gates.yml without adding it here now FAILS CI.
+# This list is a mirror of what gates.yml runs; check-gate-tests.mjs (guardedGateGaps) derives the
+# comparison and FAILS CI on a gate wired there but missing here. Why it exists: that function's
+# header.
 GATES="validate.py check-restatement.mjs check-workflow.mjs check-pr-body.mjs check-gate-tests.mjs run_eval.py check-references.mjs check-relocated-paths.mjs check_reachability.py check-cite-ownership.mjs"
 
 for gate in $GATES; do

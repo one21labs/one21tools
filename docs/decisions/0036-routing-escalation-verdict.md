@@ -39,7 +39,7 @@ summary: "Issue #109 measured (benchmarks/2026-07-10-routing-escalation, pre-reg
 3. **ADR 0035's doctrine stands and gains a second leg:** tier by work type, not by task-level
    routing. Even the optimal cascade shape (no coaching, whole-task redo, near-perfect checker)
    cannot rescue a haiku attempt-first policy on judgment-heavy work. No pdca-workflow change.
-4. Close #109 with the null recorded (ADR 0024), append-only (ADR 0019): benchmarks/2026-07-10-routing-escalation/
+4. Close #109 with the null recorded (ADR 0024) as an append-only result snapshot (ADR 0019): benchmarks/2026-07-10-routing-escalation/
    (pre-registration commit e631bcc precedes every checker record; results.jsonl is the numbers'
    one home).
 
