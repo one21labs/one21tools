@@ -592,3 +592,12 @@ test("no readFile supplied keeps pre-0069 behaviour (no vacuity claim without th
   const existingFiles = new Set(["scripts/a-gate.test.mjs"]);
   assert.deepEqual(findMissingTests({ gatesYml, hookRegistrations: [], existingFiles }), []);
 });
+
+test("extractGuardedGates survives a defensible shell reformat (readonly/export/indent/quotes)", () => {
+  // A strict ^GATES=" anchor returned [] here, which would report EVERY wired gate as unguarded.
+  assert.deepEqual(extractGuardedGates('readonly GATES="a.mjs b.py"\n'), ["a.mjs", "b.py"]);
+  assert.deepEqual(extractGuardedGates('export GATES="a.mjs"\n'), ["a.mjs"]);
+  assert.deepEqual(extractGuardedGates('  GATES="a.mjs"\n'), ["a.mjs"]);
+  assert.deepEqual(extractGuardedGates("GATES='a.mjs b.py'\n"), ["a.mjs", "b.py"]);
+  assert.deepEqual(extractGuardedGates('# prose mentioning GATES="fake.mjs" in a header\n'), []);
+});

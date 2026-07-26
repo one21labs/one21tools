@@ -120,8 +120,11 @@ export function extractPyTestExecutions(gatesYml) {
  *  guards are hand-maintained mirrors of what CI runs (they cannot read gates.yml at tool-call
  *  time), so `guardedGateGaps` below re-derives the comparison in CI instead. */
 export function extractGuardedGates(guardText) {
-  const m = guardText.match(/^GATES="([^"]*)"/m);
-  return m ? m[1].split(/\s+/).filter(Boolean) : [];
+  // Tolerate the assignment shapes a shellcheck-motivated reformat produces (`readonly`/`export`,
+  // leading indent). A strict `^GATES="` anchor would return [] on such an edit and then report
+  // EVERY wired gate as unguarded — a repo-wide false failure from a no-op change (red-team).
+  const m = guardText.match(/^[ \t]*(?:readonly[ \t]+|export[ \t]+|declare[ \t]+(?:-\S+[ \t]+)*)?GATES=(["'])([^"']*)\1/m);
+  return m ? m[2].split(/\s+/).filter(Boolean) : [];
 }
 
 /** Gates wired in gates.yml whose basename NO gate-pipe guard covers — piping such a gate hides

@@ -121,3 +121,25 @@ test("walk tolerates a dir vanishing mid-walk but never the root", () => {
   assert.deepEqual(walkLiveFiles(".", readdir), ["CLAUDE.md"]);
   assert.throws(() => walkLiveFiles("nowhere", readdir), /ENOENT/);
 });
+
+// --- credit on EITHER side (red-team round 3: the founding scar defeated the first predicate) --
+
+test("does NOT own: the disclaiming credit PRECEDES the term (the real ADR 0025:13 shape)", () => {
+  const t = "charges an artifact's benefit against its baseline via the ADR 0019 eval-clustered CI, but left the score unspecified.";
+  assert.equal(ownsTerm(t, "0025", "eval-clustered"), false);
+});
+
+test("does NOT own: a credit 40+ chars out still disclaims (ADR 0025:16 shape, the window scar)", () => {
+  const t = "The verdict is the eval-clustered mean delta (with - without) + 95% CI (ADR 0019); the KEEP bar is unchanged.";
+  assert.equal(ownsTerm(t, "0025", "eval-clustered"), false);
+});
+
+test("owns: a SELF credit on either side is ownership, not a disclaimer", () => {
+  assert.equal(ownsTerm("per ADR 0019 the eval-clustered CI is the headline.", "0019", "eval-clustered"), true);
+  assert.equal(ownsTerm("the eval-clustered CI is the headline (ADR 0019).", "0019", "eval-clustered"), true);
+});
+
+test("owns: a far-away unrelated cite does not disclaim", () => {
+  const t = "Dated dirs are append-only records." + " ".repeat(80) + "Separately, see ADR 0023 for formats.";
+  assert.equal(ownsTerm(t, "0041", "append-only"), true);
+});

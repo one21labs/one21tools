@@ -9,10 +9,11 @@
  * ADR 0025 in two when ADR 0019 owns it. Rung 4, cited scar, per ADR 0047.
  *
  * OWNERSHIP IS DERIVED, NOT LISTED (CLAUDE.md: delete the mirror). An ADR owns a term iff the
- * term appears in its text with at least one occurrence NOT immediately credited to a different
- * ADR. That second clause is what catches the 0025 case: 0025 says "eval-clustered CI (ADR
- * 0019)" throughout — it uses the term while disclaiming ownership, so a cite naming 0025 for it
- * is wrong even though the words are present.
+ * term appears in its text with at least one occurrence NOT credited to a different ADR on
+ * either side. That second clause is what catches the 0025 case: every one of its three
+ * "eval-clustered" occurrences credits ADR 0019 — one of them with the credit BEFORE the term
+ * ("via the ADR 0019 eval-clustered CI") — so a cite naming 0025 for it is wrong even though
+ * the words are present.
  *
  * PRECISION (the design constraint — a noisy doctrine gate would be ignored):
  * - TERMS is scar-backed, not speculative: an entry earns its place by a recorded mis-cite.
@@ -33,7 +34,17 @@ import { fileURLToPath } from "node:url";
 export const TERMS = ["append-only", "eval-clustered"];
 
 const CITE = /ADR (\d{4})/g;
-const CREDIT_WINDOW = 40; // chars after a term occurrence in which a cite reads as crediting it
+// Chars EITHER SIDE of a term occurrence in which a cite reads as crediting it. 60, not 40:
+// measured against all six real owner/non-owner pairs in the corpus, ADR 0025's third occurrence
+// ("the eval-clustered mean delta (with - without) + 95% CI (ADR 0019)") puts its credit 40 chars
+// out — one past a 40 window — and the record then read as the OWNER of a term it never claims.
+// 80 classifies identically, so 60 is the smallest window that separates every known case.
+const CREDIT_WINDOW = 60;
+// The BACKWARD window is deliberately tighter. A credit before the term only disclaims in the
+// tight possessive form ("via the ADR 0019 eval-clustered CI" — 1 char gap); reaching further
+// back lets a PRIOR sentence's citation bleed forward and disclaim a term the record then
+// claims on its own account. Measured: 25 separates every real pair in the corpus.
+const CREDIT_WINDOW_BEFORE = 25;
 const BIND_WINDOW = 30;   // max chars between a term occurrence and the cite bound to it
 const EXTENSIONS = /\.(md|mjs|js|py|sh|yml)$/;
 const FROZEN = /^\d{4}-\d{2}-\d{2}-/;
@@ -50,13 +61,19 @@ const SELF = /^scripts\/check-cite-ownership(\.test)?\.mjs$/;
 export function ownsTerm(adrText, id, term) {
   if (adrText == null) return true;
   const low = adrText.toLowerCase();
-  let i = -1, seen = false;
+  let i = -1;
   while ((i = low.indexOf(term, i + 1)) !== -1) {
-    seen = true;
-    const credit = low.slice(i, i + CREDIT_WINDOW).match(/adr (\d{4})/);
-    if (!credit || credit[1] === id) return true;
+    // A credit can sit on EITHER side: "eval-clustered CI (ADR 0019)" and "the ADR 0019
+    // eval-clustered CI" both disclaim. Checking only forward missed the second shape and let
+    // ADR 0025 — this gate's own founding example — read as the owner (red-team, round 3).
+    const after = low.slice(i + term.length, i + term.length + CREDIT_WINDOW).match(/adr (\d{4})/);
+    const beforeAll = [...low.slice(Math.max(0, i - CREDIT_WINDOW_BEFORE), i).matchAll(/adr (\d{4})/g)];
+    const credits = [after?.[1], beforeAll.at(-1)?.[1]].filter(Boolean);
+    // Self-credit is ownership; a credit naming another record disclaims THIS occurrence; an
+    // uncredited occurrence anywhere is a claim of ownership.
+    if (!credits.length || credits.includes(id)) return true;
   }
-  return seen ? false : false;
+  return false;
 }
 
 /**
