@@ -16,9 +16,11 @@ ADR folds a safety caveat in as a BLOCKER.
 2. **Spawn the `red-team` agent fresh.** Its only job is to BREAK the candidate against the
    real product — abuse cases, boundary breaks, wrong-assumption probes — grounded in code.
    A candidate about this loop's own behaviour it will REFUSE — it holds the very priors the
-   attack has to target (class + why: ADR 0093). Hand that one to an adversary of another
-   lineage — a different vendor's CLI, or a person — aimed at what the candidate
-   takes for granted rather than at its argument. Nobody available: `FRAME-UNCHECKED`.
+   attack has to target (class + why: ADR 0093). Route that one to an adversary of another
+   lineage: `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs" --claim-file <file>`, with the
+   claim written to aim at what the candidate takes for granted rather than at its argument. It
+   answers from whichever foreign CLI this machine has, or exits 3 — `FRAME-UNCHECKED`. Record
+   the lanes probed (`--list`); "nobody available" asserted without probing is not a result.
 
 ## Return
 

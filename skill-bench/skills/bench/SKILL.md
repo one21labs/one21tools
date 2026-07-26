@@ -65,8 +65,10 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
 
 ## Guardrails (all subcommands)
 
-- Cross-family grok judge is the default because same-family grading (Claude grades Claude) is a
-  measured confound; on grok's absence it falls back to claude with a printed caveat.
+- A cross-family judge is the default because same-family grading (Claude grades Claude) is a
+  measured confound. `auto` prefers your configured judge, then grok, copilot, then claude with a
+  caveat. Wire what you have via [judging.md](references/judging.md); a judge that cannot name its
+  model is refused, not counted as independent.
 - Cost is priced notionally at published rates (deterministic) even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.

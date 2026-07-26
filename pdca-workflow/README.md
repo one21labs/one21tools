@@ -160,3 +160,9 @@ unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hoo
 Installing the plugin for its skills alone changes nothing in projects that haven't adopted.
 To scope the whole plugin (skills included) per project, use Claude Code's native
 `enabledPlugins` in the project's `.claude/settings.json`.
+
+## Provenance
+
+Direction, principles, and requirements for this plugin originate with the repo owner; Claude
+authors the implementation — scripts, agent and skill prose, records — under that direction
+(ADR 0085). Where a specific design call is the owner's, the file says so at the point it applies.

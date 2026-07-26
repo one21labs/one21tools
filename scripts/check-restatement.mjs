@@ -40,6 +40,11 @@ export const ALLOW_PAIRS = [
   [/^\.claude\/output-styles\/plain-summary\.md$/, /^pdca-workflow\/templates\/plain-summary\.md$/],
   [/^docs\/decisions\/README\.md$/, /^pdca-workflow\/skills\/pdca-init\//],
   [/^docs\/decisions\/0035-/, /^docs\/decisions\/0036-/],
+  // Every shipped plugin README carries the same Provenance default, because an adopter installs
+  // ONE plugin and never sees the repo README that would otherwise be its home (ADR 0085 as
+  // amended). Here the duplication is the delivery mechanism, not copy-paste debt: removing it
+  // from either file removes the fact from that plugin's audience.
+  [/^pdca-workflow\/README\.md$/, /^skill-bench\/README\.md$/],
 ];
 
 const SKIP = /(^|[\\/])(\.git|node_modules|benchmarks[\\/]20\d\d-)/;
