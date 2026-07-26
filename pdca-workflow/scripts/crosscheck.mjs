@@ -29,6 +29,10 @@ import { join, delimiter } from "node:path";
 // elsewhere: an adopter driving it from another vendor's host inverts which family is "the maker".
 export const MAKER_FAMILY = "anthropic";
 
+// TWIN: skill-bench/scripts/lib/judge.py carries this table and parseCopilot's logic in Python.
+// Neither may import the other (ADR 0050: plugins ship standalone, no content dependencies), so
+// the copies are structural — change one, change both. scripts/check-family-parity.test.mjs fails
+// the build if they drift.
 const FAMILY_PATTERNS = [
   [/claude|anthropic/i, "anthropic"],
   [/grok|xai/i, "xai"],

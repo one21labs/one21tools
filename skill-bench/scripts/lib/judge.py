@@ -38,6 +38,10 @@ CLAUDE_DENY = "Bash,Read,Write,Edit,WebSearch,WebFetch,Glob,Grep,Task"
 # inflated met-rate as if it were independent.
 GENERATOR_FAMILY = "anthropic"
 
+# TWIN: pdca-workflow/scripts/crosscheck.mjs carries this table and parse_copilot_jsonl's logic in
+# JS. Neither may import the other (ADR 0050: plugins ship standalone, no content dependencies), so
+# the copies are structural — change one, change both. scripts/check-family-parity.test.mjs in the
+# source repo fails the build if they drift.
 _FAMILY_PATTERNS = ((r"claude|anthropic", "anthropic"), (r"grok|xai", "xai"),
                     (r"gpt|openai", "openai"), (r"gemini", "google"), (r"kimi|moonshot", "moonshot"))
 
