@@ -1,7 +1,7 @@
 ---
 id: 0017
 title: "set-version.mjs: one writer for registry versions, no second checker"
-status: accepted
+status: superseded by 0075
 summary: "A repo-governance script (root scripts/, node zero-dep, tested) writes a version to its ONE home: plugin.json when the plugin ships one (marketplace entry syncs only if it redundantly states a version — derive-don't-mirror per ADR 0011), else the marketplace entry; target `marketplace` writes metadata.version. WRITER ONLY — the drift check stays adr-lint's manifestDrift; no duplicate gate. Idea ported from NeoLabHD/context-engineering-kit's make set-version, node-native."
 ---
 

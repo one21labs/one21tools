@@ -27,7 +27,7 @@ Forces every context-cost artifact toward its best benefit-per-token, not merely
 
 ## Assumptions
 - [verified] the loop is executable end-to-end — exercised on the CLAUDE.md-template "Feedback = PDCA trigger" section (KEEP on iter3, +0.375, 95% CI [+0.12, +0.64]) in `benchmarks/2026-07-08-claude-md-template-ablation-hermetic/`.
-- [checkable] the hermetic executor + eval-clustered CI exist and are owned — ADR 0023 + `eval_verdict.py`/`eval_verdict_test.py` (gates); result: green.
+- [checkable] the hermetic executor (ADR 0023) + eval-clustered CI (ADR 0019) exist and are owned — `eval_verdict.py`/`eval_verdict_test.py` (gates); result: green.
 - [unverifiable] 3 iterations distinguishes "artifact is weak" from "measurement is hard" — REOPEN-IF an artifact needs >3 VALID iterations to show a benefit that later replicates; then raise the cap or split measurement-fix vs artifact-fix budgets.
 
 ## Rejected alternatives

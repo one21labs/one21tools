@@ -1,7 +1,7 @@
 ---
 id: 0048
 title: "Version bumps batch off feature PRs via a forcing function, not new machinery"
-status: accepted
+status: superseded by 0075
 summary: "The marketplace.json version-field rebase collisions (9 touches #122-#138; dev-skills bumped five times across five PRs in one day) come from coupling a bump to each feature PR, not an SSoT defect — the version already has ONE home (ADR 0017 + adr-lint). Fix by cadence: feature PRs don't bump; each plugin's bump is its own PR, triggered by the /retrospect pre-PR checklist and tracked by a GitHub issue (ADR 0021), reconciling 0017:28 without a gate. Reject a merge-time bot/gate/lock (disproportionate). Reject the per-plugin plugin.json split as a COLLISION fix (disproportionate; fixes only cross-plugin), decided separately on ENFORCEMENT grounds (ADR 0050)."
 ---
 

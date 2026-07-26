@@ -10,7 +10,7 @@ summary: "A PR that lands a run's results.jsonl into a dated dir whose README st
 
 - Decision: when a PR lands a run's results into a dated benchmark dir, any
   pre-registration "no run executed" / PREP-ONLY language in that dir's README
-  is updated in the SAME PR. The append-only rule (ADR 0026/0041) freezes a
+  is updated in the SAME PR. The append-only rule (ADR 0041) freezes a
   dir at merge, not at authoring — reconciling before merge is not a retrofit;
   after merge, the fix is an appended dated correction.
 - Why: 2/2 corpus occurrences of the phrasing were wrong the day they merged

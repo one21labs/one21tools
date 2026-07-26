@@ -36,6 +36,7 @@
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"node scripts/check-references.mjs | head"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"node scripts/check-relocated-paths.mjs | tail"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"python3 skill-bench/scripts/lib/check_reachability.py skill-bench/scripts | head"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"node scripts/check-cite-ownership.mjs | grep -c ADR"}},"expect":{"deny":true}}
 input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*\)/\1/p')
 [ -z "$cmd" ] && exit 0
@@ -45,7 +46,7 @@ cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\(.*
 # Kept in sync with gates.yml by check-gate-tests.mjs (guardedGateGaps) — this list is a mirror,
 # and it drifted twice (check-references.mjs at introduction, check-relocated-paths.mjs at ADR
 # 0089) before that check existed. Adding a gate to gates.yml without adding it here now FAILS CI.
-GATES="validate.py check-restatement.mjs check-workflow.mjs check-pr-body.mjs check-gate-tests.mjs run_eval.py check-references.mjs check-relocated-paths.mjs check_reachability.py"
+GATES="validate.py check-restatement.mjs check-workflow.mjs check-pr-body.mjs check-gate-tests.mjs run_eval.py check-references.mjs check-relocated-paths.mjs check_reachability.py check-cite-ownership.mjs"
 
 for gate in $GATES; do
   esc_gate=$(printf '%s' "$gate" | sed 's/\./\\./g')

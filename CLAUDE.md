@@ -39,9 +39,9 @@ don't restate. Operationalized, not a slogan:
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate
-(backstory rules: `ssot-enforcement.md`). Altitude: README > CLAUDE.md > SKILL.md /
-manifests / scripts (the "code" here — they own skill names, manifest fields, the registry, the
-deterministic logic; a doc that restates them rots).
+(backstory rules: `ssot-enforcement.md`). The ladder's home is `doc-budgets.md`; its bottom rung
+here = manifests, SKILL.md, scripts — they own skill names, the registry, the deterministic
+logic; a doc restating them rots.
 
 ## Never
 - ship a SKILL.md that fails `validate.py`, or invalid marketplace/plugin JSON
