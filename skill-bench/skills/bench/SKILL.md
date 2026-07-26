@@ -5,7 +5,7 @@ description: Use when deciding whether a Claude Code skill earns its context cos
 
 # /bench
 
-Measure a skill's value, or re-judge existing evidence — honestly. The deterministic parts (arms,
+Measure a skill's value, or re-judge existing evidence. The deterministic parts (arms,
 grading rubric, prosecutor, verdict math, cost) are tested scripts; your job is to choose what to
 measure and interpret the KEEP/CUT verdict. Invoke a subcommand explicitly.
 
@@ -69,7 +69,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
   measured confound. `auto` prefers your configured judge, then grok, copilot, then claude with a
   caveat. Wire what you have via [judging.md](references/judging.md); a judge that cannot name its
   model is refused, not counted as independent.
-- Cost is priced notionally at published rates (deterministic) even when marginally free.
+- Cost is priced notionally at published rates even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.
 - **No primed conclusions (ADR 0059):** every pre-registration, experiment issue, and eval title
@@ -96,7 +96,9 @@ New benchmark dirs start from the canonical templates in `templates/` (grid runn
 grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs
 the Claude Code `Workflow` tool (#170 hard problem 3); without it, grade serially via `claude -p`.
 
-Method foundations ship WITH this skill (ADR 0063 Call 2 as reworked — the measurement product
-owns its method): [pre-registration.md](references/pre-registration.md),
+Method foundations ship WITH this skill (ADR 0063):
+[pre-registration.md](references/pre-registration.md),
 [empirical-evals.md](references/empirical-evals.md),
-[description-ablation.md](references/description-ablation.md). skill-bench installs standalone.
+[description-ablation.md](references/description-ablation.md),
+[evaluating-your-own-work.md](references/evaluating-your-own-work.md) — read before you design a
+run against a skill you wrote. skill-bench installs standalone.
