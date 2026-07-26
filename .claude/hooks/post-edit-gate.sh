@@ -34,6 +34,10 @@ fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([
 norm_slashes() { printf '%s' "$1" | sed 's/\\\\/\//g; s/\\/\//g'; }
 fp=$(norm_slashes "$fp")
 root="${CLAUDE_PROJECT_DIR:-.}"
+# Same latent hole budget-edit-guard carried: every case arm below is written */dir/..., which
+# needs a literal "/" ahead of dir, so a repo-relative file_path fell through and the gate never
+# ran. Third copy of this skeleton in .claude/hooks; the real fix is deleting the triplication.
+case "$fp" in /*) ;; *) fp="$root/$fp" ;; esac
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
 PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 

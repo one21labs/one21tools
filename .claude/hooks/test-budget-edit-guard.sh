@@ -130,6 +130,15 @@ if command -v node >/dev/null 2>&1; then
   export BUDGET_GUARD_CAPS_JSON="$saved"
 fi
 
+# A repo-RELATIVE file_path must be guarded identically to an absolute one. Every case arm is
+# written */dir/..., which needs a literal "/" ahead of dir, so before path normalization a
+# relative path fell through to exit 0 and the PREVENT rung silently did not run.
+rel=$(printf '%s' '{"tool_name":"Write","tool_input":{"file_path":"docs/decisions/0099-rel.md","content":"well over a ten char cap"}}' \
+  | BUDGET_GUARD_CAPS_JSON='{"doc":10,"adr":10,"lite":10,"agent":10,"skill":10,"ref":10,"refToc":10}' \
+    CLAUDE_PROJECT_DIR="$PWD" bash "$HOOK" 2>/dev/null)
+case "$rel" in *'"deny"'*) check "relative file_path is guarded like an absolute one" 0 ;;
+  *) check "relative file_path is guarded like an absolute one" 1 "(got: $rel)" ;; esac
+
 rm -rf "$FIX"
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" = "0" ]

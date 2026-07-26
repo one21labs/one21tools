@@ -23,6 +23,11 @@
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/references/r.md","content":"A reference body with no table of contents and well over ten characters."}},"expect":{"deny":true}}
 input=$(cat)
 fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+# Normalize to absolute BEFORE the case arms. Every arm below is written `*/dir/...`, which needs
+# a literal `/` ahead of `dir`, so a repo-relative file_path fell straight through to exit 0 and
+# the PREVENT rung never ran. Latent rather than live — Claude Code passes absolute paths — but a
+# guard with a path shape that silently skips is the class this repo keeps finding.
+case "$fp" in /*) ;; "") ;; *) fp="${CLAUDE_PROJECT_DIR:-.}/$fp" ;; esac
 case "$fp" in
   */CLAUDE.md|CLAUDE.md|*/docs/decisions/*.md|*/pdca-workflow/agents/*.md|*claude-md-template.md) ;;
   */skills/*/SKILL.md|*/skills/*/references/*.md) ;;
