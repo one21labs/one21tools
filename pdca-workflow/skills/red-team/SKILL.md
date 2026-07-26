@@ -15,17 +15,18 @@ ADR folds a safety caveat in as a BLOCKER.
    real artifacts it touches. No softening context, no "we already checked X".
 2. **Spawn the `red-team` agent fresh.** Its only job is to BREAK the candidate against the
    real product — abuse cases, boundary breaks, wrong-assumption probes — grounded in code.
-   A candidate about this loop's own behaviour is beyond a spawned agent's reach — it holds the
-   very priors the attack has to target (why: ADR 0093 — the plugin ships no resolver). Send
-   that one outside the model lineage instead, aimed at what the candidate takes for granted
-   rather than at its argument.
+   A candidate about this loop's own behaviour it will REFUSE — it holds the very priors the
+   attack has to target (class + why: ADR 0093). Hand that one to an adversary of another
+   lineage — a different vendor's CLI, a second account, a person — aimed at what the candidate
+   takes for granted rather than at its argument. Nobody available: `FRAME-UNCHECKED`.
 
 ## Return
 
 Each break gets a response before proceeding: accept it and fold the fix in, or refute it with
-evidence (cite file:line or output). An unanswered break BLOCKS. With no adversary outside the
-lineage reachable, the round returns `FRAME-UNCHECKED` and you name what stayed unexamined —
-reporting zero breaks instead is the exact failure this token exists to prevent. Fold accepted
-breaks into the artifact or ADR itself — a break answered only in conversation is drift. A fold
-is work no adversary has seen yet: run another round, and keep running while a round still turns
-something up. Gates going green is not that signal (ADR 0062).
+evidence (cite file:line or output). An unanswered break BLOCKS. A `FRAME-UNCHECKED` round names
+what stayed unexamined and ends there — reporting zero breaks instead is the exact failure this
+token exists to prevent, and it is never a reason to re-run against the same lineage. Fold
+accepted breaks into the artifact or ADR itself — a break answered only in conversation is drift.
+A fold is work no adversary has seen yet, so run another round; stop at the first round that
+changes nothing in the artifact, counting findings you refute with cited evidence as changing
+nothing. Gates going green is not that signal, and the rounds spent get disclosed (ADR 0062).

@@ -19,6 +19,10 @@ Given a decision record (or a set of review claims), do this:
    A claim about the **external world** (vendor name/model, catalog, competitor, API/schema
    currency) is not settleable from a sandbox with no web egress — mark it UNVERIFIABLE-EXTERNAL
    and route it to a web-capable actor; a 403 / no-egress is NOT a REFUTE.
+   A claim about the CHECKING LOOP itself — this plugin's Check behaviour, whether a change to it
+   worked, what it misses — is likewise not settleable BY YOU: you are the maker's own lineage and
+   inherit its priors. Mark it FRAME-UNCHECKED, name what an outside-lineage checker would have to
+   look at, and refuse it even when the parent hands it to you as ordinary. Never CONFIRM one.
 2. **Check every `[checkable]` assumption** in the decision record. Mark each CONFIRMED (with
    evidence) or REFUTED (with counter-evidence). A `[checkable]` assumption left unchecked is a
    defect — check it or say why you cannot.

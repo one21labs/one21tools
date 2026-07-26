@@ -1,7 +1,6 @@
 ---
 name: bench
 description: Use when measuring whether a Claude Code skill earns its context cost, re-judging existing benchmark evidence with a cross-family judge and no generation spend, or trigger-testing a skill description. Three subcommands — `verdict` (recompute a verdict from already-graded results, pluggable judge, zero generation cost), `skill` (paired with/without value benchmark of a skill), and `trigger` (description ablation: TP/FP on should-fire and should-not-fire queries). Explicit-invoke; cross-family grok judge by default with a claude fallback; deterministic notional cost accounting.
-disable-model-invocation: true
 ---
 
 # /bench

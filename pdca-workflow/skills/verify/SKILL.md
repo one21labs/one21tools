@@ -15,8 +15,10 @@ without the full ceremony. `/decide` composes it over every ADR.
    command, output). Include any `[checkable]` assumptions to check.
 2. **Spawn the `verifier` agent fresh** — pass the claims and the paths, never the desired
    verdict or the reasoning that produced them (uncontaminated is the point). A claim about this
-   loop's own behaviour is not one a spawned agent can settle — it inherits the maker's lineage
-   (ADR 0093 owns why; no resolver ships). Route that claim outside the lineage instead.
+   loop's own behaviour is one the agent will REFUSE — it inherits the maker's lineage (ADR 0093
+   defines the class and owns why). Send that claim to a checker of a different lineage instead:
+   another vendor's CLI, a second account, a person. With none configured it comes back
+   `FRAME-UNCHECKED`, which is the honest answer rather than a failed run.
 3. It reproduces every claim against the real code and produced output — the method and grading
    rules live in the `verifier` agent's own prompt, not here.
 
@@ -25,7 +27,8 @@ without the full ceremony. `/decide` composes it over every ADR.
 PASS, or BLOCK with findings. The agent reports per-claim verdicts plus a BLOCKERS list; YOU
 synthesize the label — no BLOCKERS = PASS. A claim step 2 could not route out is
 `FRAME-UNCHECKED`: it leaves the PASS set, raises no BLOCKER, and travels with the verdict so
-the next consumer sees which claim went unchecked. A verified correctness/safety finding
+the next consumer sees which claim went unchecked. That closes the claim with its gap recorded —
+it is never grounds for another round against the same lineage. A verified correctness/safety finding
 stands — fix the artifact,
 don't argue the catch; priority overrules don't apply to verified findings (`/decide`'s rule).
 When a fresh finding supersedes a shared handoff note (a verdict, an assumption result),
