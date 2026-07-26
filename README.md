@@ -43,16 +43,22 @@ Every differentiation claim here carries its measured status; `benchmarks/` hold
 append-only evidence, one dated dir per run.
 
 - `code-standards`: KEEP, strong, judge-robust (2026-07-17 re-measure).
-- `engineering-principles`: improved version's benefit +0.206 mean fraction-met delta, 95% CI
-  [+0.038, +0.373] excluding zero — hermetic, blind + prosecutor (2026-07-09 re-measure).
-  The OPERATIONAL partition carries that delta (#244, measured 2026-07-18): operational-only
-  +0.207, conceptual-only +0.057 with a CI straddling zero — concepts the model already knows
-  are inert (`benchmarks/2026-07-18-ep-partition/`).
+- `engineering-principles`: what SHIPS is the slim operational core (2026-07-18, #248/#249), and
+  it ships on a NON-INFERIORITY bar, not a fresh effect proof — slim +0.170, CI [-0.029, +0.370],
+  straddling zero at n=6; slim minus full +0.043, CI [+0.016, +0.069], excluding zero in the
+  slim's favour under both judges (`benchmarks/2026-07-18-ep-slim-remeasure/`). The
+  CI-excluding-zero anchor (+0.206, [+0.038, +0.373], hermetic, blind + prosecutor) measured the
+  EARLIER full version on 2026-07-09. The OPERATIONAL partition carries the delta (#244,
+  2026-07-18): operational-only +0.207, conceptual-only +0.057 with a CI straddling zero —
+  concepts the model already knows are inert (`benchmarks/2026-07-18-ep-partition/`).
 - `pdca-workflow` panel: honest nulls recorded — rubric-quality ~ cost-matched baselines across
   six instruments; the measured survivors are the process guarantees (forced records, spend
-  gates), retrospect's false-positive halving, and an n=1 failure-anticipation edge
+  gates), retrospect's false-positive reduction (a halving in v2, ~12% in v1), and an n=1
+  failure-anticipation edge
   (pdca-workflow/README.md "Measured" section routes the program).
-- Cross-family judging: two caught verdict flips, nine robust holds (2026-07-17 re-grade).
+- Cross-family judging: two caught verdict flips from two separate re-grades — 1 of 10 primary
+  verdicts judge-fragile with nine robust holds (2026-07-17 re-grade), plus the earlier #172
+  prototype flip (2026-07-13).
 - The repo measures itself: `node scripts/scorecard.mjs` computes the decision corpus's
   assumption hit-rate and audit coverage (a compass that fires reviews, never a CI block).
 
