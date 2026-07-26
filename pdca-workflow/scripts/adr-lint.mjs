@@ -55,29 +55,29 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
 
   for (const { name, text } of files) {
     const fm = text.match(/^---\n([\s\S]*?)\n---/);
-    if (!fm) { problems.push(`${name}: missing YAML frontmatter`); continue; }
+    if (!fm) { problems.push(`${name}: missing YAML frontmatter — open the file with a --- block carrying id, title, status and summary (adr-template.md Template)`); continue; }
     const props = {};
     for (const line of fm[1].split("\n")) {
       const m = line.match(/^(\w+):\s*(.*)$/);
       if (m) props[m[1]] = m[2].trim().replace(/^"(.*)"$/, "$1");
     }
-    if (!/^\d{4}$/.test(props.id ?? "")) problems.push(`${name}: bad/missing frontmatter id`);
-    else if (props.id !== name.slice(0, 4)) problems.push(`${name}: id ${props.id} != filename`);
-    if (!props.title) problems.push(`${name}: missing frontmatter title`);
-    if (!props.summary) problems.push(`${name}: missing frontmatter summary`);
+    if (!/^\d{4}$/.test(props.id ?? "")) problems.push(`${name}: bad/missing frontmatter id — add an id: line whose number matches the filename`);
+    else if (props.id !== name.slice(0, 4)) problems.push(`${name}: id ${props.id} != filename — rename the file to match the id, or fix the id to match the file; never renumber a record that has already merged`);
+    if (!props.title) problems.push(`${name}: missing frontmatter title — add a title: line carrying the decision in a few words`);
+    if (!props.summary) problems.push(`${name}: missing frontmatter summary — add one line for the skim catalog; there is no index file, so the summary IS how this record gets found (adr-template.md)`);
     adrs.push({ name, id: name.slice(0, 4), text, chars: text.length, lite: props.tier === "lite", status: props.status ?? "" });
   }
 
   // Unique ids (parallel branches grabbing the same int).
   const ids = adrs.map(a => a.id);
   const dupes = [...new Set(ids.filter((id, i) => ids.indexOf(id) !== i))];
-  if (dupes.length) problems.push(`Duplicate ADR ids: ${dupes.join(", ")}`);
+  if (dupes.length) problems.push(`Duplicate ADR ids: ${dupes.join(", ")} — two branches allocated the same number. Renumber the UNMERGED one to max(local, origin/main, every origin/* branch) + 1 and re-point its cites`);
 
   const onDisk = new Set(ids);
   for (const a of adrs) {
     // Version-agnostic: no three-part release version anywhere in the ADR.
     const vers = [...new Set([...a.text.matchAll(/\bv?\d+\.\d+\.\d+\b/g)].map(m => m[0]))];
-    if (vers.length) problems.push(`${a.name}: names a release version (version-agnostic): ${vers.join(", ")}`);
+    if (vers.length) problems.push(`${a.name}: names a release version (version-agnostic): ${vers.join(", ")} — name the feature or cut instead, e.g. "Cut 1a" or "before the export feature"; ship-state derives from ## Act`);
 
     // Dangling cite: every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited resolves on disk.
     // The status pointer is the headline fold-cite — match it too, or supersession escapes the guard.
@@ -87,7 +87,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     for (const m of a.text.matchAll(/superseded by (\d{4})/gi)) cited.add(m[1]);
     cited.delete(a.id); // self-reference (title/header) is fine
     const dangling = [...cited].filter(id => !onDisk.has(id));
-    if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")}`);
+    if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")} — the cited record is not in this corpus. Ship it in the same PR (mutually-citing records must land together), or correct the number`);
 
     // Outcome vocabulary (ADR 0079, spec check 13): every `## Act` `- [outcome]` row carries
     // EXACTLY ONE of verified|violated|still-open — the controlled input a scorecard/hit-rate
@@ -120,7 +120,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
           || /^## Assumptions/m.test(a.text))
         problems.push(`${a.name}: lite ADR carries tagged assumptions — that reasoning must survive, so graduate it to a full ADR`);
       if (overBudget(a.chars, liteBudget))
-        problems.push(`${a.name}: ${a.chars} chars > ${liteBudget}-char lite budget`);
+        problems.push(`${a.name}: ${a.chars} chars > ${liteBudget}-char lite budget — over by ${a.chars - liteBudget}. Either cut that much, or graduate to a full ADR if the reasoning genuinely must survive (adr-template.md Lite tier)`);
       // Positive lite bar (ADR 0087): settled = "enforced by a test/script/commit"
       // (adr-template.md lite shape) — so the line must EXIST, and any file-like token it cites
       // must still resolve (a deleted/renamed enforcement file = rotted citation). Token-free
@@ -158,7 +158,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     // Char budget (ungameable by long lines, unlike a line cap — see ADR 0008): an ADR over the cap
     // is a violation. No exemptions — 0008 chose rewrite-under-budget over a grandfather allowlist.
     if (overBudget(a.chars, budget))
-      problems.push(`${a.name}: ${a.chars} chars > ${budget}-char budget`);
+      problems.push(`${a.name}: ${a.chars} chars > ${budget}-char budget — over by ${a.chars - budget}. Cut that much from THIS record (relocate detail to its lower home; keep the crux, every cite, and the falsifiable criterion), never raise the cap (doc-budgets.md)`);
   }
 
   // Amendment backlink (ADR 0040): an ADR that ACTIVELY amends another ("amends ADR NNNN") must
@@ -172,7 +172,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
       if (target === a.id || !onDisk.has(target)) continue; // dangling cites are reported above
       const t = byId.get(target);
       if (t && !t.text.includes(a.id))
-        problems.push(`${a.name}: amends ADR ${target}, but ${target} does not cite ${a.id} back (unpointed amendment)`);
+        problems.push(`${a.name}: amends ADR ${target}, but ${target} does not cite ${a.id} back (unpointed amendment) — prefer folding the amendment INTO ${target} in place; if it must stay separate, add the back-cite there`);
     }
   }
 
@@ -289,7 +289,7 @@ export function manifestDrift(pairs) {
   for (const { name, entry, plugin } of pairs)
     for (const f of ["description", "version"])
       if (entry?.[f] !== undefined && plugin?.[f] !== undefined && entry[f] !== plugin[f])
-        problems.push(`${name}: marketplace ${f} drifts from its plugin.json`);
+        problems.push(`${name}: marketplace ${f} drifts from its plugin.json — the manifests ARE the registry, and a mismatch breaks /plugin install. Make the marketplace entry match the plugin.json, not the reverse`);
   return problems;
 }
 
