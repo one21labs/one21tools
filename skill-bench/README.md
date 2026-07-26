@@ -16,7 +16,7 @@ outside this plugin's shipped files, so no link survives an install.
 ## Architecture: bespoke layer on a rented substrate
 
 ```
-  /bench (verdict | skill | trigger)                  <- one explicit-invoke skill, subcommands
+  /bench (verdict | skill | trigger)                  <- one skill, three subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
   cross-family judge (pluggable) | verdict.py            keep in-repo; no vendor sells this
