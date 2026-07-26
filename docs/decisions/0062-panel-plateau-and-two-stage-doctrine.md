@@ -24,6 +24,14 @@ while dropping the 4-7x routine panel cost (C $3.21-4.05 vs. A $0.50-0.56/cell).
 **2 — Adopt the owner two-stage doctrine as repo policy** (owner directive, #184): cheap go/no-go
 gate first, powered optimization ONLY for gate-passers. This ADR is its home.
 
+**4 — Breadth saturates; DEPTH does not** (amended 2026-07-26, #236). The plateau above concerns
+adding ADVISORS inside one round. Re-running the adversary AFTER folding its breaks in is a
+different axis and has not plateaued: three rounds on one PR each raised fresh defects, one of
+them manufactured by the previous round's own fix, with every gate green throughout. A Check
+phase therefore ends when a round raises nothing new — not when the maker is satisfied, and not
+when the gates pass. Enforced: `pdca-workflow/skills/red-team/SKILL.md` (Return). REOPEN-IF two
+consecutive rounds come back dry across several PRs -> drop to a single round.
+
 **3 — Marginal measurement dollar -> #186 Phase-1** (~$17), not a sixth panel-quality instrument
 (~$130) nor nothing. Panel-quality axis is saturated (five nulls, CIs straddle zero). Phase-1
 operationalizes the go/no-go gate itself; poka-yoke first.

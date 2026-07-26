@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Use when a claim, a fix, or produced output needs independent confirmation before you rely on it or ship it. Spawns the fresh verifier agent to reproduce load-bearing claims against real code and output; returns PASS or BLOCK findings.
+description: Use when a claim, a fix, or produced output needs independent confirmation before you rely on it or ship it. Spawns the fresh verifier agent to reproduce load-bearing claims against real code and output; returns PASS, BLOCK findings, or FRAME-UNCHECKED for a claim no independent checker could reach.
 ---
 
 # /verify — the independent gate, standalone (Check)
@@ -14,20 +14,19 @@ without the full ceremony. `/decide` composes it over every ADR.
 1. **State the claim set.** Each load-bearing claim + where it should be observable (file,
    command, output). Include any `[checkable]` assumptions to check.
 2. **Spawn the `verifier` agent fresh** — pass the claims and the paths, never the desired
-   verdict or the reasoning that produced them (uncontaminated is the point). If any claim is
-   about this loop's own behaviour (its blind spots, its remedy, its diagnosis), spawn from a
-   different model lineage than the one that produced the work: fresh clears contaminated
-   reasoning, shared priors survive it, so a same-family checker confirms frame-internal claims
-   and never tests the frame (ADR 0093). A larger sibling model or a clean context is the same
-   lineage. No second lineage available: run it anyway and return that claim `UNVERIFIED-FRAME`,
-   never PASS.
+   verdict or the reasoning that produced them (uncontaminated is the point). A claim about this
+   loop's own behaviour is not one a spawned agent can settle — it inherits the maker's lineage
+   (ADR 0093 owns why; no resolver ships). Route that claim outside the lineage instead.
 3. It reproduces every claim against the real code and produced output — the method and grading
    rules live in the `verifier` agent's own prompt, not here.
 
 ## Return
 
 PASS, or BLOCK with findings. The agent reports per-claim verdicts plus a BLOCKERS list; YOU
-synthesize the label — no BLOCKERS = PASS. A verified correctness/safety finding stands — fix the artifact,
+synthesize the label — no BLOCKERS = PASS. A claim step 2 could not route out is
+`FRAME-UNCHECKED`: it leaves the PASS set, raises no BLOCKER, and travels with the verdict so
+the next consumer sees which claim went unchecked. A verified correctness/safety finding
+stands — fix the artifact,
 don't argue the catch; priority overrules don't apply to verified findings (`/decide`'s rule).
 When a fresh finding supersedes a shared handoff note (a verdict, an assumption result),
 overwrite it before the next agent reads it — a stale verdict a sibling consumes is drift.
