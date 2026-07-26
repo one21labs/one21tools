@@ -50,7 +50,7 @@ absolute rate, and never compare rates across different runs, fields, or environ
 1. WSL only.
 2. Pin `CLAUDE_CONFIG_DIR` to an empty dir seeded with only `.credentials.json` (auth, nothing
    else) — no installed plugins, no cached session state, so the run isn't shadowed. Same
-   hermetic-executor requirement as empirical-evals.md:158; this is its trigger-runner instance.
+   hermetic-executor requirement as empirical-evals.md:165; this is its trigger-runner instance.
 3. A scratch project root with an empty `.claude/` — the runner writes its own command file
    under `.claude/commands/<clean-name>.md` per query; nothing pre-existing should compete.
 4. Eval set: a flat JSON array, `{"query": str, "should_trigger": bool}` per item — not

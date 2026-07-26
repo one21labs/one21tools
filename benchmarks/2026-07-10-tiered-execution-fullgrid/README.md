@@ -178,3 +178,10 @@ haiku-solo mean_delta -0.16 CI95 [-0.279, -0.041], tiered -0.057 [-0.14, +0.026]
 and wall-clock 3.22x sonnet-solo against a <=0.6x bar; `adopt_tiered: false`. Dated dirs are
 append-only (ADR 0026/0041), so this note is appended and the stale text above is left as
 written.
+
+## Correction (appended 2026-07-25, issue #277)
+
+The benchmarks/lib README cited in the workflow-persist comment above moved to
+`skill-bench/scripts/lib/README.md` (skill-bench extraction, commit 851d1cb). Dated dirs are
+append-only (ADR 0041), so this note is appended and the stale path above is left as written
+(ADR 0089).

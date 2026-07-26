@@ -2,8 +2,8 @@
 """
 validate_test.py -- decision-logic test for validate.py's gates (ADR 0009; "never ship a
 process-gating script without a test of its decision logic"). Zero-dependency: Python's stdlib
-unittest. CI runs it from this dir (gates.yml); locally: python validate_test.py  (or:
-python -m unittest validate_test).
+unittest. CI runs it from this dir (gates.yml); locally: python3 validate_test.py  (or:
+python3 -m unittest validate_test).
 
 Each case builds a throwaway skill folder in a temp dir and asserts validate_skill's verdict, so
 the decision logic (name rules, body char cap incl. frontmatter evasion, reference char cap + TOC
@@ -292,7 +292,7 @@ class SelfReferentialPathLint(unittest.TestCase):
 class EvalsJsonGate(unittest.TestCase):
     """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema, including
     the README's "3+ cases" floor (issue #144) -- below EVALS_MIN_CASES the eval-clustered CI
-    (ADR 0025) is statistically meaningless."""
+    (ADR 0019) is statistically meaningless."""
 
     EVAL = {"id": 1, "prompt": "Do the thing", "expected_output": "The thing, done",
             "expectations": ["Output includes X"]}

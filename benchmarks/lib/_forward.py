@@ -2,7 +2,7 @@
 """Loader for the benchmarks/lib forwarding shims (issue #229).
 
 benchmarks/lib moved to skill-bench/scripts/lib (ADR 0055 extraction), but frozen dated dirs
-committed before the move still `sys.path.insert` this directory (ADR 0026: frozen dirs are
+committed before the move still `sys.path.insert` this directory (ADR 0041: frozen dirs are
 never edited). Each shim module here loads its real counterpart by file path — a plain
 `import` would resolve back to the shim itself, since this directory shadows the real one on
 the caller's sys.path.

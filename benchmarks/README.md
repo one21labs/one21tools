@@ -1,6 +1,6 @@
 # benchmarks/
 
-Dated dirs are append-only measurement records — never edit or "retrofit" one (ADR 0026; a
+Dated dirs are append-only measurement records — never edit or "retrofit" one (ADR 0041; a
 re-run either REPRODUCES the committed harness as-is or is a NEW measurement in a new dated dir).
 
 **Landing a run's results retires the prep-era text in the SAME PR** (ADR 0070): a PR that adds
@@ -14,5 +14,7 @@ appended corrections, issue #215).
 import `bench_io`/`verdict`/`hermetic_driver` and read the deny-list from
 `skill-bench/scripts/lib` (the harness moved into the `skill-bench` plugin per ADR 0055; usage:
 that dir's `README.md`); follow the ADR 0023/0026 artifact formats. A copied dir carries
-whatever stale conventions it had at its date. (Frozen dated dirs still reference their original
-`../lib` paths — append-only records, not re-run.)
+whatever stale conventions it had at its date. (Frozen dated dirs keep every original path
+resolvable — an executable dependency gets a forwarding shim, a doc-only cite a pointer stub or
+appended correction; the frozen line itself is never edited. ADR 0089 gates this:
+`scripts/check-relocated-paths.mjs`.)

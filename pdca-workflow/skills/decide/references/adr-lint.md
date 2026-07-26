@@ -42,10 +42,11 @@ summary: "<one line for the skim catalog>"
    signal). An ADR with none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not
    a prose mention); whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic
    call, not lint's.
-6. **Lite tier** (`tier: lite` frontmatter — settled decisions, ADR 0020) — exempt from the
-   falsifiability gate (settled = nothing left to test), but REJECTED if it carries a revisit
-   trigger or open assumption (`REOPEN-IF`, a `## Revisit triggers` section, or an `[unverifiable]`
-   bullet): that means the decision isn't actually settled, so it must graduate to a full ADR.
+6. **Lite tier** (`tier: lite` frontmatter — the DEFAULT, ADR 0062/0092) — exempt from the
+   falsifiability gate (nothing left to test), and it MAY carry a `Reopen-if:` line. REJECTED if
+   it carries the assumption machinery instead — a tagged bullet
+   (`[unverifiable]`/`[checkable]`/`[checkable-doc]`/`[contradiction]`/`[verified]`) or an
+   `## Assumptions` section: that reasoning must survive, so it graduates to a full ADR.
    Positive bar (ADR 0087): the body must also carry an `Enforced:` line (settled = enforced
    somewhere findable — the lite shape in adr-template.md), and every file-like token it cites
    (a closed extension list: mjs/js/ts/md/sh/yml/yaml/json/py/txt) must resolve on disk: exact
@@ -57,7 +58,7 @@ summary: "<one line for the skim catalog>"
    token-free free-form line ("absence", a CI-run description) passes — whether it truly
    enforces is review's semantic call, not lint's.
 7. **Budget** — no ADR exceeds its char budget: caps live in `char-budget.mjs` (never restated here; configurable via
-   `--budget`), lite ADRs to 1,500 (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
+   `--budget`), lite ADRs to their own cap (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
    `char-budget.mjs`; full budget rationale (why chars not lines, no-exemptions rule) in
    `adr-template.md`'s Template section — canonical, not restated here. Advisory (ADR 0067,
    never fails): a `--new-adrs` full ADR past `ADR_CHAR_MARGIN` WARNs — the margin reserves
@@ -106,7 +107,8 @@ A failure prints the offending files and exits non-zero; a clean corpus exits ze
 
 ## Run / install
 ```
-# never pipe — gate-pipe-guard denies it; output is short enough to read unpiped
+# run it so the EXIT CODE survives: bare, or redirect to a file, or `set -o pipefail` first —
+# a bare pipe reports the filter's status, not the gate's, and a red gate then reads green
 node scripts/adr-lint.mjs                  # lints ./docs/decisions, char budget from char-budget.mjs
 node scripts/adr-lint.mjs docs/decisions --budget=8000
 node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)

@@ -12,8 +12,6 @@ summary: "A [checkable] whose test the gate can run in-session ships verified/re
   "checkable (code) the gate verifies, unchecked = defect" — full rule text there (the named-signal
   test for a `[checkable]` pending). No adr-lint rule.
 - Why: a runnable in-session check left `pending` is a defect, not a style choice (PRs #18/#19
-  shipped that violation). ADR 0023:23's pending (gated on #31) is legitimate future-gating.
-  Naming separates the classes with no linter (CLAUDE.md bars gating scripts for a 2-instance
-  failure). 0026/0027's pendings resolve in place (runnable checks); 0006/0007's future-gated
-  pendings name their signals.
+  shipped that violation). ADR 0023's pending (gated on #31) is legitimate future-gating. Naming
+  separates the classes with no linter (a 2-instance failure doesn't earn a gating script).
 - Enforced: `adr-template.md` tag-routing paragraph; `verifier.md:22-24`, unchanged.

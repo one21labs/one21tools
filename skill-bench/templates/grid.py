@@ -2,7 +2,7 @@
 """Canonical grid-runner TEMPLATE (#170).
 
 COPY this file into a new dated benchmark dir and adapt every `ADAPT` block; never clone a
-sibling dated dir (those are frozen measurement records, ADR 0026). The shape you keep:
+sibling dated dir (those are frozen measurement records, ADR 0041). The shape you keep:
 
   - per-cell fresh-copy hermetics: every call runs in its own private copy of the bundle
   - per-arm allow-lists + extra args: arms differ ONLY in the treatment (arm symmetry, ADR 0023)

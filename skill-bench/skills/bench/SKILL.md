@@ -73,7 +73,7 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
   states a FALSIFIABLE hypothesis neutrally — kill conditions and bars up front, motivation labeled
   as grounding (never evidence), a null recorded as an equally valid outcome. Titles pose the
   question, never the answer. Advocacy wording is itself a contamination channel: agents read it.
-- Never edits a frozen dated benchmark dir (append-only, ADR 0026).
+- Never edits a frozen dated benchmark dir (append-only, ADR 0041).
 - **Saturation pre-screen (ADR 0065):** before any grid, run 1 control-arm rep per
   eval/substrate; drop or harden any past the pre-registered ceiling (flag a 0 floor) and
   record the screen in the dated dir — restoring discriminating power, never difficulty-tuning

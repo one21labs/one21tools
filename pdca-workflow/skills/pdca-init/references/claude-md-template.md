@@ -40,12 +40,11 @@ File headers own each file's role + constraints. Start at <the core module> (the
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate.
 Git history is the SSoT for backstory — docs state the current truth, never narrate how it got there
 (retired/renumbered IDs, what-folded-into-what, "Learned" logs = drift; cut on sight).
-Altitude (drop rungs the project lacks, e.g. STRATEGY/ROADMAP): STRATEGY > ROADMAP > README >
-CLAUDE.md > source headers > code. Code is bottom-altitude but TOP authority for executable facts
-(schema versions, signatures, filenames) — a doc that restates them rots. "Code" is whatever form
-the product takes (for a docs/skill/plugin repo: the manifests, `SKILL.md`, and scripts own their
-executable facts the same way). Touch a source artifact -> update its header/frontmatter in the
-same change.
+The altitude ladder's home is pdca-workflow's `doc-budgets.md` (drop rungs this project lacks).
+Code is bottom-altitude but TOP authority for executable facts (schema versions, signatures,
+filenames) — a doc that restates them rots; "code" is whatever form the product takes (for a
+docs/skill/plugin repo: the manifests, `SKILL.md`, and scripts). Touch a source artifact ->
+update its header/frontmatter in the same change.
 
 ## Never
 - <project inviolables — e.g. no debug logging in committed code; no async wrapper around a sync API>
@@ -57,15 +56,16 @@ same change.
 ## Shipping — version, release, PR
 - Version tracks the shipped artifact, not background/meta work; a bump is its own PR, not
   bundled into a feature PR, via the project's version tool.
-- One concern per PR. Sync before spend: `git fetch` + re-read the issue/citing PRs before
-  executing and before the final push (guards duplicate spend across sessions); claim-comment if
-  issue-write is available, clear it on completion.
+- Size PRs for reviewability, not one-concern: ship a cohesive unit across files; split only for
+  a clean revert boundary or to keep main green. Sync before spend: `git fetch` + re-read the
+  issue/citing PRs before executing and before the final push (guards duplicate spend across
+  sessions); claim-comment if issue-write is available, clear it on completion.
 - Three-dot (`main...branch`) for previews, never two-dot — post-squash, a stale local `main`
   re-adds merged commits as a phantom range under two-dot.
-- PR: title = the change; body = Purpose / Changes / Testing / Deferred / Retrospective. Read review comments
-  (human or automated) before merging — address each or say why not. Run `/retrospect` first;
-  record: `Retrospective: run | unavailable | skipped-<reason>` (no size floor). End with a
-  Claude disclosure line on every issue/PR Claude writes (a commit trailer alone isn't
+- PR: title = the change; body = Purpose / Changes / Testing / Deferred. Read review comments
+  (human or automated) before merging — address each or say why not. `/retrospect` is
+  trigger-bound (session close, or on demand while a PR is open), never a per-PR ritual. End
+  with a Claude disclosure line on every issue/PR Claude writes (a commit trailer alone isn't
   disclosure).
 - Never file/edit outside this project's own org/namespace without the owner's per-item approval
   of the exact text — "file upstream" authorizes drafting, not posting.

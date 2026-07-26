@@ -60,10 +60,12 @@ Telegraphic fragments, not prose — one full sentence for the crux (load-bearin
 assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
 visible line. **Budget: the `ADR_CHAR_BUDGET` cap in `char-budget.mjs`** (sized with slack — the cap stops bloat, never forces word-golf) — a char count can't
 be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
-an over-budget ADR is rewritten under the cap, not grandfathered. **Draft to the margin (`ADR_CHAR_MARGIN`) and
-measure once (`node -e` char count) before finalizing** — don't write long and trim in N passes.
-The margin also reserves room for the `## Act` block appended at ship (below); an ADR finalized
-at the cap edge forces a trim at close time.
+an over-budget ADR is rewritten under the cap, not grandfathered. **The cap and the margin
+(`ADR_CHAR_MARGIN`) are CEILINGS, never targets — write the fewest chars that carry the decision
+and stop.** A record near the margin should read as forced by the content, not as budget spent;
+"draft to the margin" is not the instruction. Measure once (`node -e` char count) before
+finalizing — don't write long and trim in N passes. The margin also reserves room for the
+`## Act` block appended at ship (below).
 Over budget = bloat or a missed lower home: relocate to a lower home; keep the crux + every
 cite + the falsifiable criterion. `adr-lint` enforces the cap.
 
@@ -117,9 +119,15 @@ A/B's outcome, a future retro miss), which it must NAME. A permanently out-of-sa
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
-restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say. Each
+restate per ADR. **A rule stated BROADER than the deciding issue names every open issue it
+disposes of, and either cites the settled record that already owns the rule or homes it in the
+shared register** — the named issues stay open carrying that cite. Otherwise two sessions settle
+the same question weeks apart in two records, and neither knows. Append `## Act` after the work
+ships; omit lines with nothing to say. Each
 `- [outcome]` row carries exactly ONE of `verified` / `violated` / `still-open` (lint check 13,
-ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. Across the
+ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. **Correcting a
+mislabelled row: split it in two (one status each) or explain WITHOUT naming the old status word
+— saying "corrected from `verified`" puts two status words in the row and fails the lint.** Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
 `[outcome]` lines) is the **assumption hit-rate** — the emergent, bottom-up quality signal of the
 loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, via
@@ -140,13 +148,14 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 ## Lite tier
 
-For SETTLED decisions only — the boundary is mechanical, not judgment: **a decision that carries a
-live revisit trigger or an open assumption needs a full ADR; one that is settled (no trigger,
-enforced by a test/script/commit) records as `tier: lite`.** Same directory, same catalog, same id
-sequence; `adr-lint` enforces the tier (the rejection predicate is adr-lint.md check 6 — canonical
-there, not restated here; a failing record graduates to a full ADR). **Budget:
-≤1,500 chars** (`LITE_ADR_CHAR_BUDGET`); the criterion gate does not apply (settled = nothing left
-to test). Shape — three parts, no panel/assumptions/alternatives machinery:
+The DEFAULT tier (ADR 0062). The corpus exists to stop a future session RE-DECIDING a settled call (ADR 0092). Lite carries
+exactly the fields that do that and nothing else. The boundary is mechanical: a decision whose
+REASONING must survive — tagged assumptions someone must resolve, or an `## Assumptions` block —
+graduates to a full ADR; everything else is lite, INCLUDING a decision with a reopen-if.
+(A reopen-if no longer forces full tier: dropping it from the cheap tier is what pushed
+churn-preventing records into the expensive one.) `adr-lint` enforces this — predicate at
+adr-lint.md check 6, canonical there. **Budget: the `LITE_ADR_CHAR_BUDGET` cap in
+`char-budget.mjs`** (a ceiling, not a target); the falsifiability gate does not apply.
 
 ```
 ---
@@ -161,11 +170,15 @@ summary: "<one line for the skim catalog>"
 
 - Decision: <what, in one or two fragments>
 - Why: <the one load-bearing reason>
+- Rejected: <what was considered and why not — the field that stops it being re-proposed>
+- Reopen-if: <the condition that would legitimately revisit it; omit only if none exists>
 - Enforced: <test / script / gate file that makes it stick>
 ```
 
-If a lite record later gains a trigger (something changed), graduate it: rewrite as a full ADR in
-place, same id — the tier field is state, not history.
+`Rejected:` and `Reopen-if:` are the anti-churn pair — a reader who knows what was already
+weighed, and what would justify reopening, does not re-litigate. Omit `Rejected:` only when
+nothing was seriously considered. If a lite record later needs tracked assumptions, graduate it:
+rewrite as a full ADR in place, same id — the tier field is state, not history.
 
 ## Shared assumption register
 

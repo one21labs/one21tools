@@ -7,7 +7,7 @@ Prioritize all work against it.
 No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
 `scripts/`); plugins are top-level dirs with a `.claude-plugin/plugin.json`,
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
-Validate a skill: `python skills/building-skills/scripts/validate.py <dir>`.
+Validate a skill: `python3 skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Metrics:
 `node scripts/scorecard.mjs`. Before editing
@@ -25,7 +25,7 @@ don't restate. Operationalized, not a slogan:
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
   Process-Level Poka-yoke.
 - **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
-  inline findings, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
+  one findings comment, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
   empty findings valid, never a green line.
 - **Two-why (ADR 0081):** before fixing any gate/CI/verifier failure: instance or class? which
   rung should have caught it? "My error" never ends the chain.
@@ -39,9 +39,9 @@ don't restate. Operationalized, not a slogan:
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate
-(backstory rules: `ssot-enforcement.md`). Altitude: README > CLAUDE.md > SKILL.md /
-manifests / scripts (the "code" here — they own skill names, manifest fields, the registry, the
-deterministic logic; a doc that restates them rots).
+(backstory rules: `ssot-enforcement.md`). The ladder's home is `doc-budgets.md`; its bottom rung
+here = manifests, SKILL.md, scripts — they own skill names, the registry, the deterministic
+logic; a doc restating them rots.
 
 ## Never
 - ship a SKILL.md that fails `validate.py`, or invalid marketplace/plugin JSON
@@ -58,8 +58,8 @@ deterministic logic; a doc that restates them rots).
   tracking issue whose title no longer matches its remaining scope before working under it.
 - **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
   fails the same way — PATCH the body via `gh api`.
-- **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
-  findings; address each or say why not. Merging unread leaves muda on `main`.
+- **Read the PR's review comments before merging** — the advisory muda-review CI posts one
+  comment; address each finding or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
   before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges). Preview with

@@ -6,8 +6,8 @@ Creates .skill ZIP file for upload to Claude.ai.
 Validates skill before packaging - will not package invalid skills.
 
 Usage:
-    python package.py <skill-folder> [output-directory]
-    python package.py /path/to/my-skill ./dist
+    python3 package.py <skill-folder> [output-directory]
+    python3 package.py /path/to/my-skill ./dist
 
 Output:
     Creates <skill-name>.skill in output directory (default: current dir)
