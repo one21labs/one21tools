@@ -32,7 +32,7 @@ TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LIN
 REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)
 REFERENCE_TOC_THRESHOLD = 6000  # a reference past this many CHARS must carry a TOC
 EVALS_MIN_CASES = 3             # README's "3+ cases" floor (issue #144); below this an
-                                 # eval-clustered CI (ADR 0025) is statistically meaningless
+                                 # eval-clustered CI (ADR 0019) is statistically meaningless
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 VALID_TRIGGERS = ["invoke when", "use when", "use for", "apply when"]

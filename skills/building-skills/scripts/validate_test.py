@@ -292,7 +292,7 @@ class SelfReferentialPathLint(unittest.TestCase):
 class EvalsJsonGate(unittest.TestCase):
     """R7 (ADR 0013): evals/evals.json, when present, matches skill-creator's schema, including
     the README's "3+ cases" floor (issue #144) -- below EVALS_MIN_CASES the eval-clustered CI
-    (ADR 0025) is statistically meaningless."""
+    (ADR 0019) is statistically meaningless."""
 
     EVAL = {"id": 1, "prompt": "Do the thing", "expected_output": "The thing, done",
             "expectations": ["Output includes X"]}
