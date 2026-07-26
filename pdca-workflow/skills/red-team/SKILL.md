@@ -21,3 +21,10 @@ ADR folds a safety caveat in as a BLOCKER.
 Each break gets a response before proceeding: accept it and fold the fix in, or refute it with
 evidence (cite file:line or output). An unanswered break BLOCKS. Fold accepted breaks into the
 artifact or ADR itself — a break answered only in conversation is drift.
+
+## Self-referential candidates
+
+When the candidate is a claim about the loop's OWN behavior — its blind spots, its remedy's
+shape, its diagnosis's completeness — fresh-but-same-family shares the priors it should be
+attacking. Prefer a different model family for that class (ADR 0093); note the self-family
+caveat explicitly rather than silently substituting when none is configured.

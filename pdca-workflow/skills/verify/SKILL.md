@@ -25,3 +25,12 @@ synthesize the label — no BLOCKERS = PASS. A verified correctness/safety findi
 don't argue the catch; priority overrules don't apply to verified findings (`/decide`'s rule).
 When a fresh finding supersedes a shared handoff note (a verdict, an assumption result),
 overwrite it before the next agent reads it — a stale verdict a sibling consumes is drift.
+
+## Self-referential claims
+
+A claim about the loop's OWN behavior — its blind spots, its remedy's shape, its diagnosis's
+completeness — needs a checker independent of the thing tested. Fresh + same-family clears
+contaminated *reasoning* but shares the session's *priors*, so it verifies frame-internal claims
+well and cannot see the frame; a different model family is the strongest available independence
+for that class (ADR 0093). No backend is prescribed here — an adopter without a second family
+states the self-family caveat explicitly, never a silent substitution.
