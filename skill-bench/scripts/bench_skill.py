@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
 from judge import make_judge, met_map  # noqa: E402
 from substrate import make_substrate  # noqa: E402
+from spend_guard import add_spend_flag, require_yes  # noqa: E402
 
 
 def grade_all(gen_rows, evals_by_id, judge):
@@ -57,7 +58,7 @@ def main():
                     help="generations per task x arm (a single pass cannot separate reliably-good "
                          "from lucky; ADR 0019/0058 — set 1 only for a smoke run)")
     ap.add_argument("--out", default="-")
-    ap.add_argument("--yes", action="store_true", help="confirm paid generation (spend guard)")
+    add_spend_flag(ap, "paid generation")
     a = ap.parse_args()
     if a.reps < 1:
         sys.exit("--reps must be >= 1")
@@ -67,11 +68,8 @@ def main():
     arms = [{"name": "with", "cmd": json.loads(a.with_cmd)},
             {"name": "without", "cmd": json.loads(a.without_cmd)}]
     n_gen = len(evals) * 2 * a.reps
-    print(f"[cost] {len(evals)} tasks x 2 arms x {a.reps} reps = {n_gen} generations + "
-          f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})", file=sys.stderr)
-    if not a.yes:
-        print("Refusing to spend without --yes (spend guard). Re-run with --yes to proceed.", file=sys.stderr)
-        sys.exit(2)
+    require_yes(a.yes, f"{len(evals)} tasks x 2 arms x {a.reps} reps = {n_gen} generations + "
+                       f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})")
 
     sub = make_substrate(a.substrate)
     judge = make_judge(a.judge)  # 'auto' falls back grok->claude; raises with remedy if none

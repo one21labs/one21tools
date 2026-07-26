@@ -42,7 +42,7 @@ export function findMissingModel(source, name = "workflow") {
     const call = source.slice(start, i - 1);
     const line = source.slice(0, m.index).split("\n").length;
     if (!/model\s*:/.test(call))
-      problems.push(`${name}:${line}: agent() call without a model: key (inherits the session model)`);
+      problems.push(`${name}:${line}: agent() call without a model: key (inherits the session model) — add an explicit model: to the opts object so the fan-out tier is a decision, not an accident`);
   }
   return problems;
 }

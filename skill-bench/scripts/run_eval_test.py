@@ -15,7 +15,7 @@ import json
 import unittest
 from pathlib import Path
 
-from run_eval import DetectState, detect_trigger_line, summarize_query, summarize_results
+from run_eval import DetectState, detect_trigger_line, planned_runs, summarize_query, summarize_results
 
 
 def sse(event: dict) -> str:
@@ -240,6 +240,32 @@ class StdinDevnullRegression(unittest.TestCase):
     def test_subprocess_popen_passes_stdin_devnull(self):
         source = Path(__file__).with_name("run_eval.py").read_text(encoding="utf-8")
         self.assertIn("stdin=subprocess.DEVNULL", source)
+
+
+class TestSpendGuard(unittest.TestCase):
+    """The `trigger` subcommand launches one paid `claude -p` per query per run. `bench` is
+    model-invocable (ADR 0016), so the refusal must not depend on the model remembering a flag."""
+
+    def test_planned_runs_multiplies_queries_by_runs(self):
+        self.assertEqual(planned_runs(12, 3), 36)
+        self.assertEqual(planned_runs(0, 3), 0)
+
+    def test_refuses_to_spend_without_yes(self):
+        import subprocess, tempfile, os
+        d = tempfile.mkdtemp()
+        evals = Path(d) / "e.json"
+        evals.write_text(json.dumps([{"query": "q", "should_trigger": True}]))
+        skill = Path(d) / "s"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: s\ndescription: d\n---\n\n# s\n")
+        r = subprocess.run(
+            ["python3", str(Path(__file__).parent / "run_eval.py"),
+             "--eval-set", str(evals), "--skill-path", str(skill)],
+            capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertIn("spend guard", r.stderr)
+        self.assertIn("[cost]", r.stderr)
+
 
 
 if __name__ == "__main__":
