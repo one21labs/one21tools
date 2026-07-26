@@ -40,8 +40,10 @@ export const overBudget = (chars, cap) => chars > cap;
 // larger cap (e.g. a review-system reference) adds its entry here.
 export const DOC_BUDGETS = {
   "CLAUDE.md": 6000, // ~2 pp, the always-loaded layer
-  // The scaffold consumers copy to their own CLAUDE.md — held to the same cap so the copy can't
-  // ship over the budget it teaches (#164: two under-cap PRs merge-skewed it to 6047).
+  // SOURCE-REPO ONLY — prune this entry when vendoring. The path exists only where the plugin is
+  // developed, not where it is installed, so in a consumer checkout it is inert (the walk is
+  // ENOENT-tolerant). Kept here so the scaffold can't ship over the budget it teaches
+  // (#164: two under-cap PRs merge-skewed it to 6047).
   "pdca-workflow/skills/pdca-init/references/claude-md-template.md": 6000,
 };
 
@@ -56,10 +58,22 @@ export const ADR_CHAR_BUDGET = 9000;
 // PR-ADDED full ADR (--new-adrs) exceeds it (ADR 0067); the legacy corpus is not swept.
 export const ADR_CHAR_MARGIN = 8000;
 
-// Lite-tier ADR cap (`tier: lite` frontmatter): a SETTLED decision — decision + why + where it's
-// enforced, no panel/assumptions/revisit machinery. A quarter page keeps the tier honest: anything
-// needing more argument than this likely has a live trade-off and belongs in a full ADR.
-export const LITE_ADR_CHAR_BUDGET = 1500;
+// Lite-tier ADR cap (`tier: lite`). RAISED 1,500 -> 2,000 (ADR 0092) to buy room for the two
+// fields that actually prevent churn — rejected alternatives and reopen-if — which the old shape
+// dropped. Raising a cap to shrink a corpus is not a contradiction: lite is the DEFAULT tier
+// (ADR 0062), and a 2,000-char record that carries the anti-churn fields displaces a ~5,600-char
+// full one that was only full because lite could not hold them.
+export const LITE_ADR_CHAR_BUDGET = 2000;
+
+// WIP cap on the WHOLE decision corpus (ADR 0092). Per-file caps bound each record but not the
+// count, so the corpus grew to 428,269 chars while every file passed. Owner-set at 200,000 and
+// MET by compaction (194,883 achieved, 54% cut) — not aspirational. From here growth is PAID FOR
+// by compacting or superseding, never granted. The point is not inference cost (an unread record
+// costs no tokens) — holding a record costs drift-maintenance, retrieval noise and triage
+// forever, so the cap forces "does this earn its carrying cost?" instead of deferring it. A lite
+// record spends a fraction of a full one, so the cheapest way to stay under is the tier ADR 0062
+// already made the default.
+export const ADR_CORPUS_BUDGET = 200000;
 
 // Agent prompt files (pdca-workflow/agents/*.md) — a lean-prompt guard (ADR 0009); a glob capped by
 // this sibling budget, same shape as the ADR corpus. Slack above the ~3,000 the prompts run at,
@@ -114,4 +128,18 @@ export function agentNameMismatches(dir) {
     if (name !== expected) out.push(`${dir}/${f}: name '${name ?? "(none)"}' != '${expected}'`);
   }
   return out;
+}
+
+/**
+ * Corpus WIP cap (ADR 0092). PURE over `sizes` (an array of per-record char counts) so the
+ * decision logic is testable without a corpus on disk. Returns null when under, else the
+ * overage plus what it costs in records — the remedy is compaction, never "drop the record you
+ * are adding", so the message names the trade rather than the violation.
+ */
+export function corpusOverage(sizes, cap = ADR_CORPUS_BUDGET) {
+  const total = sizes.reduce((a, b) => a + b, 0);
+  if (total <= cap) return null;
+  const over = total - cap;
+  return { total, cap, over,
+    remedy: `compact or supersede ~${over} chars (about ${Math.ceil(over / LITE_ADR_CHAR_BUDGET)} lite-record equivalents) before adding — a corpus is inventory, and this cap makes the carrying cost payable instead of deferred` };
 }

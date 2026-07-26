@@ -79,7 +79,9 @@ need one right-sized check, not the ceremony; `/decide` composes them and adds t
 **Measured (2026-07, six instruments; `benchmarks/2026-07-1{2,3,4}-pdca-*` in the source repo):**
 `/retrospect` shows no recall/triage edge over a bare reviewer on seeded defects — on
 discriminating substrates with a triage-aware metric the delta is ~zero under both judge
-families — but reproducibly asserts HALF the false findings (FP guard, both versions).
+families — but reproducibly asserts FEWER false findings, same direction in both versions at
+very different magnitudes (FP guard per clean cell: v2 1.33 vs 2.50, a halving; v1 1.167 vs
+1.333, ~12%).
 `/decide` shows no rubric-quality edge over a token-matched deliberation prompt
 (judge-sensitive: +0.010 same-family; the cross-family re-grade moves it positive — direction
 only, prototype basis per ADR 0057; CIs straddle zero); a 7x-cheaper
@@ -93,8 +95,8 @@ per-run variance and NO run-to-run variance damping (three same-config runs: pan
 spread ~ bare spread). A mechanical DoD record check predicts record quality among bare
 records only (+0.21/+0.23 both corpora); panel records satisfy its items by construction.
 Measured value so far: process guarantees, FP discipline, and that independence edge — not
-per-decision quality, not consistency. Follow-up: ADR 0057/0061; live successors #184, #186
-Phase-1.
+per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into ADR 0065,
+and #186's Phase-1 was closed won't-do (the ceremony cut) — no enforcement gate ships.
 
 ## What's in the box
 

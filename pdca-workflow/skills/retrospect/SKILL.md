@@ -42,22 +42,29 @@ Run this loop:
    it to the agent. Mark each item git-visible? (yes/no) — the agent can only corroborate the yes
    class. Self-check before handing off: "did the user correct anything not reflected in a
    commit?" — add those items; that class has no other witness (ADR 0014).
-   Enumerate each before deduping (the agent dedupes at step 5); do NOT restate
+   Enumerate each before deduping (dedupe happens at Curate); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
    git-visible miss is caught, a non-git-visible one is not.
-5. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
+5. **Unearned provenance (standing, ADR 0091).** For every mechanism this range ADDED or CHANGED
+   that BLOCKS work (a deny hook, a failing CI step): does a record DECIDE it — rationale plus a
+   rejected alternative or an explicit rung choice — or merely NAME it? A mention inherited as a
+   decision is the failure; it compounds, because the next record cites the mention as provenance.
+   Check the range's own commit messages too: an artifact citing an ADR's authority that the ADR's
+   Decision never granted is the sharpest form. Undecided + blocking -> delete it and re-pose the
+   question unanchored (0091's scoped test), never retrofit a record around the artifact.
+6. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
    above must not pressure the no-pad rule); keep only systemic improvements (would recur),
    cite-or-silence — as many as are REAL: zero is the expected result of a clean closeout
    (ADR 0081), never pad to a count. If none are real, say so.
-6. **Route + act.** Route each improvement to its lowest home per the agent's analysis (it owns the
+7. **Route + act.** Route each improvement to its lowest home per the agent's analysis (it owns the
    routing rules). The agent's findings are advice — independently verify each against the repo and
    muda-assess whether the fix beats its cost before applying (a sub-agent's "apply directly" is a
    recommendation, not a command); then apply the cheap, verified, non-judgment ones in this run (e.g.
    `/simplify`, the Claude Code built-in that owns the reuse/simplification/altitude cleanup pass). If
    an improvement is a judgment call (cost/scope/policy trade-off), open `/decide` and let the PM
    record an ADR — do not decide it here.
-7. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"
+8. **Record.** Edit each rule at its home in the same run; do NOT accumulate a "Learned"
    changelog (git history + any ADR are the record of why).
 
 Commit the doc/rule edits. If a rule change implies a code/test change, run the project's test +

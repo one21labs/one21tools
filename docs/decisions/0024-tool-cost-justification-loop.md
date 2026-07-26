@@ -2,41 +2,32 @@
 id: 0024
 title: "Tool improvement loop: earn tokens better each iteration, cut only after benefit-per-token provably plateaus"
 status: accepted
-summary: "An artifact's PRIMARY obligation is to IMPROVE — raise benefit-per-token via a targeted edit informed by transcript-level diagnosis of the with-arm's weak cells — under a hermetic executor (ADR 0023) and the eval-clustered CI (ADR 0019). Cutting the artifact is the fallback, only after 3 valid improvement iterations provably plateau; a null under a confounded measurement doesn't count, and evals are never difficulty-raised to force a result."
+summary: "An artifact's PRIMARY obligation is to IMPROVE — raise benefit-per-token via a targeted edit informed by transcript-level diagnosis of weak cells — under a hermetic executor (ADR 0023) and the eval-clustered CI (ADR 0019). Cutting is the fallback, only after 3 valid iterations provably plateau; evals are never difficulty-raised to force a result."
 ---
 
 # 0024 — tool improvement loop
 
 - Date: 2026-07-08
-- Owner: PM (owner-directed from the "do the repo's tools justify their cost" mission)
-- Panel: owner-directed; grounded in the first hermetic ablation this session, which needed 3 iterations and surfaced the framing-sensitivity lesson. Check: the loop ran end-to-end and reached a verdict (KEEP on iteration 3).
-- Context: char budgets enforce the COST side ("token efficiency enforced, not aspirational"); nothing enforced the BENEFIT side, so a skill/plugin/always-loaded section could sit in context on assertion alone, or get cut on one weak measurement instead of being IMPROVED. ADR 0023 made a treatment-free (hermetic) verdict possible; this ADR says the verdict's PRIMARY obligation is to raise benefit-per-token — cut is the fallback, not the goal.
+- Owner: PM
+- Context: char budgets enforce the COST side; nothing enforced the BENEFIT side, so an artifact could sit in context on assertion, or get cut on one weak measurement instead of being improved.
 
 ## Decision
-1. **Purpose: improve, not gatekeep.** An artifact's context cost is justified by actively maximizing benefit-per-token, not by clearing a bar once. Read the verdict off the eval-clustered CI (ADR 0019) under a hermetic executor (ADR 0023) — CI excludes zero and positive means it is MEASURABLY earning its cost — but a pass is not a stop condition: keep improving while a weak cell remains closeable.
-2. **Improvement method, per iteration:**
-   a. **Find weak cells** — losses and ties in the with-arm where the artifact should have helped (not evals it was never meant to move).
-   b. **Diagnose at transcript level** — read the with-arm transcript for WHY it did not help: unclear, unactionable, not surfaced, buried past where the agent looked, or actively misleading.
-   c. **Targeted edit** that closes the diagnosed gap AND/OR cuts the low-signal tokens the diagnosis exposed as dead weight — either move raises benefit-per-token (ADR 0019's honest denominator makes it a ratio, so a cut at unchanged benefit scores like an equal-cost benefit gain).
-   d. **Re-measure hermetically** (ADR 0023); keep the edit only if benefit-per-token improved over the pre-edit baseline, else revert it. The arm-construction script must derive the touched-file set from the draft's git diff and assert the treatment includes it (a treatment blind to the edits is a rigged null; per #63).
-3. **Never difficulty-raise evals to force a result.** A weak cell is closed by editing the ARTIFACT or fixing the DIAGNOSIS/measurement, never by rewriting an eval harder to manufacture a delta (that mistakes measurement noise for artifact weakness). Eval rewrites follow the DISCRIMINATE rule and its retune caution in `skills/building-skills/references/empirical-evals.md`, not this loop.
-4. **Cut is the fallback.** Only after 3 VALID improvement iterations plateau (each re-measurement shows no benefit-per-token gain beyond noise) does the artifact fail: record the null (append-only, ADR 0019) and produce a plan for further empirical testing. An iteration may instead fix the MEASUREMENT (de-confound — e.g. hold the executor's base framing NEUTRAL: ablating always-loaded PROSE is framing-sensitive, one section measured +0.17 / 0.00 / +0.375 under tool-denied / implement-biased / neutral framings) rather than the artifact; a null under a confounded measurement does NOT count toward the 3. Never silently keep an unproven artifact, nor silently delete a cleanly-measured null.
+1. **Purpose: improve, not gatekeep.** Read the verdict off the eval-clustered CI (ADR 0019) under a hermetic executor (ADR 0023) — CI excludes zero and positive means it is measurably earning its cost — but a pass is not a stop condition: keep improving while a weak cell remains closeable.
+2. **Improvement method, per iteration:** (a) find weak cells in the with-arm; (b) diagnose at TRANSCRIPT level why it did not help; (c) a targeted edit closing the gap and/or cutting low-signal tokens; (d) re-measure hermetically, keep only if improved, else revert. The arm-construction script must derive the touched-file set from the draft's git diff (a treatment blind to the edits is a rigged null).
+3. **Never difficulty-raise evals to force a result** — a weak cell is closed by editing the artifact or fixing the diagnosis/measurement, never by rewriting an eval harder.
+4. **Cut is the fallback.** Only after 3 VALID iterations plateau does the artifact fail: record the null (append-only, ADR 0019) and produce a plan for further testing. A confounded measurement fix doesn't count toward the 3.
 
 ## Justification
-Forces every context-cost artifact toward its best benefit-per-token, not merely past a keep/cut line — stopping at a first pass leaves the same value on the table that an unmeasured artifact leaves cost unjustified. Bounded so it converges; record+plan preserves the finding instead of a silent keep/delete. Cost is low: reuses ADR 0023's executor and `eval_verdict.py`; the loop is protocol, not new machinery.
+Forces every context-cost artifact toward its best benefit-per-token, not merely past a keep/cut line. Bounded so it converges; record+plan preserves the finding instead of a silent keep/delete.
 
 ## Assumptions
-- [verified] the loop is executable end-to-end — exercised on the CLAUDE.md-template "Feedback = PDCA trigger" section (KEEP on iter3, +0.375, 95% CI [+0.12, +0.64]) in `benchmarks/2026-07-08-claude-md-template-ablation-hermetic/`.
-- [checkable] the hermetic executor + eval-clustered CI exist and are owned — ADR 0023 + `eval_verdict.py`/`eval_verdict_test.py` (gates); result: green.
-- [unverifiable] 3 iterations distinguishes "artifact is weak" from "measurement is hard" — REOPEN-IF an artifact needs >3 VALID iterations to show a benefit that later replicates; then raise the cap or split measurement-fix vs artifact-fix budgets.
+- [verified] the loop is executable end-to-end — exercised on the CLAUDE.md-template ablation (`benchmarks/2026-07-08-claude-md-template-ablation-hermetic/`), KEEP on iteration 3, +0.375, 95% CI [+0.12, +0.64].
+- [checkable] the hermetic executor (ADR 0023) + eval-clustered CI (ADR 0019) exist and are owned — `eval_verdict.py`/`eval_verdict_test.py` (gates). result: green.
+- [unverifiable] 3 iterations distinguishes "artifact is weak" from "measurement is hard" — REOPEN-IF an artifact needs >3 VALID iterations to show a benefit that later replicates; raise the cap or split measurement-fix vs artifact-fix budgets.
 
 ## Rejected alternatives
-- Keep/cut as the loop's primary framing, improvement as an afterthought — leaves benefit-per-token gains on the table whenever an artifact clears the bar on iteration 1; the bar is a floor, not a ceiling.
-- Delete any artifact that fails once — survivorship bias; a single confounded null is not evidence (iter1/iter2 here were confounded, iter3 was KEEP).
-- Keep artifacts on assertion, no measurement — the unjustified-cost status quo this closes.
-- Unbounded iteration — never converges; 3 + record/plan forces a decision.
-- Raise eval difficulty to force a delta on a stuck cell — mistakes measurement noise for artifact weakness (Decision 3).
+- Keep/cut as the primary framing — leaves gains on the table on iteration 1; delete any artifact that fails once — a confounded null isn't evidence; unbounded iteration — never converges; raise eval difficulty — mistakes noise for weakness.
 
 ## Revisit triggers
-- An artifact needs >3 valid iterations for a benefit that later replicates -> raise the cap, or separate measurement-fix from artifact-fix iteration budgets.
-- A recorded null is later shown beneficial under better testing -> the plan fired; re-measure and supersede the null.
+- An artifact needs >3 valid iterations for a benefit that later replicates -> raise the cap, or separate measurement-fix from artifact-fix budgets.
+- A recorded null is later shown beneficial under better testing -> re-measure and supersede it.

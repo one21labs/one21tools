@@ -31,7 +31,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS, corpusOverage } from "./char-budget.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
 // location — see char-budget.mjs's header comment: a fixed offset from this file would break a
@@ -109,14 +109,16 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     // in the file, else a bare `[unverifiable]` + a stray REOPEN-IF (e.g. the `## Revisit triggers`
     // header's idiom) would fail open. PRESENCE only (a real tagged bullet, `-` or `*`, not a prose
     // mention); whether a stated criterion is GENUINELY falsifiable is the PM's/gate's call, not lint's.
-    // Tier boundary (`tier: lite` frontmatter): a lite ADR records a SETTLED decision —
-    // decision + why + where it's enforced, under the lite budget. The boundary is mechanical:
-    // a live revisit trigger or open assumption means the decision is NOT settled, so a lite
-    // ADR carrying one must GRADUATE to a full ADR (where the criterion gate below applies).
+    // Tier boundary (ADR 0092): the discriminator is the ASSUMPTION MACHINERY, not a reopen-if.
+    // Lite now carries `Rejected:` and `Reopen-if:` — the two fields that actually stop a future
+    // session re-deciding — so a trigger no longer forces full tier. What forces full is a
+    // decision whose REASONING must survive: tagged assumptions someone must resolve, or the
+    // `## Assumptions` block that tracks them. (Was: any REOPEN-IF graduated, which is why the
+    // anti-churn fields were unavailable in the cheap tier at all.)
     if (a.lite) {
-      if (/REOPEN-IF/i.test(a.text) || /^## Revisit triggers/m.test(a.text)
-          || /^\s*[-*]\s*\[unverifiable\]/m.test(a.text))
-        problems.push(`${a.name}: lite ADR carries a revisit trigger/open assumption — graduate it to a full ADR`);
+      if (/^\s*[-*]\s*\[(?:unverifiable|checkable|checkable-doc|contradiction|verified)\]/m.test(a.text)
+          || /^## Assumptions/m.test(a.text))
+        problems.push(`${a.name}: lite ADR carries tagged assumptions — that reasoning must survive, so graduate it to a full ADR`);
       if (overBudget(a.chars, liteBudget))
         problems.push(`${a.name}: ${a.chars} chars > ${liteBudget}-char lite budget`);
       // Positive lite bar (ADR 0087): settled = "enforced by a test/script/commit"
@@ -302,7 +304,8 @@ function manifestPairs() {
 
 // Both agent homes get the same budget + name-matches-filename checks: the plugin's shipped
 // meta-roles (pdca-workflow/agents) and this repo's advisor panel (.claude/agents, ADR 0028).
-// Both walks are ENOENT-tolerant, so a consumer with neither dir is unaffected.
+// Both walks are ENOENT-tolerant, so a consumer with neither dir is unaffected. `pdca-workflow/
+// agents` is a SOURCE-REPO path — inert once vendored; a consumer keeps only `.claude/agents`.
 export function agentProblems(dirs = ["pdca-workflow/agents", ".claude/agents"]) {
   const out = [];
   for (const d of dirs) {
@@ -380,6 +383,10 @@ function main(argv) {
   const repoFiles = repoFileList();
   const { problems } = lint({ files, budget, repoFiles });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
+  // Corpus WIP cap (ADR 0092): per-file caps bound each record but never the count. Measured from
+  // the SAME `files` already read, so no second walk can disagree with the per-record report above.
+  const corpus = corpusOverage(files.map(f => f.text.length));
+  if (corpus) problems.push(`ADR CORPUS over budget: ${corpus.total}/${corpus.cap} chars — ${corpus.remedy}`);
   problems.push(...agentProblems());
   problems.push(...manifestDrift(manifestPairs()));
 

@@ -232,9 +232,17 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
       display: `${exempt.length} guard(s)`, sample: exempt.length, status: "readout",
       detail: `zero hits is a legitimate state for: ${exempt.join(", ")}`,
     });
-    undeclaredGuards = liveness.hooks
-      .filter(h => !LIVENESS_CLASSES.includes(h.classification))
-      .map(h => h.path);
+    // A guard declared boundary-coupled but absent from the configured series produces NO row of
+    // any kind — more silent than "undeclared", because the declaration reads as watched while
+    // nothing watches. Counted with the undeclared: rung NONE either way (ADR 0086 (e)).
+    const seriesGuards = new Set(liveness.series.map(s => s.guard));
+    const unwatchedCoupled = liveness.hooks
+      .filter(h => h.classification === "boundary-coupled" && !seriesGuards.has(h.path))
+      .map(h => `${h.path} (declared boundary-coupled, no configured series)`);
+    undeclaredGuards = [
+      ...liveness.hooks.filter(h => !LIVENESS_CLASSES.includes(h.classification)).map(h => h.path),
+      ...unwatchedCoupled,
+    ];
     if (undeclaredGuards.length) rows.push({
       metric: "liveness UNDECLARED wired guards (rung NONE, ADR 0086 (e))", value: null,
       display: `${undeclaredGuards.length} guard(s)`, sample: undeclaredGuards.length, status: "readout",

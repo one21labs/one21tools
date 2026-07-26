@@ -39,3 +39,10 @@ python blind.py                                  # outputs/ -> graded/items (arm
 python aggregate.py                              # -> results.jsonl + per-skill verdicts
 python archive_raw.py                            # once: outputs/all.tar.gz + per-(skill,arm) sample
 ```
+
+## Correction (appended 2026-07-25, issue #277)
+
+The benchmarks/lib README cited in the workflow-persist comment above moved to
+`skill-bench/scripts/lib/README.md` (skill-bench extraction, commit 851d1cb). Dated dirs are
+append-only (ADR 0041), so this note is appended and the stale path above is left as written
+(ADR 0089).

@@ -2,42 +2,64 @@
 id: 0081
 title: "Mitigate pressure-narrowing at failure points: standing session-close retrospect (amends 0030) + the two-why check"
 status: accepted
-summary: "The failure mode: at the moment of failure, goal pressure narrows diagnosis to 'what makes this pass', and a self-attributed rule violation terminates the why-chain — reproduced by Claude in-session and by humans under plant-failure pressure (owner, same week). Mitigation: /retrospect becomes the standing session-close DEFAULT with mechanically recorded compliance — a SessionEnd hook logs every session boundary so a skipped closeout is a countable miss; adoption is measured by a grep-able Retrospect-Run token; readout first, no band (0080 discipline), review /decide at 10 sessions. Every gate/CI/verifier failure gets the two-why check (instance or class? which rung should have caught it?) — an instruct-rung discipline, deliberately not claimed as a forcing function. Records the prevention-instrument doctrine from the 0030 post-mortem."
+summary: "At the moment of failure, goal pressure narrows diagnosis to 'what makes this pass', and a self-attributed rule violation terminates the why-chain. Mitigation: /retrospect becomes the standing session-close DEFAULT with mechanically recorded compliance (SessionEnd hook + Retrospect-Run token, review /decide at 10 sessions). Every gate/CI/verifier failure gets the two-why check. Records the prevention-instrument doctrine from the 0030 post-mortem."
 ---
 
 # 0081 — pressure-narrowing mitigation
 
 - Date: 2026-07-19
-- Owner: PM (direction owner-decided in-session — the want is quoted, not inferred)
-- Panel: none (direction settled by owner; design uncontested); fresh `red-team` ran pre-ship per ADR 0062, every break folded in.
-- Context: the PR #251 cap failure was self-attributed ("didn't measure first") and fixed as an instance; the CLASS defect — `budget-edit-guard.sh:14` never covered the validate.py file class while `doc-budgets.md:52-56` claims it does — surfaced only when a forced retrospect read the same friction as data (#255). The mode is not model-specific: the owner watched the identical pattern in humans under plant-failure pressure the same week (churn + delay until a calm 5-Whys found root cause). A judgment-gated reflection step fails precisely when needed, because the gating judgment is the impaired one.
+- Context: the PR #251 cap failure was self-attributed ("didn't measure first") and fixed as an
+  instance; the CLASS defect (`budget-edit-guard.sh` never covered the validate.py file class
+  while `doc-budgets.md` claimed it did) surfaced only when a forced retrospect read the same
+  friction as data (#255). A judgment-gated reflection step fails precisely when needed, because
+  the gating judgment is the impaired one.
 
 ## Decision
-**(a) Session-close retrospect is STANDING (amends ADR 0030 in place).** The per-PR ritual stays dead; on-demand stays available; session close becomes a defined trigger — granularity 0030 never measured (its null was per-PR). Closeout mode (home: `retrospect/SKILL.md`): scope = everything shipped since session start; the friction hand-off is a MANDATORY enumerated checklist (corrections, wrong guesses, rework, permission denials, CI failures — git-visible marked); `docs/pdca/gate-hits.txt` + `session-log.txt` are standard inputs. An EMPTY finding list is a valid result — cite-or-silence separates a closing loop from a green-line ritual; findings land as diffs/issues/ADRs, never assurance lines.
-**(b) The two-why check at every failure point.** Before committing the fix for any gate, CI, or verifier failure, answer: (1) instance or class? (2) which detection-ladder rung (ADR 0047) should have caught this earlier, and why didn't it? "Operator error" / "my error" is NEVER a terminal answer. Home: CLAUDE.md Muda block (cites here) — an instruct-rung prose discipline, NOT claimed as a forcing function (ADR 0047 honored by labeling); its compliance witness is the artifact trail (a class answer routes to an issue or fix in the same PR), and recurring unanswered failures escalate the rung (revisit trigger).
-**(c) Prevention-instrument doctrine (the 0030 post-mortem, recorded so the corpus remembers):** (i) separate a rotten FORM from its FUNCTION before cutting — 0030's green-line pathology was the reporting form, not the analysis; (ii) a prevention/inspection instrument is valued by the expected cost of the misses it catches, NOT per-run yield; (iii) cutting a detection instrument requires a revisit trigger riding an evidence stream INDEPENDENT of that instrument — 0030's REOPEN-IF became unobservable the moment the cut landed.
-**(d) Measured compliance + pre-registered review.** New `.claude/hooks/session-end-log.sh` (SessionEnd) appends `session-end` to `session-log.txt`: every session boundary is a recorded event, so EXPOSURE is mechanical and a SKIPPED closeout is a countable miss (a `session-end` with no prior `skill-spawn` retrospect line) — a hook cannot spawn the retrospect, but it makes the skip observable. Numerator token: an adopted finding's artifact carries the literal `Retrospect-Run:` token (format + placement: the retrospect SKILL.md session-close mode, its one home) — grep-able, no grader. Series (readout FIRST, no band — 0080's own discipline): adopted artifacts / session-ends, and compliance = retrospect spawns / session-ends. Pre-registered REVIEW, not a pre-minted cutline: at 10 `session-end` lines a /decide reviews the readout and records keep / demote / mint-band — 0.5/run is a named PROVISIONAL line, banded only with observed variance. Assurance-rot ("boilerplate") is a QUALITATIVE judgment made at that review — never laundered into the mechanical series. Gaming direction is safe: a raw-agent retrospect (spawn-log's documented under-log) lowers measured compliance and adoption, biasing toward demotion, never away. The record and review fire whether or not the practice survives — (c)(iii) applied to this decision itself.
+**(a) Session-close retrospect is STANDING (amends ADR 0030 in place).** The per-PR ritual stays
+dead; on-demand stays available; session close becomes a defined trigger. Closeout mode (home:
+`retrospect/SKILL.md`): scope = everything shipped since session start; the friction hand-off is a
+MANDATORY enumerated checklist (corrections, wrong guesses, rework, permission denials, CI
+failures). An EMPTY finding list is a valid result; findings land as diffs/issues/ADRs, never
+assurance lines.
+
+**(b) The two-why check at every failure point.** Before committing the fix for any gate, CI, or
+verifier failure, answer: (1) instance or class? (2) which detection-ladder rung (ADR 0047) should
+have caught this earlier, and why didn't it? "Operator error" is NEVER a terminal answer. Home:
+CLAUDE.md Muda block — an instruct-rung discipline, not claimed as a forcing function; recurring
+unanswered failures escalate the rung.
+
+**(c) Prevention-instrument doctrine (the 0030 post-mortem, recorded so the corpus remembers):**
+(i) separate a rotten FORM from its FUNCTION before cutting; (ii) a prevention instrument is
+valued by the expected cost of the misses it catches, NOT per-run yield; (iii) cutting a detection
+instrument requires a revisit trigger riding an evidence stream INDEPENDENT of that instrument.
+
+**(d) Measured compliance + pre-registered review.** `.claude/hooks/session-end-log.sh` appends
+`session-end` to `session-log.txt`, so a SKIPPED closeout is a countable miss. An adopted finding
+carries the literal `Retrospect-Run:` token. Series (readout FIRST, no band — 0080's discipline):
+adopted artifacts / session-ends. Pre-registered REVIEW at 10 `session-end` lines: a /decide
+records keep / demote / mint-band from the readout. Gaming direction is safe: under-logging lowers
+measured compliance, biasing toward demotion, never away.
 
 ## Justification
-Same countermeasure family Toyota chose for the same failure mode in humans: a mandatory default at the moment judgment is impaired. Honest rung: auto-fire is rejected below and a hook cannot spawn an agent, so the triggers are standing DEFAULTS in the always-loaded doc — what is MECHANICAL is the miss: session-end logging makes every skip countable and the pre-registered review acts on that record, which is the strongest rung available. Cost: one cheap-tier agent per session close (ADR 0006) + seconds per failure. First forced run went 2-for-2 adopted (#255, this ADR) against a zero-run counterfactual of both staying unfound.
+Same countermeasure family Toyota chose for the same failure mode in humans: a mandatory default
+at the moment judgment is impaired. First forced run went 2-for-2 adopted (#255, this ADR).
 
 ## Assumptions
-- [unverifiable] WEAKEST — the standing trigger's worth rides on it: closeout yield persists past the novelty period. The 2-for-2 first run may be a BACKLOG effect (many uninspected sessions accumulated); steady state could run dry. REOPEN-IF: the (d) 10-session review — live, pre-registered, its evidence stream (session-end lines + token-cited artifacts) independent of the practice surviving.
-- [checkable] the SessionEnd hook logs exactly one boundary line per end, none without the marker, and stays silent on an unwritable log — owner: `test-session-end-log.sh` (CI-globbed). result: vacuous — suite green, hook shipped 644, never ran; fixed + canary-guarded in #276 (0086).
-- [verified] the failure mode reproduced in-session: the cap failure was fixed as an instance (PR #251 trim commit) while the class gap sat in `budget-edit-guard.sh:14` vs `doc-budgets.md:52-56`, found only by the forced retrospect (#255).
-- [checkable] 0030's measurement does not cover this decision's granularity — its summary claims "no per-PR quality edge"; per-session close was never an arm. result: verified against `0030:5`.
-- [checkable-doc] no settled ADR contradicted: 0030 amended in place (its own REOPEN-IF standard met by the measured class-gap instance); 0068's friction channel is extended (checklist), not replaced; 0006's cheap tier for the retrospect agent unchanged; 0062's two-stage /decide routing untouched (retrospect is Act, not Plan); invocation policy homes in 0016 (retrospect model-invocable, trigger-bound — the session itself discharges and marks the standing duty). result: verified against each.
+- [unverifiable] WEAKEST — the standing trigger's worth rides on closeout yield persisting past
+  the novelty period; the 2-for-2 first run may be a backlog effect. REOPEN-IF: the (d) 10-session
+  review, its evidence stream independent of the practice surviving.
+- [checkable] the SessionEnd hook logs exactly one boundary line per end. result: vacuous — suite
+  green, hook shipped 644, never ran; fixed + canary-guarded in #276 (ADR 0086).
+- [verified] the failure mode reproduced in-session: fixed as an instance while the class gap sat
+  in `budget-edit-guard.sh` vs `doc-budgets.md`, found only by the forced retrospect (#255).
 
 ## Rejected alternatives
-- Keep judgment-gated on-demand only — the gate is the impaired judgment; the session holding the real finding was the one that needed an owner prod.
-- Restore the per-PR ritual — 0030's observed green-line pathology was real; the form stays dead, only the function returns at coarser granularity.
-- Prompt-only instruction, no structural step — instructs the moment that is impaired; rejected by the same logic as detect-vs-prevent rungs.
-- Auto-fire via hook — hooks cannot spawn agents, and silent auto-spend violates the trigger-bound invocation doctrine (0016); the SessionEnd hook records the boundary instead of forcing the act.
-- Mint the 0.5/run band now — n=1, no variance, no exposure story: exactly what 0080 forbids; a pre-registered review /decide replaces the cutline.
+- Keep judgment-gated on-demand only — the gate is the impaired judgment.
+- Restore the per-PR ritual — 0030's green-line pathology was real; the form stays dead.
+- Auto-fire via hook — hooks cannot spawn agents; silent auto-spend violates ADR 0016.
+- Mint the 0.5/run band now — n=1, no variance, no exposure story.
 
 ## Revisit triggers
-- The (d) 10-session review → a /decide records keep / demote / mint-band from the readout; assurance-rot is judged there, qualitatively, and also re-opens 0030's FORM question.
-- The session-end series shows skipped closeouts recurring → promote the trigger one rung (e.g. a Stop-hook reminder), citing the recorded misses.
-- A gate/CI failure ships with no routed class answer, recurring → escalate (b) the same way.
-- A defect class ships that BOTH the two-why check and a closeout retrospect missed → the mitigation is insufficient; /decide the next rung.
-- Three consecutive closeouts find nothing while gate-hits accumulate → the friction hand-off is failing (inputs, not the instrument); fix the checklist first.
+- The (d) 10-session review -> a /decide records keep / demote / mint-band.
+- The session-end series shows skipped closeouts recurring -> promote the trigger one rung.
+- A defect class ships that BOTH checks missed -> the mitigation is insufficient; /decide next.

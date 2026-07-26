@@ -2,44 +2,39 @@
 id: 0082
 title: "MSH-baby ships as a pdca-workflow plugin command (first commands/ surface)"
 status: accepted
-summary: "/pdca-workflow:MSH-baby ('Make Shit Happen') — ship ONE highest-value work package end to end, autonomously, per invocation (amended 25-Jul-2026: unit widened from single item to cohesive package; extra issues batch only by owner declaration in the arguments or by red-team-hardened necessity coupling, each declared in the PR body) — lives at pdca-workflow/commands/MSH-baby.md so every installer gets it. Command, not skill: it must never be model-invoked (the inverse of ADR 0016's primitives), and a command adds no always-loaded description. Namespaced invocation accepted by the owner (plugin commands cannot be bare-named). Body stays thin — it defers to the consumer repo's CLAUDE.md rather than restating process rules."
+summary: "/pdca-workflow:MSH-baby ('Make Shit Happen') — ship ONE highest-value cohesive work package end to end, autonomously, per invocation; extra issues batch only by owner declaration or necessity coupling, each declared in the PR body. Lives at pdca-workflow/commands/MSH-baby.md. Command, not skill: must never be model-invoked, adds no always-loaded description. Namespaced (plugin commands cannot be bare-named). Body stays thin, deferring to the consumer repo's CLAUDE.md."
 ---
 
 # 0082 — MSH-baby plugin command
 
 - Date: 2026-07-21
-- Owner: PM (owner-directed; the want is quoted: a typed command that "just executes" one item, "available to anyone who installs pdca-workflow")
-- Panel: none (routine, owner-settled scope; recorded directly)
-- Context: the owner wants a one-keystroke autonomous mode. Bare `/MSH-baby` is impossible for a plugin-shipped command — plugin commands are always namespaced (official plugin docs; reproduced: bare invocation returns Unknown command) — and the owner accepted the namespaced form over a repo-local alias.
+- Owner: PM (owner-directed: a typed command that "just executes" one item)
+- Context: bare `/MSH-baby` is impossible for a plugin-shipped command (plugin commands are always
+  namespaced); the owner accepted the namespaced form over a repo-local alias.
 
 ## Decision
-`pdca-workflow/commands/MSH-baby.md`, user-typed only: take the argument target(s) as the owner-declared package or survey the repo's open work, ship exactly one cohesive package per invocation under the consumer repo's standing rules, close with the shipped/value/owner-action summary; name the runner-up, don't start it. The operative batching words (necessity coupling, per-joiner declaration) have ONE home: the command body — this record states the decision and defers the wording there (the 0021/0056 pattern), so amending one can never silently strand the other.
+`pdca-workflow/commands/MSH-baby.md`, user-typed only: take the argument target(s) as the
+owner-declared package, or survey the repo's open work; ship exactly ONE cohesive package per
+invocation under the consumer repo's standing rules; close with a shipped/value/owner-action
+summary; name the runner-up, don't start it. Unit = one cohesive WORK PACKAGE, not one item (owner
+amendment, 25-Jul-2026): extra issues batch only by owner DECLARATION in the arguments, or by
+NECESSITY coupling with every joiner declared alongside its coupling — a similarity-based cohesion
+test was tried and red-teamed to failure. Loosely-related items take ADR 0056's route instead
+(successive invocations). The batching wording has ONE home — the command body.
 
 ## Justification
-ADR 0016 rejected commands for the panel primitives BECAUSE they must be model-invocable; this surface is the inverse (human-only trigger for autonomous spend), so the same reasoning lands on a command. Thin body: process rules live in the consumer repo's CLAUDE.md (one home) — a command restating them would drift. No enforcing gate is added: a prompt file has no decision logic to test (the "Never" rule covers process-gating scripts), and an existence-check would be a vacuous gate (ADR 0069) — hence full tier, not lite.
+ADR 0016 rejected commands for panel primitives BECAUSE they must be model-invocable; this surface
+is the inverse (human-only trigger for autonomous spend). Thin body: process rules live in the
+consumer repo's CLAUDE.md. No enforcing gate: a prompt file has no decision logic to test.
 
 ## Assumptions
-- [checkable] the plugin-shipped command resolves and executes end to end — owner: headless harness (scratch repo, seeded defects, `--plugin-dir`); result: verified — namespaced run fixed all defects, committed, closed with the summary; repo-local content run identical; bare-name run Unknown-command.
-- [unverifiable] the one-package scope and no-permission-asking discipline hold in real consumer sessions (the harness target was a toy) — REOPEN-IF a run joins an issue whose declared coupling the diff does not substantiate, wanders past its declared package, or stops to ask on reversible steps; then tighten the body's scope clause. The per-joiner declaration in the PR body is what makes this tripwire auditable after the fact.
+- [unverifiable] the one-package scope and no-permission-asking discipline hold in real consumer sessions (the harness target was a toy). REOPEN-IF a run joins an issue whose declared coupling the diff does not substantiate, wanders past its declared package, or stops to ask on reversible steps -> tighten the body's scope clause; the per-joiner declaration is what makes this auditable after the fact.
 
 ## Rejected alternatives
-- Skill (skills/msh-baby/SKILL.md) — burns an always-loaded description in every consumer session for a surface that must never model-fire; forces a lowercase name.
-- Repo-local `.claude/commands/` only — not delivered to installers; the owner's later directive supersedes it.
-- Plugin command + repo-local bare-name alias — offered; owner chose namespaced-only (no duplicate to drift).
-
-## Amendment (owner, 25-Jul-2026; red-teamed before ship)
-Unit widened from one work item to one cohesive work package, on the owner's quoted want:
-combine "wherever it makes sense — for efficiency and practicality". The fresh adversary broke
-the first draft's similarity-based cohesion tests (review story / revert boundary / surface
-overlap): two were satisfiable by construction, and on live pairs the test admitted the wrong
-batch while rejecting the intended one. Result: batching only by owner DECLARATION in the
-arguments (ADR 0051's principle: declared, never inferred) or by NECESSITY coupling, every
-joiner declared alongside its coupling — which is what makes the tripwire above fireable. The
-operative words for both, and for parallel-lane scope (ADR 0062's panel economics stand), live
-in the command body per the Decision's one-home clause. Loosely-related items take ADR 0056's
-route instead — successive invocations landing per the consumer repo's shipping rules (in this
-repo: the open session PR).
+- A skill — burns an always-loaded description for a surface that must never model-fire.
+- Repo-local `.claude/commands/` only — not delivered to installers.
 
 ## Revisit triggers
-- Claude Code ships bare-name or aliasable plugin commands → revisit the original bare `/MSH-baby` want.
-- A run violates one-package scope, joins an issue without a substantiated coupling, or omits the closing summary → tighten the body; consider trigger-testing the wording (ADR 0033 machinery).
+- Claude Code ships bare-name or aliasable plugin commands -> revisit the bare `/MSH-baby` want.
+- A run violates one-package scope, joins an issue without substantiated coupling, or omits the
+  closing summary -> tighten the body.

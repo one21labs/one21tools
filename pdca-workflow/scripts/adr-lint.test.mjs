@@ -239,25 +239,27 @@ test("lite: a settled decision without a criterion passes", () => {
   assert.deepEqual(lint({ files }).problems, []);
 });
 
-test("lite: a REOPEN-IF must graduate to a full ADR", () => {
+test("lite: a Reopen-if is ALLOWED (ADR 0092) — it is an anti-churn field, not a graduation trigger", () => {
   const files = [adr("0001-first.md", {
     tier: "lite", noCriterion: true,
-    body: "\n# 0001\n\nDecision. REOPEN-IF: usage grows.\n",
+    body: "\n# 0001\n\n- Decision: x.\n- Reopen-if: usage grows.\n- Enforced: adr-lint.mjs\n",
   })];
-  assert.match(lint({ files }).problems[0], /graduate it to a full ADR/);
+  assert.deepEqual(lint({ files }).problems, []);
 });
 
-test("lite: an [unverifiable] bullet or Revisit triggers section must graduate", () => {
-  const withBullet = [adr("0001-a.md", {
-    tier: "lite", noCriterion: true,
-    body: "\n# 0001\n\n- [unverifiable] this holds\n",
-  })];
-  assert.match(lint({ files: withBullet }).problems[0], /graduate/);
+test("lite: the ASSUMPTION MACHINERY graduates it — a tagged bullet or an ## Assumptions block (ADR 0092)", () => {
+  for (const body of ["\n# 0001\n\n- [unverifiable] this holds\n",
+                      "\n# 0001\n\n- [checkable] this is testable\n",
+                      "\n# 0001\n\n## Assumptions\n- something\n"]) {
+    const files = [adr("0001-a.md", { tier: "lite", noCriterion: true, body })];
+    assert.match(lint({ files }).problems[0], /graduate it to a full ADR/, body);
+  }
+  // A bare `## Revisit triggers` section no longer graduates — reopening is lite's business now.
   const withSection = [adr("0002-b.md", {
     tier: "lite", noCriterion: true,
-    body: "\n# 0002\n\n## Revisit triggers\n- something changes\n",
+    body: "\n# 0002\n\n- Enforced: adr-lint.mjs\n\n## Revisit triggers\n- something changes\n",
   })];
-  assert.match(lint({ files: withSection }).problems[0], /graduate/);
+  assert.deepEqual(lint({ files: withSection }).problems, []);
 });
 
 test("lite: held to the lite budget while a full ADR of the same size passes", () => {

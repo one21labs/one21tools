@@ -2,39 +2,15 @@
 id: 0016
 title: "Standalone, model-invocable panel primitives: advise/verify/red-team; retrospect joins the set (trigger-bound)"
 status: accepted
-summary: "The /decide panel's three mechanisms ship as standalone pdca-workflow skills — advise (fresh unprimed advisors), verify (independent gate), red-team (adversary) — invocable situationally by the main agent or the user WITHOUT the full ceremony (no disable-model-invocation). Retrospect joins the model-invocable set, trigger-bound to its ADR 0081 triggers — the session discharges and marks the standing close-out itself. /decide keeps its explicit-invoke restriction and becomes the composition + the ADR record; spawn/shape mechanics move to their one home in each primitive. Trade accepted: the always-loaded descriptions buy right-sized verification; REOPEN-IF a primitive auto-fires wastefully."
+tier: lite
+summary: "The /decide panel's three mechanisms ship as standalone pdca-workflow skills — advise (fresh unprimed advisors), verify (independent gate), red-team (adversary) — invocable situationally without the full ceremony (no disable-model-invocation). Retrospect joins the set, trigger-bound to ADR 0081. /decide becomes the composition + the ADR record. REOPEN-IF a primitive auto-fires wastefully."
 ---
 
 # 0016 — standalone panel primitives (advise / verify / red-team)
 
 - Date: 2026-07-07
-- Owner: PM
-- Panel: owner-direct in a cross-repo review session — the owner asked for right-sized, situational panel pieces with the invoke-only restriction lifted; gates (validate.py over the skills, adr-lint) ran as Check.
-- Context: the panel's mechanisms existed ONLY inside `/decide` (skills/decide/SKILL.md), which is explicit-invoke and spends 10+ agents + writes ADRs. A judgment call too small for the ceremony — "check this claim independently", "argue this two-sided call" — had no supported path; the main agent could not reach the machinery at all (`disable-model-invocation`). All-or-nothing verification is unused verification.
-
-## Decision
-1. **Three new skills in pdca-workflow/skills/**: `advise` (frame -> pick panel from `.claude/agents/` -> spawn fresh/parallel/unprimed -> terse effort x risk x value + tagged assumption; caller decides), `verify` (state claim set -> fresh `verifier` agent -> PASS/BLOCK; verified findings stand), `red-team` (hand candidate + artifacts -> fresh `red-team` agent -> every break answered or folded). Each wraps the existing agent — no new agents, no new roles.
-2. **Model-invocable** — none carries `disable-model-invocation`. Each spawns 1-3 agents (bounded, unlike the full panel); descriptions state tight "Use when" triggers so they fire on genuine need. The main agent and the user choose the piece the situation needs.
-3. **/decide becomes the composition.** It keeps: explicit-invoke, Inherit/Frame/Decide/Record, the roles table, BLOCK semantics. Its steps now invoke the primitives; spawn/shape mechanics moved to their ONE home in each primitive (the advisor-shape rule, the handoff-overwrite rule) — decide references, never restates. Net body shrink.
-4. **Escalation edge stays sharp:** a call that must be recorded (roadmap/product/policy) escalates to `/decide` — the `advise` skill says so; deciding without a record is drift.
-5. **Retrospect joins the model-invocable set (amended 2026-07-20, #260)** — flag removed, TRIGGER-BOUND: it fires only at its ADR 0081 triggers (session close, standing; on demand), stated in its description. Why: ADR 0081(d)'s run-marker is the spawn-log line, which fires only on Skill-tool invocation — the flag forced every autonomous closeout down the raw-agent path, so measured compliance read zero structurally, not behaviorally. The auto-spend concern the flag guarded is governed by 0081's explicit standing trigger. Retrospect inherits the REOPEN-IF below and ADR 0049's reactive misfire regime (its spawn-log already matches retrospect).
-
-## Justification
-Right-sizing: most verification-worthy moments are smaller than a roadmap call; a primitive at 1-3 agents makes the Check step cheap enough to actually run. One-home: the spawn/selection rules sat inside a near-cap decide body; each now lives once, in its primitive, and decide references it. Cost is bounded and known: the three descriptions are always-loaded context; the panel machinery itself still loads on demand.
-
-## Assumptions
-- [verified] the three descriptions cost 777 chars of always-loaded context combined (289 + 235 + 253; each under the description cap) — the flexibility buys more than three sentences cost.
-- [checkable] decide's body shrank below its pre-extraction size while keeping every hard rule reachable (each moved rule cited at its new home) — owner: gates (validate.py body cap) + verifier diff; result: green.
-- [checkable] all four skills pass validate.py (trigger-start descriptions, caps) — owner: gates; result: green.
-- [unverifiable] model-invocation fires helpfully, not wastefully — REOPEN-IF: a primitive auto-fires on unrelated turns or burns agents unasked; then re-add `disable-model-invocation` to the offender (one line), keeping the others open.
-
-## Rejected alternatives
-- Keep everything inside /decide — the status quo; makes the Check step all-or-nothing, so small calls skip verification entirely.
-- Commands instead of skills — a command cannot be model-invoked; the point is the MAIN AGENT reaching the machinery mid-task, not only the user.
-- Extract `pm`/decision-making as a primitive too — deciding without recording invites unrecorded decisions; the decider stays fused to the ADR ceremony.
-- Keep `disable-model-invocation` on the primitives — preserves the failure the owner named: the agent that sees the need cannot act on it.
-
-## Revisit triggers
-- A primitive auto-fires wastefully (see REOPEN-IF) -> restore its invoke-only flag.
-- The primitives' descriptions grow or multiply -> re-audit always-loaded cost vs use.
-- Claude Code ships per-skill invocation budgets/telemetry -> replace the judgment call with measured fire-rates.
+- Decision: three new pdca-workflow skills — `advise` (fresh/parallel/unprimed advisors), `verify` (fresh `verifier` agent, PASS/BLOCK), `red-team` (adversary, every break answered or folded) — each wraps an existing agent, none carries `disable-model-invocation`, so the main agent and user reach right-sized verification without the full `/decide` ceremony. `/decide` becomes the composition, invoking the primitives rather than restating their mechanics. Amended 2026-07-20 (#260): `retrospect` joins the set, TRIGGER-BOUND to ADR 0081 — the invoke-only flag forced every autonomous closeout down the raw-agent path, reading compliance as zero structurally, not behaviorally.
+- Why: most verification-worthy moments are smaller than a roadmap call; a 1-3 agent primitive makes Check cheap enough to run. Spawn/selection rules moved into each primitive (one-home).
+- Rejected: keep everything inside /decide — all-or-nothing Check. Commands instead of skills — can't be model-invoked. Keep `disable-model-invocation` — preserves the exact failure being fixed.
+- Reopen-if: a primitive auto-fires wastefully -> restore its invoke-only flag, keeping the others open.
+- Enforced: `pdca-workflow/skills/advise/SKILL.md`, `pdca-workflow/skills/verify/SKILL.md`, `pdca-workflow/skills/red-team/SKILL.md` (no `disable-model-invocation`).

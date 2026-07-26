@@ -123,7 +123,10 @@ export function extractPyTestExecutions(gatesYml) {
  *  variable appears later in the path (red-team: `/home/USER/${P}` is still machine-bound). */
 export function selfSkipLines(shText) {
   const out = [];
-  const assign = /^\s*(?:export\s+|readonly\s+|local\s+(?:-\S+\s+)*|declare\s+(?:-\S+\s+)*)?[A-Za-z_][A-Za-z0-9_]*=(.*)$/;
+  // Shell, JS and Python assignment shapes: the scar is machine-bound tests, and it is not
+  // language-specific (ADR 0069's revisit trigger: "a self-skip lands via a mechanism neither
+  // predicate catches"). `const R = "/home/…"` must flag exactly as `R=/home/…` does.
+  const assign = /^\s*(?:export\s+|readonly\s+|local\s+(?:-\S+\s+)*|declare\s+(?:-\S+\s+)*|const\s+|let\s+|var\s+)?[A-Za-z_$][A-Za-z0-9_$]*\s*=\s*(.*)$/;
   shText.split("\n").forEach((line, i) => {
     const m = line.match(assign);
     if (!m) return;
@@ -347,6 +350,9 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "no sibling test file" });
     } else if (!testGlobs.some((g) => globCoversPath(g, testPath))) {
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file exists but not covered by any `node --test` glob" });
+    } else {
+      const skips = selfSkipLines(readFile?.(testPath) ?? "");
+      if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
     }
   }
 
@@ -359,6 +365,9 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "no sibling _test.py" });
     } else if (!executed) {
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "sibling _test.py exists but no gates.yml line executes it" });
+    } else {
+      const skips = selfSkipLines(readFile?.(testPath) ?? "");
+      if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
     }
   }
 
