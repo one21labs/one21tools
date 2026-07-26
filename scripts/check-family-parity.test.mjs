@@ -20,10 +20,14 @@ import { familyOf, parseCopilot } from "../pdca-workflow/scripts/crosscheck.mjs"
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = join(ROOT, "skill-bench", "scripts", "lib");
 
-// Spans every family both tables claim, plus the cases that must NOT resolve to a vendor.
+// Spans every family both tables claim, plus the cases that must NOT resolve to a vendor. EVERY
+// alternative in either table needs its own id here: the first cut of this list exercised only the
+// common branches, so the tables could differ on `\bo[0-9]` and bare `google` while the guard read
+// green (muda-review, PR #298). A parity test that never reaches a branch does not guard it.
 const MODEL_IDS = [
-  "claude-haiku-4.5", "claude-opus-5", "anthropic/claude", "grok-4.5", "grok-4.5-build",
-  "gpt-5-mini", "gpt-5.4", "gemini-3.6-flash", "kimi-k2.7-code", "house-model-7", "",
+  "claude-haiku-4.5", "claude-opus-5", "anthropic/claude", "grok-4.5", "grok-4.5-build", "xai-1",
+  "gpt-5-mini", "gpt-5.4", "openai-next", "o1-mini", "o3", "gemini-3.6-flash", "google-palm-2",
+  "kimi-k2.7-code", "moonshot-v1", "house-model-7", "",
 ];
 
 function pythonFamilies(ids) {

@@ -43,7 +43,8 @@ GENERATOR_FAMILY = "anthropic"
 # the copies are structural — change one, change both. scripts/check-family-parity.test.mjs in the
 # source repo fails the build if they drift.
 _FAMILY_PATTERNS = ((r"claude|anthropic", "anthropic"), (r"grok|xai", "xai"),
-                    (r"gpt|openai", "openai"), (r"gemini", "google"), (r"kimi|moonshot", "moonshot"))
+                    (r"gpt|openai|\bo[0-9]", "openai"), (r"gemini|google", "google"),
+                    (r"kimi|moonshot", "moonshot"))
 
 
 def family_of(model_id):
