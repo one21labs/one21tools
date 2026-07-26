@@ -25,7 +25,7 @@ don't restate. Operationalized, not a slogan:
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
   Process-Level Poka-yoke.
 - **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
-  inline findings, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
+  one findings comment, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
   empty findings valid, never a green line.
 - **Two-why (ADR 0081):** before fixing any gate/CI/verifier failure: instance or class? which
   rung should have caught it? "My error" never ends the chain.
@@ -58,8 +58,8 @@ deterministic logic; a doc that restates them rots).
   tracking issue whose title no longer matches its remaining scope before working under it.
 - **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
   fails the same way — PATCH the body via `gh api`.
-- **Read the PR's review comments before merging** — the advisory muda-review CI posts inline
-  findings; address each or say why not. Merging unread leaves muda on `main`.
+- **Read the PR's review comments before merging** — the advisory muda-review CI posts one
+  comment; address each finding or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
   before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges). Preview with

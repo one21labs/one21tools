@@ -20,8 +20,8 @@ report: grading is now same-family, so the self-preference caveat is back in for
 inflate, the verdict can shift). An explicit `--judge grok` on a machine without grok fails with a
 remedy rather than silently substituting; use `auto` to degrade gracefully.
 
-Resolution order for the grok binary: `--bin` arg, then `$GROK_BIN`, then `PATH`, then the default
-installer location. The claude judge resolves `claude` on `PATH`.
+Resolution order for the grok binary: the library-only `bin=` constructor arg (no CLI flag), then
+`$GROK_BIN`, then `PATH`, then the default installer location. The claude judge resolves `claude` on `PATH`.
 
 ## Grading pipeline
 
