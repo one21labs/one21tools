@@ -54,10 +54,9 @@ can attack it. If it only survives attached to a concession, it was cover.
 ## Why awareness does not fix it
 
 The author knew. It is written down, it had been discussed across multiple prior sessions, and it
-happened four times anyway in a single session. **A vigilance rule is not a control here** — the
-same conclusion this repo already reached about hygiene sweeps: task focus demonstrably narrows
-past a rule that asks you to remember to be honest, and self-interest is invisible from inside the
-frame that self-interest shaped.
+happened four times anyway in a single session. **A vigilance rule is not a control here** — ADR
+0083 owns that finding. What is specific here: self-interest is invisible from inside the frame it
+shaped, so the only reader who could catch it is the one asked to be honest about themselves.
 
 The asymmetry that makes this specifically hard: a same-family reviewer is uncontaminated by the
 author's reasoning but shares the author's priors. It reliably catches internal inconsistency and
