@@ -40,4 +40,5 @@ Derive-from-lib is the doctrinal poka-yoke (CLAUDE.md — delete the mirror, der
 - A new benchmark needs a helper the lib lacks → extend the lib, don't re-copy.
 
 ## Act (post-ship — 2026-07-10)
-- [outcome] deny_tools.txt is the single live home (frozen dated copies stay per item 4); bash mapfile read proven — verified (PR #127).
+- [outcome] deny_tools.txt is the single live home (frozen dated copies stay per item 4) — verified (PR #127).
+- [outcome] the bash `mapfile` read of that home — still-open: PR #127 shipped no bash consumer and none exists today (`mapfile` appears only in Python comments + prose, in no `.sh` anywhere), so the pattern is specified, never exercised. The 2026-07-26 outcome audit corrected this row's original, unsupported claim.

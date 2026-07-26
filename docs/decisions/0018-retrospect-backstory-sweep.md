@@ -37,3 +37,7 @@ The failure class shipped once and was caught only by owner review — the most 
 ## Revisit triggers
 - Backstory reaches owner review again -> the REOPEN-IF above (dedicated review step).
 - The agent budget blocks a future load-bearing signal -> reopen 0009's cap, not this ADR.
+
+## Act (post-ship — 2026-07-26)
+- [outcome] the backstory-sweep clause ships in the agent prompt (`pdca-workflow/agents/retrospect.md:19`, "git-tellable backstory in changed doc text") — verified.
+- [process] shipped without its `## Act`; surfaced by the 2026-07-26 outcome audit rather than at ship time.

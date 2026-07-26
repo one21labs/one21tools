@@ -50,3 +50,7 @@ Codifies what 0038/0039/0040 decide ad hoc (S/low/med) — poka-yoke-of-the-poka
 - A decidable requirement rests at prose despite an available surface, OR a rung upgrade ships without a scar -> the rule isn't applied.
 - First model-inheritance miss via an ad-hoc Workflow script -> mechanize the seam (a PreToolUse hook on the Workflow tool, or widen check-workflow).
 - three-dot counted log clean on `origin/main..` -> promote (c) to deny; first SKILL.md failing validate.py on main -> promote (b) to rung 2.
+
+## Act (post-ship — 2026-07-26)
+- [outcome] wave-1 (a) shipped and is live: `pr-create-guard.sh`, `check-workflow.mjs`, `check-restatement.mjs`, and the gate-has-test lint (`check-gate-tests.mjs`) all exist and run in `gates.yml` (PRs #152/#158) — verified.
+- [process] the record carried no `## Act` for 16 days while four later ADRs (0069/0080/0086/0089) cited it as their enforcement authority. The build shipped; the bookkeeping did not, and no rung watches for that — found by the 2026-07-26 outcome audit, not by the loop.

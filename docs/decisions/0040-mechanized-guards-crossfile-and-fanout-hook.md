@@ -41,6 +41,6 @@ Item 6 has the best ratio in the batch — a deterministic shell hook (~0 per-ca
 - A cross-file waste class recurs that validate.py's new checks miss → extend the checks.
 
 ## Act (post-ship — 2026-07-10)
-- [outcome] hook denies/carves out correctly in its 11-case surface-invoked test (PR #133); the LIVE injection [checkable] is still-open — signal: first plugin-loaded session.
+- [outcome] hook denies/carves out correctly in its 11-case surface-invoked test (PR #133), and the awaited live signal has since arrived and repeated — 8 `explicit-model-guard` fires from real sessions in `docs/pdca/gate-hits.txt` — verified (relabelled by the 2026-07-26 outcome audit: the awaited signal landed, and nothing updated this row until the audit).
 - [outcome] the backlink guard found one offender (0023↔0026), fixed same-PR — verified.
 - [process] CLAUDE.md pointer dropped at build (budget); the hook is the decided mechanism.
