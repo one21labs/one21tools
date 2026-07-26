@@ -177,16 +177,20 @@ test("absent gate-hits log: stated as a true zero, does not break the all-clear 
 
 // Real-corpus regression (adr-lint.test.mjs corpus() convention): pins today's mined values so a
 // parser regression that blanks rows or reclassifies outcomes fails loudly. Recompute on corpus change.
-test("real corpus: 12 verified / 3 violated / 3 still-open / 0 unparsed; hit-rate 3/15 evaluated", () => {
+// Deliberately pinned to the live corpus: it catches an unintended outcome-label change. Update
+// the numbers ONLY alongside a deliberate corpus edit, and say which in the commit — the
+// 2026-07-26 outcome audit moved it from 12/3/3 by correcting two dishonest labels (ADR 0041's
+// unsupported `verified`, ADR 0040's stale `still-open`) and recording two verified Act blocks.
+test("real corpus: 15 verified / 3 violated / 3 still-open / 0 unparsed; hit-rate 3/18 evaluated", () => {
   const dir = "docs/decisions";
   const files = readdirSync(dir).filter(f => /^\d{4}-.*\.md$/.test(f))
     .map(name => ({ name, text: readFileSync(join(dir, name), "utf8").replace(/\r\n/g, "\n") }));
   const { rows, unparsed } = analyze(parseAdrs(files), SCORECARD_CONFIG, TODAY);
   assert.equal(unparsed.length, 0);
-  assert.equal(rows[0].sample, 15);
-  assert.ok(Math.abs(rows[0].value - 3 / 15) < 1e-9);
-  assert.equal(rows[0].status, "healthy"); // 20.0% is not ABOVE watchAbove 20%
-  assert.equal(rows[1].sample, 18);        // 12 + 3 + 3 classified
+  assert.equal(rows[0].sample, 18);
+  assert.ok(Math.abs(rows[0].value - 3 / 18) < 1e-9);
+  assert.equal(rows[0].status, "healthy"); // 16.7%, no longer sitting exactly on watchAbove 20%
+  assert.equal(rows[1].sample, 21);        // 15 + 3 + 3 classified
 });
 
 // ---- ADR 0086 guard-liveness readout -------------------------------------------------------
