@@ -21,7 +21,7 @@ Take the first step below that fits.
 **1. See what you already have.**
 
 ```
-python3 -c "import sys; sys.path.insert(0,'skill-bench/scripts/lib'); import judge; \
+python3 -c "import sys; sys.path.insert(0, __import__("os").environ["CLAUDE_PLUGIN_ROOT"] + "/scripts/lib"); import judge; \
 print([n for n in judge.BACKENDS if judge.cli_available(n)])"
 ```
 
