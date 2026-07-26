@@ -56,6 +56,12 @@ try:
         r"\b(clause|sentence|paragraph|line) (is|was) (deleted|removed)\b",
         r"\bwas added then removed\b",
         r"\bshipped as .{0,40}\band renamed\b",
+        # Dated incident anecdotes inside live instructions: "a mining pass on 26-Jul found...",
+        # "a run on 2026-07-12 showed...". A rule that has to cite the day it was learned is
+        # telling you its history, not its content. Found in the repo's own retrospect skill by an
+        # audit lane AFTER this guard shipped without covering it.
+        r"\b(on|in) \d{1,2}-[A-Z][a-z]{2}\b[^.\n]{0,60}\b(found|showed|caught|revealed|hit)\b",
+        r"\b(on|in) 20\d\d-\d\d-\d\d\b[^.\n]{0,60}\b(found|showed|caught|revealed|hit)\b",
     ]
     hits = []
     for m in MARKERS:

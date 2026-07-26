@@ -78,8 +78,18 @@ the design. Ask specifically for:
 Three concrete checks that would have caught all four instances, and which belong in any
 pre-registration of this class:
 
-1. **Name the loss condition and verify it can fire.** Compute it. A margin or threshold that the
-   design's own power cannot reach is decorative, and decoration always favours the author.
+1. **Name the loss condition and verify it can fire.** Do not eyeball it — the numbers are not
+   eyeballable. Run it:
+
+   ```
+   echo '{"clusters":10,"sd_hi":0.26,"equivalence_margin":0.05,
+          "author_arms":["ours"],"losing_outcomes":["ours"]}' \
+     | python3 skill-bench/scripts/lib/prereg_guard.py -
+   ```
+
+   It exits non-zero, naming how many clusters the stated claim actually costs, when a margin is
+   unreachable at the stated power or when an arm the author wrote has no losing outcome. A
+   threshold the design's own power cannot reach is decorative, and decoration favours the author.
 2. **Measure both arms with a convention neither author owns**, and freeze the file manifest.
 3. **When a review kills a design, the next draft restores the comparison.** Deciding the question
    is not worth answering is a scope call belonging to whoever asked for it, never to the author

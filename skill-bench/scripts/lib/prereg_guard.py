@@ -25,20 +25,15 @@ Pure functions, stdlib only, so the decision logic is testable offline (CLAUDE.m
 process-gating script without a test of its decision logic).
 """
 import math
+import sys
 
-# Two-sided 95% t critical values by df. Same table and reasoning as benchstats.t95 -- at the
-# cluster counts these designs use, the normal approximation understates the interval by 31-62%,
-# which would make thresholds look reachable when they are not. Duplicated rather than imported
-# because ADR 0050 keeps plugin content dependency-free; the parity risk is one constant table.
-_T95 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8: 2.306,
-        9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
-        16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086, 25: 2.060, 30: 2.042}
-
-
-def t95(df):
-    if df < 1:
-        return float("nan")
-    return _T95.get(df, 1.96)
+# The t table has ONE home: benchstats.t95, in this same package. An earlier cut of this file
+# copied it "because the parity risk is one constant table" -- and the copy shipped missing df
+# 21-24 and 26-29, where it silently fell back to 1.96: the exact normal-approximation bug this
+# guard exists downstream of. An audit lane found it; no test here reached those df. Deleting the
+# mirror is the fix, not patching it. ADR 0050 forbids cross-PLUGIN content dependencies; this is
+# a sibling module in the same plugin, so there was never a reason to copy.
+from benchstats import t95  # noqa: E402,F401  (re-exported: callers use prereg_guard.t95)
 
 
 def half_width(clusters, sd):
@@ -97,3 +92,29 @@ def check(design):
                 f"and say what that triggers, or the design cannot falsify its author's work "
                 f"(evaluating-your-own-work.md).")
     return problems
+
+
+def main(argv):
+    """CLI entry: `python3 prereg_guard.py <design.json>` (or `-` for stdin).
+
+    An audit found this module shipped with NO caller, no __main__, and no reference from the
+    document whose control it claims to enforce -- a prevent rung that could not fire, whose green
+    test made it read instrumented. Exit 1 on any problem so a harness can gate on it.
+    """
+    import json as _json
+    if len(argv) != 2:
+        print("usage: prereg_guard.py <design.json|->", file=sys.stderr)
+        return 2
+    src = sys.stdin if argv[1] == "-" else open(argv[1], encoding="utf-8")
+    problems = check(_json.load(src))
+    for p in problems:
+        print(p, file=sys.stderr)
+    if not problems:
+        print("prereg_guard: design states a reachable threshold and a losing outcome for every "
+              "arm its author wrote.")
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main(sys.argv))

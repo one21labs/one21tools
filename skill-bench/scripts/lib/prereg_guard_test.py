@@ -42,6 +42,14 @@ class TestPreregGuard(unittest.TestCase):
         self.assertEqual(pg.check({"clusters": 4, "sd_hi": 0.2, "author_arms": [],
                                    "losing_outcomes": []}), [])
 
+    def test_the_t_table_has_one_home_and_agrees_with_it_at_every_df(self):
+        # The copied table shipped missing df 21-24 and 26-29, falling back to 1.96 there — the
+        # exact bug this guard exists downstream of — and the fixtures below never reached those
+        # df, so it read green. Sweep EVERY df rather than sampling.
+        import benchstats
+        for df in range(1, 40):
+            self.assertEqual(pg.t95(df), benchstats.t95(df), f"t95 disagrees at df={df}")
+
     def test_half_width_uses_the_small_cluster_t_not_the_normal(self):
         # With z=1.96 the v3 margin would look 21% closer to reachable than it is.
         self.assertAlmostEqual(pg.half_width(10, 0.26), 2.262 * 0.26 / (10 ** 0.5), places=6)
