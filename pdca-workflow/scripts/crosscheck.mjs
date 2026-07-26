@@ -21,7 +21,7 @@
 // same-family answer is the precise failure ADR 0093 exists to close. So a foreign CLI that
 // returns a Claude model is FRAME-UNCHECKED, exactly as if it were absent.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
 
@@ -81,8 +81,10 @@ export const LANES = [
     fallbacks: [],
     // JSONL rather than -s: the event stream is the only place the ANSWERING model is named, and
     // without that this lane cannot prove it left the maker's family.
-    args: (file, promptText) => ["-p", promptText, "--output-format", "json", "--allow-all-tools"],
-    usesPromptText: true,
+    // Same stance as grok's: read to inspect, never act. Non-interactive mode needs
+    // --allow-all-tools, so the acting tools are denied back off individually.
+    args: (file, promptText) => ["-p", promptText, "--output-format", "json", "--allow-all-tools",
+      "--deny-tool=shell", "--deny-tool=write", "--deny-tool=edit"],
     parse: parseCopilot,
   },
 ];
@@ -200,7 +202,7 @@ function main(argv) {
     console.error("usage: crosscheck.mjs --claim-file <path> [--timeout <seconds>] | --list");
     process.exit(2);
   }
-  const claim = execFileSync("cat", [argv[i + 1]], { encoding: "utf8" });
+  const claim = readFileSync(argv[i + 1], "utf8");
   const t = argv.indexOf("--timeout");
   const timeoutMs = (t === -1 ? 300 : Number(argv[t + 1])) * 1000;
 
