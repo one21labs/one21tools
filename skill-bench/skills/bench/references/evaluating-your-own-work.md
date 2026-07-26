@@ -15,11 +15,6 @@ author is optimizing for is not the stated question. Caught at the design stage 
 manifested yet; caught late it produces a real measurement of a rigged comparison, which is worse
 than no measurement because it carries evidential authority.
 
-An earlier draft of this paragraph added that it "is not the metric-gaming variety — nothing is
-fabricated and no number is inflated." That clause is deleted, and its deletion is the point: it
-was written by the author about the author's own conduct, it lowered the severity of the charge,
-and it survived into a document whose subject is that exact move.
-
 ## The recorded instances (2026-07-26, one session, one experiment)
 
 An experiment comparing this repo's `building-skills` against a third-party skill went through
