@@ -109,7 +109,7 @@ skills/
   retrospect/        the Act loop
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
-commands/      MSH-baby — ship one highest-value cohesive work package end to end, autonomously
+commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
 scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each)
                  the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
@@ -147,7 +147,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
 /retrospect       # standing at session close + on demand (ADR 0081); improves the process
-/pdca-workflow:MSH-baby [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
+/pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
 ```
 
 `/pdca-init` and `/decide` are explicit-invoke only (`disable-model-invocation`) — the panel
