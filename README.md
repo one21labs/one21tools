@@ -45,8 +45,9 @@ append-only evidence, one dated dir per run.
 - `code-standards`: KEEP, strong, judge-robust (2026-07-17 re-measure).
 - `engineering-principles`: improved version's benefit +0.206 mean fraction-met delta, 95% CI
   [+0.038, +0.373] excluding zero — hermetic, blind + prosecutor (2026-07-09 re-measure).
-  Which content carries that delta (operational triggers vs concepts the model may already
-  know) is under measurement (#244).
+  The OPERATIONAL partition carries that delta (#244, measured 2026-07-18): operational-only
+  +0.207, conceptual-only +0.057 with a CI straddling zero — concepts the model already knows
+  are inert (`benchmarks/2026-07-18-ep-partition/`).
 - `pdca-workflow` panel: honest nulls recorded — rubric-quality ~ cost-matched baselines across
   six instruments; the measured survivors are the process guarantees (forced records, spend
   gates), retrospect's false-positive halving, and an n=1 failure-anticipation edge

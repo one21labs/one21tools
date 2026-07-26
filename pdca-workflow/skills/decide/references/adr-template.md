@@ -117,7 +117,11 @@ A/B's outcome, a future retro miss), which it must NAME. A permanently out-of-sa
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
-restate per ADR. Append `## Act` after the work ships; omit lines with nothing to say. Each
+restate per ADR. **A rule stated BROADER than the deciding issue names every open issue it
+disposes of, and either cites the settled record that already owns the rule or homes it in the
+shared register** — the named issues stay open carrying that cite. Otherwise two sessions settle
+the same question weeks apart in two records, and neither knows. Append `## Act` after the work
+ships; omit lines with nothing to say. Each
 `- [outcome]` row carries exactly ONE of `verified` / `violated` / `still-open` (lint check 13,
 ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
