@@ -15,7 +15,7 @@ import assert from "node:assert";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { familyOf, parseCopilot } from "../pdca-workflow/scripts/crosscheck.mjs";
+import { familyOf, parseCopilot, makerFamily } from "../pdca-workflow/scripts/crosscheck.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LIB = join(ROOT, "skill-bench", "scripts", "lib");
@@ -46,6 +46,21 @@ test("an unplaceable id is 'unknown' on both sides, never a foreign family", () 
   // The load-bearing agreement: 'unknown' is what makes both implementations fail closed.
   assert.equal(familyOf("house-model-7"), "unknown");
   assert.deepEqual(pythonFamilies(["house-model-7", ""]), ["unknown", "unknown"]);
+});
+
+test("both plugins agree on WHOSE family is the maker's", () => {
+  // crosscheck.mjs calls it MAKER_FAMILY, judge.py calls it GENERATOR_FAMILY. Two names for one
+  // fact, in two files that cannot import each other — the same twin exposure the tables have,
+  // and the one both fail-closed checks are measured against.
+  const src = `import sys; sys.path.insert(0, ${JSON.stringify(LIB)}); import judge; `
+    + `print(judge.GENERATOR_FAMILY)`;
+  const py = execFileSync("python3", ["-c", src], { encoding: "utf8" }).trim();
+  assert.equal(makerFamily({}), py, "MAKER_FAMILY and GENERATOR_FAMILY have diverged");
+});
+
+test("the maker family is overridable, so the plugin is not Claude-shaped by construction", () => {
+  assert.equal(makerFamily({}), "anthropic");
+  assert.equal(makerFamily({ PDCA_MAKER_FAMILY: "openai" }), "openai");
 });
 
 test("both plugins read the same answer and model out of a copilot event stream", () => {

@@ -25,9 +25,15 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "no
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
 
-// The lineage this plugin runs inside. Overridable because the plugin is meant to be installed
-// elsewhere: an adopter driving it from another vendor's host inverts which family is "the maker".
-export const MAKER_FAMILY = "anthropic";
+/** Pure: the lineage this plugin runs inside. `$PDCA_MAKER_FAMILY` is a real override, not a
+ *  comment — an adopter driving these skills from another vendor's host inverts which family is
+ *  "the maker", and without the override this plugin would be Claude-shaped by construction. Must
+ *  stay in step with judge.py's GENERATOR_FAMILY (scripts/check-family-parity.test.mjs). */
+export function makerFamily(env = process.env) {
+  return env.PDCA_MAKER_FAMILY || "anthropic";
+}
+
+export const MAKER_FAMILY = makerFamily();
 
 // TWIN: skill-bench/scripts/lib/judge.py carries this table and parseCopilot's logic in Python.
 // Neither may import the other (ADR 0050: plugins ship standalone, no content dependencies), so
