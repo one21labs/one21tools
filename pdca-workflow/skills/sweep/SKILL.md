@@ -9,7 +9,8 @@ One pass finds the defects it happened to look for, and each fix can introduce i
 loops both until the finding rate reaches zero, and refuses to call that outcome reached when
 what actually ran out was rounds.
 
-$ARGUMENTS = the target, then the cap: `pdca-workflow --max 6`. No cap given = 5.
+$ARGUMENTS = the target, then the cap: `pdca-workflow --max 6`. Omit it and sweep-state.mjs
+applies its own default — that constant is the one home, so this file does not restate it.
 
 ## Before round 1
 

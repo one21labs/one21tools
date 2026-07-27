@@ -10,6 +10,9 @@
 # poka-yoke: delete the mirror, derive). The same logic cuts the other way and is the standing
 # risk of this file: a defect here disarms four guards at once, so every change needs the canary
 # suite (scripts/check-gate-tests.mjs) run, not just the unit tests.
+# REJECTED: keep the four copies and fix each in place. It trades a shared blast radius for four
+# independent ones that drift silently, and the drift is the failure that already happened —
+# all four copies carried the same greedy-regex defect, so the isolation bought nothing.
 #
 # CONSUMERS SOURCE IT SCRIPT-RELATIVE, not via CLAUDE_PROJECT_DIR — the canary runner executes
 # hooks from their real repo path against a throwaway fixture project dir, so a

@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sweepState, EXIT } from "./sweep-state.mjs";
+import { sweepState, EXIT, DEFAULT_MAX_ROUNDS } from "./sweep-state.mjs";
 
 const r = (...ids) => ({ ids });
 
@@ -90,4 +90,21 @@ test("exit codes: only CLEAN is 0, so a caller cannot treat exhaustion as succes
   assert.notEqual(EXIT.RUNNING, 0);
   assert.notEqual(EXIT.MALFORMED, 0);
   assert.equal(new Set(Object.values(EXIT)).size, 4);
+});
+
+test("omitting --max uses the script's own default, never NaN", () => {
+  // The skill used to promise "no cap given = 5" while main() passed NaN, so the run exited
+  // MALFORMED instead of honouring the documented default. The constant is the one home now;
+  // this pins that it is a usable cap, not just a number that exists.
+  assert.equal(Number.isInteger(DEFAULT_MAX_ROUNDS), true);
+  assert.notEqual(sweepState([r("a")], DEFAULT_MAX_ROUNDS).state, "MALFORMED");
+  assert.equal(sweepState([r("a")], NaN).state, "MALFORMED");
+});
+
+test("the default cap can actually reach CLEAN - a cap below the quiet tail never could", () => {
+  // A cap of 2 with a quiet tail of 2 can only ever report EXHAUSTED or CLEAN by luck; the
+  // default must leave room for at least one finding round before the tail.
+  assert.ok(DEFAULT_MAX_ROUNDS > 2, "default cap must exceed the default quiet tail of 2");
+  const rounds = [r("a"), r(), r()];
+  assert.equal(sweepState(rounds, DEFAULT_MAX_ROUNDS).state, "CLEAN");
 });
