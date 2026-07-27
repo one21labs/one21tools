@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { diffHash, artifactModel, coverage, ARTIFACT_DIR } from "./check-xfam-review.mjs";
@@ -38,6 +38,16 @@ test("the artifact must name a model outside the maker's family", () => {
   for (const m of ["grok-4.5", "gpt-5", "gemini-3-pro"]) {
     assert.equal(coverage(DIFF, [art(h, m)]).ok, true, `${m} must count as foreign`);
   }
+});
+
+test("the header must open the file, not merely appear somewhere in it", () => {
+  const h = diffHash(DIFF);
+  // The regex carried /m, so a reviewer whose prose happened to quote `xfam-model:` mid-document
+  // satisfied a gate that claims the marker is the FIRST line. The doc was right; the code moved.
+  const buried = { name: `${h}.md`, text: "Here are my findings.\n\nxfam-model: grok-4.5\n" };
+  assert.equal(coverage(DIFF, [buried]).ok, false);
+  const opens = { name: `${h}.md`, text: "xfam-model: grok-4.5\n\nHere are my findings.\n" };
+  assert.equal(coverage(DIFF, [opens]).ok, true);
 });
 
 test("an artifact with no header line does not count, however much text it holds", () => {
@@ -85,8 +95,20 @@ test("the artifact directory holds ONLY hash-named artifacts, never free prose",
   // exactly what this gate files and nothing a person would write by hand.
   const dir = join(dirname(fileURLToPath(import.meta.url)), "..", ARTIFACT_DIR);
   if (!existsSync(dir)) return;   // no artifacts yet is not a violation
-  const stray = readdirSync(dir).filter((f) => !/^[0-9a-f]{16}\.md$/.test(f));
+  const entries = readdirSync(dir);
+  const stray = entries.filter((f) => !/^[0-9a-f]{16}\.md$/.test(f));
   assert.deepEqual(stray, [],
     `${ARTIFACT_DIR} is skipped by check-restatement, so it must contain ONLY hash-named review `
     + `artifacts — these would sit in a permanent one-home blind spot: ${stray.join(", ")}`);
+
+  // FILENAME SHAPE ALONE WAS NOT ENOUGH. A lane demonstrated that any `<16-hex>.md` holding
+  // arbitrary prose passed this test untouched — and because the directory is excluded from BOTH
+  // the hashed diff and check-restatement, that file is a content channel nothing in the repo
+  // inspects. Requiring the header means every file here is a review artifact or a failure.
+  const headerless = entries.filter((f) =>
+    !artifactModel(readFileSync(join(dir, f), "utf8")).model);
+  assert.deepEqual(headerless, [],
+    `every file in ${ARTIFACT_DIR} must open with an \`xfam-model:\` header — the directory is `
+    + `excluded from the diff hash AND from check-restatement, so anything else parked here is `
+    + `content no gate in this repo will ever read: ${headerless.join(", ")}`);
 });

@@ -422,8 +422,11 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
       // good, only that the file is not a placeholder standing in for work not done.
       if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
       // `async def test_` is a real pytest case (pytest-asyncio); the bare `def` form missed it.
-      else if (known !== null && !/^[ \t]*(async\s+)?def\s+test_/m.test(testText)) {
-        missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no `def test_` case — an empty or placeholder file satisfies existence but asserts nothing" });
+      // The trailing underscore is NOT required either: unittest's discovery prefix is `test`, so
+      // `def testRefusesBadInput(self)` is a real, running case that this floor called a
+      // placeholder. Matching the runner's own rule beats matching the style we happen to write.
+      else if (known !== null && !/^[ \t]*(async\s+)?def\s+test/m.test(testText)) {
+        missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no `def test...` case — an empty or placeholder file satisfies existence but asserts nothing" });
       }
     }
   }

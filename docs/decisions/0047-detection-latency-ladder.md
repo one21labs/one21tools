@@ -59,7 +59,7 @@ testable, dogfooding the gate-has-test lint itself.
   without a scar -> the rule isn't being applied.
 - First model-inheritance miss via an ad-hoc Workflow script -> mechanize the seam.
 - Three-dot counted log stays clean on DIFF fires -> promote to deny (ADR 0072 narrowed the
-  predicate; pre-2026-07-26 lines are log/rev-list noise and do not count). First SKILL.md
+  predicate on 2026-07-17; only lines before that are log/rev-list noise). First SKILL.md
   failing validate.py on main -> promote validate.py to rung 2.
 
 ## Act

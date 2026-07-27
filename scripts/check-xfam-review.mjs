@@ -67,7 +67,13 @@ export function diffHash(diffText) {
  * cannot name is not evidence the lineage was left.
  */
 export function artifactModel(text) {
-  const m = String(text ?? "").match(/^\s*xfam-model:\s*(\S+)/m);
+  // THE FIRST NON-EMPTY LINE, not any line. The header comment has always said "first line" while
+  // the regex carried /m and accepted the marker anywhere in the file -- so a reviewer's own prose
+  // mentioning `xfam-model:` mid-document would satisfy the gate. A doc-drift lane found the two
+  // disagreeing; the doc was the version worth keeping, because a marker that can appear anywhere
+  // can appear by accident.
+  const first = String(text ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
+  const m = first.match(/^\s*xfam-model:\s*(\S+)/);
   if (!m) return { model: null, family: null, foreign: false, reason: "no `xfam-model:` header line" };
   const family = familyOf(m[1]);
   if (family === MAKER_FAMILY) {
@@ -121,20 +127,35 @@ function main(argv) {
   // was hashed. The gate would then certify "this head was reviewed" on evidence the head does not
   // contain. A cross-family review of the head.sha wiring found it. Falls back to the worktree only
   // when the ref cannot be read as a tree (a plain local run with uncommitted artifacts).
-  let artifacts = [];
+  // AN ABSENT DIRECTORY IS NOT AN UNREADABLE REF. The first version wrapped both cases in one
+  // try/catch and fell back to the working tree whenever ls-tree failed for ANY reason -- and
+  // ls-tree fails with "Not a valid object name" simply because the directory does not exist at
+  // that commit yet, which is true of every branch cut before the gate shipped. An internal lane
+  // proved the consequence: a hand-written, NEVER-COMMITTED artifact naming a foreign model made
+  // the gate pass, defeating the one property the whole design rests on. So the ref is resolved
+  // first: if head is a real commit, the tree is the only source of truth and a missing directory
+  // means zero artifacts. The worktree fallback survives only for a ref git cannot resolve at all.
+  let headResolves = true;
   try {
-    const listed = execFileSync("git", ["ls-tree", "--name-only", `${head}:${ARTIFACT_DIR}`],
+    execFileSync("git", ["rev-parse", "--verify", `${head}^{commit}`],
       { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
-    artifacts = listed.split("\n").filter((f) => f.endsWith(".md")).map((f) => ({
-      name: f,
-      text: execFileSync("git", ["show", `${head}:${ARTIFACT_DIR}/${f}`],
-        { encoding: "utf8", maxBuffer: 64 << 20 }),
-    }));
-  } catch {
-    const dir = ARTIFACT_DIR;
-    artifacts = existsSync(dir)
-      ? readdirSync(dir).filter((f) => f.endsWith(".md"))
-          .map((f) => ({ name: f, text: readFileSync(join(dir, f), "utf8") }))
+  } catch { headResolves = false; }
+
+  let artifacts = [];
+  if (headResolves) {
+    try {
+      const listed = execFileSync("git", ["ls-tree", "--name-only", `${head}:${ARTIFACT_DIR}`],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+      artifacts = listed.split("\n").filter((f) => f.endsWith(".md")).map((f) => ({
+        name: f,
+        text: execFileSync("git", ["show", `${head}:${ARTIFACT_DIR}/${f}`],
+          { encoding: "utf8", maxBuffer: 64 << 20 }),
+      }));
+    } catch { artifacts = []; }          // no such path at head: nothing was committed, full stop
+  } else {
+    artifacts = existsSync(ARTIFACT_DIR)
+      ? readdirSync(ARTIFACT_DIR).filter((f) => f.endsWith(".md"))
+          .map((f) => ({ name: f, text: readFileSync(join(ARTIFACT_DIR, f), "utf8") }))
       : [];
   }
   const v = coverage(diff, artifacts);

@@ -73,12 +73,17 @@ deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
 # segment and the external comment in the tail was never seen. Widening the verb set made that
 # load-bearing, so the guard now loops over all of them. A cross-family review found it.
 #
-# VERBS: create, comment, edit AND review. CLAUDE.md's rule is "never file or EDIT issues/PRs/
-# COMMENTS in a repo outside one21labs/*". An earlier version matched `create` alone; the next added
-# comment|edit while its own comment said "every review/reply path walked straight past" -- naming
-# `review` as part of the hole and then not covering it. Anchoring a guard to the verbs its author
-# happened to think of is the same class as anchoring it to the flag spelling they typed.
-segs=$(printf '%s' "$cmd" | tr ';|&' '\n\n\n' | grep -E '^[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit|review)\b')
+# VERBS ARE AN EXEMPT-LIST, NOT A MATCH-LIST, and that inversion is the whole point. This guard
+# was widened three times -- create, then +comment|edit, then +review -- each time by adding the
+# verb that had just been shown to walk past, while its own comment warned against "anchoring a
+# guard to the verbs its author happened to think of". Round 9 then found `gh pr merge -b`,
+# `gh pr close -c` and `gh pr reopen -c` still uncovered: all of them write to a foreign repo and
+# carry a body. So the default flipped. Every `gh pr|issue <verb>` is checked EXCEPT the read-only
+# ones named here, which means the next verb GitHub invents is covered on the day it ships rather
+# than on the day it is caught.
+segs=$(printf '%s' "$cmd" | tr ';|&' '\n\n\n' \
+  | grep -E '^[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+[a-z-]+' \
+  | grep -vE '^[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+(view|list|status|diff|checks|checkout|develop)\b')
 [ -z "$segs" ] && exit 0
 
 # A here-string, NOT a pipe. `... | while read` runs the loop body in a SUBSHELL, so deny's exit

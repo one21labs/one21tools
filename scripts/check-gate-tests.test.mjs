@@ -606,9 +606,16 @@ test("a python gate's sibling is judged by `def test_`, not the JS pattern", () 
     readFile: () => "import unittest\n\ndef test_it_decides():\n    assert True\n" });
   assert.deepEqual(ok, [], "a python suite declaring def test_ must pass");
 
+  // unittest's discovery prefix is `test`, not `test_`. Requiring the underscore reported
+  // `def testRefusesBadInput(self)` -- a real case CI really runs -- as a placeholder file. The
+  // floor now matches the RUNNER's rule instead of the naming style this repo happens to use.
+  const camel = findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files,
+    readFile: () => "import unittest\n\nclass T(unittest.TestCase):\n    def testItDecides(self):\n        self.assertTrue(True)\n" });
+  assert.deepEqual(camel, [], "unittest's bare `test` prefix is a real case, not a placeholder");
+
   const empty = findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files, readFile: () => "" });
   assert.equal(empty.length, 2, "both empty python siblings must be findings");
-  assert.match(empty[0].reason, /def test_/);
+  assert.match(empty[0].reason, /def test/);
 
   // And "unknown" is still not a finding: no readFile means the caller told us nothing.
   assert.deepEqual(findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files }), []);

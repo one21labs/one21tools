@@ -54,12 +54,11 @@ update its header/frontmatter in the same change.
 - <if a push deploys or releases: git push to <branch> without intent — it ships to production>
 
 ## Shipping — version, release, PR
-- Version tracks the shipped artifact, not background/meta work; a bump is its own PR, not
-  bundled into a feature PR, via the project's version tool.
+- Version tracks the shipped artifact, not meta work; a bump ships as its own PR.
 - Size PRs for reviewability, not one-concern: ship a cohesive unit across files; split only for
   a clean revert boundary or to keep main green. Sync before spend: `git fetch` + re-read the
-  issue/citing PRs before executing and before the final push (guards duplicate spend across
-  sessions); claim-comment if issue-write is available, clear it on completion.
+  issue/citing PRs before executing and before the final push; claim-comment if issue-write
+  is available, clear it on completion.
 - Three-dot (`main...branch`) for previews, never two-dot — post-squash, a stale local `main`
   re-adds merged commits as a phantom range under two-dot.
 - PR: title = the change; body = Purpose / Changes / Testing / Deferred. Read review comments
@@ -78,11 +77,14 @@ Check (tests + a fresh-eyes gate; + a produced-output check if there is an outpu
 (ship + iterate the system).
 **Never fix directly** before planning — a judgment call (threshold, scope, policy) triggers the
 panel even when it's meta/tooling.
+**A concern YOU raise is feedback too.** Fix it, file it, or task it in the SAME turn — saying it
+is not handling it. Prose in a reply has no owner and dies with the turn, leaving the user to
+catch the gap.
 
 ## Review panels (agent grading)
 - Fresh eyes: each reviewer a NEW agent, only the artifact + a neutral task; never pass a prior
   grade or the grade you want (priming anchors and inflates).
 - Independent instances in parallel; the grade is a signal, never the objective.
-- Verify before acting: reproduce every finding against the code yourself — agents are
-  confidently wrong. Never relay or act on an unverified claim, either direction.
+- Verify before acting: reproduce every finding against the code yourself, in either direction —
+  agents are confidently wrong, and an unverified claim must never be relayed or acted on.
 - Inherit settled calls from `docs/decisions/`; don't re-litigate. Full process: `/decide`.

@@ -74,13 +74,17 @@ export function familyOf(modelId) {
  * On Windows X_OK is not meaningfully enforced, so this degrades to a regular-file test there —
  * which is the correct degradation: it is where the claim was already no stronger.
  */
+export function isExecutableFile(p) {
+  try { return statSync(p).isFile() && (accessSync(p, X_OK), true); } catch { return false; }
+}
+
 export function whichSync(name, pathEnv = process.env.PATH ?? "") {
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
     const p = join(dir, name);
     // statSync follows symlinks on purpose: a symlink to a real interpreter IS reachable.
-    try { if (!statSync(p).isFile()) continue; accessSync(p, X_OK); return p; }
-    catch { /* absent, not a regular file, or not executable: keep looking */ }
+    // One home for the test, so the two search paths cannot drift apart again.
+    if (isExecutableFile(p)) return p;
   }
   return null;
 }
@@ -152,9 +156,14 @@ export function availableLanes(env = process.env, which = whichSync) {
     out.push({ name: "custom", bin: env.PDCA_CROSSCHECK_CMD, custom: true });
   }
   for (const lane of LANES) {
+    // The fallback list gets the SAME executability test as the PATH search. It used to call
+    // bare existsSync, so a DIRECTORY at ~/.grok/bin/grok counted as a lane -- and a sweep run
+    // with no executable grok anywhere on the machine printed CLEAN, cross-checked by a model
+    // that had never been invoked. Round 7 hardened whichSync and left this sibling untouched:
+    // exemplar closure, the exact shape this repo keeps finding in its own fixes.
     const bin = env[lane.envBin]
       || which(lane.name, env.PATH ?? "")
-      || lane.fallbacks.map((f) => f.replace("~", env.HOME ?? "")).find((f) => existsSync(f));
+      || lane.fallbacks.map((f) => f.replace("~", env.HOME ?? "")).find(isExecutableFile);
     if (bin) out.push({ ...lane, bin });
   }
   return out;
