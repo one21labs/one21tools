@@ -9,8 +9,7 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
 Validate a skill: `python3 skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
-`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Metrics:
-`node scripts/scorecard.mjs`. Before editing
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
 Plugin skills/hooks/agents run from the installed CACHE, not the working tree — a stale cache
 silently enforces RETIRED policy; reinstall after any plugin-touching merge.

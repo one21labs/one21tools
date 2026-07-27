@@ -36,6 +36,9 @@ can't run under hermetic tool-denied `claude -p`); derived cost $360-480 fails t
 bar. Design records in #236; execution gated on #219 resolved AND a battery adopted.
 
 ## Justification
+- **NOTE (2026-07-27):** `scorecard.mjs` DELETED — never invoked by CI, gated nothing; the
+  hit-rate is now unmeasured. Re-decide before rebuilding (#311).
+
 Every shipped item is grader-free and mechanically enforced; every deferred item needs a grader
 that is itself the gaming surface it would introduce.
 

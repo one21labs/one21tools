@@ -47,6 +47,9 @@ Falsifiable: after #276 ships, a boundary-coupled guard that stops firing is sur
 scorecard run, and an unreachable hook fails check-gate-tests in CI.
 
 ## Justification
+- **NOTE (2026-07-27):** (a) and (c) are GONE — both host scripts were deleted (#311). No
+  liveness readout runs; an unreachable hook no longer fails CI. Finding live, UNMITIGATED.
+
 Five scars at detection rung NONE is the promotion license ADR 0047 requires. Instrumentation
 beats per-guard hardening because each instance looks like a one-off local bug — the recurrence
 lives at the coverage-assumption level, which only a cross-guard instrument sees.

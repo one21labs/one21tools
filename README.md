@@ -59,8 +59,8 @@ append-only evidence, one dated dir per run.
 - Cross-family judging: two caught verdict flips from two separate re-grades — 1 of 10 primary
   verdicts judge-fragile with nine robust holds (2026-07-17 re-grade), plus the earlier #172
   prototype flip (2026-07-13).
-- The repo measures itself: `node scripts/scorecard.mjs` computes the decision corpus's
-  assumption hit-rate and audit coverage (a compass that fires reviews, never a CI block).
+- The repo measured itself with a scorecard until 2026-07-27, when it was deleted for
+  gating nothing and never being run by CI (issue #311). Re-decide before rebuilding one.
 
 ## The improvement loop
 
