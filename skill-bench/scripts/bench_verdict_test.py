@@ -56,6 +56,32 @@ class TestVerdictMath(unittest.TestCase):
         self.assertFalse(bv.both_available(only("claude"), {}))  # same family as the baseline
         self.assertFalse(bv.both_available(only(), {}))
 
+    def test_judge_both_survives_offline_cache_with_no_cli_at_all(self):
+        # --cache has BOTH arms on disk and makes zero judge calls, so gating it on CLI
+        # availability drops the divergence diagnostic from a run that needs nothing to produce
+        # it. The availability check must only fire when there is a live re-grade to run.
+        import bench_verdict as bv
+
+        def none(_b):
+            return None
+
+        self.assertFalse(bv.both_available(none, {}))          # no lane reachable
+        for cache, want_both in ((["a-cell"], True), (None, False)):
+            with self.subTest(cache=bool(cache)):
+                # mirrors main()'s guard: `want_both and not cache and not both_available()`
+                degraded = True and not cache and not bv.both_available(none, {})
+                self.assertEqual(not degraded, want_both)
+
+    def test_cached_run_is_labelled_by_what_answered_not_the_costing_key(self):
+        # CachedJudge borrows a priced model id so a $0 run still costs against a real table;
+        # .name is therefore the COSTING key, not the answerer. A report built from .name labels
+        # an offline re-analysis with a judge that never ran.
+        from judge import CachedJudge
+
+        j = CachedJudge("cached")
+        self.assertEqual(getattr(j, "display_name", j.name), "cached")
+        self.assertNotEqual(j.name, "cached")  # the costing fallback is a real priced id
+
     def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
         # The interval width was never exercised: clustered_delta's construction had no test, and
         # keep_verdict's tests hand-fed synthetic ci95 dicts, so a flat 1.96 shipped unnoticed

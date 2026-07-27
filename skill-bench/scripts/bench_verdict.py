@@ -129,12 +129,16 @@ def main():
 
     want_both = a.judge == "both"
     degrade_note = None
-    if want_both and not both_available():
+    # A CLI is only needed when there is a live re-grade to run. With --cache BOTH arms are already
+    # on disk (the cached judge makes zero calls), so gating on availability there would drop the
+    # divergence diagnostic from a run that needs nothing to produce it.
+    if want_both and not cache and not both_available():
         want_both = False
         cross = ", ".join(n for n, s in BACKENDS.items() if s["cross_family"])
         degrade_note = ("--judge both diverges a cross-family judge from the committed baseline, "
                         f"and none is available here — install or configure one of {cross} "
-                        "(references/judging.md); reporting a single-judge verdict instead")
+                        "(references/judging.md), or re-analyse offline with --cache; "
+                        "reporting a single-judge verdict instead")
     primary = "auto" if a.judge in ("auto", "both") else a.judge
     try:
         judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none
@@ -146,7 +150,11 @@ def main():
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     if degrade_note:
         print("NOTE: " + degrade_note, file=sys.stderr)
-    print(f"re-grading {len(cells)} cells with judge={judge.name}"
+    # .name is the COSTING key (CachedJudge borrows a priced model id to cost $0 against);
+    # display_name is what actually answered. Reports must show the latter or a cache-only run
+    # is labelled with a judge that never ran.
+    judge_label = getattr(judge, "display_name", judge.name)
+    print(f"re-grading {len(cells)} cells with judge={judge_label}"
           + (" (cached)" if cache else ""), file=sys.stderr)
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
     if a.cells_out:
@@ -156,7 +164,7 @@ def main():
                                     "met": c["met"]}) + "\n")
         print(f"wrote {len(regraded)} per-cell verdicts to {a.cells_out}", file=sys.stderr)
 
-    report = {"dir": a.dir, "judge": judge.name, "n_cells": len(regraded), "errors": len(errs),
+    report = {"dir": a.dir, "judge": judge_label, "n_cells": len(regraded), "errors": len(errs),
               "notional_cost_usd": {
                   "judge_calls": judge.calls, "usd": judge.cost_usd(),
                   "note": "shadow cost at published API rates (deterministic: tokens x rate); "
@@ -169,7 +177,7 @@ def main():
     if want_both:
         report["baseline_judge"] = "committed (opus)"
         report["baseline"] = summarize(baseline, px, py)
-        report["divergence"] = benchstats.divergence(baseline, regraded, "baseline", judge.name)
+        report["divergence"] = benchstats.divergence(baseline, regraded, "baseline", judge_label)
         report["verdict_flip"] = benchstats.verdict_flip(
             benchstats.clustered_delta(baseline, px, py),
             benchstats.clustered_delta(regraded, px, py))

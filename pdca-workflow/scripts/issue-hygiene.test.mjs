@@ -114,8 +114,10 @@ test("a threshold flag given no value is rejected, never coerced to NaN", () => 
 });
 
 test("a non-numeric or non-positive threshold is rejected, and the message prescribes the fix", () => {
+  // Asserts the two things the message must carry - the bad value and a usable remedy - not its
+  // punctuation, so extending the remedy (as the = spelling did) is not a test failure.
   assert.throws(() => numericFlag(["--dormant-days", "soon"], "dormant-days", 21),
-    /got "soon"\. Pass one \(--dormant-days 21\)/);
+    /got "soon".*--dormant-days 21/s);
   assert.throws(() => numericFlag(["--tracking-min", "0"], "tracking-min", 5), /got "0"/);
   assert.throws(() => numericFlag(["--dormant-days", "-3"], "dormant-days", 21), /got "-3"/);
 });
@@ -130,4 +132,26 @@ test("a malformed flag exits non-zero and prints no report — the retrospect ag
   assert.equal(p.status, 1);
   assert.equal(p.stdout, "");
   assert.match(p.stderr, /--dormant-days takes a positive number/);
+});
+
+test("the --flag=value spelling reaches the same validation, never a silent default", () => {
+  // An exact-token lookup misses `--x=5` entirely and falls through to the default, so the report
+  // prints against thresholds the caller did not ask for - the same fail-open the NaN check closes,
+  // and one the retrospect agent would cite as if it answered the question asked (ADR 0094).
+  assert.equal(numericFlag(["--dormant-days=5"], "dormant-days", 21), 5);
+  assert.equal(numericFlag(["--tracking-min=9"], "tracking-min", 5), 9);
+  assert.throws(() => numericFlag(["--dormant-days=abc"], "dormant-days", 21), RangeError);
+  assert.throws(() => numericFlag(["--dormant-days="], "dormant-days", 21), RangeError);
+  assert.throws(() => numericFlag(["--dormant-days=0"], "dormant-days", 21), RangeError);
+  assert.throws(() => numericFlag(["--dormant-days=-3"], "dormant-days", 21), RangeError);
+});
+
+test("the rejection message teaches BOTH spellings, so a caller who used = is not left guessing", () => {
+  try {
+    numericFlag(["--dormant-days=x"], "dormant-days", 21);
+    assert.fail("expected a RangeError");
+  } catch (e) {
+    assert.match(e.message, /--dormant-days 21/);
+    assert.match(e.message, /--dormant-days=21/);
+  }
 });

@@ -86,15 +86,21 @@ export function detect(issues, opts = {}) {
  * A threshold flag's value, or `dflt` when the flag is absent. A missing or malformed value is
  * rejected rather than coerced: `Number(undefined)` is NaN, every comparison against NaN is false,
  * and the run would then report a clean backlog it never checked.
+ *
+ * BOTH SPELLINGS REACH THE SAME VALIDATION. `--x=5` is not the documented form, but an exact-token
+ * lookup would let it miss the flag entirely and fall through to `dflt` — a report printed against
+ * thresholds the caller did not ask for, which is the same fail-open the NaN check above closes.
+ * Silently defaulting is the failure; rejecting an unparseable value is not.
  */
 export function numericFlag(argv, name, dflt) {
+  const eq = argv.find((a) => a.startsWith(`--${name}=`));
   const i = argv.indexOf(`--${name}`);
-  if (i === -1) return dflt;
-  const raw = argv[i + 1];
-  const n = Number(raw);
+  if (eq === undefined && i === -1) return dflt;
+  const raw = eq !== undefined ? eq.slice(`--${name}=`.length) : argv[i + 1];
+  const n = raw === "" ? NaN : Number(raw);
   if (!Number.isFinite(n) || n <= 0) {
-    throw new RangeError(`--${name} takes a positive number; got ${raw === undefined ? "no value" : `"${raw}"`}. ` +
-      `Pass one (--${name} ${dflt}) or drop the flag for the default ${dflt}.`);
+    throw new RangeError(`--${name} takes a positive number; got ${raw === undefined || raw === "" ? "no value" : `"${raw}"`}. ` +
+      `Pass one (--${name} ${dflt}, or --${name}=${dflt}) or drop the flag for the default ${dflt}.`);
   }
   return n;
 }
