@@ -26,7 +26,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -42,13 +42,31 @@ const GATES = [
     // fails to refuse.
     .filter((f) => !f.endsWith(".test.mjs") && /^(check-.*|scorecard)\.mjs$/.test(f))
     .map((f) => `scripts/${f}`),
-  "pdca-workflow/scripts/adr-lint.mjs",
+  // The PLUGIN half, derived the same way. This was the literal string
+  // "pdca-workflow/scripts/adr-lint.mjs" -- one hand-listed entry, in the file whose own comment
+  // says a hand-kept list "stops including new gates, which is exactly how a coverage gap goes
+  // silent". Every other CLI in the directory that SHIPS TO ADOPTERS was structurally invisible to
+  // this test: crosscheck, issue-hygiene and sweep-state were never asked the question. A
+  // cross-family round found it.
+  // A main guard, not a filename pattern, is what makes a file a CLI here -- and it is matched in
+  // all THREE spellings the directory actually uses (`process.argv[1] === fileURLToPath(...)`,
+  // `import.meta.url === \`file://${process.argv[1]}\``, and the process.exit-wrapped variant),
+  // because keying on one spelling would silently drop the others. Libraries (char-budget,
+  // cli-flags) have no main guard and are correctly skipped without needing to be named.
+  ...readdirSync(join(REPO, "pdca-workflow", "scripts"))
+    .filter((f) => f.endsWith(".mjs") && !f.endsWith(".test.mjs")
+      && /process\.argv\[1\]/.test(readFileSync(join(REPO, "pdca-workflow", "scripts", f), "utf8")))
+    .map((f) => `pdca-workflow/scripts/${f}`),
 ].sort();
 
 test("the gate set is discovered, not hand-listed, and is not empty", () => {
   assert.ok(GATES.length >= 7, `expected the repo's gates, found ${GATES.length}: ${GATES}`);
   assert.ok(GATES.includes("scripts/check-workflow.mjs"));
   assert.ok(GATES.includes("scripts/check-restatement.mjs"));
+  // The plugin half must be discovered too -- these ship to adopters and were invisible before.
+  for (const g of ["adr-lint", "crosscheck", "issue-hygiene", "sweep-state"]) {
+    assert.ok(GATES.includes(`pdca-workflow/scripts/${g}.mjs`), `plugin CLI not discovered: ${g}`);
+  }
 });
 
 // "Nothing usable" has to be expressed in whatever each gate READS, or the probe misses gates that
@@ -72,7 +90,10 @@ for (const gate of GATES) {
     // A refusal nobody can act on is only half the rung: say WHAT was unreadable, so the operator
     // fixes the wiring instead of re-running the gate.
     const said = `${r.stdout}${r.stderr}`;
-    assert.match(said, /ENOENT|no such file|not found|Invalid path|empty or unset/i,
+    // `is required` belongs here: crosscheck takes its input via --claim-file, so "that flag is
+    // required and takes a value" IS this gate naming what it could not read. The first version of
+    // this pattern only knew filesystem wordings and reported a correctly-refusing gate as broken.
+    assert.match(said, /ENOENT|no such file|not found|Invalid path|empty or unset|is required/i,
       `${gate} refused without naming the unreadable input: ${said.slice(0, 300)}`);
   });
 }

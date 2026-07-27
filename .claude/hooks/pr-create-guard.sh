@@ -19,7 +19,15 @@
 # first escaped quote -- a miss, never a false fire. Flag parsing is bounded to the create invocation's own pipeline segment (cut at the
 # first `&&`/`;`/`|`), so a -R in a later chained command is never misattributed.
 #
-# -R/--repo AND --body-file/-F both accept `=` and space forms (`--repo=o/r`, `-R o/r`, ...).
+# FLAG FORMS: the long spellings take `=` or whitespace (`--repo=o/r`, `--repo o/r`). The SHORT
+# spellings additionally take the value ATTACHED, with no separator at all (`-Ro/r`, `-Fb.md`,
+# `-bhello`) — that is pflag's behaviour, which is what gh uses. Requiring a separator on the short
+# forms silently disarmed ALL THREE sub-guards: `gh pr create -Revil/repo ...` matched nothing, so
+# the external-repo deny — this repo's only in-session backstop for CLAUDE.md's "no external
+# publication without approval" — did not fire. The three canaries below all declared the DETACHED
+# form, so the shipped canary suite passed green while every guard was bypassable. Each hole now
+# has its own attached-form canary; a canary set that only exercises the shape the author had in
+# mind is not coverage.
 #
 # JSON SAFETY: every deny reason is sanitized (double quotes, backslashes, newlines, tabs
 # stripped) before interpolation, so a hostile body-file path cannot break the deny JSON.
@@ -36,6 +44,9 @@
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -R evil/repo --title t --body-file b.md"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t --body hello"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t --body-file b.md"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -Revil/repo --title t -Fb.md"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t -bhello"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t -Fb.md"}},"expect":{"deny":true}}
 # Gate-hit telemetry has one home (lib/hook-lib.sh). Sourced script-relative, not via
 # CLAUDE_PROJECT_DIR: the canary runner executes hooks from their real repo path against a
 # throwaway fixture project. A missing lib exits 0 — telemetry must never block a guard.
@@ -63,8 +74,8 @@ seg=$(printf '%s' "$inv" | sed -E 's/(&&|;|\|).*//')
 kind=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]].*/\1/p')
 
 # G3 -- external repo target on a create: deny by default, override path stated.
-repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo|-R)(=|[[:space:]]+)[^[:space:]]+' | head -1 \
-  | sed -E 's/^[[:space:]]*(--repo|-R)(=|[[:space:]]+)//')
+repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))[^[:space:]]+' | head -1 \
+  | sed -E 's/^[[:space:]]*(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))//')
 if [ -n "$repo" ]; then
   case "$repo" in
     one21labs/*) : ;;
@@ -73,10 +84,10 @@ if [ -n "$repo" ]; then
 fi
 
 # G1 -- body must come via --body-file/-F.
-bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file|-F)(=|[[:space:]]+)[^[:space:]]+' | head -1 \
-  | sed -E 's/^[[:space:]]*(--body-file|-F)(=|[[:space:]]+)//')
+bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))[^[:space:]]+' | head -1 \
+  | sed -E 's/^[[:space:]]*(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))//')
 if [ -z "$bf" ]; then
-  if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body|-b)(=|[[:space:]]|$)'; then
+  if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body(=|[[:space:]]|$)|-b(=|[[:space:]]|[^[:space:]]|$))'; then
     deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first." inline-body
   fi
   exit 0   # no body flags at all: let gh open its editor / error on its own

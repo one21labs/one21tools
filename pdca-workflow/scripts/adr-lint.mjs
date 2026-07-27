@@ -31,7 +31,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS, corpusOverage } from "./char-budget.mjs";
+import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, DOC_BUDGETS, corpusOverage } from "./char-budget.mjs";
 import { positionals, integerFlag, flagValue } from "./cli-flags.mjs";
 import * as CHAR_BUDGET from "./char-budget.mjs";
 
@@ -395,6 +395,18 @@ export function repoFileList(root = ".", readdir = readdirSync) {
   return out;
 }
 
+/**
+ * Every NUMERIC export of char-budget.mjs, as {name: value} — the constant set docIndexDrift
+ * cross-checks docs against. EXPORTED so the tests use the shipped derivation instead of
+ * re-listing it: the literal this replaced named four of five and omitted ADR_CORPUS_BUDGET, and
+ * when main() was fixed the TESTS kept the same 4-of-5 literal, so `node adr-lint.mjs` failed on a
+ * stale corpus-cap citation while `node --test` reported every test green on the same tree. A test
+ * that re-derives what it is checking cannot catch the omission it exists to catch.
+ */
+export function scalarConstants(mod = CHAR_BUDGET) {
+  return Object.fromEntries(Object.entries(mod).filter(([, v]) => typeof v === "number"));
+}
+
 function main(argv) {
   const args = argv.slice(2);
   // cli-flags.mjs is the ONE home for argv, and this file was the last CLI in the plugin still
@@ -455,9 +467,7 @@ function main(argv) {
   // the number most worth catching stale in a doc -- while the spec promised "a char-budget.mjs
   // scalar constant" with no qualifier. A hand-kept list of things to check is a list that stops
   // including new things, which is the coverage-gap class the guard itself exists to close.
-  const SCALARS = Object.fromEntries(
-    Object.entries(CHAR_BUDGET).filter(([, v]) => typeof v === "number"));
-  problems.push(...docIndexDrift(mdDocs, SCALARS, DOC_BUDGETS));
+  problems.push(...docIndexDrift(mdDocs, scalarConstants(), DOC_BUDGETS));
 
   // PR-scoped advisories: CI's PR-only step passes the diff-added ADR files (ADR 0051/0067).
   const newArg = flagValue(args, "new-adrs");

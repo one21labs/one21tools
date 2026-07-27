@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings, repoFileList, docIndexDrift, indexScanSet } from "./adr-lint.mjs";
+import { lint, manifestDrift, agentProblems, decisionSetWarnings, marginWarnings, repoFileList, docIndexDrift, indexScanSet, scalarConstants } from "./adr-lint.mjs";
 import { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, AGENT_CHAR_BUDGET, LITE_ADR_CHAR_BUDGET, DOC_BUDGETS } from "./char-budget.mjs";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -562,14 +562,14 @@ test("docIndexDrift: the real living docs match char-budget.mjs (the PR #251 cla
   assert.ok(docs.some(d => d.name.endsWith("doc-budgets.md")), "walk must include the indexed doc");
   assert.ok(docs.every(d => !d.name.startsWith("docs/decisions/")), "decisions dir must be excluded");
   assert.deepEqual(docIndexDrift(docs,
-    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS), []);
+    scalarConstants(), DOC_BUDGETS), []);
 });
 
 test("docIndexDrift: WITHOUT the decisions-dir exclusion the real corpus false-positives (the exclusion is load-bearing)", () => {
   const all = repoFileList(AGENT_ROOT).filter(p => p.endsWith(".md"))
     .map(p => ({ name: p, text: readFileSync(join(AGENT_ROOT, p), "utf8") }));
   const problems = docIndexDrift(all,
-    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS);
+    scalarConstants(), DOC_BUDGETS);
   assert.ok(problems.some(p => p.startsWith("docs/decisions/")),
     "expected at least one as-of-decision number to fire when records are scanned");
 });

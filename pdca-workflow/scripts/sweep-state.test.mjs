@@ -144,11 +144,27 @@ test("a foreign lane BEFORE the quiet tail does not launder the tail", () => {
   assert.equal(v.state, "FRAME-UNCHECKED");
   // The message must say WHICH failure this is, or the operator re-reads it as "you never ran one".
   assert.match(v.reason, /before the quiet tail/);
-  // ...and must NOT claim anything crossFamilyLane does not check: an all-quiet log with a
-  // round-1 lane hits this same branch, so a "that round found things" clause would be false.
   assert.doesNotMatch(v.reason, /DID find things/);
   assert.match(v.reason, /grok-4\.5/);
   assert.match(v.reason, /Run another round/);
+});
+
+test("the FRAME-UNCHECKED reason describes the lanes that are actually there", () => {
+  // Pins the PROPERTY, not a deleted phrase. The previous assertion here was
+  // `doesNotMatch(/DID find things/)` -- it forbade one retired literal while the replacement
+  // sentence asserted a DIFFERENT unchecked thing ("its ONLY foreign lane") that the same scan
+  // never establishes: it returns the first match and stops counting. So with two pre-tail lanes
+  // the message was false AND named the older one. Two cross-family rounds each caught one of
+  // these; a test that forbids yesterday's wording catches neither.
+  const two = [{ ids: ["a"], xfam: "grok-4.5" }, { ids: ["b"], xfam: "gpt-5" }, bare(), bare()];
+  const v = sweepState(two, 6);
+  assert.equal(v.state, "FRAME-UNCHECKED");
+  assert.doesNotMatch(v.reason, /\bonly\b/, "must not claim a count the scan never took");
+  assert.match(v.reason, /grok-4\.5/, "both lanes named...");
+  assert.match(v.reason, /gpt-5/, "...including the more recent one");
+  // And a single lane still reads as singular rather than "lanes (X)".
+  const one = sweepState([{ ids: ["a"], xfam: "grok-4.5" }, bare(), bare()], 6);
+  assert.match(one.reason, /foreign lane \(grok-4\.5\)/);
 });
 
 test("the tail rule scales with --quiet-rounds rather than assuming 2", () => {

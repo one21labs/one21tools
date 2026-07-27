@@ -21,7 +21,7 @@
 // same-family answer is the precise failure ADR 0093 exists to close. So a foreign CLI that
 // returns a Claude model is FRAME-UNCHECKED, exactly as if it were absent.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, accessSync, constants } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, accessSync, statSync, constants } from "node:fs";
 const { X_OK } = constants;
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
@@ -65,14 +65,22 @@ export function familyOf(modelId) {
  * sweep's cross-family claim, so a zero-byte mode-000 file named `grok` anywhere on PATH was
  * enough to flip sweep-state from FRAME-UNCHECKED to CLEAN. "A file with the right name exists"
  * is not "a foreign lane is reachable".
- * On Windows X_OK is not meaningfully enforced, so this degrades to the old presence test there —
+ * REGULAR FILE, then executable — in that order, and the order is the fix. X_OK alone succeeds on a
+ * DIRECTORY, because on a directory the execute bit means "searchable". So an empty directory named
+ * `grok` on PATH satisfied `accessSync(p, X_OK)`, registered a grok lane, and still flipped the
+ * verdict to CLEAN. The first attempt at this replaced existsSync with X_OK and its comment claimed
+ * the hole was closed; it had only been narrowed from "any file" to "any file or directory", which
+ * is barely narrower. A cross-family round caught the overclaim.
+ * On Windows X_OK is not meaningfully enforced, so this degrades to a regular-file test there —
  * which is the correct degradation: it is where the claim was already no stronger.
  */
 export function whichSync(name, pathEnv = process.env.PATH ?? "") {
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
     const p = join(dir, name);
-    try { accessSync(p, X_OK); return p; } catch { /* absent or not executable: keep looking */ }
+    // statSync follows symlinks on purpose: a symlink to a real interpreter IS reachable.
+    try { if (!statSync(p).isFile()) continue; accessSync(p, X_OK); return p; }
+    catch { /* absent, not a regular file, or not executable: keep looking */ }
   }
   return null;
 }

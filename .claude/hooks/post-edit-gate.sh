@@ -49,9 +49,11 @@ PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git
 run_gate() {  # $1 = gate name for telemetry; rest = the gate command
   gname="$1"; shift
   command -v "$1" >/dev/null 2>&1 || return 0                      # interpreter absent
-  # Scoped honestly: this covers the "<interpreter> <script>" shape, which is the only shape every
-  # call site below uses. It does NOT cover a script passed after a flag (`node --foo g.mjs`) —
-  # that case falls through to the 126/127 arm, which is why both exist rather than either alone.
+  # Scoped to the "<interpreter> <script>" shape, which is the only shape every call site below
+  # uses. A script passed AFTER a flag (`node --foo g.mjs`) is NOT covered and will hard-block: a
+  # missing module exits 1, not 126/127, so it never reaches the arm below. An earlier version of
+  # this comment claimed that arm caught it — it does not; 126/127 covers exec failure of the
+  # INTERPRETER, nothing about its arguments. Stated as a known limit rather than a false comfort.
   { [ $# -lt 2 ] || [ "${2#-}" != "$2" ] || [ -f "$2" ]; } || return 0   # gate script absent
   # `rc=0; ... || rc=$?`, not `out=$(...); rc=$?`. The second form is correct today only because
   # this file does not `set -e`; under it, the assignment's non-zero status would abort the hook

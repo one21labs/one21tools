@@ -82,6 +82,23 @@ export function crossFamilyLane(rounds) {
 }
 
 /**
+ * EVERY foreign lane in `rounds`, in round order. crossFamilyLane returns the FIRST match and stops,
+ * which is right for "is there one?" and wrong for describing what a log contains: the
+ * FRAME-UNCHECKED message said "its ONLY foreign lane (X)" while calling crossFamilyLane, so a log
+ * with two pre-tail lanes got a false sentence that also named the OLDEST — the one an operator is
+ * least likely to be thinking of. Counting is a different question from existence, so it gets its
+ * own function rather than a caller assuming the singular answer is exhaustive.
+ */
+export function crossFamilyLanes(rounds) {
+  const out = [];
+  for (const r of rounds ?? []) {
+    const fam = familyOf(r?.xfam);
+    if (isForeignFamily(fam)) out.push({ model: r.xfam, family: fam });
+  }
+  return out;
+}
+
+/**
  * Pure given `env`: the model id a LANE would answer as, which is what family placement needs.
  * A lane's NAME is not a model id, and conflating them inverted the rule: main() asked
  * `familyOf(lane.name)`, so `copilot` came back "unknown", and "unknown" !== the maker's family, so
@@ -138,14 +155,17 @@ export function sweepState(rounds, max, quietRounds = 2) {
     // for it.
     const lane = crossFamilyLane(rounds.slice(-quietRounds));
     if (!lane) {
-      const earlier = crossFamilyLane(rounds);
-      const why = earlier
-        // Says only what crossFamilyLane actually establishes. An earlier draft added "on a round
-        // that DID find things", which the function never checks — it reads `xfam` and the family
-        // table, nothing about findings — so on an all-quiet log with a round-1 lane the message
-        // stated a falsehood. A diagnostic that invents a detail is worse than a vaguer true one.
-        ? `its only foreign lane (${earlier.model}) ran before the quiet tail, so nothing outside `
-          + `${MAKER_FAMILY} has seen the rounds now being called clean`
+      // Says only what the code establishes, and says it about ALL of them. Two drafts of this
+      // sentence each asserted something unchecked: first "on a round that DID find things" (the
+      // lane scan never looks at findings), then "its ONLY foreign lane" (the scan returns the
+      // first match and never counts). Both were caught by cross-family rounds, the second inside
+      // the commit that fixed the first. Hence the plural helper — the quantifier now comes from
+      // the data rather than from an assumption about it.
+      const earlier = crossFamilyLanes(rounds.slice(0, -quietRounds));
+      const why = earlier.length
+        ? `its foreign lane${earlier.length > 1 ? "s" : ""} `
+          + `(${[...new Set(earlier.map((l) => l.model))].join(", ")}) ran before the quiet tail, so `
+          + `nothing outside ${MAKER_FAMILY} has seen the rounds now being called clean`
         : `no round recorded a lane outside ${MAKER_FAMILY} — the sweep audited its own family's work `
           + `and cannot settle that`;
       return { state: "FRAME-UNCHECKED",

@@ -209,9 +209,11 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
   // substring of `hook_gate_hit budget-edit-guard`, so it would read as live forever no matter
   // which guard emitted it — the readout's own failure mode, one level down. So the wired text is
   // TOKENISED on the identifier character class and membership is asked of the token set: a name
-  // counts as emitted only when it appears as a whole token. (Not a `\b` search, which is a weaker
-  // and subtly different test — `\bhit\b` still matches inside `hook_gate_hit` if the separator is
-  // an underscore-free spelling, and it answers "appears somewhere" rather than "is one of these".)
+  // counts as emitted only when it appears as a whole token. (Not a `\b` search, which is weaker.
+  // The example first given here was false: `_` IS a word character, so `\bhit\b` does NOT match
+  // inside `hook_gate_hit`. The true one is `\bedit\b`, which DOES match inside `budget-edit-guard`
+  // — so a deleted gate named `edit` would read as live forever. The tokenizer keeps
+  // `budget-edit-guard` whole and answers "is one of these", not "appears somewhere".)
   const emitted = liveness?.guardText == null ? null
     : new Set(liveness.guardText.match(/[A-Za-z0-9_.-]+/g) ?? []);
   const retired = (g) => emitted != null && !emitted.has(g);
