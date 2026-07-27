@@ -15,7 +15,7 @@ hooks, and skills, not prose (autonomy).
 /plugin marketplace add one21labs/one21tools
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
 /plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS applied to software)
-/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /pdca-init
+/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
 /plugin install skill-bench@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
 
@@ -59,8 +59,8 @@ append-only evidence, one dated dir per run.
 - Cross-family judging: two caught verdict flips from two separate re-grades — 1 of 10 primary
   verdicts judge-fragile with nine robust holds (2026-07-17 re-grade), plus the earlier #172
   prototype flip (2026-07-13).
-- The repo measures itself: `node scripts/scorecard.mjs` computes the decision corpus's
-  assumption hit-rate and audit coverage (a compass that fires reviews, never a CI block).
+- The repo measured itself with a scorecard until 2026-07-27, when it was deleted for
+  gating nothing and never being run by CI (issue #311). Re-decide before rebuilding one.
 
 ## The improvement loop
 

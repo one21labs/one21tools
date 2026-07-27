@@ -13,7 +13,7 @@ summary: "Six corrections to the owned verdict layer (eval_verdict.py + protocol
 
 ## Decision
 1. **Eval-clustered CI (two-level report).** Keep pair-level W/L/T + mean delta as detail; the HEADLINE Wilson CI clusters replicates per eval, over non-tied evals. Warn under 4 non-tied evals.
-2. **Sequential replicates.** Keep the 3-replicate minimum; escalation protocol lives in `skills/building-skills/references/empirical-evals.md`.
+2. **Sequential replicates.** Keep the 3-replicate minimum; escalation protocol lives in `skill-bench/skills/bench/references/empirical-evals.md`.
 3. **Defer Plackett-Burman** for Tier-2 ablation — unexercised path; OFAT guidance stands.
 4. **Honest denominator.** Charge the delta against the loaded surface: default SKILL.md body; `--include-references` adds references/*.md; `--loaded-chars N` (measured) wins.
 5. **Blind grading + family-bias mitigation stack.** Neutral A/B labels, mapping withheld from the grader. The Claude-only grader is a fixed constraint; the mitigation stack attacks the rest. Residual: judgment-only assertions stay directional.

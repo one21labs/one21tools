@@ -22,7 +22,7 @@
 # liveness: per-event-exempt -- a deny fires only on an unmodeled general-purpose/absent-type
 # call, which may legitimately never occur in a window (ADR 0086 (b)). Canaries: the two
 # denied input shapes, one per tool name the matcher covers. Declaration grammar home: the
-# consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
+# grammar is inert since 2026-07-27 (#311) — its runner was deleted.
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"prompt":"do the thing"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose","prompt":"do the thing"}},"expect":{"deny":true}}
 input=$(cat)
@@ -36,7 +36,7 @@ subagent_type=$(printf '%s' "$scope" | sed -n 's/.*"subagent_type"[[:space:]]*:[
 if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "general-purpose" ]; }; then
   # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
   # below prints regardless; docs/pdca existence already established above (ADR 0071 marker),
-  # never mkdir. Line format home: the consumer's scorecard parser (scripts/scorecard.mjs).
+  # never mkdir. Nothing reads this log since #311.
   { printf '%s gate-hit explicit-model-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${subagent_type:-unset}" >> "${CLAUDE_PROJECT_DIR:-.}/docs/pdca/gate-hits.txt"; } 2>/dev/null
   reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model (ADR 0040). Re-issue the call with model set explicitly to haiku, sonnet, or opus, matched to the task: haiku for mechanical/deterministic execution, sonnet for judgment-execution, opus for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"

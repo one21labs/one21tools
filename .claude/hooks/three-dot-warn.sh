@@ -29,7 +29,7 @@
 #
 # liveness: per-event-exempt -- fires only on a two-dot-against-main diff, which may
 # legitimately never occur in a window (ADR 0086 (b)); a zero count is the rung's SUCCESS
-# reading, per the promotion doctrine above. Grammar home: scripts/check-gate-tests.mjs.
+# reading, per the promotion doctrine above.
 # canary: {"event":"PostToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"git diff origin/main..HEAD"}},"expect":{"append":"docs/pdca/session-log.txt","match":" two-dot-main "}}
 input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')

@@ -3,8 +3,9 @@
 
 gates.yml runs *_test.py files in SCRIPT mode (`python3 <file>`), so a test class defined
 below the `if __name__ == "__main__": unittest.main()` block is never collected — the file
-reads green forever while its tests silently don't run. check-gate-tests.mjs verifies a
-test FILE is wired, not that its contents are reachable; this guard closes that gap.
+reads green forever while its tests silently don't run. Nothing verifies a test file is
+even wired since 2026-07-27 (#311); this guard checks only that a wired file's contents
+are reachable.
 
 Rule: in a *_test.py file, no top-level class definition may appear after the first
 `unittest.main()` call. Parsed with `ast` (a string literal containing the call text never

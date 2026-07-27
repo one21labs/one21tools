@@ -19,7 +19,7 @@ the wrong thing.
 
 | Surface | What lives here | Governed by | The only lever |
 |---------|------------------|-------------|-----------------|
-| Always-loaded CONTEXT | SKILL.md / CLAUDE.md bodies | Char budget (`pdca-workflow/scripts/char-budget.mjs`) | **Cut** content: SSoT + progressive disclosure |
+| Always-loaded CONTEXT | SKILL.md / CLAUDE.md bodies | Char budget (SKILL.md: the `building-skills` skill's `scripts/validate.py`; CLAUDE.md: the **pdca-workflow plugin's** `scripts/char-budget.mjs`) | **Cut** content: SSoT + progressive disclosure |
 | Stored / agent-read ARTIFACTS | Data files, tool outputs, subagent results | No fixed cap — cost is per-read | **Format** choice (this reference) |
 
 Reformatting SKILL.md/CLAUDE.md prose into a denser data format does not reduce its always-loaded

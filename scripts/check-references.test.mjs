@@ -45,7 +45,7 @@ test("not a trigger: raw lane files under sources/ are the audit substrate, not 
 test("not external: repo-relative paths, file:line cites, script names, own-repo github links", () => {
   const { problems } = checkReferences({
     addedByFile: { "docs/decisions/0080-x.md": [
-      "- see metrics-engine.md:28 and scripts/scorecard.mjs",
+      "- see metrics-engine.md:28 and scripts/check-references.mjs",
       "- per pdca-workflow/skills/decide/references/adr-template.md",
       "- merged in https://github.com/one21labs/one21tools/pull/242",
     ] },

@@ -25,8 +25,9 @@ recording any number. Three guessed estimates missed by 2-17x (ADR 0061; PR #219
 **`ceiling_usd` derivation (ADR 0073):** the generation cost gate's `ceiling_usd` is set to 2x
 the pre-registered notional estimate — the >2x stop-rule of record — NEVER the estimate itself.
 Encoding the estimate band's top as the ceiling forces a mid-run revision the moment a pilot
-projects above it (realized in `benchmarks/2026-07-17-thirdparty-writing-plans/`); the stop
-rule and the mechanical gate must be the same number.
+projects above it (realized in
+`one21labs/one21tools:benchmarks/2026-07-17-thirdparty-writing-plans/`); the stop rule and the
+mechanical gate must be the same number.
 
 ## Scoring
 

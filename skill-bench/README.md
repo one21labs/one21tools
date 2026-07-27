@@ -53,15 +53,6 @@ so the judge is a first-class, reported variable. `--judge both` gives the diver
 - Auth: grok.com subscription (zero marginal cost) or `XAI_API_KEY` for CI. Model `grok-4.5` = 500K ctx.
 - These flags are NOT in the public docs (docs.x.ai) but are present in the binary; pin the version.
 
-## Milestones (per #170; substrate + judge added by ADR 0055)
-- **M0** `/decide` ADR 0055 — accepted as amended by ADR 0063 (#150/ADR 0050: standalone plugins, no dependency declared). DONE
-- **M1** Pure move: `benchmarks/lib/*` + tests -> `skill-bench/scripts/lib/`; `gates.yml` + nav updated. DONE
-- **M2** Genericize: config layer + consumer-layout test. DONE
-- **M3** Skill surface: one `/bench` skill (verdict + skill + trigger) + on-demand references + canonical `templates/` (grid runner, blinding, grading workflow). DONE
-- **M4** Substrate adapter: promptfoo behind `hermetic_driver`; native fallback (inspect-ai stays planned). DONE
-- **M5** Cross-family judge wired in + `judge-divergence` diagnostic. DONE
-- **M6** Dogfood: `/plugin install` round-trip proven; the paid reproduce-a-committed-benchmark and third-party-skill runs are tracked as follow-up issues (spend-gated, ADR 0063 Call 4).
-
 ## Portability (installed elsewhere)
 
 The pure layer (`costing`, `benchstats`, `rubric`, judge dispatch, the promptfoo config
@@ -69,9 +60,14 @@ gen/parse) is machine-independent — stdlib only, relative imports, `npx --yes`
 version-pinned promptfoo on demand (pin + bump rule: `substrate.py:PromptfooSubstrate.PIN`,
 ADR 0058). What a consumer must provide / knows:
 
-- **CLIs on PATH, authenticated:** `grok` (grok judge/gen — resolved via `$GROK_BIN`, then PATH,
-  then `~/.grok/bin/grok`), `claude` (claude judge/gen), `node`/`npx` (promptfoo substrate). Not
-  bundled — documented requirements.
+- **CLIs on PATH, authenticated:** `claude` (generation, and the same-family fallback judge),
+  `node`/`npx` (promptfoo substrate), plus one cross-family judge — any `BACKENDS` entry in
+  `scripts/lib/judge.py`, currently `grok`, `copilot`, or a command of your own behind
+  `$SKILL_BENCH_JUDGE_CMD`. Not bundled — documented requirements;
+  `skills/bench/references/judging.md` owns the wiring. `copilot` is the weakest of the three: its
+  `--model` is entitlement-gated here and rejects every id, so it runs `auto`, whose candidate set
+  includes Claude models — `judge.py` reads back who answered and fails the grade on a same-family
+  landing rather than reporting it as independent.
 - **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench` subcommands call
   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/..."` so they resolve from any working directory.
 - **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode —
@@ -88,7 +84,7 @@ ADR 0058). What a consumer must provide / knows:
 ## Status
 Runnable: `/bench` with `verdict` + `skill` + `trigger` subcommands (native substrate +
 availability-aware pluggable cross-family judge + deterministic cost accounting),
-harness lib moved in (M1), config layer + consumer-layout test (M2), canonical templates
+config layer + consumer-layout test, canonical templates
 (`templates/`), #191 infrastructure-vs-quality hardening (ERROR cells, capture symmetry,
 per-cell attribution), registered in the marketplace.
 
@@ -96,7 +92,7 @@ Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces 
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
 CI-runnable, needs authenticated grok). Promptfoo generation is wired into
-`/bench skill` (`--substrate promptfoo`, M4, proven live). Rationale lives in the source repo's
+`/bench skill` (`--substrate promptfoo`, proven live). Rationale lives in the source repo's
 `docs/decisions/0055-*` and `0063-*`, which do not ship with the plugin.
 
 ## Provenance

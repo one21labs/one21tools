@@ -33,7 +33,7 @@
 #
 # liveness: per-event-exempt -- a deny fires only on a violating create command, which may
 # legitimately never occur in a window (ADR 0086 (b)). Canaries: one per sub-guard (G3
-# external target, G1 inline body, G2 missing disclosure). Grammar: scripts/check-gate-tests.mjs.
+# external target, G1 inline body, G2 missing disclosure).
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -R evil/repo --title t --body-file b.md"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t --body hello"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t --body-file b.md"}},"expect":{"deny":true}}
@@ -43,7 +43,7 @@ cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^
 
 deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
   # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
-  # below prints regardless; marker-guarded, never mkdir (ADR 0071). Format: scorecard.mjs.
+  # below prints regardless; marker-guarded, never mkdir (ADR 0071).
   ghroot="${CLAUDE_PROJECT_DIR:-.}"
   { [ -d "$ghroot/docs/pdca" ] && printf '%s gate-hit pr-create-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${2:-}" >> "$ghroot/docs/pdca/gate-hits.txt"; } 2>/dev/null
   reason=$(printf '%s' "$1" | tr -d '"\\' | tr '\n\t' '  ')

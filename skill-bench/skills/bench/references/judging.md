@@ -81,8 +81,9 @@ changes only the grader, keeping the comparison clean.
 `both` runs the chosen judge and loads the committed baseline judge, then reports how far they agree:
 per-cell-per-expectation agreement, Cohen's kappa, how many calls each judge is stricter on, and a
 verdict-flip check (did KEEP/CUT direction change between judges). Divergence is surfaced, never
-averaged away — the disagreement is itself the finding. `both` needs both CLIs present; with only one
-it degrades to a single-judge verdict and says so.
+averaged away — the disagreement is itself the finding. `both` needs ONE reachable cross-family
+judge: the baseline half is read off the committed cells, never re-graded, so no second CLI is
+involved. With no cross-family lane reachable it degrades to a single-judge verdict and says so.
 
 Offline re-analysis (`--cache <prior.jsonl>`) reuses a prior judge run and needs no CLI at all — the
 placeholder judge makes zero calls and reports zero cost.
