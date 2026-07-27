@@ -16,8 +16,8 @@
 #
 # liveness: boundary-coupled -- one line per session boundary; the independent expected series
 # is the distinct Claude-Session commit trailer count in the window (ADR 0086 (d): this guard
-# is DENIED the per-event exemption); compared by scripts/scorecard.mjs. Declaration grammar
-# home: scripts/check-gate-tests.mjs.
+# is DENIED the per-event exemption). The readout that compared them was deleted 2026-07-27
+# (#311); the log is still written.
 # canary: {"event":"SessionEnd","stdin":{"hook_event_name":"SessionEnd","reason":"clear"},"expect":{"append":"docs/pdca/session-log.txt","match":" session-end clear$"}}
 input=$(cat)
 reason=$(printf '%s' "$input" | sed -n 's/.*"reason"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')

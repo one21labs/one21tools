@@ -19,8 +19,8 @@ summary: "Each local gate hook appends one line to docs/pdca/gate-hits.txt ON FI
 **(e) CI-side hits deferred** (mineable from PR history). **(f) ADR 0079 — partial:** ships the CAUGHT-side marker only; defect-ESCAPE still has none.
 
 ## Justification
-- **NOTE (2026-07-27):** (d)'s breakdown is GONE with `scorecard.mjs` (#311). The log (a)-(c)
-  is unaffected, still written on every fire.
+- **NOTE (2026-07-27):** (d) is GONE with `scorecard.mjs`, and (a)'s `post-edit-gate` firing
+  point with the hook (#311). Hooks still append; nothing reads the log.
 
 Grader-free and mechanical; reuses the existing append-only telemetry pattern; cost ~2 lines per hook plus one pure parser; fully reversible.
 

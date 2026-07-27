@@ -9,7 +9,7 @@
 # the copies drift apart one fix at a time. One home means one place to be right (CLAUDE.md
 # poka-yoke: delete the mirror, derive). The same logic cuts the other way and is the standing
 # risk of this file: a defect here disarms four guards at once, so every change needs the canary
-# suite (scripts/check-gate-tests.mjs) run, not just the unit tests.
+# suites run, not just the unit tests.
 #
 # CONSUMERS SOURCE IT SCRIPT-RELATIVE, not via CLAUDE_PROJECT_DIR — the canary runner executes
 # hooks from their real repo path against a throwaway fixture project dir, so a
@@ -19,7 +19,7 @@
 # BASH_SOURCE, not $0, so the path stays right if a hook is ever sourced rather than executed.
 #
 # A MISSING LIB FAILS OPEN (the consumer exits 0), which would silently disarm all four guards
-# — the ADR 0086 silent-coverage-gap class. What stops that being silent is check-gate-tests:
+# — the ADR 0086 silent-coverage-gap class, and since 2026-07-27 (#311) NOTHING catches it:
 # every consumer declares canaries that EXECUTE the real hook and assert the deny/exit, so a lib
 # that cannot be sourced fails CI on every hook at once rather than passing quietly.
 
@@ -118,7 +118,7 @@ hook_deny_payload() {
 
 # Append one gate-hit telemetry line (ADR 0080). Observability only: it is called AFTER the
 # failure is decided, swallows every error, and always returns 0, so it can never become the
-# reason a gate did or did not fire. Line format's one home is scorecard.mjs parseGateHits, which
+# reason a gate did or did not fire. The parser that read this format was deleted (#311), which
 # parses per line and splits on whitespace — hence the scrub, so a path containing a newline or a
 # tab cannot split a row or shift a field. docs/pdca is the ADR 0071 adoption marker — checked,
 # never created.
@@ -126,7 +126,7 @@ hook_deny_payload() {
 # adoption marker), so in a public repo an absolute path publishes the operator's home directory and
 # local tree layout on every single gate fire — this repo shipped 76 such lines before anyone
 # looked. It is also the more useful value: the same gate firing on the same file from two machines
-# should read as one context, not two. Nothing consumes it as a decision (scorecard's parseGateHits
+# should read as one context, not two. Nothing consumes it as a decision (the former parser
 # keeps it as `context` and only displays it). Stripping HERE, at the one writer, is the only place
 # that can guarantee it — a reviewer noticing an absolute path in a diff is the weakest rung, and
 # that rung already failed 76 times.

@@ -15,7 +15,7 @@
 # liveness: per-event-exempt -- a deny fires only on an over-cap edit attempt, which may
 # legitimately never occur in a window (ADR 0086 (b)). Canaries: one per case-arm file class
 # (the documented coverage list -- the #255 gap was exactly a missing class); tiny env caps
-# force the deny path. Declaration grammar home: scripts/check-gate-tests.mjs.
+# force the deny path.
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-canary.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
