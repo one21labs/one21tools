@@ -122,10 +122,20 @@ hook_deny_payload() {
 # parses per line and splits on whitespace — hence the scrub, so a path containing a newline or a
 # tab cannot split a row or shift a field. docs/pdca is the ADR 0071 adoption marker — checked,
 # never created.
+# PATHS ARE LOGGED PROJECT-RELATIVE, NEVER ABSOLUTE. This log is COMMITTED (docs/pdca is a tracked
+# adoption marker), so in a public repo an absolute path publishes the operator's home directory and
+# local tree layout on every single gate fire — this repo shipped 76 such lines before anyone
+# looked. It is also the more useful value: the same gate firing on the same file from two machines
+# should read as one context, not two. Nothing consumes it as a decision (scorecard's parseGateHits
+# keeps it as `context` and only displays it). Stripping HERE, at the one writer, is the only place
+# that can guarantee it — a reviewer noticing an absolute path in a diff is the weakest rung, and
+# that rung already failed 76 times.
 hook_gate_hit() {
   local root="${CLAUDE_PROJECT_DIR:-.}" name path
   name=$(printf '%s' "$1" | tr '\n\r\t' '   ')
   path=$(printf '%s' "$2" | tr '\n\r\t' '   ')
+  while [ "$root" != "${root%/}" ]; do root="${root%/}"; done   # /proj/// and /proj strip alike
+  [ -n "$root" ] && [ "$root" != "." ] && path="${path#"$root"/}"
   { [ -d "$root/docs/pdca" ] && printf '%s gate-hit %s %s\n' \
       "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$name" "$path" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
   return 0
