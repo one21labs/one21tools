@@ -74,11 +74,11 @@ export function isForeignFamily(fam) {
 }
 
 export function crossFamilyLane(rounds) {
-  for (const r of rounds) {
-    const fam = familyOf(r?.xfam);
-    if (isForeignFamily(fam)) return { model: r.xfam, family: fam };
-  }
-  return null;
+  // DERIVED from the plural, not a second scan. The two ran identical logic differing only in the
+  // stop condition, which is the duplicated-logic class this file's own header argues against — and
+  // they had already drifted: the singular assumed `rounds` was always an array while the plural
+  // guarded with `?? []`. The advisory muda review caught it before merge.
+  return crossFamilyLanes(rounds)[0] ?? null;
 }
 
 /**
