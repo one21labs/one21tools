@@ -58,11 +58,10 @@ testable, dogfooding the gate-has-test lint itself.
 - A decidable requirement rests at prose despite an available surface, or a rung upgrade ships
   without a scar -> the rule isn't being applied.
 - First model-inheritance miss via an ad-hoc Workflow script -> mechanize the seam.
-- Three-dot counted log stays clean -> promote to deny; first SKILL.md failing validate.py on
-  main -> promote validate.py to rung 2.
+- Three-dot counted log stays clean on DIFF fires -> promote to deny (ADR 0072 narrowed the
+  predicate; pre-2026-07-26 lines are log/rev-list noise and do not count). First SKILL.md
+  failing validate.py on main -> promote validate.py to rung 2.
 
 ## Act
 - [outcome] verified — wave-1 shipped: `pr-create-guard.sh`, `check-workflow.mjs`,
   `check-restatement.mjs`, `check-gate-tests.mjs` all exist and run in `gates.yml`.
-- [process] the record carried no `## Act` for 16 days while later ADRs cited it as enforcement
-  authority. The build shipped; the bookkeeping did not, and no rung watches for that.
