@@ -77,8 +77,22 @@ def per_expectation(cells):
 
 
 def keep_verdict(delta):
-    """KEEP/CUT-CANDIDATE on the clustered C-B point estimate; CI is the confidence signal, not a gate
-    (ADR 0052 bar). Direction + whether the CI clears zero."""
+    """KEEP/CUT-CANDIDATE on the clustered C-B point estimate; CI is the confidence signal, not a
+    gate. Direction + whether the CI clears zero.
+
+    CONTRADICTS ADR 0024 AND IS UNDECIDED — do not read this rule as settled (issue #310).
+    ADR 0024 decision 1 reads the verdict OFF the CI: "CI excludes zero and positive means it is
+    measurably earning its cost." This function gates KEEP on `m > 0` alone, so it returns KEEP for
+    any positive point estimate at any interval width — under a true null it fires about half the
+    time. It cited "ADR 0052 bar" until 2026-07-27; 0052 defines no KEEP bar and its `Enforced:`
+    line names verdict.py, the competing rule, so the citation granted nothing.
+
+    The divergence is real and reproducible: mean=+0.010, CI [-0.18,+0.20] -> verdict_of says
+    CUT-CANDIDATE, this says KEEP. No PUBLISHED verdict flips (every recorded one has a CI
+    excluding zero), so the defect is latent. A cross-family review found BOTH rules unsound —
+    verdict_of's |mean|<0.05 floor overclaims on uninformative data — and neither is the fix.
+    Deciding it is owner work, entangled with #303 (cluster-t coverage at G=4-6).
+    """
     m, lo, hi = delta["mean"], delta["ci95"][0], delta["ci95"][1]
     if m != m:
         return {"verdict": "NO-DATA", "confidence": "none"}
