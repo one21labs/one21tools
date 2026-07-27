@@ -93,7 +93,10 @@ for (const gate of GATES) {
     // `is required` belongs here: crosscheck takes its input via --claim-file, so "that flag is
     // required and takes a value" IS this gate naming what it could not read. The first version of
     // this pattern only knew filesystem wordings and reported a correctly-refusing gate as broken.
-    assert.match(said, /ENOENT|no such file|not found|Invalid path|empty or unset|is required/i,
+    // `bad revision` is git's own wording for an unreadable ref, which is exactly this assertion's
+    // subject. check-xfam-review was auto-enrolled by the discovery above and failed here on its
+    // first run purely because the pattern had not met git's phrasing yet.
+    assert.match(said, /ENOENT|no such file|not found|Invalid path|empty or unset|is required|bad revision/i,
       `${gate} refused without naming the unreadable input: ${said.slice(0, 300)}`);
   });
 }

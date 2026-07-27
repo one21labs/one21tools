@@ -68,59 +68,67 @@ deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
   exit 0
 }
 
-# Anchored create invocation, matched to end of command...
-# SUBCOMMANDS: create AND comment AND edit. CLAUDE.md's rule is "never file or EDIT issues/PRs/
-# COMMENTS in a repo outside one21labs/*", but this matched `create` alone -- so `gh pr comment
-# -R outside/repo`, `gh issue edit -R outside/repo` and every review/reply path walked straight
-# past the one hard mechanism behind that rule. Anchoring a guard to the single verb its author
-# happened to be thinking about is the same class as anchoring it to the flag spelling they
-# happened to type.
-inv=$(printf '%s' "$cmd" | grep -oE '(^|&&|;|\|)[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit)\b.*' | head -1)
-[ -z "$inv" ] && exit 0
-inv=$(printf '%s' "$inv" | sed -E 's/^(&&|;|\|)?[[:space:]]*//')
-# ...then bounded to its own pipeline segment for flag parsing.
-seg=$(printf '%s' "$inv" | sed -E 's/(&&|;|\|).*//')
-kind=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]].*/\1/p')
-verb=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit)\b.*/\2/p')
+# EVERY publishing invocation in the command, not just the first. `head -1` meant a compound like
+# `gh pr create -R one21labs/x -F ok.md && gh pr comment -R evil/y -F c.md` was judged on its FIRST
+# segment and the external comment in the tail was never seen. Widening the verb set made that
+# load-bearing, so the guard now loops over all of them. A cross-family review found it.
+#
+# VERBS: create, comment, edit AND review. CLAUDE.md's rule is "never file or EDIT issues/PRs/
+# COMMENTS in a repo outside one21labs/*". An earlier version matched `create` alone; the next added
+# comment|edit while its own comment said "every review/reply path walked straight past" -- naming
+# `review` as part of the hole and then not covering it. Anchoring a guard to the verbs its author
+# happened to think of is the same class as anchoring it to the flag spelling they typed.
+segs=$(printf '%s' "$cmd" | tr ';|&' '\n\n\n' | grep -E '^[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit|review)\b')
+[ -z "$segs" ] && exit 0
 
-# G3 -- external repo target on a create: deny by default, override path stated.
-repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))[^[:space:]]+' | head -1 \
-  | sed -E 's/^[[:space:]]*(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))//')
-if [ -n "$repo" ]; then
-  case "$repo" in
-    one21labs/*) : ;;
-    *) deny "Denied by default: gh $kind $verb targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." external-repo ;;
-  esac
-fi
+# A here-string, NOT a pipe. `... | while read` runs the loop body in a SUBSHELL, so deny's exit
+# would end only that subshell -- the loop would carry on and a second segment could print a SECOND
+# deny JSON to the same stdout, which the host cannot parse as one decision.
+while IFS= read -r seg; do
+  [ -z "$seg" ] && continue
+  seg=$(printf '%s' "$seg" | sed -E 's/^[[:space:]]*//')
+  kind=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]].*/\1/p')
+  verb=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit|review)\b.*/\2/p')
 
-# BODY CHECKS apply where text gets PUBLISHED (create/comment). `gh pr edit --add-label` carries no
-# body, so requiring one there would deny routine work.
-case "$verb" in create|comment) ;; *) exit 0 ;; esac
-
-# --fill IS a body source: it takes the commit message as the PR body. With no -F and no -b, G1 fell
-# through to `exit 0` and G2 -- the Claude-authorship disclosure check -- never ran, so
-# `gh pr create --fill` published with no disclosure and no check. The header's stated reason for
-# that fall-through ("gh errors or opens its editor on its own") is simply false for --fill.
-if printf '%s' "$seg" | grep -qE '(^|[[:space:]])--fill(-first|-verbose)?([[:space:]]|$)'; then
-  deny "Denied: --fill takes the body from the commit message, so nothing can be content-checked before publication (the disclosure line especially). Write the body to a file and pass --body-file <file>." fill-body
-fi
-
-# G1 -- body must come via --body-file/-F.
-bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))[^[:space:]]+' | head -1 \
-  | sed -E 's/^[[:space:]]*(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))//')
-if [ -z "$bf" ]; then
-  if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body(=|[[:space:]]|$)|-b(=|[[:space:]]|[^[:space:]]|$))'; then
-    deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first." inline-body
+  # G3 -- external repo target: deny by default, override path stated.
+  repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))[^[:space:]]+' | head -1 \
+    | sed -E 's/^[[:space:]]*(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))//')
+  if [ -n "$repo" ]; then
+    case "$repo" in
+      one21labs/*) : ;;
+      *) deny "Denied by default: gh $kind $verb targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." external-repo ;;
+    esac
   fi
-  exit 0   # no body flags at all: let gh open its editor / error on its own
-fi
 
-# G2 -- body content checks. Relative paths resolve against the project root (the Bash tool's
-# cwd); substring matches are CRLF-safe (neither phrase spans a line ending).
-cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null
-body=$(cat "$bf" 2>/dev/null) || exit 0
-case "$body" in
-  *'Disclosure: written by Claude'*) : ;;
-  *) deny "Denied: body file $bf is missing the Claude authorship disclosure line (CLAUDE.md: required on every issue and PR Claude writes, at creation time). Append: *Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*" missing-disclosure ;;
-esac
+  # BODY CHECKS key on whether THIS invocation carries a body, never on the verb. Keying on
+  # create|comment let `gh pr edit --body '...'` and `gh issue edit -F b.md` publish text with no
+  # disclosure check at all -- a fail-open introduced by the same commit that widened the verbs.
+  # A verb with no body flag (`gh pr edit --add-label chore`) publishes nothing and passes.
+  bf=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))[^[:space:]]+' | head -1 \
+    | sed -E 's/^[[:space:]]*(--body-file(=|[[:space:]]+)|-F(=|[[:space:]]*))//')
+
+  # --fill IS a body source: it takes the commit message as the PR body, which cannot be
+  # content-checked before publication. Denied ONLY when no --body-file accompanies it -- the first
+  # version denied unconditionally, refusing `--fill --body-file b.md` even though that supplies
+  # exactly the checkable file the deny message asks for.
+  if [ -z "$bf" ] && printf '%s' "$seg" | grep -qE '(^|[[:space:]])--fill(-first|-verbose)?([[:space:]]|$)'; then
+    deny "Denied: --fill takes the body from the commit message, so nothing can be content-checked before publication (the disclosure line especially). Write the body to a file and pass --body-file <file>." fill-body
+  fi
+
+  if [ -z "$bf" ]; then
+    if printf '%s' "$seg" | grep -qE '(^|[[:space:]])(--body(=|[[:space:]]|$)|-b(=|[[:space:]]|[^[:space:]]|$))'; then
+      deny "Denied: pass the body via --body-file <file> (quoting-safe on PS 5.1, and lets this hook verify the disclosure line before anything is published). Write the body to a file first." inline-body
+    fi
+    continue   # no body flags at all: let gh open its editor / error on its own
+  fi
+
+  # G2 -- body content checks. Relative paths resolve against the project root (the Bash tool's
+  # cwd); substring matches are CRLF-safe (neither phrase spans a line ending).
+  cd "${CLAUDE_PROJECT_DIR:-.}" 2>/dev/null
+  body=$(cat "$bf" 2>/dev/null) || continue   # unreadable file: gh will error legibly
+  case "$body" in
+    *'Disclosure: written by Claude'*) : ;;
+    *) deny "Denied: body file $bf is missing the Claude authorship disclosure line (CLAUDE.md: required on every issue and PR Claude writes, at creation time). Append: *Disclosure: written by Claude (Claude Code) under the direction of the repo owner.*" missing-disclosure ;;
+  esac
+done <<< "$segs"
 exit 0
