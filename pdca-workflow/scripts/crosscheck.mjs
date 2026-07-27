@@ -161,7 +161,7 @@ export function availableLanes(env = process.env, which = whichSync) {
     // with no executable grok anywhere on the machine printed CLEAN, cross-checked by a model
     // that had never been invoked. Round 7 hardened whichSync and left this sibling untouched:
     // exemplar closure, the exact shape this repo keeps finding in its own fixes.
-    const bin = env[lane.envBin]
+    const bin = (isExecutableFile(env[lane.envBin] ?? "") ? env[lane.envBin] : null)
       || which(lane.name, env.PATH ?? "")
       || lane.fallbacks.map((f) => f.replace("~", env.HOME ?? "")).find(isExecutableFile);
     if (bin) out.push({ ...lane, bin });

@@ -72,8 +72,9 @@ export function artifactModel(text) {
   // mentioning `xfam-model:` mid-document would satisfy the gate. A doc-drift lane found the two
   // disagreeing; the doc was the version worth keeping, because a marker that can appear anywhere
   // can appear by accident.
-  const first = String(text ?? "").split("\n").find((l) => l.trim() !== "") ?? "";
-  const m = first.match(/^\s*xfam-model:\s*(\S+)/);
+  // THE first line, not the first NON-EMPTY line: "first non-empty" still lets the marker sit
+  // below arbitrary leading blanks, which is the same class one notch weaker.
+  const m = String(text ?? "").match(/^xfam-model:[ \t]*(\S+)/);
   if (!m) return { model: null, family: null, foreign: false, reason: "no `xfam-model:` header line" };
   const family = familyOf(m[1]);
   if (family === MAKER_FAMILY) {

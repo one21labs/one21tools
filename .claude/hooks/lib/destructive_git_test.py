@@ -89,6 +89,13 @@ def test_bypass_forms_all_deny():
         ("read-tree -u --reset", "git read-tree -u --reset HEAD"),
         ("submodule foreach carrying a reset", "git submodule foreach --recursive git reset --hard"),
         ("chained after another command", "cd /repo && git reset --hard HEAD~1"),
+        # Second cross-family pass, after the rewrite. All four were ALLOWED by it.
+        ("checkout of a path with no -- separator", "git checkout HEAD wip.txt"),
+        ("checkout-index materialises over the worktree", "git checkout-index -f -a"),
+        ("a quoted `<<` inside a string must not truncate the real command",
+         'echo "use <<EOF to start" && git reset --hard'),
+        ("an unterminated heredoc marker must not swallow what follows",
+         "cat <<EOF && git reset --hard"),
     ]:
         denies(label, cmd)
 

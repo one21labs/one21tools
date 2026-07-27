@@ -85,10 +85,20 @@ test("an unrecognized model id does not pass as foreign", () => {
     "FRAME-UNCHECKED");
 });
 
-test("availableLanes finds a CLI via its env override even when PATH is empty", () => {
-  const lanes = availableLanes({ GROK_BIN: "/opt/grok", PATH: "" }, () => null);
+test("an env override must point at a real executable, not just be set", () => {
+  // This test used to assert that GROK_BIN="/opt/grok" -- a path that need not exist -- produced
+  // a grok lane, which is the defect written down as a requirement. A cross-family review found
+  // it: the PATH search and the fallback list both check executability, while the env override
+  // accepted any non-empty string, so `GROK_BIN=/tmp` minted a foreign lane that is never
+  // invoked and a sweep could reach CLEAN on it. Same class as the directory-fallback hole, one
+  // door over.
+  assert.deepEqual(availableLanes({ GROK_BIN: "/opt/grok", PATH: "" }, () => null), []);
+  assert.deepEqual(availableLanes({ GROK_BIN: "/no/such/binary-xyz", PATH: "" }, () => null), []);
+
+  // A real executable still works: /bin/sh is one on every platform CI runs.
+  const lanes = availableLanes({ GROK_BIN: "/bin/sh", PATH: "" }, () => null);
   assert.deepEqual(lanes.map((l) => l.name), ["grok"]);
-  assert.equal(lanes[0].bin, "/opt/grok");
+  assert.equal(lanes[0].bin, "/bin/sh");
 });
 
 test("availableLanes finds a CLI on PATH and prefers the custom command first", () => {

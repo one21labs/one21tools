@@ -99,10 +99,16 @@ def strip_heredocs(text):
         if not m:
             return text
         newline = text.find("\n", m.end())
-        if newline == -1:
-            return text[:m.start()]
-        closer = re.search(rf"^[ \t]*{re.escape(m.group(2))}[ \t]*$", text[newline + 1:], re.M)
-        text = text[:m.start()] + (text[newline + 1 + closer.end():] if closer else "")
+        closer = None if newline == -1 else re.search(
+            rf"^[ \t]*{re.escape(m.group(2))}[ \t]*$", text[newline + 1:], re.M)
+        if closer is None:
+            # NO OPENER WE CAN TRUST. `echo "use <<EOF to start" && git reset --hard` matches the
+            # pattern inside a quoted string; truncating there would drop the real destructive
+            # command that follows and ALLOW it. An unmatched `<<` is left alone -- the worst case
+            # is scanning text that was data, which can only over-match, and over-matching still
+            # has to get past the dirty-tree predicate.
+            return text
+        text = text[:m.start()] + text[newline + 1 + closer.end():]
     return text
 
 
@@ -208,10 +214,16 @@ def _destructive(argv):
         forced = has("--force") or any(CLEAN_CLUSTER.fullmatch(t) for t in rest)
         return ("worktree", "clean --force") if forced else (None, None)
     if verb == "checkout":
-        # `checkout -- <path>`, `checkout .`, and `checkout <tree> -- <path>` all overwrite files.
-        if has("-f", "--force") or has("--") or (rest and rest[0] == "."):
+        # `checkout -- <path>`, `checkout .`, `checkout <tree> -- <path>` all overwrite files --
+        # and so does `git checkout HEAD wip.txt`, with no `--` anywhere. Two or more non-option
+        # arguments means a tree-ish plus a pathspec, which is a worktree overwrite whatever the
+        # separator. A single argument is an ordinary branch switch and stays allowed.
+        args = [t for t in rest if not t.startswith("-")]
+        if has("-f", "--force") or has("--") or (rest and rest[0] == ".") or len(args) >= 2:
             return ("worktree", "checkout")
         return (None, None)
+    if verb == "checkout-index":
+        return ("worktree", "checkout-index") if has("-f", "--force", "-a", "--all", "-u") else (None, None)
     if verb == "restore":
         # The DEFAULT target is the worktree. Only --staged alone leaves files untouched.
         staged_only = has("--staged", "-S") and not has("--worktree", "-W")
