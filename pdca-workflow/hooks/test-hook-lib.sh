@@ -4,8 +4,8 @@
 #
 # hook_fp IS routing logic, not plumbing: every consumer hook decides whether to fire by matching
 # `*/dir/*` case arms against its output, so a path shape this function gets wrong turns the whole
-# guard into a silent no-op. That is the failure class ADR 0086 names, and four guards now share
-# this one implementation, so a defect here is four silent guards, not one.
+# guard into a silent no-op. That is the failure class ADR 0086 names, and both remaining
+# consumers share this one implementation, so a defect here is two silent guards, not one.
 #
 # hook_is_deny is the other decision: the PreToolUse guards re-emit their python body's stdout to
 # the host, and this predicate is all that stands between "a deny was decided" and "something got
