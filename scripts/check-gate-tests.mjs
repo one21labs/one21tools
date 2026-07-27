@@ -374,8 +374,23 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
     } else if (!testGlobs.some((g) => globCoversPath(g, testPath))) {
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file exists but not covered by any `node --test` glob" });
     } else {
-      const skips = selfSkipLines(readFile?.(testPath) ?? "");
+      const known = readFile ? readFile(testPath) : null;   // null = unknown, "" = a real empty file
+      const testText = known ?? "";
+      const skips = selfSkipLines(testText);
+      // A FILE IS NOT A TEST. Existence + glob coverage were the whole check, so
+      // `: > scripts/check-newgate.test.mjs` satisfied "never ship a process-gating script without
+      // a test of its decision logic" — and `node --test` exits 0 on a file declaring nothing, so
+      // the suite agreed. That is the cheapest path for an agent adding a gate under time pressure,
+      // and it leaves a gate with no assertions reported as "tests + invocation paths verified".
+      // Declaring at least one case is a floor, not a ceiling: it does not prove the case is any
+      // good, only that the file is not a placeholder standing in for work not done.
       if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
+      // Only when the text is actually AVAILABLE. With no readFile the caller has told us nothing,
+      // and "" is not evidence of an empty file — claiming a finding from absent information is the
+      // same fail-closed-on-missing-input defect this file exists to catch elsewhere.
+      else if (known !== null && !/^[ \t]*(test|it|describe)\s*\(/m.test(testText)) {
+        missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no test()/it()/describe() case — an empty or placeholder file satisfies existence but asserts nothing" });
+      }
     }
   }
 
@@ -389,8 +404,20 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
     } else if (!executed) {
       missing.push({ kind: "gate", path: gate, expected: testPath, reason: "sibling _test.py exists but no gates.yml line executes it" });
     } else {
-      const skips = selfSkipLines(readFile?.(testPath) ?? "");
+      const known = readFile ? readFile(testPath) : null;   // null = unknown, "" = a real empty file
+      const testText = known ?? "";
+      const skips = selfSkipLines(testText);
+      // A FILE IS NOT A TEST. Existence + glob coverage were the whole check, so
+      // `: > scripts/check-newgate.test.mjs` satisfied "never ship a process-gating script without
+      // a test of its decision logic" — and `node --test` exits 0 on a file declaring nothing, so
+      // the suite agreed. That is the cheapest path for an agent adding a gate under time pressure,
+      // and it leaves a gate with no assertions reported as "tests + invocation paths verified".
+      // Declaring at least one case is a floor, not a ceiling: it does not prove the case is any
+      // good, only that the file is not a placeholder standing in for work not done.
       if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
+      else if (known !== null && !/^[ \t]*def\s+test_/m.test(testText)) {
+        missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no `def test_` case — an empty or placeholder file satisfies existence but asserts nothing" });
+      }
     }
   }
 
@@ -541,8 +568,18 @@ function main(argv) {
     console.error("No gate ships without a decision-logic test (ADR 0047); no wired hook without a live invocation path (ADR 0086).");
     process.exit(1);
   }
-  // Info only, never a failure: a canary-less hook's surface is rung NONE (ADR 0086 (e)).
-  if (undeclared.length) console.log(`check-gate-tests: hooks with no declared canary classes (surface unwatched, ADR 0086 (e)): ${undeclared.join(", ")}`);
+  // A REGISTERED HOOK MUST DECLARE AT LEAST ONE CANARY. This was info-only, which made DELETING a
+  // canary the cheapest way to clear a red one: a failing canary is exit 1, but a hook with zero
+  // canaries printed a note and exited 0. The agent that maintains these headers is the agent whose
+  // work the canary just blocked, so "remove the line that objected" was one edit away and left the
+  // surface unwatched with no failing signal — the ADR 0086 gap the canaries exist to close,
+  // reachable by subtraction. Every registered hook declares one today, so this fails nothing that
+  // is currently green; it only removes the escape.
+  if (undeclared.length) {
+    console.error(`check-gate-tests: ${undeclared.length} registered hook(s) declare NO canary class, so nothing observes them fire: ${undeclared.join(", ")}`);
+    console.error("Declare at least one `# canary:` line per hook (grammar in this file's header), or unregister the hook. Deleting a canary must never be the way a red one clears.");
+    process.exit(1);
+  }
   console.log(`check-gate-tests: ${wiredCount} wired gate(s), ${hookCount} registered hook(s), ${canaryCount} canary class(es) — tests + invocation paths verified.`);
 }
 

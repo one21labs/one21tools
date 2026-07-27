@@ -566,3 +566,50 @@ test("no readFile supplied keeps pre-0069 behaviour (no vacuity claim without th
   assert.deepEqual(findMissingTests({ gatesYml, hookRegistrations: [], existingFiles }), []);
 });
 
+
+test("a gate's sibling test file must declare a case, not merely exist", () => {
+  // The escape this closes: `: > scripts/check-newgate.test.mjs`. Existence + glob coverage were
+  // the whole check, and `node --test` exits 0 on a file that declares nothing — so a zero-byte
+  // placeholder satisfied "never ship a process-gating script without a test of its decision
+  // logic" and the gate reported "tests + invocation paths verified". Found by an audit that asked
+  // which checks an agent under time pressure can satisfy without doing the work.
+  const gatesYml = [
+    "jobs:", "  gates:", "    steps:",
+    "      - run: node --test scripts/*.test.mjs",
+    "      - run: node scripts/check-newgate.mjs",
+  ].join("\n");
+  const files = new Set(["scripts/check-newgate.mjs", "scripts/check-newgate.test.mjs"]);
+
+  const empty = findMissingTests({ gatesYml, existingFiles: files, readFile: () => "" });
+  assert.equal(empty.length, 1, "an empty sibling must be a finding");
+  assert.match(empty[0].reason, /declares no test/);
+
+  const commentsOnly = findMissingTests({ gatesYml, existingFiles: files,
+    readFile: () => "// TODO: write tests for this gate\nimport x from './check-newgate.mjs';\n" });
+  assert.equal(commentsOnly.length, 1, "imports and a TODO are not a case either");
+
+  const real = findMissingTests({ gatesYml, existingFiles: files,
+    readFile: () => 'import { test } from "node:test";\ntest("it decides", () => {});\n' });
+  assert.deepEqual(real, [], "a file declaring a case passes");
+});
+
+test("a python gate's sibling is judged by `def test_`, not the JS pattern", () => {
+  // The first version of the check above applied `test(`/`it(`/`describe(` to _test.py files and
+  // reported a perfectly good Python suite as assertion-free. Same class as the check it added:
+  // a rule written for the shape its author happened to have in mind. PY_GATES_YML is reused so
+  // this exercises the real recognised invocation forms rather than a fixture I invented.
+  const files = new Set([
+    "dev-skills/skills/building-skills/scripts/validate_test.py",
+    "skill-bench/scripts/lib/check_reachability_test.py",
+  ]);
+  const ok = findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files,
+    readFile: () => "import unittest\n\ndef test_it_decides():\n    assert True\n" });
+  assert.deepEqual(ok, [], "a python suite declaring def test_ must pass");
+
+  const empty = findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files, readFile: () => "" });
+  assert.equal(empty.length, 2, "both empty python siblings must be findings");
+  assert.match(empty[0].reason, /def test_/);
+
+  // And "unknown" is still not a finding: no readFile means the caller told us nothing.
+  assert.deepEqual(findMissingTests({ gatesYml: PY_GATES_YML, existingFiles: files }), []);
+});

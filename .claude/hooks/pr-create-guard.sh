@@ -47,6 +47,9 @@
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -Revil/repo --title t -Fb.md"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t -bhello"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t -Fb.md"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --fill --title t"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr comment -R outside/repo --body-file b.md"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue edit 5 --repo outside/repo --add-label x"}},"expect":{"deny":true}}
 # Gate-hit telemetry has one home (lib/hook-lib.sh). Sourced script-relative, not via
 # CLAUDE_PROJECT_DIR: the canary runner executes hooks from their real repo path against a
 # throwaway fixture project. A missing lib exits 0 — telemetry must never block a guard.
@@ -66,12 +69,19 @@ deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
 }
 
 # Anchored create invocation, matched to end of command...
-inv=$(printf '%s' "$cmd" | grep -oE '(^|&&|;|\|)[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+create\b.*' | head -1)
+# SUBCOMMANDS: create AND comment AND edit. CLAUDE.md's rule is "never file or EDIT issues/PRs/
+# COMMENTS in a repo outside one21labs/*", but this matched `create` alone -- so `gh pr comment
+# -R outside/repo`, `gh issue edit -R outside/repo` and every review/reply path walked straight
+# past the one hard mechanism behind that rule. Anchoring a guard to the single verb its author
+# happened to be thinking about is the same class as anchoring it to the flag spelling they
+# happened to type.
+inv=$(printf '%s' "$cmd" | grep -oE '(^|&&|;|\|)[[:space:]]*gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit)\b.*' | head -1)
 [ -z "$inv" ] && exit 0
 inv=$(printf '%s' "$inv" | sed -E 's/^(&&|;|\|)?[[:space:]]*//')
 # ...then bounded to its own pipeline segment for flag parsing.
 seg=$(printf '%s' "$inv" | sed -E 's/(&&|;|\|).*//')
 kind=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]].*/\1/p')
+verb=$(printf '%s' "$seg" | sed -nE 's/^gh[[:space:]]+(pr|issue)[[:space:]]+(create|comment|edit)\b.*/\2/p')
 
 # G3 -- external repo target on a create: deny by default, override path stated.
 repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo(=|[[:space:]]+)|-R(=|[[:space:]]*))[^[:space:]]+' | head -1 \
@@ -79,8 +89,20 @@ repo=$(printf '%s' "$seg" | grep -oE '(^|[[:space:]])(--repo(=|[[:space:]]+)|-R(
 if [ -n "$repo" ]; then
   case "$repo" in
     one21labs/*) : ;;
-    *) deny "Denied by default: gh $kind create targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." external-repo ;;
+    *) deny "Denied by default: gh $kind $verb targets $repo, outside one21labs/* -- external publication requires per-item owner approval of the exact text (CLAUDE.md). Override path: the owner runs this command themselves, or adds a one-off permission allow for this exact command. Leave the draft in the internal issue instead." external-repo ;;
   esac
+fi
+
+# BODY CHECKS apply where text gets PUBLISHED (create/comment). `gh pr edit --add-label` carries no
+# body, so requiring one there would deny routine work.
+case "$verb" in create|comment) ;; *) exit 0 ;; esac
+
+# --fill IS a body source: it takes the commit message as the PR body. With no -F and no -b, G1 fell
+# through to `exit 0` and G2 -- the Claude-authorship disclosure check -- never ran, so
+# `gh pr create --fill` published with no disclosure and no check. The header's stated reason for
+# that fall-through ("gh errors or opens its editor on its own") is simply false for --fill.
+if printf '%s' "$seg" | grep -qE '(^|[[:space:]])--fill(-first|-verbose)?([[:space:]]|$)'; then
+  deny "Denied: --fill takes the body from the commit message, so nothing can be content-checked before publication (the disclosure line especially). Write the body to a file and pass --body-file <file>." fill-body
 fi
 
 # G1 -- body must come via --body-file/-F.
