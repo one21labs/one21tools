@@ -126,8 +126,13 @@ test("convergence alone is NOT clean: a sweep that never left the maker's family
   assert.notEqual(EXIT["FRAME-UNCHECKED"], 0);
 });
 
-test("a foreign lane INSIDE the quiet tail earns CLEAN", () => {
-  const rounds = [bare("a"), { ids: [], xfam: "grok-4.5" }, bare()];
+test("EVERY quiet round must carry a foreign lane, not just one of them", () => {
+  // Tightened after a cross-family review: crossFamilyLane is an EXISTENCE test, so asking it over
+  // the whole tail let ONE foreign quiet round bless the same-family ones beside it -- the same
+  // "satisfy once and coast" shape the tail rule exists to kill, reproduced inside the fix for it.
+  const oneOfTwo = [bare("a"), { ids: [], xfam: "grok-4.5" }, bare()];
+  assert.equal(sweepState(oneOfTwo, 5).state, "FRAME-UNCHECKED", "one witnessed round is not two");
+  const rounds = [bare("a"), { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }];
   const v = sweepState(rounds, 5);
   assert.equal(v.state, "CLEAN");
   assert.equal(v.crossFamily.family, "xai");
@@ -170,7 +175,9 @@ test("the FRAME-UNCHECKED reason describes the lanes that are actually there", (
 test("the tail rule scales with --quiet-rounds rather than assuming 2", () => {
   // A 3-round tail must be witnessed inside those 3, not by a lane 4 rounds back.
   const late = [bare("a"), bare(), bare(), { ids: [], xfam: "grok-4.5" }];
-  assert.equal(sweepState(late, 6, 3).state, "CLEAN");
+  assert.equal(sweepState(late, 6, 3).state, "FRAME-UNCHECKED", "only the last of three witnessed");
+  const allThree = [bare("a"), { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }];
+  assert.equal(sweepState(allThree, 6, 3).state, "CLEAN");
   const early = [{ ids: ["a"], xfam: "grok-4.5" }, bare(), bare(), bare()];
   assert.equal(sweepState(early, 6, 3).state, "FRAME-UNCHECKED");
   // THE DISCRIMINATING CASE, and the reason the two above are not enough on their own: put the
@@ -179,9 +186,11 @@ test("the tail rule scales with --quiet-rounds rather than assuming 2", () => {
   // caught that, and mutating only the lane slice confirmed it: 23/23 green with the parameter
   // ignored. Here the lane sits at n-3, so a hardcoded 2 reports FRAME-UNCHECKED and only the
   // parameterised slice reports CLEAN.
-  const straddle = [bare("a"), { ids: [], xfam: "grok-4.5" }, bare(), bare()];
-  assert.equal(sweepState(straddle, 6, 3).state, "CLEAN", "lane at n-3 is inside a 3-round tail");
-  assert.equal(sweepState(straddle, 6, 2).state, "FRAME-UNCHECKED", "...and outside a 2-round one");
+  const straddle = [bare("a"), { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }];
+  assert.equal(sweepState(straddle, 6, 3).state, "CLEAN", "all three tail rounds witnessed");
+  const shortOne = [bare("a"), bare(), { ids: [], xfam: "grok-4.5" }, { ids: [], xfam: "grok-4.5" }];
+  assert.equal(sweepState(shortOne, 6, 2).state, "CLEAN", "a 2-round tail needs exactly its own two");
+  assert.equal(sweepState(shortOne, 6, 3).state, "FRAME-UNCHECKED", "...and a 3-round tail needs three");
 });
 
 test("a same-family or unplaceable model id does NOT satisfy the check", () => {

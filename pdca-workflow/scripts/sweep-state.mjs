@@ -153,7 +153,16 @@ export function sweepState(rounds, max, quietRounds = 2) {
     // A foreign lane on a round that found things proves the foreign lane finds what this family
     // misses — which is an argument that the LATER same-family quiet is unwitnessed, not evidence
     // for it.
-    const lane = crossFamilyLane(rounds.slice(-quietRounds));
+    // EVERY quiet round, not just one of them. crossFamilyLane is an EXISTENCE test, so asking it
+    // over the whole tail reproduced the very shape this rule was written to kill, one level down:
+    // one foreign quiet round blessed the remaining same-family quiet rounds. "Satisfy once and
+    // coast" is the defect, and it does not stop being the defect because the window got smaller.
+    // A cross-family review caught it inside the fix for it. Cost is real -- a K-round tail now
+    // wants K foreign lanes -- and that IS the price of the claim: each quiet round is evidence
+    // only for itself.
+    const tail = rounds.slice(-quietRounds);
+    const unwitnessed = tail.filter((r) => !crossFamilyLane([r])).length;
+    const lane = unwitnessed === 0 ? crossFamilyLane(tail) : null;
     if (!lane) {
       // Says only what the code establishes, and says it about ALL of them. Two drafts of this
       // sentence each asserted something unchecked: first "on a round that DID find things" (the

@@ -110,19 +110,30 @@ class TestVerdictMath(unittest.TestCase):
         # this env also yielded CachedJudge("cached"), so every assertion above stayed green while
         # the fix was reverted. So assert the premise itself, in-process, under the same env.
         self.assertNotIn("judge_fallback", report)
-        import importlib
-        os.environ["SKILL_BENCH_JUDGE_CMD"] = "/bin/false"
-        os.environ["SKILL_BENCH_JUDGE_MODEL"] = "grok-4.5"
-        try:
-            sys.path.insert(0, os.path.join(here, "lib"))
-            judge_mod = importlib.import_module("judge")
-            live = judge_mod.make_judge("auto")   # must NOT raise: that is the branch under test
-            self.assertNotEqual(getattr(live, "display_name", live.name), "cached",
-                                "control: a live judge resolves here, so 'cached' above is the "
-                                "cache branch and not a JudgeError fallback")
-        finally:
-            os.environ.pop("SKILL_BENCH_JUDGE_CMD", None)
-            os.environ.pop("SKILL_BENCH_JUDGE_MODEL", None)
+        # The control MUST run under the SAME env as the subprocess above, PATH included. An earlier
+        # version mutated only SKILL_BENCH_JUDGE_* on the ambient process and left the ambient PATH
+        # intact -- so the subprocess could hit JudgeError and fall back to CachedJudge while the
+        # in-process control resolved a judge off the real PATH and asserted success. The two
+        # observed different branches, which is exactly the green-on-revert hole the control was
+        # added to close. A cross-family review caught it. Run as a subprocess with the identical
+        # env instead, which also removes the os.environ/sys.path pollution the old form left behind.
+        control = subprocess.run(
+            [sys.executable, "-c",
+             "import sys; sys.path.insert(0, sys.argv[1]);"
+             "from judge import make_judge;"
+             "j = make_judge('auto');"
+             "print(getattr(j, 'display_name', j.name))",
+             os.path.join(here, "lib")],
+            capture_output=True, text=True, timeout=60,
+            env={"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp"),
+                 "SKILL_BENCH_JUDGE_CMD": "/bin/false", "SKILL_BENCH_JUDGE_MODEL": "grok-4.5"},
+        )
+        self.assertEqual(control.returncode, 0,
+                         f"control: make_judge must SUCCEED under the same env as the run above, "
+                         f"or 'cached' proves nothing. stderr: {control.stderr[-300:]}")
+        self.assertNotEqual(control.stdout.strip(), "cached",
+                            "control: a live judge resolves under THIS env, so 'cached' above is "
+                            "the cache branch and not a JudgeError fallback")
 
     def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
         # The interval width was never exercised: clustered_delta's construction had no test, and

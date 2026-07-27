@@ -390,7 +390,11 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
       // Only when the text is actually AVAILABLE. With no readFile the caller has told us nothing,
       // and "" is not evidence of an empty file — claiming a finding from absent information is the
       // same fail-closed-on-missing-input defect this file exists to catch elsewhere.
-      else if (known !== null && !/^[ \t]*(test|it|describe)\s*\(/m.test(testText)) {
+      // `.only`/`.skip`/`.todo`/`.each` are real declarations — requiring the bare identifier to be
+      // followed immediately by `(` false-flags a suite written entirely as `test.only(...)` as an
+      // empty placeholder. A floor that rejects valid work is worse than no floor: it teaches
+      // people the gate is wrong rather than that the file is.
+      else if (known !== null && !/^[ \t]*(test|it|describe)(\.\w+)?\s*\(/m.test(testText)) {
         missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no test()/it()/describe() case — an empty or placeholder file satisfies existence but asserts nothing" });
       }
     }
@@ -417,7 +421,8 @@ export function findMissingTests({ gatesYml, hookRegistrations = [], existingFil
       // Declaring at least one case is a floor, not a ceiling: it does not prove the case is any
       // good, only that the file is not a placeholder standing in for work not done.
       if (skips.length) missing.push({ kind: "gate", path: gate, expected: testPath, reason: `test self-skips via hard-coded absolute path (${testPath}:${skips[0]}, ADR 0069)` });
-      else if (known !== null && !/^[ \t]*def\s+test_/m.test(testText)) {
+      // `async def test_` is a real pytest case (pytest-asyncio); the bare `def` form missed it.
+      else if (known !== null && !/^[ \t]*(async\s+)?def\s+test_/m.test(testText)) {
         missing.push({ kind: "gate", path: gate, expected: testPath, reason: "test file declares no `def test_` case — an empty or placeholder file satisfies existence but asserts nothing" });
       }
     }
