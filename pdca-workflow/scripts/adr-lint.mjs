@@ -32,6 +32,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS, corpusOverage } from "./char-budget.mjs";
+import { positionals, integerFlag, flagValue } from "./cli-flags.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
 // location — see char-budget.mjs's header comment: a fixed offset from this file would break a
@@ -395,9 +396,20 @@ export function repoFileList(root = ".", readdir = readdirSync) {
 
 function main(argv) {
   const args = argv.slice(2);
-  const dir = args.find(a => !a.startsWith("--")) ?? "docs/decisions";
-  const budgetArg = args.find(a => a.startsWith("--budget="));
-  const budget = budgetArg ? Number(budgetArg.split("=")[1]) : ADR_CHAR_BUDGET;
+  // cli-flags.mjs is the ONE home for argv, and this file was the last CLI in the plugin still
+  // hand-rolling it. Both hand-rolled forms were the exact defects that home exists to prevent:
+  // the positional picker was "first token not starting with --", so `--budget 9000 docs/decisions`
+  // took "9000" as the DIRECTORY; and `--budget=` only ever matched the `=` spelling, so the space
+  // form silently fell through to the default cap. Neither has a symptom — the run reports against
+  // limits nobody asked for, on a directory nobody named.
+  let dir, budget;
+  try {
+    dir = positionals(args, ["budget", "new-adrs"])[0] ?? "docs/decisions";
+    budget = integerFlag(args, "budget", ADR_CHAR_BUDGET);
+  } catch (e) {
+    console.error(`adr-lint: ${e.message}`);
+    process.exit(2);
+  }
 
   let files;
   try {
@@ -441,9 +453,9 @@ function main(argv) {
     { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS));
 
   // PR-scoped advisories: CI's PR-only step passes the diff-added ADR files (ADR 0051/0067).
-  const newArg = args.find(a => a.startsWith("--new-adrs="));
-  if (newArg) {
-    const entries = newArg.slice("--new-adrs=".length).split(",").map(s => s.trim()).filter(Boolean);
+  const newArg = flagValue(args, "new-adrs");
+  if (newArg !== undefined) {
+    const entries = newArg.split(",").map(s => s.trim()).filter(Boolean);
     for (const w of decisionSetWarnings(entries, files)) console.error(`  WARN (advisory, ADR 0051): ${w}`);
     for (const w of marginWarnings(entries, files)) console.error(`  WARN (advisory, ADR 0067): ${w}`);
   }

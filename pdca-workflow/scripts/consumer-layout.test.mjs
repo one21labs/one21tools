@@ -19,7 +19,11 @@ const SCRIPTS_DIR = fileURLToPath(new URL(".", import.meta.url));
 
 // The exact vendor set pdca-init's SKILL.md copies into a consumer's scripts/ (SSoT: SKILL.md
 // step 3 — keep this list in sync with it).
-const VENDOR_FILES = ["adr-lint.mjs", "adr-lint.test.mjs", "char-budget.mjs", "char-budget.test.mjs"];
+// MUST match pdca-init/SKILL.md's copy list exactly. adr-lint gained a `cli-flags.mjs` import
+// and this test went red immediately -- which is the whole point: a consumer install would have
+// thrown ERR_MODULE_NOT_FOUND on first run, and nothing in this repo`s own layout would show it.
+const VENDOR_FILES = ["adr-lint.mjs", "adr-lint.test.mjs", "char-budget.mjs", "char-budget.test.mjs",
+  "cli-flags.mjs", "cli-flags.test.mjs"];
 
 test("adr-lint runs cleanly from a consumer-shaped layout (pdca-init's vendor set, one level deep)", () => {
   const consumerRoot = mkdtempSync(join(tmpdir(), "pdca-consumer-layout-"));

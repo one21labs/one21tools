@@ -21,7 +21,8 @@
 // same-family answer is the precise failure ADR 0093 exists to close. So a foreign CLI that
 // returns a Claude model is FRAME-UNCHECKED, exactly as if it were absent.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync, accessSync, constants } from "node:fs";
+const { X_OK } = constants;
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
 import { numericFlag, requiredFlag } from "./cli-flags.mjs";
@@ -56,12 +57,22 @@ export function familyOf(modelId) {
   return "unknown";
 }
 
-/** Pure given `pathEnv`: first executable named `name` on PATH, else null. */
+/**
+ * Pure given `pathEnv`: first EXECUTABLE named `name` on PATH, else null.
+ *
+ * Executable, not merely present. The docstring said executable while the body asked existsSync,
+ * and the gap is load-bearing here rather than cosmetic: this function is what corroborates a
+ * sweep's cross-family claim, so a zero-byte mode-000 file named `grok` anywhere on PATH was
+ * enough to flip sweep-state from FRAME-UNCHECKED to CLEAN. "A file with the right name exists"
+ * is not "a foreign lane is reachable".
+ * On Windows X_OK is not meaningfully enforced, so this degrades to the old presence test there —
+ * which is the correct degradation: it is where the claim was already no stronger.
+ */
 export function whichSync(name, pathEnv = process.env.PATH ?? "") {
   for (const dir of pathEnv.split(delimiter)) {
     if (!dir) continue;
     const p = join(dir, name);
-    if (existsSync(p)) return p;
+    try { accessSync(p, X_OK); return p; } catch { /* absent or not executable: keep looking */ }
   }
   return null;
 }

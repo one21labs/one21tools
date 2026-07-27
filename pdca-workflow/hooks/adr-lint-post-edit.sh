@@ -58,7 +58,12 @@ esac
 # PATH, made every Edit and Write in an adopted project exit 2 — so a broken plugin cache or a
 # node-less shell became a hard edit gate rather than a no-op. Every sibling here fails OPEN on
 # absent machinery (a missing lib exits 0); this one did not, and an adopter feels it worst.
-linter="${CLAUDE_PLUGIN_ROOT:-}/scripts/adr-lint.mjs"
+# An EMPTY root is not a root: `${CLAUDE_PLUGIN_ROOT:-}/scripts/adr-lint.mjs` re-roots at `/`, and
+# if `/scripts/adr-lint.mjs` happened to exist the hook would run a NON-plugin script as the ADR
+# gate — wrong rules, wrong exit semantics, and no way to tell from the output. Refuse the empty
+# case explicitly rather than letting the concatenation invent a path.
+[ -n "${CLAUDE_PLUGIN_ROOT:-}" ] || exit 0
+linter="${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs"
 [ -f "$linter" ] || exit 0                     # plugin cache missing or misrooted
 command -v node >/dev/null 2>&1 || exit 0      # no runtime to lint with
 

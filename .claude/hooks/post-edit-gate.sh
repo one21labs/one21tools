@@ -37,12 +37,24 @@ root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
 PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 
+# "THE GATE SAID NO" AND "THE GATE COULD NOT RUN" ARE DIFFERENT ANSWERS, and only the first may
+# block. This treated every non-zero status as a verdict, so a missing interpreter or an absent
+# gate script turned every matching Edit into a hard block — the identical defect fixed in
+# adr-lint-post-edit.sh, left live in its sibling because that fix closed the exemplar it was shown
+# and not the class. Both preflights AND 126/127 are needed: the first covers "not installed", the
+# second covers a command that resolves but cannot execute.
+# HONEST LIMIT: a gate script that IS present and DOES run but dies on a syntax error exits 1,
+# which is indistinguishable here from "found a real problem". That one still blocks, by design —
+# guessing the difference would let a broken gate pass silently, which is the worse failure.
 run_gate() {  # $1 = gate name for telemetry; rest = the gate command
   gname="$1"; shift
-  out=$("$@" 2>&1) || {
-    hook_gate_hit "$gname" "$fp"
-    printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2
-  }
+  command -v "$1" >/dev/null 2>&1 || return 0                      # interpreter absent
+  { [ $# -lt 2 ] || [ "${2#-}" != "$2" ] || [ -f "$2" ]; } || return 0   # gate script absent
+  out=$("$@" 2>&1); rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ] && return 0               # not executable / not found
+  hook_gate_hit "$gname" "$fp"
+  printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2
 }
 
 case "$fp" in

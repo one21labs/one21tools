@@ -5,7 +5,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sweepState, EXIT, DEFAULT_MAX_ROUNDS, crossFamilyLane } from "./sweep-state.mjs";
+import { sweepState, EXIT, DEFAULT_MAX_ROUNDS, crossFamilyLane, isForeignFamily, laneModelId } from "./sweep-state.mjs";
+import { familyOf } from "./crosscheck.mjs";
 
 // Rounds default to carrying a foreign-lane model id, so the CONVERGENCE cases below vary only
 // what they mean to vary. `bare()` is the round with no cross-family lane, used by the cases that
@@ -161,6 +162,21 @@ test("a same-family or unplaceable model id does NOT satisfy the check", () => {
   assert.equal(sweepState([bare("a"), { ids: [], xfam: "claude-haiku-4.5" }, bare()], 5).state, "FRAME-UNCHECKED");
   assert.equal(sweepState([bare("a"), { ids: [], xfam: "some-local-model" }, bare()], 5).state, "FRAME-UNCHECKED");
   assert.equal(sweepState([bare("a"), { ids: [], xfam: "" }, bare()], 5).state, "FRAME-UNCHECKED");
+});
+
+test("a lane is placed by its MODEL id, not its lane name", () => {
+  // The scar: main() asked familyOf(lane.name). `copilot` is not a model id, so it came back
+  // "unknown", and the test was `!== MAKER_FAMILY` — so an unplaceable lane counted as FOREIGN,
+  // inverting the rule crossFamilyLane enforces. copilot's auto mode routes in-family here, so
+  // this is the case that must not pass.
+  assert.equal(isForeignFamily(familyOf(laneModelId({ name: "grok" }))), true);
+  assert.equal(isForeignFamily(familyOf(laneModelId({ name: "copilot" }))), false);
+  // The custom lane names its model in the environment — excluding it BY NAME locked the
+  // documented vendor-agnostic escape out of ever corroborating a clean sweep.
+  const custom = { name: "custom", custom: true };
+  assert.equal(isForeignFamily(familyOf(laneModelId(custom, { PDCA_CROSSCHECK_MODEL: "gpt-5" }))), true);
+  assert.equal(isForeignFamily(familyOf(laneModelId(custom, { PDCA_CROSSCHECK_MODEL: "claude-opus-5" }))), false);
+  assert.equal(isForeignFamily(familyOf(laneModelId(custom, {}))), false);   // unset id cannot vouch
 });
 
 test("crossFamilyLane reads the family table rather than keeping a second copy", () => {

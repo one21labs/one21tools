@@ -146,7 +146,6 @@ code=$(run "$FIX_HIST" "$FIX_HIST/docs/decisions/0001-hist.md" "$REAL_PLUGIN_ROO
 assert_exit "as-of-decision constant number in an ADR -> excluded via the hook's absolute dir -> exit 0" 0 "$code"
 rm -rf "$FIX_HIST"
 
-printf '\n%d passed, %d failed\n' "$pass" "$fail"
 # A BROKEN INSTALL MUST NO-OP, NOT BLOCK. Running the linter through a missing
 # $CLAUDE_PLUGIN_ROOT made every Edit in an adopted project exit 2, so a bad plugin cache became a
 # hard edit gate. Every sibling hook fails OPEN on absent machinery; this one must too. The
@@ -164,5 +163,10 @@ printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/docs/decisions/0001-x.
     bash "$HOOK" >/dev/null 2>&1 || code=$?
 assert_exit "empty CLAUDE_PLUGIN_ROOT -> no-op (exit 0)" 0 "$code"
 
+# THE TALLY GOES LAST, always. It used to print before these final cases, so the suite announced
+# "15 passed" while 17 had run — and a failure in the last two would have been invisible in the
+# summary a reader actually looks at. Cheap to reintroduce (append a case, forget the printf is
+# above you), so the ordering is stated rather than assumed.
+printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
 

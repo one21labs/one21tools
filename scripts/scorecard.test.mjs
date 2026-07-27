@@ -316,11 +316,20 @@ test("gate-hits RETIRED matches whole names, not substrings — a short name is 
   // question: `hit` and `gate` are substrings of `hook_gate_hit budget-edit-guard`, so under
   // substring matching a deleted short-named gate reads as live forever — the readout's own
   // failure mode one level down.
-  const guardText = 'hook_gate_hit budget-edit-guard "$fp"';
-  const emitted = new Set(guardText.match(/[A-Za-z0-9_.-]+/g) ?? []);
-  const retired = (g) => !emitted.has(g);
-  assert.equal(retired("hit"), true);
-  assert.equal(retired("gate"), true);
-  assert.equal(retired("budget-edit-guard"), false);
-  assert.equal(retired("gate-pipe-guard"), true);
+  // THROUGH analyze, not a local re-derivation. The first version of this test built its own
+  // `emitted` Set and its own `retired` predicate in the test body and asserted against those —
+  // so reverting production to `guardText.includes(g)` left it green. A test that re-implements
+  // the thing it is checking cannot fail for the reason it claims; it asserts a boolean it just
+  // computed. Mutation check: swap the production Set for `.includes` and this goes red.
+  const text = [
+    "2026-07-19T01:00:00Z gate-hit hit a.md",
+    "2026-07-19T01:01:00Z gate-hit budget-edit-guard b.md",
+  ].join("\n");
+  const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified"] })]);
+  // `hit` and `gate` are substrings of the wired text, but no guard EMITS either as a name.
+  const live = { hooks: [], series: [], guardText: 'hook_gate_hit budget-edit-guard "$fp"\n' };
+  const { rows } = analyze(adrs, bareConfig(), TODAY, parseGateHits(text), live);
+  const gh = rows[4];
+  assert.match(gh.detail, /hit 1 \(RETIRED/, "a short name that is only a SUBSTRING must still retire");
+  assert.doesNotMatch(gh.detail, /budget-edit-guard 1 \(RETIRED/, "a genuinely wired guard must not");
 });

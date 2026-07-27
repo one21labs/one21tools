@@ -69,12 +69,29 @@ export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3, "FRAME-U
  * An unplaceable id fails closed for the same reason it does there: an answer from a model we
  * cannot name is not evidence the lineage was left.
  */
+export function isForeignFamily(fam) {
+  return fam !== MAKER_FAMILY && fam !== "unknown";
+}
+
 export function crossFamilyLane(rounds) {
   for (const r of rounds) {
     const fam = familyOf(r?.xfam);
-    if (fam !== MAKER_FAMILY && fam !== "unknown") return { model: r.xfam, family: fam };
+    if (isForeignFamily(fam)) return { model: r.xfam, family: fam };
   }
   return null;
+}
+
+/**
+ * Pure given `env`: the model id a LANE would answer as, which is what family placement needs.
+ * A lane's NAME is not a model id, and conflating them inverted the rule: main() asked
+ * `familyOf(lane.name)`, so `copilot` came back "unknown", and "unknown" !== the maker's family, so
+ * copilot was counted as FOREIGN — the exact opposite of the polarity crossFamilyLane enforces one
+ * screen above, and wrong in the one way that matters, because copilot's auto mode routes to a
+ * model in the maker's own family on this machine. The custom lane names its model in the
+ * environment; a built-in lane is identified by its own name.
+ */
+export function laneModelId(lane, env = process.env) {
+  return lane?.custom ? (env.PDCA_CROSSCHECK_MODEL ?? "") : (lane?.name ?? "");
 }
 
 // The cap when the operator names none. It lives HERE and not in the skill prose: the skill used
@@ -182,11 +199,17 @@ function main(argv) {
   // Corroborate the log's cross-family claim against the machine (see RESIDUAL in the header).
   // sweepState stays PURE — no fs, no exec — so the check that needs the environment lives here.
   if (v.state === "CLEAN") {
-    const foreign = availableLanes().some((l) => l.name !== "custom" && familyOf(l.name) !== MAKER_FAMILY);
+    // ONE polarity rule, asked of a MODEL id — not a second rule keyed on lane names. The previous
+    // form excluded `custom` by name, which locked the documented vendor-agnostic escape out of ever
+    // corroborating: an adopter wiring PDCA_CROSSCHECK_CMD got FRAME-UNCHECKED telling them to run
+    // `crosscheck.mjs --list`, which then listed their lane. The error contradicted itself.
+    const foreign = availableLanes().some((l) => isForeignFamily(familyOf(laneModelId(l))));
     if (!foreign) {
       console.error(`sweep-state: FRAME-UNCHECKED — the round log claims a lane outside ${MAKER_FAMILY} `
-        + `(${v.crossFamily.model}), but no foreign-vendor lane is reachable on this machine, so that `
-        + `claim cannot be corroborated. Run \`node crosscheck.mjs --list\` to see what is available.`);
+        + `(${v.crossFamily.model}), but no lane placeable OUTSIDE ${MAKER_FAMILY} is reachable on this `
+        + `machine, so that claim cannot be corroborated. Run \`node crosscheck.mjs --list\`; a lane `
+        + `whose model cannot be placed does not count, and for a custom lane the model id comes from `
+        + `$PDCA_CROSSCHECK_MODEL — set it if it is unset.`);
       return EXIT["FRAME-UNCHECKED"];
     }
   }

@@ -175,7 +175,13 @@ test("every module a frozen dir imports THROUGH the shim layer has a forwarding 
     const text = readFileSync(f, "utf8");
     const inserts = [...text.matchAll(SHIM_INSERT)].map((m) => m[0]);
     // Through the shim only if some insert names `lib` WITHOUT routing to skill-bench's copy.
-    if (!inserts.some((i) => !/skill-bench|scripts/.test(i))) continue;
+    // The discriminator is `skill-bench` ALONE. An earlier `/skill-bench|scripts/` looked
+    // equivalent but was not: `scripts` is unanchored, so ANY insert whose text happens to contain
+    // that substring was classified as direct and the whole file skipped — its imports never
+    // entered `owed`, and a missing shim for those modules would have passed silently. Every real
+    // direct insert here spells `"skill-bench" / "scripts" / "lib"`, so the second alternative
+    // bought nothing and cost soundness.
+    if (!inserts.some((i) => !/skill-bench/.test(i))) continue;
     for (const m of text.matchAll(/^\s*(?:from|import)\s+([a-z_][a-z0-9_]*)/gim)) {
       if (realLib.has(m[1])) owed.add(m[1]);
     }

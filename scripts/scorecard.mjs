@@ -207,8 +207,11 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
   // Membership is by TOKEN, not substring. `includes` answers "does this character sequence
   // appear anywhere", which is a different question: a short gate name like `hit` or `gate` is a
   // substring of `hook_gate_hit budget-edit-guard`, so it would read as live forever no matter
-  // which guard emitted it — the readout's own failure mode, one level down. Gate names are
-  // shell/JS identifiers, so word boundaries decide it exactly.
+  // which guard emitted it — the readout's own failure mode, one level down. So the wired text is
+  // TOKENISED on the identifier character class and membership is asked of the token set: a name
+  // counts as emitted only when it appears as a whole token. (Not a `\b` search, which is a weaker
+  // and subtly different test — `\bhit\b` still matches inside `hook_gate_hit` if the separator is
+  // an underscore-free spelling, and it answers "appears somewhere" rather than "is one of these".)
   const emitted = liveness?.guardText == null ? null
     : new Set(liveness.guardText.match(/[A-Za-z0-9_.-]+/g) ?? []);
   const retired = (g) => emitted != null && !emitted.has(g);

@@ -38,9 +38,12 @@ applies its own default — that constant is the one home, so this file does not
 4. **Fix what is cheap and verified; open an issue for the rest** (ADR 0021 — deferred work
    tracks in issues, never in a handoff file). Then re-run the project's deterministic gates: a
    fix that breaks a gate is next round's finding, not this round's success.
-5. **Append the round line** — `{"round": N, "ids": ["slug-a", "slug-b"]}`, verified findings
-   only. A round that found nothing still gets a line with an empty array; that line IS the
-   evidence of convergence, and a skipped one silently shortens the quiet tail.
+5. **Append the round line** — `{"round": N, "ids": ["slug-a"], "xfam": "<model that answered>"}`,
+   verified findings only. A round that found nothing still gets a line with an empty array; that
+   line IS the evidence of convergence, and a skipped one silently shortens the quiet tail.
+   `xfam` names the cross-lineage model, read back from the lane (`crosscheck.mjs`), and it must
+   appear on a round INSIDE the quiet tail — omit it and the verdict is FRAME-UNCHECKED, not CLEAN.
+   Documenting the shape without it produced exactly that dead end.
 6. **Ask the script for the verdict — never decide it in prose:**
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep-state.mjs" <log> --max <N>`. It owns the stopping
    states, their exact meaning, and the exit code for each; its header is the one home for all of

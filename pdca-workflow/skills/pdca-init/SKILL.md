@@ -43,8 +43,9 @@ Run this loop:
    repo hosting the plugin source itself links instead of copying. No index
    file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
    — a mirror you don't keep can't drift). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
-   `adr-lint.test.mjs`, `char-budget.mjs`, and `char-budget.test.mjs` (the linter's import — without
-   it `adr-lint.mjs` throws `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
+   `adr-lint.test.mjs`, `char-budget.mjs`, `char-budget.test.mjs`, `cli-flags.mjs` and
+   `cli-flags.test.mjs` (the linter's imports — without them `adr-lint.mjs` throws
+   `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
    to run `node scripts/adr-lint.mjs` pre-merge / in CI — the corpus poka-yoke
    (`../decide/references/adr-lint.md`).
 
