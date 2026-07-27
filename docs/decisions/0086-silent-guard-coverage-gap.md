@@ -25,7 +25,7 @@ design) and UNMONITORED. Detection rung today: NONE — every instance above was
 audit, muda-audit, retrospect, or incident.
 
 **Mitigation (instrument-first, per 0084(f)) — decided here, built under #276:**
-- **(a) Boundary-coupled liveness readout** in `scripts/scorecard.mjs` (readout only, never a CI
+- **(a) Liveness readout** — DELETED 2026-07-27 with its host (#311); was readout only, never a CI
   gate — ADR 0079(a)): for guards whose firing couples to a countable boundary, compare expected
   vs observed. Wired + expected>0 + observed=0 prints NOT FIRING.
 - **(b) Per-event guards are exempt from silence-inference — by DECLARED classification, never
@@ -33,7 +33,7 @@ audit, muda-audit, retrospect, or incident.
   as dead. Boundary-coupled iff the guard fires once per an event independently logged
   elsewhere; per-event-exempt only iff firing is contingent on a condition that may legitimately
   never occur.
-- **(c) Invocation-path canaries** in `scripts/check-gate-tests.mjs`: every wired hook's REAL
+- **(c) Invocation-path canaries** — DELETED 2026-07-27 with their host (#311). Were: each hook's REAL
   invocation path is asserted — file exists, is executable, and its matcher fires on a synthetic
   representative of EACH declared input class. Generalizes ADR 0069 from "must not self-skip" to
   "registration must provably reach the script on every declared class."
@@ -44,7 +44,7 @@ audit, muda-audit, retrospect, or incident.
   remains at rung NONE — narrowed, not eliminated.
 
 Falsifiable: after #276 ships, a boundary-coupled guard that stops firing is surfaced by the next
-scorecard run, and an unreachable hook fails check-gate-tests in CI.
+Neither runs now; an unreachable hook fails nothing.
 
 ## Justification
 - **NOTE (2026-07-27):** (a) and (c) are GONE — both host scripts were deleted (#311). No

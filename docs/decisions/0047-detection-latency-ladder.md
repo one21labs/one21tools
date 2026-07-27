@@ -64,4 +64,5 @@ testable, dogfooding the gate-has-test lint itself.
 
 ## Act
 - [outcome] verified — wave-1 shipped: `pr-create-guard.sh`, `check-workflow.mjs`,
-  `check-restatement.mjs`, `check-gate-tests.mjs` all exist and run in `gates.yml`.
+  `check-restatement.mjs` run in `gates.yml`. The gate-has-test lint was deleted 2026-07-27
+  (#311); wave-1's fourth item is unenforced.
