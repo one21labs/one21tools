@@ -13,7 +13,7 @@
 #      2026-07-10-tiered-execution/harness.py's header comment for the transcript numbers); running
 #      from inside this repo's worktree would leak this project's CLAUDE.md into both arms.
 # Run INSIDE WSL Debian (the hermetic CLAUDE_CONFIG_DIR only exists there):
-#   wsl -d Debian -- bash /mnt/c/Users/ajmcc/projects/wt-never/benchmarks/2026-07-09-claude-md-sections/rerun-never.sh
+#   wsl -d Debian -- bash /mnt/c/Users/USER/projects/wt-never/benchmarks/2026-07-09-claude-md-sections/rerun-never.sh
 set -u
 BASE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${HERMETIC_OUT:-$BASE/rerun-outputs}"; mkdir -p "$OUT"

@@ -180,8 +180,17 @@ assert_eq "a banner printed ahead of the decision is stripped, never forwarded t
 # --- hook_gate_hit: observability that can never become a failure path ---
 mkdir -p "$PROJ/docs/pdca"
 hook_gate_hit test-gate "$PROJ/CLAUDE.md"
-assert_eq "one append per call, naming the gate AND the path after an ISO-8601Z stamp" \
-  "1" "$(grep -cE "^20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z gate-hit test-gate $PROJ/CLAUDE\.md\$" "$PROJ/docs/pdca/gate-hits.txt")"
+assert_eq "one append per call, naming the gate AND the PROJECT-RELATIVE path after an ISO-8601Z stamp" \
+  "1" "$(grep -cE "^20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z gate-hit test-gate CLAUDE\.md\$" "$PROJ/docs/pdca/gate-hits.txt")"
+# RELATIVE is the assertion, and the `$` anchor is what enforces it: this log is COMMITTED, and an
+# absolute path publishes the operator's home directory on every gate fire in a public repo.
+# Asserted rather than trusted, because the leak has no symptom -- the hook works either way, and
+# only a reader of the committed log would ever notice.
+hook_gate_hit test-gate "/somewhere/else/outside.md"
+assert_eq "a path OUTSIDE the project is left absolute rather than mangled into a false relative" \
+  "1" "$(grep -c ' gate-hit test-gate /somewhere/else/outside\.md$' "$PROJ/docs/pdca/gate-hits.txt")"
+: > "$PROJ/docs/pdca/gate-hits.txt"   # reset: the row-count assertions below start from zero
+hook_gate_hit test-gate "$PROJ/CLAUDE.md"
 
 # scorecard.mjs parses gate-hits.txt one row per line, so an embedded newline must not split a row.
 hook_gate_hit test-gate "$(printf '/repo/we\nird.md')"

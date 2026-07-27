@@ -12,7 +12,7 @@
 set -u
 BASE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${HERMETIC_OUT:-$BASE/outputs}"; mkdir -p "$OUT"
-EMPTY="${HERMETIC_CWD:-/c/Users/ajmcc/AppData/Local/Temp/hx_sections_cwd}"; mkdir -p "$EMPTY"
+EMPTY="${HERMETIC_CWD:-/c/Users/USER/AppData/Local/Temp/hx_sections_cwd}"; mkdir -p "$EMPTY"
 MODEL="${MODEL:-sonnet}"; REPS="${REPS:-3}"; MAXJ="${MAXJ:-8}"
 DENY=(Skill Task Read Grep Glob Bash Edit Write WebFetch WebSearch NotebookEdit)
 BASE_SYS="You are in a headless session with no file-system or code-execution tools; you cannot open the user's project or run anything. Respond in plain text."

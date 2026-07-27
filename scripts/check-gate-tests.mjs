@@ -120,7 +120,7 @@ export function extractPyTestExecutions(gatesYml) {
  *  the self-skip signature (ADR 0069): such a test SKIPs everywhere but one machine. Matches
  *  any assignment shape (export/readonly/local/declare prefixes, any-case names); a value whose
  *  ROOT is derived (`$(…)`, `${…}`, `$VAR`) is spared, but a literal root is flagged even when a
- *  variable appears later in the path (red-team: `/home/x/${P}` is still machine-bound). */
+ *  variable appears later in the path (red-team: `/home/USER/${P}` is still machine-bound). */
 export function selfSkipLines(shText) {
   const out = [];
   // Shell, JS and Python assignment shapes: the scar is machine-bound tests, and it is not

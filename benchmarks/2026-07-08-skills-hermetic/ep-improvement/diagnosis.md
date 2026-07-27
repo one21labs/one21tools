@@ -1,7 +1,7 @@
 # engineering-principles — weak-cell diagnosis
 
 Source: `benchmarks/2026-07-08-skills-hermetic/{results.jsonl,graded/verdicts.json,graded/arm_map.json,meta.json,outputs/}`
-(worktree `C:\Users\ajmcc\projects\worktrees\one21tools-main`). Per-cell fraction-met, n=3 reps/arm,
+(worktree `C:\Users\USER\projects\worktrees\one21tools-main`). Per-cell fraction-met, n=3 reps/arm,
 computed directly from `graded/verdicts.json` + `graded/arm_map.json` and cross-checked against
 `results.jsonl` (exact match):
 

@@ -53,8 +53,8 @@ python compose_test.py                                # decision-logic tests
 python prep_checker_inputs.py                         # 24 haiku gradient cells -> checker_inputs.json
 
 # Checker calls, inside WSL Debian (hermetic config + empty cwd), one invocation per model variant:
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-routing-escalation/checker_harness.py --variant sonnet-judge
-wsl -d Debian -- python3 /mnt/c/Users/ajmcc/projects/one21tools/benchmarks/2026-07-10-routing-escalation/checker_harness.py --variant haiku-judge
+wsl -d Debian -- python3 /mnt/c/Users/USER/projects/one21tools/benchmarks/2026-07-10-routing-escalation/checker_harness.py --variant sonnet-judge
+wsl -d Debian -- python3 /mnt/c/Users/USER/projects/one21tools/benchmarks/2026-07-10-routing-escalation/checker_harness.py --variant haiku-judge
 # copy \\wsl.localhost\Debian\home\<user>\routing-run\checkers\*.json -> checkers/
 #      \\wsl.localhost\Debian\home\<user>\routing-run\*.checker-summary.json -> .
 

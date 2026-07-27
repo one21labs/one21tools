@@ -14,11 +14,11 @@ No judgment is applied here; classification happens in a separate blind step.
 import json, os, sys, hashlib, re
 
 SESSIONS = [
-    ("S1", "/home/user/.claude/projects/-home-user-projects/2cf8409f-dcec-4310-bad5-b9741ba2ce3a.jsonl"),
-    ("S2", "/home/user/.claude/projects/-home-user-projects/6fa919ff-963c-40e5-9b3d-8656577cd7af.jsonl"),
-    ("S3", "/home/user/.claude/projects/-home-user-projects/7e298aea-78ab-49c1-8008-029ee4422494.jsonl"),
-    ("S4", "/home/user/.claude/projects/-home-user-projects/27f82199-98f4-4290-8d33-b995955558f4.jsonl"),
-    ("S5", "/home/user/.claude/projects/-home-user-projects/5ae0f2fe-68ca-48cd-b923-f74bbd421dd0.jsonl"),
+    ("S1", "/home/USER/.claude/projects/-home-USER-projects/2cf8409f-dcec-4310-bad5-b9741ba2ce3a.jsonl"),
+    ("S2", "/home/USER/.claude/projects/-home-USER-projects/6fa919ff-963c-40e5-9b3d-8656577cd7af.jsonl"),
+    ("S3", "/home/USER/.claude/projects/-home-USER-projects/7e298aea-78ab-49c1-8008-029ee4422494.jsonl"),
+    ("S4", "/home/USER/.claude/projects/-home-USER-projects/27f82199-98f4-4290-8d33-b995955558f4.jsonl"),
+    ("S5", "/home/USER/.claude/projects/-home-USER-projects/5ae0f2fe-68ca-48cd-b923-f74bbd421dd0.jsonl"),
 ]
 
 def block_text(b):

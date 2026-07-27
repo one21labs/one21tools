@@ -309,21 +309,21 @@ test("a python gate whose sibling exists but is never executed fails", () => {
 });
 
 test("selfSkipLines flags literal absolute path-root assignments, spares derived ones", () => {
-  assert.deepEqual(selfSkipLines('REPO="C:/Users/x/proj"\n'), [1]);
-  assert.deepEqual(selfSkipLines('REAL_ROOT="/home/user/projects/x"\n'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="C:/Users/USER/proj"\n'), [1]);
+  assert.deepEqual(selfSkipLines('REAL_ROOT="/home/USER/projects/x"\n'), [1]);
   assert.deepEqual(selfSkipLines('HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n'), []);
   assert.deepEqual(selfSkipLines('ROOT="${CLAUDE_PROJECT_DIR}/x"\nHOOK="$HERE/x.sh"\n'), []);
-  assert.deepEqual(selfSkipLines('echo "/home/user is not an assignment"\n'), []);
+  assert.deepEqual(selfSkipLines('echo "/home/USER is not an assignment"\n'), []);
 });
 
 test("red-team break 1 closed: declaration keywords, any-case names, comments, and late-var paths", () => {
-  assert.deepEqual(selfSkipLines('export REAL_PLUGIN_ROOT="/home/ajmcc/one21tools"\n'), [1]);
-  assert.deepEqual(selfSkipLines('readonly REPO="/home/ajmcc/one21tools"\n'), [1]);
-  assert.deepEqual(selfSkipLines('local repo="/home/ajmcc/one21tools"\n'), [1]);
-  assert.deepEqual(selfSkipLines('declare -r REPO="/home/ajmcc/one21tools"\n'), [1]);
-  assert.deepEqual(selfSkipLines('repo="/home/ajmcc/one21tools"\n'), [1]);
-  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/x"   # or $(git rev-parse ...)\n'), [1]);
-  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/${PROJECT}"\n'), [1]);
+  assert.deepEqual(selfSkipLines('export REAL_PLUGIN_ROOT="/home/USER/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('readonly REPO="/home/USER/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('local repo="/home/USER/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('declare -r REPO="/home/USER/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('repo="/home/USER/one21tools"\n'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/USER/x"   # or $(git rev-parse ...)\n'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/USER/${PROJECT}"\n'), [1]);
   // derived ROOT stays spared even with a keyword prefix
   assert.deepEqual(selfSkipLines('export ROOT="$(pwd)/x"\nlocal p="${HOME}/x"\n'), []);
 });
@@ -336,7 +336,7 @@ test("a hook whose CI-invoked test-<basename>.sh hard-codes an absolute path fai
   const existingFiles = new Set(["pdca-workflow/hooks/test-gate-pipe-guard.sh"]);
   const readFile = (p) =>
     p === "pdca-workflow/hooks/test-gate-pipe-guard.sh"
-      ? 'HERE="$(cd x && pwd)"\nREAL_ROOT="C:/Users/ajmcc/projects/one21tools"\n'
+      ? 'HERE="$(cd x && pwd)"\nREAL_ROOT="C:/Users/USER/projects/one21tools"\n'
       : null;
   const missing = findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles, readFile });
   assert.equal(missing.length, 1);
@@ -508,10 +508,10 @@ test("evaluateCanaryRun: each expect shape passes on its effect and names the mi
 // --- ADR 0069 vacuity detection now spans all three gate languages -----------------------------
 
 test("selfSkipLines flags JS and Python machine-bound assignments, not just shell", () => {
-  assert.deepEqual(selfSkipLines('const REPO = "/home/ajmcc/one21tools";'), [1]);
-  assert.deepEqual(selfSkipLines('REPO = "/Users/ajmcc/one21tools"'), [1]);
-  assert.deepEqual(selfSkipLines('let root = "C:/Users/ajmcc/repo"'), [1]);
-  assert.deepEqual(selfSkipLines('REPO="/home/ajmcc/one21tools"'), [1]); // shell, unchanged
+  assert.deepEqual(selfSkipLines('const REPO = "/home/USER/one21tools";'), [1]);
+  assert.deepEqual(selfSkipLines('REPO = "/Users/USER/one21tools"'), [1]);
+  assert.deepEqual(selfSkipLines('let root = "C:/Users/USER/repo"'), [1]);
+  assert.deepEqual(selfSkipLines('REPO="/home/USER/one21tools"'), [1]); // shell, unchanged
 });
 
 test("selfSkipLines spares derived roots in every language", () => {
@@ -523,7 +523,7 @@ test("selfSkipLines spares derived roots in every language", () => {
 test("an .mjs gate whose CI-visible test is machine-bound now FAILS (was unguarded)", () => {
   const gatesYml = ["run: node --test scripts/*.test.mjs", "run: node scripts/a-gate.mjs"].join("\n");
   const existingFiles = new Set(["scripts/a-gate.test.mjs"]);
-  const readFile = (p) => (p === "scripts/a-gate.test.mjs" ? 'const REPO = "/home/ajmcc/x";\n' : null);
+  const readFile = (p) => (p === "scripts/a-gate.test.mjs" ? 'const REPO = "/home/USER/x";\n' : null);
   const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles, readFile });
   assert.equal(missing.length, 1);
   assert.match(missing[0].reason, /self-skips via hard-coded absolute path/);
@@ -532,7 +532,7 @@ test("an .mjs gate whose CI-visible test is machine-bound now FAILS (was unguard
 test("a .py gate whose executed test is machine-bound now FAILS", () => {
   const gatesYml = ["run: python3 x/g.py", "run: python3 x/g_test.py"].join("\n");
   const existingFiles = new Set(["x/g_test.py"]);
-  const readFile = (p) => (p === "x/g_test.py" ? 'REPO = "/home/ajmcc/x"\n' : null);
+  const readFile = (p) => (p === "x/g_test.py" ? 'REPO = "/home/USER/x"\n' : null);
   const missing = findMissingTests({ gatesYml, hookRegistrations: [], existingFiles, readFile });
   assert.equal(missing.length, 1);
   assert.match(missing[0].reason, /ADR 0069/);

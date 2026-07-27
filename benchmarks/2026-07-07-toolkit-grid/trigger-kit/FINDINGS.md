@@ -16,5 +16,5 @@ Permission finding: auto-mode sessions HARD-DENY (no prompt) two action classes 
 this kit — executing modified third-party code like the patched `run_eval.py` above ("Untrusted
 Code Integration") and editing `.claude/settings.local.json` to self-grant a Bash allow-rule
 ("Self-Modification"). The agent cannot self-authorize; the sanctioned unblock is the owner
-adding the allow-rule (e.g. `Bash(wsl bash /home/user/trigger-kit/run_trigger.sh:*)`) or relaxing
+adding the allow-rule (e.g. `Bash(wsl bash /home/USER/trigger-kit/run_trigger.sh:*)`) or relaxing
 auto mode to normal approval prompts.

@@ -4,7 +4,7 @@ export const meta = {
   phases: [{ title: 'Execute', detail: 'fresh SSoT/waste tasks, with-skill vs without-skill' }, { title: 'Grade', detail: 'blind-grade each output' }],
 };
 
-const SKILL_DIR = 'C:/Users/ajmcc/projects/worktrees/one21tools-main/skills/engineering-principles';
+const SKILL_DIR = 'C:/Users/USER/projects/worktrees/one21tools-main/skills/engineering-principles';
 const WITH_PREFIX = `You are an engineer. BEFORE responding, read and apply the principles in these files:
 - ${SKILL_DIR}/SKILL.md
 - ${SKILL_DIR}/references/ssot-enforcement.md

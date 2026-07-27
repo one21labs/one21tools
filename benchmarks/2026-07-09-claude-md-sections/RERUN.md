@@ -6,7 +6,7 @@ run the 30 cells and fold their verdicts into `results.jsonl` once someone execu
 ## 1. Run the grid (WSL Debian)
 
 ```bash
-wsl -d Debian -- bash /mnt/c/Users/ajmcc/projects/wt-never/benchmarks/2026-07-09-claude-md-sections/rerun-never.sh
+wsl -d Debian -- bash /mnt/c/Users/USER/projects/wt-never/benchmarks/2026-07-09-claude-md-sections/rerun-never.sh
 ```
 
 Reads `rerun-cells.tsv` (regenerate with `python prep.py && grep '^never' cells.tsv > rerun-cells.tsv`
