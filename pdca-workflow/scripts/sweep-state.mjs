@@ -20,16 +20,48 @@
  * fs) so the decision logic is unit-testable, matching check-restatement.mjs's detect()/main()
  * split. main() is the thin IO wrapper.
  *
+ * A CLEAN VERDICT IS SELF-REFERENTIAL UNTIL A FOREIGN LANE SAYS OTHERWISE. A sweep run by the
+ * maker's own model family, over the maker's own work, is exactly the claim class ADR 0093 refuses
+ * to let a sibling settle: a fresh same-family agent is uncontaminated by the reasoning but shares
+ * the priors, so it audits inside the frame and cannot see the frame. So CLEAN additionally
+ * requires that at least one round recorded a lane from another vendor family; without it the
+ * verdict is FRAME-UNCHECKED, which is honest rather than passing.
+ * Scar (2026-07-26): a three-round sweep of this repo ran every lane same-family. The prose rule
+ * to use a foreign lane existed, in the skill AND in the operator's own standing notes, and lost
+ * to habit twice in one session — because a lane that AGREES reads as success and a lane that
+ * contradicts reads as failure, so skipping it is self-serving, not forgetful. ADR 0047: a
+ * decidable requirement does not get to live in prose.
+ *
  * Usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-rounds <K>]
  *   rounds.jsonl: one JSON object per line, appended as each round completes:
- *     {"round": 1, "ids": ["hook-lib-missing-test", "stale-judge-default"]}
+ *     {"round": 1, "ids": ["hook-lib-missing-test"], "xfam": "grok-4.5-build"}
  *   `ids` are stable slugs for VERIFIED findings only — an unverified finding is not a finding.
  *   An empty `ids` array is the normal shape of a quiet round and must still be logged.
- * Exit 0 CLEAN | 1 EXHAUSTED | 2 RUNNING (another round is owed) | 3 malformed input.
+ *   `xfam` is the MODEL ID that actually answered a cross-lineage lane in that round, read back
+ *   from the lane rather than asserted (crosscheck.mjs owns that route and the family table).
+ *   Omit it on rounds that had no foreign lane; one round carrying it is enough for the sweep.
+ * Exit 0 CLEAN | 1 EXHAUSTED | 2 RUNNING (another round is owed) | 3 malformed input
+ *      | 4 FRAME-UNCHECKED (converged, but no round left the maker's family).
  */
 import { readFileSync } from "node:fs";
+import { familyOf, MAKER_FAMILY } from "./crosscheck.mjs";
+import { numericFlag } from "./cli-flags.mjs";
 
-export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3 };
+export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3, "FRAME-UNCHECKED": 4 };
+
+/**
+ * Pure: did any round leave the maker's lineage? Takes the model id each round reported and asks
+ * crosscheck.mjs's table — the family logic has ONE home and this is not a second copy of it.
+ * An unplaceable id fails closed for the same reason it does there: an answer from a model we
+ * cannot name is not evidence the lineage was left.
+ */
+export function crossFamilyLane(rounds) {
+  for (const r of rounds) {
+    const fam = familyOf(r?.xfam);
+    if (fam !== MAKER_FAMILY && fam !== "unknown") return { model: r.xfam, family: fam };
+  }
+  return null;
+}
 
 // The cap when the operator names none. It lives HERE and not in the skill prose: the skill used
 // to state "no cap given = 5" while this script NaN'd without `--max` and exited MALFORMED, so the
@@ -67,8 +99,20 @@ export function sweepState(rounds, max, quietRounds = 2) {
   const tail = perRound.slice(-quietRounds);
   const quiet = n >= quietRounds && tail.every((r) => r.fresh === 0);
   if (quiet) {
-    return { state: "CLEAN", reason: `${quietRounds} consecutive rounds found nothing new`,
-             rounds: n, totalFindings, perRound };
+    // Convergence is necessary but not sufficient: a sweep that never left the maker's family has
+    // shown its own lanes found nothing new, which is a weaker claim than "clean" (ADR 0093).
+    const lane = crossFamilyLane(rounds);
+    if (!lane) {
+      return { state: "FRAME-UNCHECKED",
+               reason: `${quietRounds} consecutive rounds found nothing new, but no round recorded a `
+                 + `lane outside ${MAKER_FAMILY} — the sweep audited its own family's work and cannot `
+                 + `settle that. Run one round with a foreign-vendor lane (crosscheck.mjs) and log the `
+                 + `model that answered as "xfam"`,
+               rounds: n, totalFindings, perRound };
+    }
+    return { state: "CLEAN",
+             reason: `${quietRounds} consecutive rounds found nothing new, cross-checked by ${lane.model} (${lane.family})`,
+             rounds: n, totalFindings, perRound, crossFamily: lane };
   }
   if (n >= max) {
     const lastFresh = perRound[n - 1]?.fresh ?? 0;
@@ -85,15 +129,23 @@ export function sweepState(rounds, max, quietRounds = 2) {
            rounds: n, totalFindings, perRound };
 }
 
+const USAGE = `usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-rounds <K>]\n` +
+  `  --max defaults to ${DEFAULT_MAX_ROUNDS}, --quiet-rounds to 2 (both accept --flag=N too)`;
+
 function main(argv) {
   const file = argv.find((a) => !a.startsWith("--"));
-  const num = (flag, dflt) => {
-    const i = argv.indexOf(flag);
-    return i === -1 ? dflt : Number(argv[i + 1]);
-  };
   if (!file) {
-    console.error(`usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-rounds <K>]\n` +
-      `  --max defaults to ${DEFAULT_MAX_ROUNDS}, --quiet-rounds to 2`);
+    console.error(USAGE);
+    return EXIT.MALFORMED;
+  }
+  // Flag parsing is NOT hand-rolled here: cli-flags.mjs is the one home, because the bare
+  // `argv.indexOf` this replaced made `--max=2` miss the flag and run to the default cap instead.
+  let max, quiet;
+  try {
+    max = numericFlag(argv, "max", DEFAULT_MAX_ROUNDS);
+    quiet = numericFlag(argv, "quiet-rounds", 2);
+  } catch (e) {
+    console.error(`sweep-state: ${e.message}\n${USAGE}`);
     return EXIT.MALFORMED;
   }
   let rounds;
@@ -103,7 +155,7 @@ function main(argv) {
     console.error(`sweep-state: cannot read round log ${file}: ${e.message}`);
     return EXIT.MALFORMED;
   }
-  const v = sweepState(rounds, num("--max", DEFAULT_MAX_ROUNDS), num("--quiet-rounds", 2));
+  const v = sweepState(rounds, max, quiet);
   if (v.state === "MALFORMED") {
     console.error(`sweep-state: ${v.reason}`);
     return EXIT.MALFORMED;

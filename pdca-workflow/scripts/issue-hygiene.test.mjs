@@ -8,7 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { detect, checklistProgress, numericFlag, DEFAULTS } from "./issue-hygiene.mjs";
+import { detect, checklistProgress, DEFAULTS } from "./issue-hygiene.mjs";
 
 const SCRIPT = fileURLToPath(new URL("./issue-hygiene.mjs", import.meta.url));
 
@@ -104,28 +104,8 @@ test("a non-array dump is rejected loudly rather than read as zero issues", () =
   assert.throws(() => detect({ issues: [] }, { now: NOW }), TypeError);
 });
 
-test("a threshold flag given no value is rejected, never coerced to NaN", () => {
-  // NaN inverts both signals at once — nothing is ever dormant, and any single checkbox reads as
-  // a tracking issue — so a disarmed run prints exactly what a clean backlog prints.
-  assert.throws(() => numericFlag(["--dormant-days"], "dormant-days", DEFAULTS.dormantDays),
-    /--dormant-days takes a positive number; got no value/);
-  assert.throws(() => numericFlag(["--tracking-min"], "tracking-min", DEFAULTS.trackingMin),
-    /--tracking-min takes a positive number; got no value/);
-});
 
-test("a non-numeric or non-positive threshold is rejected, and the message prescribes the fix", () => {
-  // Asserts the two things the message must carry - the bad value and a usable remedy - not its
-  // punctuation, so extending the remedy (as the = spelling did) is not a test failure.
-  assert.throws(() => numericFlag(["--dormant-days", "soon"], "dormant-days", 21),
-    /got "soon".*--dormant-days 21/s);
-  assert.throws(() => numericFlag(["--tracking-min", "0"], "tracking-min", 5), /got "0"/);
-  assert.throws(() => numericFlag(["--dormant-days", "-3"], "dormant-days", 21), /got "-3"/);
-});
 
-test("an absent flag takes the default and a good value is read as given", () => {
-  assert.equal(numericFlag([], "dormant-days", DEFAULTS.dormantDays), DEFAULTS.dormantDays);
-  assert.equal(numericFlag(["--tracking-min", "3"], "tracking-min", DEFAULTS.trackingMin), 3);
-});
 
 test("a malformed flag exits non-zero and prints no report — the retrospect agent cites this output", () => {
   const p = spawnSync(process.execPath, [SCRIPT, "--dormant-days"], { input: "[]", encoding: "utf8" });
@@ -134,24 +114,4 @@ test("a malformed flag exits non-zero and prints no report — the retrospect ag
   assert.match(p.stderr, /--dormant-days takes a positive number/);
 });
 
-test("the --flag=value spelling reaches the same validation, never a silent default", () => {
-  // An exact-token lookup misses `--x=5` entirely and falls through to the default, so the report
-  // prints against thresholds the caller did not ask for - the same fail-open the NaN check closes,
-  // and one the retrospect agent would cite as if it answered the question asked (ADR 0094).
-  assert.equal(numericFlag(["--dormant-days=5"], "dormant-days", 21), 5);
-  assert.equal(numericFlag(["--tracking-min=9"], "tracking-min", 5), 9);
-  assert.throws(() => numericFlag(["--dormant-days=abc"], "dormant-days", 21), RangeError);
-  assert.throws(() => numericFlag(["--dormant-days="], "dormant-days", 21), RangeError);
-  assert.throws(() => numericFlag(["--dormant-days=0"], "dormant-days", 21), RangeError);
-  assert.throws(() => numericFlag(["--dormant-days=-3"], "dormant-days", 21), RangeError);
-});
 
-test("the rejection message teaches BOTH spellings, so a caller who used = is not left guessing", () => {
-  try {
-    numericFlag(["--dormant-days=x"], "dormant-days", 21);
-    assert.fail("expected a RangeError");
-  } catch (e) {
-    assert.match(e.message, /--dormant-days 21/);
-    assert.match(e.message, /--dormant-days=21/);
-  }
-});

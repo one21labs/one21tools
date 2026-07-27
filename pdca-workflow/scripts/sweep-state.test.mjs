@@ -5,9 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sweepState, EXIT, DEFAULT_MAX_ROUNDS } from "./sweep-state.mjs";
+import { sweepState, EXIT, DEFAULT_MAX_ROUNDS, crossFamilyLane } from "./sweep-state.mjs";
 
-const r = (...ids) => ({ ids });
+// Rounds default to carrying a foreign-lane model id, so the CONVERGENCE cases below vary only
+// what they mean to vary. `bare()` is the round with no cross-family lane, used by the cases that
+// test the frame check itself.
+const r = (...ids) => ({ ids, xfam: "grok-4.5-build" });
+const bare = (...ids) => ({ ids });
 
 test("two consecutive empty rounds after findings is CLEAN", () => {
   const v = sweepState([r("a", "b"), r("c"), r(), r()], 10);
@@ -89,7 +93,10 @@ test("exit codes: only CLEAN is 0, so a caller cannot treat exhaustion as succes
   assert.notEqual(EXIT.EXHAUSTED, 0);
   assert.notEqual(EXIT.RUNNING, 0);
   assert.notEqual(EXIT.MALFORMED, 0);
-  assert.equal(new Set(Object.values(EXIT)).size, 4);
+  assert.notEqual(EXIT["FRAME-UNCHECKED"], 0);
+  // Every state distinct, so a caller switching on the code cannot conflate two outcomes. The
+  // count is asserted so ADDING a state without deciding its exit code fails here first.
+  assert.equal(new Set(Object.values(EXIT)).size, 5);
 });
 
 test("omitting --max uses the script's own default, never NaN", () => {
@@ -107,4 +114,42 @@ test("the default cap can actually reach CLEAN - a cap below the quiet tail neve
   assert.ok(DEFAULT_MAX_ROUNDS > 2, "default cap must exceed the default quiet tail of 2");
   const rounds = [r("a"), r(), r()];
   assert.equal(sweepState(rounds, DEFAULT_MAX_ROUNDS).state, "CLEAN");
+});
+
+test("convergence alone is NOT clean: a sweep that never left the maker's family is FRAME-UNCHECKED", () => {
+  // The scar this pins: a three-round sweep of this repo ran every lane same-family while the
+  // prose rule to use a foreign one existed in two places. A rule the agent classifies its own way
+  // is a rule the agent can exempt itself from, so the verdict has to hold it instead.
+  const converged = [bare("a"), bare(), bare()];
+  assert.equal(sweepState(converged, 5).state, "FRAME-UNCHECKED");
+  assert.notEqual(EXIT["FRAME-UNCHECKED"], 0);
+});
+
+test("one round carrying a foreign model id is enough, and it earns CLEAN", () => {
+  const rounds = [bare("a"), { ids: [], xfam: "grok-4.5-build" }, bare()];
+  const v = sweepState(rounds, 5);
+  assert.equal(v.state, "CLEAN");
+  assert.equal(v.crossFamily.family, "xai");
+  assert.match(v.reason, /cross-checked by grok-4.5-build/);
+});
+
+test("a same-family or unplaceable model id does NOT satisfy the check", () => {
+  // copilot's auto mode routes to claude-haiku-4.5 on this machine, so a lane that ran but landed
+  // in-family is the exact case that must not pass - and an id we cannot place fails closed too.
+  assert.equal(sweepState([bare("a"), { ids: [], xfam: "claude-haiku-4.5" }, bare()], 5).state, "FRAME-UNCHECKED");
+  assert.equal(sweepState([bare("a"), { ids: [], xfam: "some-local-model" }, bare()], 5).state, "FRAME-UNCHECKED");
+  assert.equal(sweepState([bare("a"), { ids: [], xfam: "" }, bare()], 5).state, "FRAME-UNCHECKED");
+});
+
+test("crossFamilyLane reads the family table rather than keeping a second copy", () => {
+  assert.equal(crossFamilyLane([{ ids: [], xfam: "gpt-5" }]).family, "openai");
+  assert.equal(crossFamilyLane([{ ids: [], xfam: "gemini-3-pro" }]).family, "google");
+  assert.equal(crossFamilyLane([{ ids: [] }]), null);
+});
+
+test("the frame check does not mask EXHAUSTED or RUNNING - a budget outcome is still a budget outcome", () => {
+  // FRAME-UNCHECKED only ever replaces CLEAN. A sweep still owing rounds must say so, or the new
+  // state would let an unfinished sweep hide behind an independence complaint.
+  assert.equal(sweepState([bare("a")], 5).state, "RUNNING");
+  assert.equal(sweepState([bare("a"), bare("b")], 2).state, "EXHAUSTED");
 });

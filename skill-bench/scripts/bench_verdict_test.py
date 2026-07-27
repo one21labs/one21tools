@@ -56,31 +56,31 @@ class TestVerdictMath(unittest.TestCase):
         self.assertFalse(bv.both_available(only("claude"), {}))  # same family as the baseline
         self.assertFalse(bv.both_available(only(), {}))
 
-    def test_judge_both_survives_offline_cache_with_no_cli_at_all(self):
-        # --cache has BOTH arms on disk and makes zero judge calls, so gating it on CLI
-        # availability drops the divergence diagnostic from a run that needs nothing to produce
-        # it. The availability check must only fire when there is a live re-grade to run.
-        import bench_verdict as bv
-
-        def none(_b):
-            return None
-
-        self.assertFalse(bv.both_available(none, {}))          # no lane reachable
-        for cache, want_both in ((["a-cell"], True), (None, False)):
-            with self.subTest(cache=bool(cache)):
-                # mirrors main()'s guard: `want_both and not cache and not both_available()`
-                degraded = True and not cache and not bv.both_available(none, {})
-                self.assertEqual(not degraded, want_both)
-
-    def test_cached_run_is_labelled_by_what_answered_not_the_costing_key(self):
-        # CachedJudge borrows a priced model id so a $0 run still costs against a real table;
-        # .name is therefore the COSTING key, not the answerer. A report built from .name labels
-        # an offline re-analysis with a judge that never ran.
-        from judge import CachedJudge
-
-        j = CachedJudge("cached")
-        self.assertEqual(getattr(j, "display_name", j.name), "cached")
-        self.assertNotEqual(j.name, "cached")  # the costing fallback is a real priced id
+    def test_judge_both_with_cache_emits_divergence_with_no_judge_cli_reachable(self):
+        # RUNS main() as a subprocess against a real committed benchmark dir with PATH stripped of
+        # every judge CLI. An earlier version of this test re-derived main's if-condition in the
+        # test body, so reverting the production guard left it green - it asserted a boolean it had
+        # just computed. This one fails if the guard regresses, because it reads the actual report.
+        import os, subprocess, sys, json as _json
+        here = os.path.dirname(os.path.abspath(__file__))
+        bench = os.path.abspath(os.path.join(here, "..", "..", "benchmarks", "2026-07-12-pdca-decide-outcome"))
+        if not os.path.isdir(bench):
+            self.skipTest("benchmark dir absent")
+        r = subprocess.run(
+            [sys.executable, os.path.join(here, "bench_verdict.py"), "--dir", bench,
+             "--judge", "both", "--cache", os.path.join(bench, "graded", "verdicts.jsonl")],
+            capture_output=True, text=True, timeout=120,
+            env={"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp")})
+        self.assertEqual(r.returncode, 0, f"stderr: {r.stderr[-500:]}")
+        report = _json.loads(r.stdout)
+        self.assertIn("divergence", report)       # the whole point of --judge both
+        self.assertIn("verdict_flip", report)          # sibling of divergence, not nested
+        self.assertIn("kappa", report["divergence"])
+        self.assertNotIn("degraded", report)      # nothing to degrade: no live re-grade was needed
+        # And the run must not name a judge that never answered.
+        self.assertEqual(report["judge"], "cached")
+        self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)   # cache reuse: nothing ran
+        self.assertEqual(report["notional_cost_usd"]["usd"], 0.0)
 
     def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
         # The interval width was never exercised: clustered_delta's construction had no test, and

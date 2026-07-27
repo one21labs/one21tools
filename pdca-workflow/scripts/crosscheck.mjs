@@ -24,6 +24,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
+import { numericFlag, requiredFlag } from "./cli-flags.mjs";
 
 /** Pure: the lineage this plugin runs inside. `$PDCA_MAKER_FAMILY` is a real override, not a
  *  comment — an adopter driving these skills from another vendor's host inverts which family is
@@ -203,14 +204,17 @@ function main(argv) {
     for (const l of lanes) console.log(`${l.name}\t${l.bin}`);
     return;
   }
-  const i = argv.indexOf("--claim-file");
-  if (i === -1 || !argv[i + 1]) {
-    console.error("usage: crosscheck.mjs --claim-file <path> [--timeout <seconds>] | --list");
+  // Flags parse through cli-flags.mjs, the one home: the bare `argv.indexOf` this replaced made
+  // `--claim-file=x` miss and print usage, and `--timeout=x` miss and silently take the default.
+  const USAGE = "usage: crosscheck.mjs --claim-file <path> [--timeout <seconds>] | --list";
+  let claim, timeoutMs;
+  try {
+    claim = readFileSync(requiredFlag(argv, "claim-file", USAGE), "utf8");
+    timeoutMs = numericFlag(argv, "timeout", 300) * 1000;
+  } catch (e) {
+    console.error(e instanceof RangeError ? e.message : `crosscheck: ${e.message}\n${USAGE}`);
     process.exit(2);
   }
-  const claim = readFileSync(argv[i + 1], "utf8");
-  const t = argv.indexOf("--timeout");
-  const timeoutMs = (t === -1 ? 300 : Number(argv[t + 1])) * 1000;
 
   if (!lanes.length) { console.log(JSON.stringify(NO_LANE, null, 2)); process.exit(3); }
 
