@@ -192,7 +192,7 @@ assert_eq "a path OUTSIDE the project is left absolute rather than mangled into 
 : > "$PROJ/docs/pdca/gate-hits.txt"   # reset: the row-count assertions below start from zero
 hook_gate_hit test-gate "$PROJ/CLAUDE.md"
 
-# scorecard.mjs parses gate-hits.txt one row per line, so an embedded newline must not split a row.
+# gate-hits.txt is one row per line, so an embedded newline must not split a row.
 hook_gate_hit test-gate "$(printf '/repo/we\nird.md')"
 assert_eq "a newline inside a path cannot split one hit into two rows" \
   "2" "$(wc -l < "$PROJ/docs/pdca/gate-hits.txt")"

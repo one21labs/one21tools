@@ -43,7 +43,7 @@ cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^
 
 deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
   # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
-  # below prints regardless; marker-guarded, never mkdir (ADR 0071). Format: scorecard.mjs.
+  # below prints regardless; marker-guarded, never mkdir (ADR 0071).
   ghroot="${CLAUDE_PROJECT_DIR:-.}"
   { [ -d "$ghroot/docs/pdca" ] && printf '%s gate-hit pr-create-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${2:-}" >> "$ghroot/docs/pdca/gate-hits.txt"; } 2>/dev/null
   reason=$(printf '%s' "$1" | tr -d '"\\' | tr '\n\t' '  ')

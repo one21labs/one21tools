@@ -95,7 +95,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")} — the cited record is not in this corpus. Ship it in the same PR (mutually-citing records must land together), or correct the number`);
 
     // Outcome vocabulary (ADR 0079, spec check 13): every `## Act` `- [outcome]` row carries
-    // EXACTLY ONE of verified|violated|still-open — the controlled input a scorecard/hit-rate
+    // EXACTLY ONE of verified|violated|still-open — the controlled input a hit-rate
     // consumer classifies on. Free-text synonyms ("FALSIFIED") or double-tags are unclassifiable,
     // and a dropped miss reads as no miss (unknown != healthy). Applies to every tier.
     a.text.split("\n").forEach((line, i) => {

@@ -100,7 +100,7 @@ test("walk skips frozen dated benchmark dirs and the gate's own source", () => {
     "benchmarks": [dirent("2026-07-10-frozen", true), dirent("lib", true), dirent("README.md")],
     "benchmarks/2026-07-10-frozen": [dirent("README.md")],
     "benchmarks/lib": [dirent("verdict.py")],
-    "scripts": [dirent("check-cite-ownership.mjs"), dirent("check-cite-ownership.test.mjs"), dirent("scorecard.mjs")],
+    "scripts": [dirent("check-cite-ownership.mjs"), dirent("check-cite-ownership.test.mjs"), dirent("check-workflow.mjs")],
   };
   const readdir = (p) => {
     const k = p.replace(/\\/g, "/").replace(/^\.\//, "") || ".";
@@ -108,7 +108,7 @@ test("walk skips frozen dated benchmark dirs and the gate's own source", () => {
     return tree[k];
   };
   const files = walkLiveFiles(".", readdir).sort();
-  assert.deepEqual(files, ["CLAUDE.md", "benchmarks/README.md", "benchmarks/lib/verdict.py", "scripts/scorecard.mjs"]);
+  assert.deepEqual(files, ["CLAUDE.md", "benchmarks/README.md", "benchmarks/lib/verdict.py", "scripts/check-workflow.mjs"]);
 });
 
 test("walk tolerates a dir vanishing mid-walk but never the root", () => {

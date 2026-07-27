@@ -4,7 +4,7 @@
 # (docs/decisions/*.md), the root CLAUDE.md, an agent prompt (pdca-workflow/agents/*.md or
 # .claude/agents/*.md), or a manifest (plugin.json / marketplace.json, which adr-lint cross-checks
 # for drift). Detect-at-creation rung of the latency ladder, same shape as the repo's
-# post-edit-gate.sh. On gate failure: exit 2 with the gate's stderr (fed back to Claude
+# repo-local post-edit hooks. On gate failure: exit 2 with the gate's stderr (fed back to Claude
 # in-session). No jq (git-bash safe). Fails OPEN (exit 0) on malformed/empty stdin, a missing
 # file_path, or an unenterable project dir -- a broken hook must never block edits.
 #
@@ -25,7 +25,7 @@
 # liveness: per-event-exempt -- the observable fire (exit 2 + stderr) is contingent on a
 # FAILING lint run, which may legitimately never occur in a window (ADR 0086 (b)). Canaries:
 # one per routing case arm, each against a fixture corpus the lint must fail on. Declaration
-# grammar home: the consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
+# grammar: inert since 2026-07-27 (#311) — the runner that executed these was deleted.
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-bad.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md"}},"expect":{"exit":2}}
