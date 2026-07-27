@@ -237,7 +237,9 @@ export function extractRegisteredHooks(registrationText, pluginRoot) {
 //   `# canary: {json}` — one line per DECLARED input class. Keys: event (required); tool
 //     (matched against the registered matcher; omit for matcherless events); stdin (object
 //     piped to the hook); env (extra env vars); copy (repo-relative files copied into the
-//     fixture); files ({relpath: content} written into the fixture); expect — exactly one of
+//     fixture); files ({relpath: content} written into the fixture); git (true = init a repo with
+//     one commit, "dirty" = also leave an uncommitted file, for guards whose decision is a fact
+//     about the working tree); expect — exactly one of
 //     {"deny":true} | {"exit":N} | {"append":"<fixture relpath>","match":"<regex>"}.
 //     The substrings "__FIXTURE__" / "__REPO__" in stdin/env/files
 //     values resolve at run time to the throwaway fixture dir / the repo root.
@@ -490,6 +492,17 @@ function runCanaries(root, registrations, hookInfo) {
         for (const [rel, content] of Object.entries(c.files ?? {})) {
           mkdirSync(dirname(join(fixture, rel)), { recursive: true });
           writeFileSync(join(fixture, rel), sub(content));
+        }
+        // `git: true` makes the fixture a real repo with one commit; `git: "dirty"` additionally
+        // leaves an uncommitted file. Needed because a git-aware guard's decision is a fact about
+        // the TREE, not about its stdin — destructive-git-guard denies only when work would be
+        // lost, so with no way to build a dirty fixture no canary of it could ever fire, and the
+        // hook would have shipped declaring canaries that were structurally dead.
+        if (c.git) {
+          const g = (...a) => spawnSync("git", ["-C", fixture, ...a], { encoding: "utf8" });
+          g("init", "-q", ".");
+          g("-c", "user.email=canary@test", "-c", "user.name=canary", "commit", "-q", "--allow-empty", "-m", "base");
+          if (c.git === "dirty") writeFileSync(join(fixture, "uncommitted-work.txt"), "work\n");
         }
         const env = { ...process.env, CLAUDE_PROJECT_DIR: fixture };
         for (const [k, v] of Object.entries(c.env ?? {})) env[k] = sub(v);
