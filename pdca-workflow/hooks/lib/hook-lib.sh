@@ -8,8 +8,9 @@
 # stops firing, and the surface it guards goes unwatched with no symptom. Hand-rolled per hook,
 # the copies drift apart one fix at a time. One home means one place to be right (CLAUDE.md
 # poka-yoke: delete the mirror, derive). The same logic cuts the other way and is the standing
-# risk of this file: a defect here disarms four guards at once, so every change needs the canary
-# suite (scripts/check-gate-tests.mjs) run, not just the unit tests.
+# risk of this file: a defect here disarms four guards at once, so every change needs the
+# consumer repo's canary suite run (this repo: scripts/check-gate-tests.mjs), not just the unit
+# tests.
 # REJECTED: keep the four copies and fix each in place. It trades a shared blast radius for four
 # independent ones that drift silently, and the drift is the failure that already happened —
 # all four copies carried the same greedy-regex defect, so the isolation bought nothing.

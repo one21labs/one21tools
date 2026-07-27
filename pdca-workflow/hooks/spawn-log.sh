@@ -19,8 +19,9 @@
 # only appends to a file (no skill, agent, or tool is invoked from here).
 #
 # liveness: boundary-coupled -- a retrospect run's adoption artifact carries a Retrospect-Run
-# commit trailer (an independently logged series in git); expected vs observed compared by
-# scripts/scorecard.mjs (ADR 0086). Declaration grammar home: scripts/check-gate-tests.mjs.
+# commit trailer (an independently logged series in git); expected vs observed compared by the
+# consumer repo's scorecard (ADR 0086; this repo: scripts/scorecard.mjs). Declaration grammar
+# home: the consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
 # canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"red-team"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn red-team$"}}
 # canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"pdca-workflow:retrospect"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn pdca-workflow:retrospect$"}}
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"subagent_type":"pdca-workflow:retrospect","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:retrospect$"}}
