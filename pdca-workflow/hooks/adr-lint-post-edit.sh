@@ -31,8 +31,8 @@
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/.claude-plugin/plugin.json"}},"expect":{"exit":2}}
 # Path skeleton + gate-hit telemetry, one home for every file_path hook (lib/hook-lib.sh).
-# Sourced script-relative so it resolves from the installed plugin cache and under the canary
-# runner's throwaway project dir alike.
+# Sourced script-relative so it resolves from the installed plugin cache and under a test's
+# throwaway project dir alike.
 . "$(dirname "${BASH_SOURCE[0]}")/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
 fp=$(hook_fp "$input")   # forward slashes, absolute — the case arms below need both
