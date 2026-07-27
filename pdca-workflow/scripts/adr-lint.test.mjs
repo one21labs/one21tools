@@ -624,6 +624,18 @@ test("decision-set: two internally-linked pairs with no bridge warn once; self-c
   assert.equal(decisionSetWarnings(["0001", "0002", "0003", "0004"], files).length, 1);
 });
 
+// Order is the whole defect: a CI diff arrives sorted, so the stray routinely leads the list.
+test("decision-set: the stray is named even when it sorts ahead of the cluster", () => {
+  const files = [
+    adr("0001-stray.md"),
+    adr("0002-b.md", { body: "\n# 0002\n\nSee ADR 0003.\n" }),
+    adr("0003-c.md", { body: "\n# 0003\n\nSee ADR 0002.\n" }),
+  ];
+  const warns = decisionSetWarnings(["0001", "0002", "0003"], files);
+  assert.equal(warns.length, 1);
+  assert.match(warns[0], /cite-unconnected \(0001\)/);
+});
+
 test("decision-set: file paths from a CI diff resolve to ids (posix or windows separators)", () => {
   const warns = decisionSetWarnings(
     ["docs/decisions/0001-first.md", "docs\\decisions\\0002-second.md"], clean());

@@ -3,15 +3,16 @@ id: 0009
 title: "Char budgets extend to SKILL.md bodies, skill references, and agent prompts"
 status: accepted
 tier: lite
-summary: "Extend char-budget discipline (ADR 0008) beyond ADRs + CLAUDE.md: SKILL.md body <=6,000 chars, skill references/*.md <=12,000 (TOC required over 6,000), agent prompts <=3,000. Gate splits by runtime: validate.py owns SKILL.md body + references; char-budget.mjs/adr-lint owns agents (+ its existing ADR/CLAUDE.md caps). Each plugin documents its own caps — no cross-plugin dependency. No exemptions: the 3 over-budget bodies were rewritten under cap, not grandfathered."
+summary: "Extend char-budget discipline (ADR 0008) beyond ADRs + CLAUDE.md: SKILL.md bodies, skill references/*.md (TOC past a sub-threshold) and agent prompts all carry char caps. Gate splits by runtime: validate.py owns SKILL.md body + references; char-budget.mjs/adr-lint owns agents (+ its existing ADR/CLAUDE.md caps). Each plugin documents its own caps — no cross-plugin dependency. No exemptions: the 3 over-budget bodies were rewritten under cap, not grandfathered."
 ---
 
 # 0009 — char budgets for SKILL.md, references, and agent prompts
 
-- Decision: owner-set caps — SKILL.md body <=6,000 chars; `references/*.md` <=12,000 (TOC over
-  6,000); agent prompts <=3,000. Gate splits by runtime: `validate.py` owns SKILL.md body +
-  reference caps; `char-budget.mjs`/`adr-lint.mjs` owns the agent cap alongside its ADR/CLAUDE.md
-  caps. Each plugin documents its own cap values — no cross-plugin doc dependency.
+- Decision: owner-set char caps on SKILL.md bodies, `references/*.md` (TOC past a sub-threshold)
+  and agent prompts; the VALUES live in the enforcing gates below. Gate splits by runtime:
+  `validate.py` owns SKILL.md body + reference caps; `char-budget.mjs`/`adr-lint.mjs` owns the
+  agent cap alongside its ADR/CLAUDE.md caps. Each plugin documents its own cap values — no
+  cross-plugin doc dependency.
 - Why: `validate.py`'s prior `BODY_MAX_LINES=500` was gameable — the largest body was 230 lines
   yet 9,756 chars, so a char cap replaced it. No exemptions: the 3 then-over-budget bodies were
   rewritten under cap, not grandfathered.

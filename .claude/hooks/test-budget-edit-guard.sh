@@ -69,10 +69,15 @@ out=$(payload Write "$FIX/notes.md" "content=$big" | bash "$HOOK")
 out=$(printf 'not json' | bash "$HOOK")
 [ -z "$out" ]; check "malformed stdin fails open" $?
 
-# 9. Agent file over agent cap -> deny
+# 9. Agent file over agent cap -> deny, in BOTH agent homes adr-lint budgets
 big70=$(python3 -c "print('z'*70)")
 out=$(payload Write "$FIX/pdca-workflow/agents/pm.md" "content=$big70" | bash "$HOOK")
 printf '%s' "$out" | grep -q 'deny'; check "agent file held to agent cap" $?
+mkdir -p "$FIX/.claude/agents"
+out=$(payload Write "$FIX/.claude/agents/process-economist.md" "content=$big70" | bash "$HOOK")
+printf '%s' "$out" | grep -q 'deny'; check ".claude/agents held to the same agent cap" $?
+out=$(payload Write "$FIX/.claude/agents/process-economist.md" "content=small" | bash "$HOOK")
+[ -z "$out" ]; check ".claude/agents under cap silent" $?
 
 # 10-13. Gate-hit telemetry (ADR 0080): marker-gated, one line per deny, none on pass
 [ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; check "no docs/pdca marker: denies above logged nothing" $?

@@ -7,7 +7,8 @@
 # Also appends one counted line to the shared session log (docs/pdca/session-log.txt -- location
 # owned and documented by the plugin's spawn-log.sh header; same single-line `>>` append, atomic
 # enough per that header) so the promotion-to-deny window is measurable from git: if the count
-# stays zero the warn rung suffices; if it grows, promote.
+# stays zero the warn rung suffices; if it grows, promote. Only that line is marker-gated (ADR
+# 0071, checked never created); the warning prints in an un-adopted project just the same.
 #
 # FIRE CONDITIONS: the command must (a) invoke `git diff` -- and ONLY diff: the trap is
 # diff-specific. `git log A..B` / `git rev-list A..B` two-dot is the CORRECT
@@ -23,9 +24,9 @@
 # remote) is not matched: the boundary class excludes `/` before a bare `main`, which is what
 # keeps arbitrary `<anything>/main` refs out; origin/ is special-cased as the one named remote.
 # (3) A command merely QUOTING the range (`echo "main..x"`) does not fire: the house [^"]* sed
-# extraction ends at the first escaped quote (\" contains "), same accepted behavior as
-# retrospect-reminder.sh -- a genuine quoted ARGUMENT (`git log "main..x"`) is therefore also a
-# miss, never a false fire. Fails OPEN (exit 0, no output) on malformed/empty stdin.
+# extraction ends at the first escaped quote (\" contains ") -- a genuine quoted ARGUMENT
+# (`git log "main..x"`) is therefore also a miss, never a false fire. Fails OPEN (exit 0, no
+# output) on malformed/empty stdin.
 #
 # liveness: per-event-exempt -- fires only on a two-dot-against-main diff, which may
 # legitimately never occur in a window (ADR 0086 (b)); a zero count is the rung's SUCCESS
@@ -40,8 +41,8 @@ range=$(printf '%s' "$cmd" | grep -oE '(^|[^[:alnum:]_/.-])(origin/)?main\.\.([^
 [ -z "$range" ] && exit 0
 
 root="${CLAUDE_PROJECT_DIR:-.}"
-mkdir -p "$root/docs/pdca" 2>/dev/null && \
-  printf '%s two-dot-main %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(printf '%s' "$range" | tr -d ' \t')" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
+{ [ -d "$root/docs/pdca" ] && \
+  printf '%s two-dot-main %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(printf '%s' "$range" | tr -d ' \t')" >> "$root/docs/pdca/session-log.txt"; } 2>/dev/null
 
 printf '%s' '{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"two-dot against main shows tip-to-tip, use three-dot (origin/main...branch) for PR previews -- CLAUDE.md"}}'
 exit 0

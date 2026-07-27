@@ -18,6 +18,7 @@ check() {
 run_case() {
   name="$1"; cmd="$2"; expect="$3"
   FIX=$(mktemp -d)
+  mkdir -p "$FIX/docs/pdca"
   json=$(printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$cmd")
   out=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK"); code=$?
   if printf '%s' "$out" | grep -q '"additionalContext"'; then got=warn; else got=silent; fi
@@ -56,8 +57,17 @@ run_case "silent: non-git command mentioning range"  'cat notes-main..txt'      
 # quotes is never seen (documented accepted limitation -- a miss, never a false fire).
 run_case "silent: echo \\\"main..x\\\" quoted mention" 'echo \"main..x\"'                             silent
 
+# No docs/pdca marker -> warn still prints, exit 0, nothing written, dir NOT created (ADR 0071).
+FIX=$(mktemp -d)
+out=$(printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git diff origin/main..HEAD"}}' \
+  | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK"); code=$?
+[ "$code" = "0" ] && printf '%s' "$out" | grep -q '"additionalContext"' && [ ! -d "$FIX/docs/pdca" ]
+check "no marker -> warn still prints, exit 0, dir not created" $? "code=$code out=[$out]"
+rm -rf "$FIX"
+
 # Malformed/empty stdin fails open.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 out=$(printf '' | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK"); code=$?
 [ "$code" = "0" ] && [ -z "$out" ] && [ ! -f "$FIX/$LOG_REL" ]
 check "silent: malformed/empty stdin fails open" $? "code=$code out=[$out]"
@@ -65,6 +75,7 @@ rm -rf "$FIX"
 
 # Log line format on a fire: ISO-8601Z + two-dot-main + the matched range token.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/docs/pdca"
 printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git diff origin/main..HEAD"}}' \
   | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" >/dev/null
 grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z two-dot-main .*origin/main\.\.' "$FIX/$LOG_REL"

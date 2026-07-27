@@ -19,6 +19,7 @@ import {
   parseCanaries,
   matcherMatchesTool,
   findCanaryRegistrationFindings,
+  findOrphanHooks,
   evaluateCanaryRun,
 } from "./check-gate-tests.mjs";
 
@@ -356,6 +357,27 @@ test("the same hook passes once the path root is derived (and without readFile t
     findMissingTests({ gatesYml, hookRegistrations: [hookReg("gate-pipe-guard")], existingFiles }),
     []
   );
+});
+
+// ---- reverse walk: a hook script no registration references ---------------------------------
+
+test("findOrphanHooks: de-registering a hook is a finding — its script, tests and canaries would all stay green", () => {
+  const hookFiles = [
+    "pdca-workflow/hooks/spawn-log.sh",
+    "pdca-workflow/hooks/orphan.sh",
+    "pdca-workflow/hooks/test-orphan.sh",   // the suite is not itself a hook
+    ".claude/hooks/budget-edit-guard.sh",
+  ];
+  const f = findOrphanHooks(hookFiles, ["pdca-workflow/hooks/spawn-log.sh", ".claude/hooks/budget-edit-guard.sh"]);
+  assert.equal(f.length, 1);
+  assert.equal(f[0].kind, "hook");
+  assert.equal(f[0].path, "pdca-workflow/hooks/orphan.sh");
+  assert.match(f[0].reason, /no registration references this hook/);
+});
+
+test("findOrphanHooks: every hook script registered somewhere yields nothing", () => {
+  const hookFiles = ["pdca-workflow/hooks/a.sh", ".claude/hooks/b.sh"];
+  assert.deepEqual(findOrphanHooks(hookFiles, [".claude/hooks/b.sh", "pdca-workflow/hooks/a.sh"]), []);
 });
 
 // ---- ADR 0086: liveness declarations, canary parsing, registration reachability ------------

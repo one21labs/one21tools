@@ -11,7 +11,7 @@ summary: "Adopt the saturation/floor pre-screen as a standard pre-run rule (#178
 - Decision: (1) the saturation/floor pre-screen — a cheap control-arm screen recorded before any
   grid spends, dropping or hardening evals outside their discriminating band — becomes a
   standard pre-run rule; mechanics live at
-  `skills/building-skills/references/pre-registration.md`, operational rung is a `/bench`
+  `skill-bench/skills/bench/references/pre-registration.md`, operational rung is a `/bench`
   Guardrails bullet — restore discriminating power, never difficulty-tune toward a verdict.
   (2) a Design-for-signal section in pre-registration.md: the mandatory "gate or optimization?"
   field (ADR 0062 d2), variance as a primary metric, powered designs. (3) mechanization deferred

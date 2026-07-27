@@ -6,7 +6,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { detect, checklistProgress, DEFAULTS } from "./issue-hygiene.mjs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { detect, checklistProgress, numericFlag, DEFAULTS } from "./issue-hygiene.mjs";
+
+const SCRIPT = fileURLToPath(new URL("./issue-hygiene.mjs", import.meta.url));
 
 const NOW = "2026-07-26T00:00:00Z";
 const daysAgo = (n) => new Date(Date.parse(NOW) - n * 86400000).toISOString();
@@ -98,4 +102,32 @@ test("an empty backlog is a clean result, not an error", () => {
 test("a non-array dump is rejected loudly rather than read as zero issues", () => {
   assert.throws(() => detect(null, { now: NOW }), TypeError);
   assert.throws(() => detect({ issues: [] }, { now: NOW }), TypeError);
+});
+
+test("a threshold flag given no value is rejected, never coerced to NaN", () => {
+  // NaN inverts both signals at once — nothing is ever dormant, and any single checkbox reads as
+  // a tracking issue — so a disarmed run prints exactly what a clean backlog prints.
+  assert.throws(() => numericFlag(["--dormant-days"], "dormant-days", DEFAULTS.dormantDays),
+    /--dormant-days takes a positive number; got no value/);
+  assert.throws(() => numericFlag(["--tracking-min"], "tracking-min", DEFAULTS.trackingMin),
+    /--tracking-min takes a positive number; got no value/);
+});
+
+test("a non-numeric or non-positive threshold is rejected, and the message prescribes the fix", () => {
+  assert.throws(() => numericFlag(["--dormant-days", "soon"], "dormant-days", 21),
+    /got "soon"\. Pass one \(--dormant-days 21\)/);
+  assert.throws(() => numericFlag(["--tracking-min", "0"], "tracking-min", 5), /got "0"/);
+  assert.throws(() => numericFlag(["--dormant-days", "-3"], "dormant-days", 21), /got "-3"/);
+});
+
+test("an absent flag takes the default and a good value is read as given", () => {
+  assert.equal(numericFlag([], "dormant-days", DEFAULTS.dormantDays), DEFAULTS.dormantDays);
+  assert.equal(numericFlag(["--tracking-min", "3"], "tracking-min", DEFAULTS.trackingMin), 3);
+});
+
+test("a malformed flag exits non-zero and prints no report — the retrospect agent cites this output", () => {
+  const p = spawnSync(process.execPath, [SCRIPT, "--dormant-days"], { input: "[]", encoding: "utf8" });
+  assert.equal(p.status, 1);
+  assert.equal(p.stdout, "");
+  assert.match(p.stderr, /--dormant-days takes a positive number/);
 });

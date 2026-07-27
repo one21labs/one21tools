@@ -16,7 +16,9 @@
  * - gate hits by gate (ADR 0080): the local gate hooks append one line per FIRING (deny/exit-2)
  *   to docs/pdca/gate-hits.txt; parseGateHits below is the line format's ONE home (hooks cite
  *   it). Readout only — no bands until variance is known (ADR 0080 (d)); a malformed line is
- *   fail-loud (listed, folds into PARTIAL); an ABSENT log post-ship is a true zero, stated.
+ *   fail-loud (listed, folds into PARTIAL); an ABSENT log post-ship is a true zero, stated. Counts
+ *   are lifetime, so hits from a gate no wired guard can still emit are marked RETIRED — a deleted
+ *   guard must never read as one that catches things.
  * - guard-liveness readout (ADR 0086): for guards DECLARED boundary-coupled (the `# liveness:`
  *   header line each wired hook carries; grammar home: check-gate-tests.mjs), compare an
  *   independently logged expected series against the guard's observed firings — wired +
@@ -151,9 +153,10 @@ export function countSessionLogLines(text, pattern, since = "") {
  * injected, never read from the clock, so runs are reproducible and testable.
  * Returns { rows, triggers, unparsed, gateHits, deferred, verdictLine }. `gateHits` is a
  * parseGateHits() result; omitted = absent log (backward-compatible). `liveness` (ADR 0086),
- * when provided, is { hooks: [{path, classification}], series: [{series, guard, wired,
- * expected, observed, evaluated, reason?, detail}] } — counts are INJECTED (main computes
- * them) so this stays clock/fs/network-free.
+ * when provided, is { hooks: [{path, classification}], guardText: <every wired guard's text,
+ * concatenated — the retired-gate-name source>, series: [{series, guard, wired, expected,
+ * observed, evaluated, reason?, detail}] } — counts are INJECTED (main computes them) so this
+ * stays clock/fs/network-free.
  */
 export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parseGateHits(null), liveness = null) {
   const outcomes = adrs.flatMap(a => a.outcomes);
@@ -197,12 +200,18 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
   // overrides the % formatting in main — this is a count, not a rate.
   const byGate = {};
   for (const h of gateHits.hits) byGate[h.gate] = (byGate[h.gate] ?? 0) + 1;
+  // The log is append-only and lifetime, so a DELETED guard keeps its historical hits forever and
+  // reads as one that still catches things. Every emitter names itself as a literal in its own
+  // text, so a gate name absent from every wired guard can no longer fire: mark it, never drop it
+  // (the log is the record). No liveness read = no wired-guard text = no retirement claimed.
+  const retired = (g) => liveness?.guardText != null && !liveness.guardText.includes(g);
   rows.push({
-    metric: "gate hits by gate (readout, no band)", value: null, display: `${gateHits.hits.length} hit(s)`,
+    metric: "gate hits by gate (lifetime readout, no band)", value: null, display: `${gateHits.hits.length} hit(s)`,
     sample: gateHits.hits.length, status: "readout",
     detail: gateHits.present
       ? (gateHits.hits.length
-        ? Object.entries(byGate).sort((a, b) => b[1] - a[1]).map(([g, n]) => `${g} ${n}`).join(", ")
+        ? Object.entries(byGate).sort((a, b) => b[1] - a[1])
+          .map(([g, n]) => `${g} ${n}${retired(g) ? " (RETIRED — no wired guard emits this name)" : ""}`).join(", ")
         : "log present, zero hits")
       : "no gate-hits log — zero hits since instrumentation (ADR 0080), not uninstrumented",
   });
@@ -270,7 +279,8 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
 
 /**
  * IO half of the liveness readout (ADR 0086): enumerate wired hooks + their declared
- * classifications, and count each boundary-coupled series' expected/observed from its
+ * classifications + their text (the gate-hits readout's retired-name source), and count each
+ * boundary-coupled series' expected/observed from its
  * INDEPENDENT source (git trailers, the session log, the GitHub API). Every count failure
  * degrades to evaluated:false for THAT series — an unavailable source must read as
  * not-evaluated, never as a zero.
@@ -281,9 +291,8 @@ function collectLiveness(root, seriesConfig) {
     const text = read(path);
     return text == null ? [] : extractRegisteredHooksDetailed(text, pluginRoot);
   });
-  const hooks = [...new Set(regs.map(r => r.path))].map(path => ({
-    path, classification: parseLivenessDeclaration(read(path)),
-  }));
+  const texts = new Map([...new Set(regs.map(r => r.path))].map(path => [path, read(path) ?? ""]));
+  const hooks = [...texts].map(([path, text]) => ({ path, classification: parseLivenessDeclaration(text) }));
   const wiredPaths = new Set(hooks.map(h => h.path));
   const sessionLog = read("docs/pdca/session-log.txt");
   const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
@@ -333,7 +342,7 @@ function collectLiveness(root, seriesConfig) {
       series.push({ ...base, evaluated: false, reason: "count source unavailable (git/gh query failed)" });
     }
   }
-  return { hooks, series };
+  return { hooks, guardText: [...texts.values()].join("\n"), series };
 }
 
 function main(argv) {

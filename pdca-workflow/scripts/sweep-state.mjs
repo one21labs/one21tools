@@ -5,7 +5,7 @@
  *
  * An iterated audit has exactly two ways to stop, and they mean opposite things:
  *   CLEAN      — consecutive rounds found nothing new. The surface is as clean as this method sees.
- *   EXHAUSTED  — the iteration cap was reached while findings were still arriving. Unknown
+ *   EXHAUSTED  — the iteration cap was reached before the quiet tail was earned. Unknown
  *                remaining. This is a BUDGET outcome, not a quality one.
  * Reporting the second as the first is the failure the skill exists to prevent, and it is a
  * failure a summarizing agent is under constant pressure to commit. So the verdict is computed
@@ -66,8 +66,13 @@ export function sweepState(rounds, max, quietRounds = 2) {
   }
   if (n >= max) {
     const lastFresh = perRound[n - 1]?.fresh ?? 0;
+    // The skill relays this reason verbatim, so it has to fit both shapes the cap can end in:
+    // findings still arriving, or a last round that was quiet but too short to earn the tail.
+    const how = lastFresh > 0
+      ? `with findings still arriving (round ${n} found ${lastFresh} new)`
+      : `short of the quiet tail of ${quietRounds} (round ${n} found 0 new)`;
     return { state: "EXHAUSTED",
-             reason: `cap of ${max} rounds reached with findings still arriving (round ${n} found ${lastFresh} new) — remaining defects UNKNOWN, not zero`,
+             reason: `cap of ${max} rounds reached ${how} — remaining defects UNKNOWN, not zero`,
              rounds: n, totalFindings, perRound };
   }
   return { state: "RUNNING", reason: `round ${n + 1} of at most ${max} is owed`,

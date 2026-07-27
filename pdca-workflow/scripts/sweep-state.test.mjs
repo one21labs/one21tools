@@ -18,6 +18,15 @@ test("two consecutive empty rounds after findings is CLEAN", () => {
 test("hitting the cap with findings still arriving is EXHAUSTED, never CLEAN", () => {
   const v = sweepState([r("a"), r("b"), r("c")], 3);
   assert.equal(v.state, "EXHAUSTED");
+  assert.match(v.reason, /still arriving \(round 3 found 1 new\)/);
+  assert.match(v.reason, /UNKNOWN, not zero/);
+});
+
+test("EXHAUSTED on a quiet last round says so — the skill relays this reason verbatim", () => {
+  const v = sweepState([r("a"), r()], 2);
+  assert.equal(v.state, "EXHAUSTED");
+  assert.doesNotMatch(v.reason, /still arriving/);
+  assert.match(v.reason, /short of the quiet tail of 2 \(round 2 found 0 new\)/);
   assert.match(v.reason, /UNKNOWN, not zero/);
 });
 

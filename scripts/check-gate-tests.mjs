@@ -31,6 +31,12 @@
  * real .sh (MJS_GRANDFATHERED_HOOKS) keeps that path, covered by a `node --test` glob; every
  * other hook must carry the .sh suite.
  *
+ * Mechanism, reverse walk: the registration walk above only ever asks "does this REGISTERED hook
+ * have a test?", so de-registering a hook leaves every gate green — the script, its test suite
+ * and its canaries all survive as dead weight with nothing reporting the guard is gone (the
+ * symmetric twin of the ADR 0086 scar this file was written to close). Every .sh in HOOK_DIRS
+ * that no registration references is therefore a finding: re-register it or delete it.
+ *
  * Mechanism, invocation-path canaries (ADR 0086, #276): every registered hook must also (a)
  * exist at its resolved path and be EXECUTABLE — the harness invokes the registered path
  * directly, so a 644 hook dies on Permission denied and fails open silently (the #84/#85 scar,
@@ -53,7 +59,7 @@
  * Usage: node scripts/check-gate-tests.mjs [root]
  * Exit 1 listing every wired gate/hook missing a CI-visible decision-logic test; exit 0 otherwise.
  */
-import { readFileSync, existsSync, statSync, mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync, mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -73,6 +79,23 @@ export const HOOK_REGISTRATIONS = [
   { path: ".claude/settings.json", pluginRoot: "." },
   { path: ".claude/settings.local.json", pluginRoot: "." },
 ];
+/** Where hook scripts live — the reverse walk's corpus. Scanning these dirs, rather than the
+ *  registered set, is what makes a de-registration visible at all. */
+export const HOOK_DIRS = ["pdca-workflow/hooks", ".claude/hooks"];
+
+/** Hook scripts present in HOOK_DIRS that no registration references. `test-<basename>.sh` is a
+ *  suite, not a hook. Findings share findMissingTests's row shape. */
+export function findOrphanHooks(hookFiles, registeredPaths) {
+  const registered = new Set(registeredPaths);
+  return hookFiles
+    .filter((p) => !p.slice(p.lastIndexOf("/") + 1).startsWith("test-") && !registered.has(p))
+    .map((path) => ({
+      kind: "hook",
+      path,
+      expected: `a "hooks" entry in one of: ${HOOK_REGISTRATIONS.map((r) => r.path).join(", ")}`,
+      reason: "no registration references this hook — a de-registered guard whose script, tests and canaries all still read green; re-register it or delete it",
+    }));
+}
 
 /** Every `node <path>.mjs` invocation in a `run:` line, excluding `node --test ...` lines
  *  (those name test globs, not a gate). Dedaped, in first-seen order. */
@@ -493,9 +516,18 @@ function main(argv) {
     hookInfo.set(r.path, { exists: existsSync(abs), executable, text: read(r.path) });
   }
 
+  // An absent hook dir is tolerated (a consumer may have no plugin hooks); anything else throws.
+  const hookFiles = HOOK_DIRS.flatMap((d) => {
+    let names;
+    try { names = readdirSync(join(root, d)); }
+    catch (err) { if (err.code === "ENOENT") return []; throw err; }
+    return names.filter((n) => n.endsWith(".sh")).map((n) => `${d}/${n}`);
+  });
+
   const missing = [
     ...findMissingTests({ gatesYml, hookRegistrations, existingFiles, readFile: read }),
     ...findCanaryRegistrationFindings({ registrations, hookInfo, enforceExecutable: process.platform !== "win32" }),
+    ...findOrphanHooks(hookFiles, [...hookInfo.keys()]),
     ...runCanaries(root, registrations, hookInfo),
   ];
   const wiredCount = extractWiredGates(gatesYml).length + extractPyGates(gatesYml).length;

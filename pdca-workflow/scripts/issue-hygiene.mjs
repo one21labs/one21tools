@@ -27,8 +27,9 @@
  *   gh issue list --state open --limit 200 \
  *     --json number,title,body,updatedAt | node issue-hygiene.mjs
  *   node issue-hygiene.mjs <dump.json> [--dormant-days N] [--tracking-min N]
- * Always exits 0 unless the input cannot be read: a proposal list is not a gate verdict, and an
- * advisory script that can fail a build teaches people to stop running it.
+ * Always exits 0 unless the run could not be made at all — an unreadable dump or a malformed
+ * threshold flag: a proposal list is not a gate verdict, and an advisory script that can fail a
+ * build teaches people to stop running it.
  */
 import { readFileSync } from "node:fs";
 
@@ -81,11 +82,32 @@ export function detect(issues, opts = {}) {
   return { open: issues.length, findings };
 }
 
+/**
+ * A threshold flag's value, or `dflt` when the flag is absent. A missing or malformed value is
+ * rejected rather than coerced: `Number(undefined)` is NaN, every comparison against NaN is false,
+ * and the run would then report a clean backlog it never checked.
+ */
+export function numericFlag(argv, name, dflt) {
+  const i = argv.indexOf(`--${name}`);
+  if (i === -1) return dflt;
+  const raw = argv[i + 1];
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new RangeError(`--${name} takes a positive number; got ${raw === undefined ? "no value" : `"${raw}"`}. ` +
+      `Pass one (--${name} ${dflt}) or drop the flag for the default ${dflt}.`);
+  }
+  return n;
+}
+
 function main(argv) {
-  const flag = (name, dflt) => {
-    const i = argv.indexOf(`--${name}`);
-    return i === -1 ? dflt : Number(argv[i + 1]);
-  };
+  let dormantDays, trackingMin;
+  try {
+    dormantDays = numericFlag(argv, "dormant-days", DEFAULTS.dormantDays);
+    trackingMin = numericFlag(argv, "tracking-min", DEFAULTS.trackingMin);
+  } catch (e) {
+    console.error(`issue-hygiene: ${e.message}`);
+    return 1;
+  }
   const file = argv.find((a) => !a.startsWith("--") && !/^[\d.]+$/.test(a));
   let issues;
   try {
@@ -95,8 +117,7 @@ function main(argv) {
       "  gh issue list --state open --limit 200 --json number,title,body,updatedAt | node issue-hygiene.mjs");
     return 1;
   }
-  const r = detect(issues, { now: new Date(), dormantDays: flag("dormant-days", DEFAULTS.dormantDays),
-    trackingMin: flag("tracking-min", DEFAULTS.trackingMin) });
+  const r = detect(issues, { now: new Date(), dormantDays, trackingMin });
   for (const f of r.findings) console.log(`  [${f.kind}] #${f.number} ${f.title}\n      ${f.note}`);
   const by = (k) => r.findings.filter((f) => f.kind === k).length;
   console.log(`issue-hygiene: ${r.open} open — ${by("dormant")} dormant, ${by("tracking")} tracking issue(s). ` +

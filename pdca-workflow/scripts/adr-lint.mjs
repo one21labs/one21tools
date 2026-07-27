@@ -289,10 +289,21 @@ export function decisionSetWarnings(newEntries, files) {
       if (cited !== id && inSet.has(cited)) { adj.get(id).add(cited); adj.get(cited).add(id); }
     }
   }
-  const seen = new Set([ids[0]]);
-  const queue = [ids[0]];
-  while (queue.length) for (const next of adj.get(queue.shift())) if (!seen.has(next)) { seen.add(next); queue.push(next); }
-  const stranded = ids.filter(id => !seen.has(id));
+  // Walk every component, keep the largest — seeding from ids[0] alone inverts the note whenever
+  // the stray sorts ahead of the cluster. Size ties keep the first in `newEntries` order.
+  // Walk every component, keep the largest — seeding from ids[0] alone inverts the note whenever
+  // the stray sorts ahead of the cluster. Size ties keep the first in `newEntries` order.
+  const seen = new Set();
+  let largest = new Set();
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    const component = new Set([id]);
+    const queue = [id];
+    while (queue.length) for (const next of adj.get(queue.shift())) if (!component.has(next)) { component.add(next); queue.push(next); }
+    for (const member of component) seen.add(member);
+    if (component.size > largest.size) largest = component;
+  }
+  const stranded = ids.filter(id => !largest.has(id));
   return stranded.length
     ? [`new ADRs ${ids.join(", ")} are cite-unconnected (${stranded.join(", ")}) — fine for a deliberate work package; confirm this isn't an accidental grab-bag (ADR 0051)`]
     : [];

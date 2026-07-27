@@ -31,15 +31,13 @@ export const WINDOW = 12; // words; ADR 0046 operating point (measured: catches 
                           // truth set; below ~10 boilerplate noise rises, above ~18 recall drops)
 
 // Permanent structural exemptions — INTENTIONAL duplication, never debt (ADR 0046):
-// generated-from-template families share their template's shell; append-only twin verdict
-// records share arm boilerplate and cannot be edited.
+// generated-from-template families share their template's shell. An entry that suppresses
+// nothing pre-authorizes duplication nobody is committing — the test pins every entry against
+// the live corpus, so a pair whose span is gone comes out with it.
 export const ALLOW_PAIRS = [
   [/^\.claude\/agents\//, /^\.claude\/agents\//],
-  [/^\.claude\/agents\//, /^pdca-workflow\/skills\/pdca-init\/references\/advisor-template\.md$/],
   [/^CLAUDE\.md$/, /^pdca-workflow\/skills\/pdca-init\/references\/claude-md-template\.md$/],
   [/^\.claude\/output-styles\/plain-summary\.md$/, /^pdca-workflow\/templates\/plain-summary\.md$/],
-  [/^docs\/decisions\/README\.md$/, /^pdca-workflow\/skills\/pdca-init\//],
-  [/^docs\/decisions\/0035-/, /^docs\/decisions\/0036-/],
   // Every shipped plugin README carries the same Provenance default, because an adopter installs
   // ONE plugin and never sees the repo README that would otherwise be its home (ADR 0085 as
   // amended). Here the duplication is the delivery mechanism, not copy-paste debt: removing it

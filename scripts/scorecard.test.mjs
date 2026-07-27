@@ -167,6 +167,28 @@ test("gate-hits breakdown row: per-gate counts sorted desc; malformed lines fold
   assert.match(verdictLine, /1 unparseable gate-hit line\(s\)/); // fail-loud, never dropped
 });
 
+test("gate-hits breakdown row: a gate no wired guard emits is marked RETIRED, its history kept whole", () => {
+  const text = [
+    "2026-07-19T01:00:00Z gate-hit budget-edit-guard a.md",
+    "2026-07-19T01:01:00Z gate-hit gate-pipe-guard validate.py",
+    "2026-07-19T01:02:00Z gate-hit gate-pipe-guard adr-lint.mjs",
+  ].join("\n");
+  const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified"] })]);
+  // Only budget-edit-guard is still on disk to emit its own name.
+  const live = { hooks: [], series: [], guardText: 'hook_gate_hit budget-edit-guard "$fp"\n' };
+  const { rows } = analyze(adrs, bareConfig(), TODAY, parseGateHits(text), live);
+  const gh = rows[4];
+  assert.equal(gh.sample, 3);  // the append-only record is never trimmed
+  assert.equal(gh.detail, "gate-pipe-guard 2 (RETIRED — no wired guard emits this name), budget-edit-guard 1");
+});
+
+test("gate-hits breakdown row: with no liveness read, no gate is claimed retired", () => {
+  const text = "2026-07-19T01:00:00Z gate-hit gate-pipe-guard validate.py";
+  const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified"] })]);
+  const { rows } = analyze(adrs, bareConfig(), TODAY, parseGateHits(text));
+  assert.equal(rows[4].detail, "gate-pipe-guard 1");
+});
+
 test("absent gate-hits log: stated as a true zero, does not break the all-clear (readout, not uninstrumented)", () => {
   const adrs = parseAdrs([adrFile("0001", { outcomes: ["verified", "verified", "verified"] })]);
   const { rows, verdictLine } = analyze(adrs, bareConfig(), TODAY); // no 4th arg = absent log

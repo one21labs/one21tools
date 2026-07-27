@@ -16,8 +16,7 @@
 # position -- start of command or right after `&&`/`;`/`|` -- so `echo 'gh pr create'`
 # (single-quoted: survives the JSON extraction) is not an invocation. Double-quoted mentions
 # (`grep "gh pr create" f`) never even reach the matcher: the house [^"]* extraction ends at the
-# first escaped quote (retrospect-reminder.sh's documented limitation) -- a miss, never a false
-# fire. Flag parsing is bounded to the create invocation's own pipeline segment (cut at the
+# first escaped quote -- a miss, never a false fire. Flag parsing is bounded to the create invocation's own pipeline segment (cut at the
 # first `&&`/`;`/`|`), so a -R in a later chained command is never misattributed.
 #
 # -R/--repo AND --body-file/-F both accept `=` and space forms (`--repo=o/r`, `-R o/r`, ...).

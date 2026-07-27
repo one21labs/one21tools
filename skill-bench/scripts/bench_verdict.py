@@ -72,6 +72,13 @@ def regrade(judge, cells, keys, workers, cache=None):
     return out, errs
 
 
+def both_available(which=None, env=None):
+    """Can `--judge both` do its job here? The baseline half is read off committed files, so the
+    only live requirement is a judge from a family OTHER than the one that graded them — which
+    backends qualify is DERIVED from judge.BACKENDS, never restated. Pure given `which` + `env`."""
+    return any(cli_available(n, which, env) for n, s in BACKENDS.items() if s["cross_family"])
+
+
 def summarize(cells, x, y):
     d_xy = benchstats.clustered_delta(cells, x, y)
     arms = sorted({c["arm"] for c in cells})
@@ -120,13 +127,14 @@ def main():
                   "met": {int(k): v for k, v in ({e["id"]: e["met"] for e in j["expectations"]}).items()}}
                  for j in map(json.loads, open(a.cache)) if "error" not in j and j["bid"] in {c["bid"] for c in cells}]
 
-    # 'both' needs grok AND claude for the divergence diagnostic; degrade gracefully if only one exists.
     want_both = a.judge == "both"
     degrade_note = None
-    if want_both and not (cli_available("grok") and cli_available("claude")):
+    if want_both and not both_available():
         want_both = False
-        degrade_note = ("--judge both needs grok AND claude for the divergence diagnostic; only one "
-                        "CLI is available — reporting a single-judge verdict instead")
+        cross = ", ".join(n for n, s in BACKENDS.items() if s["cross_family"])
+        degrade_note = ("--judge both diverges a cross-family judge from the committed baseline, "
+                        f"and none is available here — install or configure one of {cross} "
+                        "(references/judging.md); reporting a single-judge verdict instead")
     primary = "auto" if a.judge in ("auto", "both") else a.judge
     try:
         judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none

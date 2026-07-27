@@ -41,6 +41,21 @@ class TestVerdictMath(unittest.TestCase):
                 self.assertNotIn("invalid choice", r.stderr,
                                  f"{script} rejects registered backend {name!r}")
 
+    def test_judge_both_availability_derives_from_the_registry(self):
+        # `both` reads its baseline half off committed files, so the only live requirement is a
+        # judge from another family. A hard-coded pair silently degrades the machine whose only
+        # cross-family judge is copilot or command, and gates on a claude CLI the mode never calls.
+        import bench_verdict as bv
+
+        def only(*bins):
+            return lambda b: f"/usr/bin/{b}" if b in bins else None
+
+        self.assertTrue(bv.both_available(only("copilot"), {}))
+        self.assertTrue(bv.both_available(only(), {"SKILL_BENCH_JUDGE_CMD": "my-judge"}))
+        self.assertTrue(bv.both_available(only("grok"), {}))
+        self.assertFalse(bv.both_available(only("claude"), {}))  # same family as the baseline
+        self.assertFalse(bv.both_available(only(), {}))
+
     def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
         # The interval width was never exercised: clustered_delta's construction had no test, and
         # keep_verdict's tests hand-fed synthetic ci95 dicts, so a flat 1.96 shipped unnoticed

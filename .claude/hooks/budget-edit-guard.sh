@@ -19,6 +19,7 @@
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-canary.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
+# canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/.claude/agents/pm.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md","content":"---\nname: foo\ndescription: d\n---\n\nThis body is definitely longer than ten characters."}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/references/r.md","content":"A reference body with no table of contents and well over ten characters."}},"expect":{"deny":true}}
 # Path skeleton, deny predicate and gate-hit telemetry: lib/hook-lib.sh owns all three and
@@ -29,8 +30,11 @@ fp=$(hook_fp "$input")         # forward slashes, absolute — the case arms bel
 export BUDGET_GUARD_FP="$fp"   # the python body reads the NORMALIZED path, never the raw JSON
                                # one: an Edit on a relative path would otherwise open nothing,
                                # measure empty current text, and allow.
+# BOTH agent homes, per adr-lint.mjs's agentProblems() dir list — covering only the plugin's
+# leaves .claude/agents to be caught by the post-edit lint, the loop ADR 0060 exists to end.
 case "$fp" in
-  */CLAUDE.md|*/docs/decisions/*.md|*/pdca-workflow/agents/*.md|*claude-md-template.md) ;;
+  */CLAUDE.md|*/docs/decisions/*.md|*claude-md-template.md) ;;
+  */pdca-workflow/agents/*.md|*/.claude/agents/*.md) ;;
   */skills/*/SKILL.md|*/skills/*/references/*.md) ;;
   *) exit 0 ;;
 esac
@@ -97,7 +101,7 @@ try:
     size_out, size_cur, unit, hint = len(out), len(cur), "chars", ""
     if re.search(r"docs/decisions/[^/]+\.md$", fp):
         cap = caps["lite"] if re.search(r"^tier:\s*lite\s*$", out[:800], re.M) else caps["adr"]
-    elif re.search(r"pdca-workflow/agents/[^/]+\.md$", fp):
+    elif re.search(r"(?:pdca-workflow|\.claude)/agents/[^/]+\.md$", fp):
         cap = caps["agent"]
     elif re.search(r"skills/[^/]+/SKILL\.md$", fp):
         cap, vp = caps["skill"], vp_mod()

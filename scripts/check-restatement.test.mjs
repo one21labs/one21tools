@@ -2,19 +2,19 @@
  * check-restatement.test.mjs — decision-logic test for check-restatement.mjs (ADR 0046; "no
  * process-gating script without a test of its decision logic"). Pins: a >=window shared word
  * span across two files is flagged; below-window, fenced-code, frontmatter, and ADR-metadata
- * duplication is not; allowlisted pairs are excluded; the walk skips entries that vanish
- * mid-run (#282); and the deployed gate passes on the repo itself — the surface a consumer
- * invokes (gates.yml).
+ * duplication is not; allowlisted pairs are excluded and each one still earns its place; the
+ * walk skips entries that vanish mid-run (#282); and the deployed gate passes on the repo
+ * itself — the surface a consumer invokes (gates.yml).
  * Run: node --test scripts/*.test.mjs from the repo root.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, symlinkSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative } from "node:path";
-import { detect, allowed, mdFiles, WINDOW } from "./check-restatement.mjs";
+import { detect, allowed, mdFiles, ALLOW_PAIRS, WINDOW } from "./check-restatement.mjs";
 
 const SPAN = "the quick brown fox jumps over the lazy dog again and again today"; // 13 words
 // Seed goes LAST, immediately before any appended payload — the differing word breaks the
@@ -104,6 +104,16 @@ test("walk skips an entry that vanishes between readdir and stat (#282) but thro
   } finally {
     rmSync(abs, { recursive: true, force: true });
   }
+});
+
+test("every allowlisted pair still suppresses a real span — a dead exemption is not kept", () => {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const files = mdFiles(root).map(p => ({ name: relative(root, p).replaceAll("\\", "/"), text: readFileSync(p, "utf8") }));
+  ALLOW_PAIRS.forEach((pair, i) => {
+    const without = ALLOW_PAIRS.filter((_, j) => j !== i);
+    assert.ok(detect(files, { allowPairs: without }).length > 0,
+      `ALLOW_PAIRS[${i}] ${pair} exempts a pair nothing duplicates — delete the entry`);
+  });
 });
 
 test("surface: the deployed gate passes on the repo itself", () => {

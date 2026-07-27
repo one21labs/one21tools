@@ -111,10 +111,11 @@ skills/
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
 commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
-scripts/       adr-lint.mjs, char-budget.mjs, sweep-state.mjs, issue-hygiene.mjs (+ .test.mjs each)
-                 the ADR-corpus + doc-budget poka-yoke, the sweep stop verdict, backlog signals
-                 (node, zero-dep)
+scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs
+                 (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke, the cross-lineage
+                 claim route, the sweep stop verdict, backlog signals (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
+               plain-summary.md            the reply-summary standard /pdca-init copies in
 hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
   lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
 ```
