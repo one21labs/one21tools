@@ -41,19 +41,16 @@ $ARGUMENTS = the target, then the cap: `pdca-workflow --max 6`. No cap given = 5
    only. A round that found nothing still gets a line with an empty array; that line IS the
    evidence of convergence, and a skipped one silently shortens the quiet tail.
 6. **Ask the script for the verdict — never decide it in prose:**
-   `node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep-state.mjs" <log> --max <N>`. Exit 0 CLEAN, 1
-   EXHAUSTED, 2 another round is owed, 3 malformed log. It dedupes ids against everything seen,
-   so a rejected finding that keeps resurfacing cannot hold the loop open forever.
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep-state.mjs" <log> --max <N>`. It owns the stopping
+   states, their exact meaning, and the exit code for each; its header is the one home for all of
+   that, and it prints the reason with the verdict.
 
 ## Reporting
 
-The two stopping states are not degrees of the same thing and never blur:
+Relay the script's verdict and its reason line as written — do not paraphrase a stopping state
+into a warmer one, which is the whole failure this skill exists to prevent.
 
-- **CLEAN** — consecutive rounds found nothing new. It claims exactly this much: this method, on
-  this stated surface, stopped finding things. Not "there are no defects".
-- **EXHAUSTED** — the cap was reached while findings were still arriving. What remains is
-  UNKNOWN, not zero. Report it in those words, raise the cap or narrow the target, and run again.
-
-Report the round count, the findings per round, and which round each was found in — the shape of
-that curve is the evidence. A sweep whose findings are still climbing at the last round has not
-told you the code is nearly clean; it has told you the cap was too low.
+Add what the script cannot see: the declared surface, and the findings per round with which round
+each was found in. The shape of that curve is the evidence. A sweep whose findings are still
+climbing at the last round has not told you the code is nearly clean; it has told you the cap was
+too low.
