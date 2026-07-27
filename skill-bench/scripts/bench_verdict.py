@@ -140,19 +140,19 @@ def main():
                         "(references/judging.md), or re-analyse offline with --cache; "
                         "reporting a single-judge verdict instead")
     primary = "auto" if a.judge in ("auto", "both") else a.judge
-    try:
-        judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none
-    except JudgeError:
-        if not cache:
-            raise  # a live re-grade genuinely needs a judge CLI
-        judge = CachedJudge("cached")  # offline --cache re-analysis needs no CLI
+    # --cache NEVER makes a call: regrade() returns the cached met-map verbatim and never touches
+    # the judge object. So resolving a live judge here is not just unnecessary, it is WRONG — it
+    # let a reachable CLI put its model id on a report it did not grade, and setting
+    # $SKILL_BENCH_JUDGE_CMD to a program that is never executed changed the report's `judge`
+    # field beside `judge_calls: 0`. Resolving only on the live path removes the wrong answer
+    # rather than relabelling it, and drops the JudgeError fallback that existed to paper over it.
+    judge = CachedJudge("cached") if cache else make_judge(primary)
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     if degrade_note:
         print("NOTE: " + degrade_note, file=sys.stderr)
     # .name is the COSTING key (CachedJudge borrows a priced model id to cost $0 against);
-    # display_name is what actually answered. Reports must show the latter or a cache-only run
-    # is labelled with a judge that never ran.
+    # display_name is what actually answered.
     judge_label = getattr(judge, "display_name", judge.name)
     print(f"re-grading {len(cells)} cells with judge={judge_label}"
           + (" (cached)" if cache else ""), file=sys.stderr)

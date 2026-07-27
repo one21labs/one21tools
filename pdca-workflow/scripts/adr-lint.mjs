@@ -120,6 +120,17 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     // decision whose REASONING must survive: tagged assumptions someone must resolve, or the
     // `## Assumptions` block that tracks them. (Was: any REOPEN-IF graduated, which is why the
     // anti-churn fields were unavailable in the cheap tier at all.)
+    // FRAME-UNCHECKED must show its probe (ADR 0093 as amended). The token asserts something about
+    // the MACHINE — that no checker outside the maker's lineage was reachable — not about the claim.
+    // Unprobed, it is indistinguishable from never having looked, which is precisely what three
+    // independent cross-family reviews said it had become. Recording the lanes turns skipping the
+    // probe into writing a false line, the same job the corpus's other gates do.
+    const unprobed = [...a.text.matchAll(
+      new RegExp(String.raw`^[ \t]*[-*][^\n]*FRAME-UNCHECKED[^\n]*${WRAPPED}`, "gim"))]
+      .filter(([bullet]) => !/Probed:/i.test(bullet));
+    if (unprobed.length)
+      problems.push(`${a.name}: ${unprobed.length} FRAME-UNCHECKED bullet(s) record no probe — the token claims no cross-lineage checker was reachable, so the record must show what was looked for. Add \`Probed: <lanes>\` to the same bullet (run \`node pdca-workflow/scripts/crosscheck.mjs --list\`; write \`Probed: none\` when it lists none) — ADR 0093`);
+
     if (a.lite) {
       if (/^\s*[-*]\s*\[(?:unverifiable|checkable|checkable-doc|contradiction|verified)\]/m.test(a.text)
           || /^## Assumptions/m.test(a.text))
@@ -163,17 +174,6 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
       .some(bullet => /REOPEN-IF/i.test(bullet));
     if (!hasCriterion && !hasRevisitable)
       problems.push(`${a.name}: states no falsifiable criterion ([checkable]/[checkable-doc]/[contradiction], or an [unverifiable] with REOPEN-IF) — UNFALSIFIABLE`);
-
-    // FRAME-UNCHECKED must show its probe (ADR 0093 as amended). The token asserts something about
-    // the MACHINE — that no checker outside the maker's lineage was reachable — not about the claim.
-    // Unprobed, it is indistinguishable from never having looked, which is precisely what three
-    // independent cross-family reviews said it had become. Recording the lanes turns skipping the
-    // probe into writing a false line, the same job the corpus's other gates do.
-    const unprobed = [...a.text.matchAll(
-      new RegExp(String.raw`^[ \t]*[-*][^\n]*FRAME-UNCHECKED[^\n]*${WRAPPED}`, "gim"))]
-      .filter(([bullet]) => !/Probed:/i.test(bullet));
-    if (unprobed.length)
-      problems.push(`${a.name}: ${unprobed.length} FRAME-UNCHECKED bullet(s) record no probe — the token claims no cross-lineage checker was reachable, so the record must show what was looked for. Add \`Probed: <lanes>\` to the same bullet (run \`node pdca-workflow/scripts/crosscheck.mjs --list\`; write \`Probed: none\` when it lists none) — ADR 0093`);
 
     // Char budget (ungameable by long lines, unlike a line cap — see ADR 0008): an ADR over the cap
     // is a violation. No exemptions — 0008 chose rewrite-under-budget over a grandfather allowlist.

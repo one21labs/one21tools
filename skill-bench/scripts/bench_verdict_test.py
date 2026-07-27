@@ -79,6 +79,28 @@ class TestVerdictMath(unittest.TestCase):
         self.assertNotIn("degraded", report)      # nothing to degrade: no live re-grade was needed
         # And the run must not name a judge that never answered.
         self.assertEqual(report["judge"], "cached")
+
+    def test_a_reachable_judge_cannot_put_its_name_on_a_cache_run_it_did_not_grade(self):
+        # The previous fix only bit when NO judge CLI existed. With one reachable, a --cache run
+        # that makes zero calls was still labelled with the live judge's model id - so setting an
+        # env var for a program that is never executed changed the report. This runs the path
+        # where make_judge SUCCEEDS, which is the branch the no-CLI test cannot reach.
+        import os, subprocess, sys, json as _json
+        here = os.path.dirname(os.path.abspath(__file__))
+        bench = os.path.abspath(os.path.join(here, "..", "..", "benchmarks", "2026-07-12-pdca-decide-outcome"))
+        if not os.path.isdir(bench):
+            self.skipTest("benchmark dir absent")
+        r = subprocess.run(
+            [sys.executable, os.path.join(here, "bench_verdict.py"), "--dir", bench,
+             "--judge", "both", "--cache", os.path.join(bench, "graded", "verdicts.jsonl")],
+            capture_output=True, text=True, timeout=120,
+            env={"PATH": "/usr/bin:/bin", "HOME": os.environ.get("HOME", "/tmp"),
+                 "SKILL_BENCH_JUDGE_CMD": "/bin/false",      # resolvable, and never executed
+                 "SKILL_BENCH_JUDGE_MODEL": "grok-4.5"})
+        self.assertEqual(r.returncode, 0, f"stderr: {r.stderr[-500:]}")
+        report = _json.loads(r.stdout)
+        self.assertEqual(report["judge"], "cached")
+        self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)
         self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)   # cache reuse: nothing ran
         self.assertEqual(report["notional_cost_usd"]["usd"], 0.0)
 

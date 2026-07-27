@@ -25,6 +25,11 @@
 # consumer repo's check-gate-tests (this repo: scripts/check-gate-tests.mjs).
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"prompt":"do the thing"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"general-purpose","prompt":"do the thing"}},"expect":{"deny":true}}
+# Gate-hit telemetry has one home (lib/hook-lib.sh). Sourced script-relative, not via
+# CLAUDE_PROJECT_DIR: the canary runner executes hooks from their real repo path against a
+# throwaway fixture project. A missing lib exits 0 — telemetry never blocks a guard.
+. "$(dirname "${BASH_SOURCE[0]}")/lib/hook-lib.sh" 2>/dev/null || exit 0
+
 input=$(cat)
 [ -d "${CLAUDE_PROJECT_DIR:-.}/docs/pdca" ] || exit 0
 scope=$(printf '%s' "$input" | sed -n 's/.*\("tool_input".*\)/\1/p')
@@ -34,10 +39,10 @@ has_model=$(printf '%s' "$scope" | grep -c '"model"[[:space:]]*:')
 subagent_type=$(printf '%s' "$scope" | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "general-purpose" ]; }; then
-  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
-  # below prints regardless; docs/pdca existence already established above (ADR 0071 marker),
-  # never mkdir. Line format home: the consumer's scorecard parser (scripts/scorecard.mjs).
-  { printf '%s gate-hit explicit-model-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${subagent_type:-unset}" >> "${CLAUDE_PROJECT_DIR:-.}/docs/pdca/gate-hits.txt"; } 2>/dev/null
+  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny below
+  # prints regardless. lib/hook-lib.sh owns the line format, the field scrub and the ADR 0071
+  # marker check; a copy here is the mirror 83e43ef deleted three of.
+  hook_gate_hit explicit-model-guard "${subagent_type:-unset}"
   reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model (ADR 0040). Re-issue the call with model set explicitly to haiku, sonnet, or opus, matched to the task: haiku for mechanical/deterministic execution, sonnet for judgment-execution, opus for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
 fi

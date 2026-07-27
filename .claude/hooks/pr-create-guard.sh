@@ -36,15 +36,19 @@
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create -R evil/repo --title t --body-file b.md"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","stdin":{"tool_name":"Bash","tool_input":{"command":"gh pr create --title t --body hello"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Bash","files":{"b.md":"a body without the required line"},"stdin":{"tool_name":"Bash","tool_input":{"command":"gh issue create --title t --body-file b.md"}},"expect":{"deny":true}}
+# Gate-hit telemetry has one home (lib/hook-lib.sh). Sourced script-relative, not via
+# CLAUDE_PROJECT_DIR: the canary runner executes hooks from their real repo path against a
+# throwaway fixture project. A missing lib exits 0 — telemetry must never block a guard.
+. "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
+
 input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$cmd" ] && exit 0
 
 deny() {  # $1 = reason, $2 = sub-guard tag for telemetry context
-  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny
-  # below prints regardless; marker-guarded, never mkdir (ADR 0071). Format: scorecard.mjs.
-  ghroot="${CLAUDE_PROJECT_DIR:-.}"
-  { [ -d "$ghroot/docs/pdca" ] && printf '%s gate-hit pr-create-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${2:-}" >> "$ghroot/docs/pdca/gate-hits.txt"; } 2>/dev/null
+  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — the deny below
+  # prints regardless. Format, field scrub and the ADR 0071 marker check live in lib/hook-lib.sh.
+  hook_gate_hit pr-create-guard "${2:-}"
   reason=$(printf '%s' "$1" | tr -d '"\\' | tr '\n\t' '  ')
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
   exit 0
