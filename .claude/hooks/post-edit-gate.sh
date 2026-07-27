@@ -27,10 +27,8 @@
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["skills/building-skills/scripts/validate.py"],"files":{"skills/foo/SKILL.md":"just a body with no frontmatter"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-workflow.mjs"],"files":{"benchmarks/x.workflow.js":"const r = await agent(\"do the thing\", {label: \"x\"});"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/benchmarks/x.workflow.js"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-restatement.mjs"],"files":{"README.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa","docs/a.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/README.md"}},"expect":{"exit":2}}
-# Path skeleton + gate-hit telemetry, one home for every file_path hook. This repo-local hook
-# sources the pdca-workflow plugin's copy from the working tree (the plugin is the shipped
-# artifact and owns the skeleton; .claude/hooks are its in-repo consumers). Script-relative, so
-# it also resolves under the canary runner's throwaway project dir.
+# Path skeleton, deny predicate and gate-hit telemetry: lib/hook-lib.sh owns all three and
+# documents why (including why this is sourced script-relative). Do not restate it here.
 . "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
 fp=$(hook_fp "$input")   # forward slashes, absolute — the case arms below need both

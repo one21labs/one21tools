@@ -21,10 +21,8 @@
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md","content":"content well over a ten char cap"}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md","content":"---\nname: foo\ndescription: d\n---\n\nThis body is definitely longer than ten characters."}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","env":{"BUDGET_GUARD_CAPS_JSON":"{\"doc\":10,\"adr\":10,\"lite\":10,\"agent\":10,\"skill\":10,\"ref\":10,\"refToc\":10}"},"copy":["skills/building-skills/scripts/validate.py"],"stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/skills/foo/references/r.md","content":"A reference body with no table of contents and well over ten characters."}},"expect":{"deny":true}}
-# Path skeleton + gate-hit telemetry, one home for every file_path hook. This repo-local hook
-# sources the pdca-workflow plugin's copy from the working tree (the plugin is the shipped
-# artifact and owns the skeleton; .claude/hooks are its in-repo consumers). Script-relative, so
-# it also resolves under the canary runner's throwaway project dir.
+# Path skeleton, deny predicate and gate-hit telemetry: lib/hook-lib.sh owns all three and
+# documents why (including why this is sourced script-relative). Do not restate it here.
 . "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
 fp=$(hook_fp "$input")         # forward slashes, absolute — the case arms below need both
@@ -63,10 +61,7 @@ BRIDGE
 fi
 export BUDGET_GUARD_CAPS_JSON="$caps"
 export HOOK_INPUT="$input"
-# The python body's only stdout is a deny payload, and hook_is_deny checks for exactly that
-# rather than for "some output" — a stray print or an import banner must not be re-emitted to the
-# host as a decision, nor log a gate hit that never happened. That check is what lets the ADR 0080
-# telemetry live out here in one shared function instead of a per-hook copy inside the body.
+# Deny is signalled by the marker, not inferred from output shape — contract in hook-lib.sh.
 out=$(python3 - <<'PYEOF'
 import json, os, re, sys
 try:
@@ -124,8 +119,7 @@ try:
                   f"{cap} cap (current {size_cur}, headroom {max(0, cap - size_cur)}, edit adds "
                   f"{size_out - size_cur:+d}). Measure first; cut muda elsewhere in the file to fit "
                   f"(doc-budgets.md 'Editing a budgeted doc')." + hint)
-        # The marker says "this is a decision" explicitly; hook_is_deny tests for it rather
-        # than guessing from the JSON's shape. One home for the byte: hook-lib.sh.
+        # Marker prefix = the deny signal (hook-lib.sh).
         sys.stdout.write(os.environ["HOOK_DENY_MARK"] + json.dumps(
             {"hookSpecificOutput": {"hookEventName": "PreToolUse",
              "permissionDecision": "deny", "permissionDecisionReason": reason}}))

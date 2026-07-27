@@ -22,20 +22,15 @@
 # legitimately never happen in a window (ADR 0086 (b)).
 # canary: {"event":"PreToolUse","tool":"Write","stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-canary.md","content":"Shipped as MSH-baby and renamed to MSH on owner direction, 26-Jul-2026."}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/README.md","content":"An earlier draft of this paragraph said otherwise; that clause is deleted."}},"expect":{"deny":true}}
-# Path skeleton + gate-hit telemetry, one home for every file_path hook. This repo-local hook
-# sources the pdca-workflow plugin's copy from the working tree (the plugin is the shipped
-# artifact and owns the skeleton; .claude/hooks are its in-repo consumers). Script-relative, so
-# it also resolves under the canary runner's throwaway project dir.
+# Path skeleton, deny predicate and gate-hit telemetry: lib/hook-lib.sh owns all three and
+# documents why (including why this is sourced script-relative). Do not restate it here.
 . "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
 export BSG_INPUT="$input"
 export BSG_FP="$(hook_fp "$input")"   # forward slashes + absolute, same as every sibling hook:
                                       # the exemption match below is a path test, and a raw
                                       # Windows path does not match the docs/pdca arm.
-# The python body's only stdout is a deny payload, and hook_is_deny checks for exactly that
-# rather than for "some output" — a stray print or an import banner must not be re-emitted to the
-# host as a decision, nor log a gate hit that never happened. That check is what lets the ADR 0080
-# telemetry live out here in one shared function instead of a per-hook copy inside the body.
+# Deny is signalled by the marker, not inferred from output shape — contract in hook-lib.sh.
 out=$(python3 <<'PYEOF' 2>/dev/null
 import json, os, re, sys
 try:
@@ -94,8 +89,7 @@ try:
                 "ssot-enforcement.md). Delete the narration and state only what is true NOW. If "
                 "the history is genuinely load-bearing for a reader, it belongs in the commit "
                 "message or an ADR Justification, not in the prose.")
-    # The marker says "this is a decision" explicitly; hook_is_deny tests for it rather than
-    # guessing from the JSON's shape. One home for the byte: hook-lib.sh.
+    # Marker prefix = the deny signal (hook-lib.sh).
     sys.stdout.write(os.environ["HOOK_DENY_MARK"] + json.dumps(
         {"hookSpecificOutput": {"hookEventName": "PreToolUse",
          "permissionDecision": "deny", "permissionDecisionReason": reason}}))
