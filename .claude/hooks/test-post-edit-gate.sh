@@ -109,12 +109,26 @@ assert_exit "pdca-workflow/skills/<nonexistent> -> dir guard skips gate -> exit 
 code=$(run "$REPO/skills/building-skills/scripts/validate.py")
 assert_exit "skill folder ending in -skills, scripts/ file -> component-anchored derivation -> exit 0" 0 "$code"
 
-# --- Gate-hit telemetry (ADR 0080): failure path, exercised in a mktemp fixture whose routed
-# gate script does not exist (node fails -> run_gate's failure branch), never the real repo. ---
+# --- Gate-hit telemetry (ADR 0080): failure path, exercised in a mktemp fixture, never the real
+# repo. The gate script must EXIST and RETURN NON-ZERO. It used to be simply ABSENT, which reached
+# run_gate's failure branch only because an absent script was then indistinguishable from a gate
+# that had run and objected -- the fail-closed-on-absent-machinery defect that has now been fixed,
+# so a missing script correctly no-ops and this test began asserting the old behaviour. Simulating
+# "the gate said no" with "the gate is not installed" was always the wrong proxy; it just did not
+# matter until the two answers were separated.
 FIX=$(mktemp -d)
+mkdir -p "$FIX/scripts"
+printf '#!/usr/bin/env node\nconsole.error("fixture gate objects");\nprocess.exit(1);\n' > "$FIX/scripts/check-restatement.mjs"
 json=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$FIX/README.md")
 code=$(printf '%s' "$json" | CLAUDE_PROJECT_DIR="$FIX" bash "$HOOK" 2>/dev/null; echo $?)
-assert_exit "fixture README edit, gate script missing -> failure path -> exit 2" 2 "$code"
+assert_exit "fixture README edit, gate RUNS and objects -> failure path -> exit 2" 2 "$code"
+
+# And the converse, which is the behaviour the fix introduced: an ABSENT gate script must NOT block.
+NOGATE=$(mktemp -d)
+nj=$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$NOGATE/README.md")
+ncode=$(printf '%s' "$nj" | CLAUDE_PROJECT_DIR="$NOGATE" bash "$HOOK" 2>/dev/null; echo $?)
+assert_exit "gate script ABSENT -> could not run, must no-op rather than block edits" 0 "$ncode"
+rm -rf "$NOGATE"
 if [ ! -e "$FIX/docs/pdca/gate-hits.txt" ]; then pass=$((pass+1)); printf 'PASS: %s\n' "no docs/pdca marker: failure logged nothing"
 else fail=$((fail+1)); printf 'FAIL: %s\n' "no docs/pdca marker: failure logged nothing"; fi
 mkdir -p "$FIX/docs/pdca"

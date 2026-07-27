@@ -54,10 +54,17 @@ run_case "deny: anchored after && still fires (G1)"      "cd /some/dir && gh pr 
 # --repo equals form, external.
 run_case "deny G3: external repo, --repo= equals form"   "gh issue create --repo=ext/repo --title x --body-file $GOOD"   deny  "one21labs"
 
-# External READs and non-create writes are out of scope (create-scoped per amended ADR 0047).
+# External READS stay out of scope -- reading a public repo publishes nothing.
 run_case "allow: gh pr list -R external (read)"          "gh pr list -R other/repo"                                      allow
 run_case "allow: gh pr view -R external (read)"          "gh pr view 7 --repo other/repo"                                allow
-run_case "allow: gh pr edit -R external (create-scoped)" "gh pr edit 7 -R other/repo --body-file $GOOD"                  allow
+# External WRITES are denied for create, comment AND edit. This case previously asserted ALLOW on an
+# external edit, encoding the guard's create-only scope -- but CLAUDE.md's rule is "never file or
+# EDIT issues/PRs/COMMENTS in a repo outside one21labs/*", so the guard was narrower than the policy
+# it is the only mechanism for. A reward-hacking audit found the gap: `gh pr comment -R outside/repo`
+# and `gh issue edit -R outside/repo` walked straight past it.
+run_case "deny: gh pr edit -R external (writes to another repo)" "gh pr edit 7 -R other/repo --body-file $GOOD"           deny
+run_case "deny: gh pr comment -R external"               "gh pr comment 7 -R other/repo --body-file $GOOD"               deny
+run_case "allow: gh pr edit LOCAL, no body flags"        "gh pr edit 7 --add-label chore"                                allow
 
 # CRLF body file still matches both lines.
 run_case "allow: CRLF body file, disclosure found"       "gh pr create --title x --body-file $CRLF"                      allow
