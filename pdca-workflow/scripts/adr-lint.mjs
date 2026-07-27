@@ -291,8 +291,6 @@ export function decisionSetWarnings(newEntries, files) {
   }
   // Walk every component, keep the largest — seeding from ids[0] alone inverts the note whenever
   // the stray sorts ahead of the cluster. Size ties keep the first in `newEntries` order.
-  // Walk every component, keep the largest — seeding from ids[0] alone inverts the note whenever
-  // the stray sorts ahead of the cluster. Size ties keep the first in `newEntries` order.
   const seen = new Set();
   let largest = new Set();
   for (const id of ids) {

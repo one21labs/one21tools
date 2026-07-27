@@ -122,15 +122,13 @@ Auto-discovery looks for `/skills/` directory at plugin root. It doesn't exist (
     "email": "team@example.com"
   },
   "metadata": {
-    "description": "Tools for X",
-    "version": "1.0.0"
+    "description": "Tools for X"
   },
   "plugins": [
     {
       "name": "plugin-name",
       "source": "./path",
-      "description": "What it does",
-      "version": "1.0.0"
+      "description": "What it does"
     }
   ]
 }
@@ -190,8 +188,7 @@ Organize by component type for selective installation:
   "name": "my-toolkit",
   "owner": {"name": "Team"},
   "metadata": {
-    "description": "Toolkit for X",
-    "version": "1.0.0"
+    "description": "Toolkit for X"
   },
   "plugins": [
     {
