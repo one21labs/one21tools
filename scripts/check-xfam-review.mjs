@@ -115,11 +115,28 @@ function main(argv) {
       + `Pass an existing base and head (usage: node scripts/check-xfam-review.mjs [base] [head]).`);
     process.exit(2);
   }
-  const dir = ARTIFACT_DIR;
-  const artifacts = existsSync(dir)
-    ? readdirSync(dir).filter((f) => f.endsWith(".md"))
-        .map((f) => ({ name: f, text: readFileSync(join(dir, f), "utf8") }))
-    : [];
+  // ARTIFACTS COME FROM THE REVIEWED COMMIT, not the working tree. On a pull_request event CI's
+  // worktree is a MERGE of the PR into its base, so a worktree read would accept an artifact that
+  // exists on base -- or only in the merge result -- and is absent from the very commit whose diff
+  // was hashed. The gate would then certify "this head was reviewed" on evidence the head does not
+  // contain. A cross-family review of the head.sha wiring found it. Falls back to the worktree only
+  // when the ref cannot be read as a tree (a plain local run with uncommitted artifacts).
+  let artifacts = [];
+  try {
+    const listed = execFileSync("git", ["ls-tree", "--name-only", `${head}:${ARTIFACT_DIR}`],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    artifacts = listed.split("\n").filter((f) => f.endsWith(".md")).map((f) => ({
+      name: f,
+      text: execFileSync("git", ["show", `${head}:${ARTIFACT_DIR}/${f}`],
+        { encoding: "utf8", maxBuffer: 64 << 20 }),
+    }));
+  } catch {
+    const dir = ARTIFACT_DIR;
+    artifacts = existsSync(dir)
+      ? readdirSync(dir).filter((f) => f.endsWith(".md"))
+          .map((f) => ({ name: f, text: readFileSync(join(dir, f), "utf8") }))
+      : [];
+  }
   const v = coverage(diff, artifacts);
   if (v.ok) {
     console.log(`check-xfam-review: ${base}...${head} — ${v.reason} (${v.hash}).`);

@@ -89,8 +89,14 @@ jobs:
         # tests" as the single cheapest way to neuter it, so the wiring ships in the same commit.
         if: github.event_name == 'pull_request'
         run: |
-          git fetch --no-tags origin "${{ github.base_ref }}" --depth=200
-          node scripts/check-xfam-review.mjs "origin/${{ github.base_ref }}" HEAD
+          # HEAD is NOT the branch tip on a pull_request event -- actions/checkout resolves a MERGE
+          # commit of the PR into its base. Diffing against that produced a different hash in CI
+          # than the author computes locally with `origin/main...HEAD`, so the gate demanded an
+          # artifact nobody could ever file: unsatisfiable in exactly the way that trains people to
+          # route around a gate. Use the PR's real head SHA, which is what was reviewed.
+          git fetch --no-tags origin "${{ github.base_ref }}"
+          node scripts/check-xfam-review.mjs \
+            "origin/${{ github.base_ref }}" "${{ github.event.pull_request.head.sha }}"
 
       - name: "check-pr-body — no closing-keyword title on a declared-partial fix (ADR 0054)"
         if: github.event_name == 'pull_request'
