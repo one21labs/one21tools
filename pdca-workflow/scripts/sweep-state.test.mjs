@@ -125,12 +125,34 @@ test("convergence alone is NOT clean: a sweep that never left the maker's family
   assert.notEqual(EXIT["FRAME-UNCHECKED"], 0);
 });
 
-test("one round carrying a foreign model id is enough, and it earns CLEAN", () => {
-  const rounds = [bare("a"), { ids: [], xfam: "grok-4.5-build" }, bare()];
+test("a foreign lane INSIDE the quiet tail earns CLEAN", () => {
+  const rounds = [bare("a"), { ids: [], xfam: "grok-4.5" }, bare()];
   const v = sweepState(rounds, 5);
   assert.equal(v.state, "CLEAN");
   assert.equal(v.crossFamily.family, "xai");
-  assert.match(v.reason, /cross-checked by grok-4.5-build/);
+  assert.match(v.reason, /cross-checked by grok-4\.5/);
+});
+
+test("a foreign lane BEFORE the quiet tail does not launder the tail", () => {
+  // The scar, one day after the weak version shipped: this repo's round 4 ran a grok lane and
+  // found 8 things; the check then read as satisfied FOREVER, so round 5 was planned same-family
+  // with the mechanism's approval. A lane that found things witnesses that round, not the later
+  // quiet. Mutation check: revert the tail slice in sweepState and this goes green.
+  const rounds = [bare("a"), { ids: ["b"], xfam: "grok-4.5" }, bare(), bare()];
+  const v = sweepState(rounds, 6);
+  assert.equal(v.state, "FRAME-UNCHECKED");
+  // The message must say WHICH failure this is, or the operator re-reads it as "you never ran one".
+  assert.match(v.reason, /before the quiet tail/);
+  assert.match(v.reason, /grok-4\.5/);
+  assert.match(v.reason, /Run another round/);
+});
+
+test("the tail rule scales with --quiet-rounds rather than assuming 2", () => {
+  // A 3-round tail must be witnessed inside those 3, not by a lane 4 rounds back.
+  const late = [bare("a"), bare(), bare(), { ids: [], xfam: "grok-4.5" }];
+  assert.equal(sweepState(late, 6, 3).state, "CLEAN");
+  const early = [{ ids: ["a"], xfam: "grok-4.5" }, bare(), bare(), bare()];
+  assert.equal(sweepState(early, 6, 3).state, "FRAME-UNCHECKED");
 });
 
 test("a same-family or unplaceable model id does NOT satisfy the check", () => {

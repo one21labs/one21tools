@@ -83,7 +83,12 @@ function main(argv) {
     if (e.code !== "ENOENT") throw e;
     console.error(`check-workflow: cannot walk ${dir}: ${e.message}. Pass an existing directory ` +
       `(usage: node scripts/check-workflow.mjs [dir], default "benchmarks").`);
-    return 2;
+    // process.exit, NOT `return 2` — the entry point is a bare `main(process.argv)` that discards
+    // the return value, so a returned code prints the prescriptive message and then exits 0. Every
+    // sibling gate calls process.exit inside main; this one silently did not, which is a gate that
+    // reports GREEN on a root it could not read. Same false-green class as the shallow-clone bug
+    // one commit earlier, reintroduced two files over by the commit that fixed it.
+    process.exit(2);
   }
   for (const file of files) {
     count++;

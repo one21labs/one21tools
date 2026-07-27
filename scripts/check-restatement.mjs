@@ -155,7 +155,7 @@ function main(argv) {
     if (e.code !== "ENOENT") throw e;
     console.error(`check-restatement: cannot walk ${root}: ${e.message}. Pass an existing ` +
       `directory (usage: node scripts/check-restatement.mjs [root] [--window=N]).`);
-    return 2;
+    process.exit(2);   // not `return 2` — see the twin in check-workflow.mjs; main's value is dropped
   }
   const files = [];
   for (const p of walked) {

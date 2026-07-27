@@ -39,7 +39,14 @@
  *   An empty `ids` array is the normal shape of a quiet round and must still be logged.
  *   `xfam` is the MODEL ID that answered a cross-lineage lane in that round, read back from the
  *   lane rather than asserted (crosscheck.mjs owns that route and the family table).
- *   Omit it on rounds that had no foreign lane; one round carrying it is enough for the sweep.
+ *   Omit it on rounds that had no foreign lane. The lane must land in the QUIET TAIL, not merely
+ *   somewhere in the log: a foreign round that FOUND things witnesses that round, not the later
+ *   quiet being called clean. This shipped in the weak form first ("one round carrying it is
+ *   enough") and did the predictable damage inside a day — a foreign lane at round 4 let every
+ *   later round inherit the credit, so round 5 was planned same-family WITH THE MECHANISM'S
+ *   BLESSING. A check satisfiable once and then coasted on is a check the audited party satisfies
+ *   once and then coasts on; that is not forgetfulness, it is the incentive the check was built
+ *   against.
  *   RESIDUAL, stated because overstating it would be the same self-grading defect one level up:
  *   this field is written by the agent being audited, so it can be FORGED by typing a foreign
  *   model name. main() corroborates what it can — that a foreign lane is actually reachable on
@@ -108,13 +115,22 @@ export function sweepState(rounds, max, quietRounds = 2) {
   if (quiet) {
     // Convergence is necessary but not sufficient: a sweep that never left the maker's family has
     // shown its own lanes found nothing new, which is a weaker claim than "clean" (ADR 0093).
-    const lane = crossFamilyLane(rounds);
+    // ...and the lane must witness the QUIET rounds, so the tail is what gets asked, not the log.
+    // A foreign lane on a round that found things proves the foreign lane finds what this family
+    // misses — which is an argument that the LATER same-family quiet is unwitnessed, not evidence
+    // for it.
+    const lane = crossFamilyLane(rounds.slice(-quietRounds));
     if (!lane) {
+      const earlier = crossFamilyLane(rounds);
+      const why = earlier
+        ? `its only foreign lane (${earlier.model}) ran before the quiet tail, on a round that DID `
+          + `find things — so nothing outside ${MAKER_FAMILY} has seen the quiet being called clean`
+        : `no round recorded a lane outside ${MAKER_FAMILY} — the sweep audited its own family's work `
+          + `and cannot settle that`;
       return { state: "FRAME-UNCHECKED",
-               reason: `${quietRounds} consecutive rounds found nothing new, but no round recorded a `
-                 + `lane outside ${MAKER_FAMILY} — the sweep audited its own family's work and cannot `
-                 + `settle that. Run one round with a foreign-vendor lane (crosscheck.mjs) and log the `
-                 + `model that answered as "xfam"`,
+               reason: `${quietRounds} consecutive rounds found nothing new, but ${why}. Run another `
+                 + `round with a foreign-vendor lane (crosscheck.mjs); it must find nothing new, and `
+                 + `log the model that answered as "xfam"`,
                rounds: n, totalFindings, perRound };
     }
     return { state: "CLEAN",

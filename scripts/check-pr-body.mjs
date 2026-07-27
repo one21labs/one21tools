@@ -56,6 +56,20 @@ export const bodyClosesDeclaredPartial = (body) => {
 };
 
 function main() {
+  // NO INPUT IS NOT A CLEAN PR. Both predicates read env, and with PR_TITLE unset both return
+  // empty, so this printed "no title/Partial contradiction." and exited 0 on nothing at all. That
+  // is the ADR 0086 silent-coverage class in its purest form: if the gates.yml wiring at :87-89
+  // ever breaks — a renamed field, an event-payload change, a step edited without its env block —
+  // the gate goes on reporting green on every PR and no symptom ever surfaces. Every PR has a
+  // title, so a missing one means the harness is broken, not that the PR is fine. The BODY is not
+  // checked here: a PR with no description is legitimate, and demanding one would deny real work.
+  if (!String(process.env.PR_TITLE ?? "").trim()) {
+    console.error("check-pr-body: PR_TITLE is empty or unset, so nothing was checked — this gate " +
+      "cannot pass on no input. In CI set it from the event (gates.yml: `PR_TITLE: " +
+      "${{ github.event.pull_request.title }}`); locally, run it as " +
+      "`PR_TITLE='...' PR_BODY='...' node scripts/check-pr-body.mjs`.");
+    process.exit(2);
+  }
   const problems = [];
   for (const n of titleClosesDeclaredPartial(process.env.PR_TITLE, process.env.PR_BODY)) {
     problems.push(

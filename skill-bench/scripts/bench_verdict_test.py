@@ -79,6 +79,8 @@ class TestVerdictMath(unittest.TestCase):
         self.assertNotIn("degraded", report)      # nothing to degrade: no live re-grade was needed
         # And the run must not name a judge that never answered.
         self.assertEqual(report["judge"], "cached")
+        self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)   # cache reuse: nothing ran
+        self.assertEqual(report["notional_cost_usd"]["usd"], 0.0)
 
     def test_a_reachable_judge_cannot_put_its_name_on_a_cache_run_it_did_not_grade(self):
         # The previous fix only bit when NO judge CLI existed. With one reachable, a --cache run
@@ -100,9 +102,27 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(r.returncode, 0, f"stderr: {r.stderr[-500:]}")
         report = _json.loads(r.stdout)
         self.assertEqual(report["judge"], "cached")
-        self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)
         self.assertEqual(report["notional_cost_usd"]["judge_calls"], 0)   # cache reuse: nothing ran
         self.assertEqual(report["notional_cost_usd"]["usd"], 0.0)
+        # The label must come from the CACHE branch, not from a JudgeError fallback that happens to
+        # produce the same string. The comment on the production fix rests on "make_judge SUCCEEDS
+        # here", and nothing above pins it: under the OLD try/except, a make_judge that RAISED in
+        # this env also yielded CachedJudge("cached"), so every assertion above stayed green while
+        # the fix was reverted. So assert the premise itself, in-process, under the same env.
+        self.assertNotIn("judge_fallback", report)
+        import importlib
+        os.environ["SKILL_BENCH_JUDGE_CMD"] = "/bin/false"
+        os.environ["SKILL_BENCH_JUDGE_MODEL"] = "grok-4.5"
+        try:
+            sys.path.insert(0, os.path.join(here, "lib"))
+            judge_mod = importlib.import_module("judge")
+            live = judge_mod.make_judge("auto")   # must NOT raise: that is the branch under test
+            self.assertNotEqual(getattr(live, "display_name", live.name), "cached",
+                                "control: a live judge resolves here, so 'cached' above is the "
+                                "cache branch and not a JudgeError fallback")
+        finally:
+            os.environ.pop("SKILL_BENCH_JUDGE_CMD", None)
+            os.environ.pop("SKILL_BENCH_JUDGE_MODEL", None)
 
     def test_ci_uses_the_small_cluster_t_multiplier_not_the_normal_one(self):
         # The interval width was never exercised: clustered_delta's construction had no test, and
