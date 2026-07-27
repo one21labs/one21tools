@@ -9,8 +9,13 @@ pipeline's grade -> prosecute -> met_final = grade AND prosecute (ADR 0025), sam
 Reads the frozen dir read-only; writes only to --out. Grok invoked headless with a
 schema-constrained structured output (identical GRADE schema to grade_i2.workflow.js).
 
-Kept as the append-only prototype snapshot behind PROTOTYPE-i2-result.json (ADR 0057). Live
-pipelines import rubric.py + judge.py instead — do not extend or import this copy.
+ARCHITECTURE ROLE — this file owns the frozen-record rule for scripts/frozen/: a directory of
+append-only measurement records, NOT library code. This script is the reproduce path for the
+PROTOTYPE-i2-result.json numbers sitting beside it (ADR 0057's named signal), so it is kept
+verbatim rather than maintained. It sits outside scripts/lib/ so that nothing can import it and
+no gate treats it as live code; live pipelines use lib/rubric.py + lib/judge.py. Do not extend,
+import, or refactor it — a re-run either reproduces this as-is or is a NEW measurement in a
+dated benchmarks/ dir (ADR 0041).
 """
 import argparse, json, os, subprocess, sys, tempfile, statistics
 from collections import defaultdict

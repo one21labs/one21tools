@@ -22,6 +22,9 @@ python3 scripts/validate.py <skill-folder>
 python3 scripts/validate.py --help
 ```
 
+Every numeric limit is owned by `scripts/validate.py` (its module constants) and printed by
+`--help`. This file names the rules and why they exist; read the values there.
+
 ---
 
 ## YAML Frontmatter
@@ -33,10 +36,10 @@ description: Invoke when...  # MUST be SECOND field
 ---
 ```
 
-| Field | Required | Position | Max Length |
+| Field | Required | Position | Length cap |
 |-------|----------|----------|------------|
-| `name` | Yes | FIRST | 64 chars |
-| `description` | Yes | SECOND | 1024 chars |
+| `name` | Yes | FIRST | `NAME_MAX` |
+| `description` | Yes | SECOND | `DESC_MAX` |
 
 ---
 
@@ -46,7 +49,7 @@ description: Invoke when...  # MUST be SECOND field
 |------------|------|--------|
 | FIRST field in frontmatter | Error | Claude convention |
 | Match folder name | Error | Packaging requirement |
-| Max 64 chars | Error | agentskills.io spec |
+| Max length (`NAME_MAX`) | Error | agentskills.io spec |
 | Kebab-case only (`a-z`, `0-9`, `-`) | Error | agentskills.io spec |
 | No leading/trailing hyphens | Error | agentskills.io spec |
 | No consecutive hyphens (`--`) | Error | Kebab-case standard |
@@ -78,14 +81,6 @@ utils
 pdf-stuff
 ```
 
-### Valid Names
-
-```
-pdf-processor
-skill-v2
-my-great-skill
-```
-
 ### Invalid Names
 
 ```
@@ -106,7 +101,7 @@ anthropic         # reserved
 |------------|------|--------|
 | SECOND field in frontmatter | Error | Claude convention |
 | Trigger at START | Error | GitHub issues #9954, #11266 |
-| Max 1024 chars | Error | agentskills.io spec |
+| Max length (`DESC_MAX`) | Error | agentskills.io spec |
 | No XML chars (`<`, `>`) | Error | platform.claude.com |
 | Third person preferred | Warning | platform.claude.com |
 
@@ -133,13 +128,13 @@ This skill is for PDFs. Use when needed. # Trigger not at start
 
 | Constraint | Type | Source |
 |------------|------|--------|
-| Max 6,000 chars | Error | Char budget (a line cap is gameable by long lines) |
-| ToC required if >150 lines | Error | Best practice |
-| References: max 12,000 chars each | Error | Char budget (progressive-disclosure tier) |
-| References: ToC required if >6,000 chars | Error | Best practice |
+| Body max chars (`BODY_MAX_CHARS`) | Error | Char budget (a line cap is gameable by long lines) |
+| Body ToC past `TOC_THRESHOLD` lines | Error | Best practice |
+| Reference max chars (`REFERENCE_MAX_CHARS`) | Error | Char budget (progressive-disclosure tier) |
+| Reference ToC past `REFERENCE_TOC_THRESHOLD` chars | Error | Best practice |
 
-Draft to a margin (~5,000 body / ~10,000 reference) and measure once before finalizing — a file
-at the cap edge taxes every future one-line fix. (Same convention as the ADR template's margin.)
+Draft to ~80% of the cap and measure once before finalizing — a file at the cap edge taxes
+every future one-line fix. (Same convention as the ADR template's margin.)
 Measure with `validate.py` itself, not a re-derivation: the gate folds frontmatter lines beyond
 `name`/`description` into the body count, which a hand count silently misses.
 
@@ -201,20 +196,6 @@ Use these instead of emojis:
 | Warning emoji | `[WARN]` or `Warning:` |
 | Info emoji | `[INFO]` or `Note:` |
 | Arrow emoji | `->` or `-->` |
-
-### Valid Output Examples
-
-```python
-# Good - ASCII indicators
-print("[OK] Validation passed")
-print("[FAIL] Missing required field")
-print("[WARN] Description uses first person")
-
-# Bad - Emoji indicators (will fail validation)
-print("X Validation passed")  # checkmark emoji
-print("X Missing field")      # X emoji
-print("X Warning")            # warning emoji
-```
 
 ## Test the Consumer Surface
 

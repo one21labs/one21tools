@@ -76,7 +76,7 @@ machinery:
 10. **Agent checks** (`agentProblems`) — every agent prompt under `pdca-workflow/agents` and
     `.claude/agents` stays under `AGENT_CHAR_BUDGET`, and its frontmatter `name:` matches its
     filename.
-11. **Named-doc budget** (`oversizeDocs`) — char-checks `CLAUDE.md` against `DOC_BUDGETS`.
+11. **Named-doc budget** (`oversizeDocs`) — char-checks every `DOC_BUDGETS` entry against its cap.
 12. **Decision-set advisory** (`decisionSetWarnings`, ADR 0051 as amended; opt-in via
     `--new-adrs=<ids-or-paths>`) — when a change adds MORE THAN ONE new ADR, cite-unconnected
     members (edge = either record cites the other) get a WARN, never a failure: the PR is the
@@ -102,6 +102,13 @@ machinery:
     a 3+-digit number must include that constant's current value: comma-insensitive,
     presence-direction only (extra numbers on the line are fine). The decisions dir is excluded
     because records legitimately hold as-of-decision numbers.
+16. **FRAME-UNCHECKED shows its probe** (ADR 0093; a corpus check) — every bullet carrying a
+    `FRAME-UNCHECKED` token must also carry `Probed: <lanes>` on that SAME bullet (`Probed: none`
+    when the crosscheck lane list is empty). The token claims no cross-lineage checker was
+    reachable; unprobed, that is indistinguishable from never having looked.
+17. **Corpus WIP cap** (`corpusOverage`, ADR 0092; a `main()` guard) — the summed chars of every
+    ADR read must stay under the corpus cap in `char-budget.mjs`. Per-file caps bound each record
+    but never the count; the remedy is compaction or supersession, never a raised cap.
 
 A failure prints the offending files and exits non-zero; a clean corpus exits zero.
 

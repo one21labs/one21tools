@@ -59,12 +59,15 @@ absolute rate, and never compare rates across different runs, fields, or environ
 5. Invocation:
    ```
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-path <skill-dir> \
-     --model <pinned-model> --num-workers 1 --timeout 240 \
+     --model <pinned-model> --num-workers 1 --timeout 240 --runs-per-query 1 --yes \
      [--description "<variant text>"]
    ```
    `--model` pinned — never the ambient default (deltas are model-relative). `--num-workers 1`
    is MANDATORY (worker-count collapse, above); `--timeout 240` absorbs serial-run latency.
-   `--description` overrides the on-disk description to test a variant without editing SKILL.md.
+   `--runs-per-query 1` is the Verdict rule's first pass — pass it explicitly, the script
+   defaults to 3. `--yes` is the spend guard: the run prints its cost line and refuses (exit 2)
+   without it. `--description` overrides the on-disk description to test a variant without
+   editing SKILL.md.
 6. Pair under equal load: run control and variant back-to-back, same serial protocol, same
    machine, no concurrent heavy load; a run with `timeouts > 0` is suspect (see Validity).
 

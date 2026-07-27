@@ -45,9 +45,9 @@ evaluation-patterns.md (dev-skills plugin); the protocol below assumes the harne
 Pre-run discipline (pre-reg cites methodology; cost-pilot; prior-art): [pre-registration.md](pre-registration.md).
 
 Write `evals/evals.json` in the skill folder, in **skill-creator's schema** — its
-`references/schemas.md` is the schema SSoT; `skills/code-standards/evals/evals.json` is this
-repo's live example. `validate.py` gates the shape (skill_name matches the folder, unique
-integer ids, non-empty prompt/expected_output/expectations).
+`references/schemas.md` is the schema SSoT; `skills/code-standards/evals/evals.json`
+(dev-skills plugin, not shipped with skill-bench) is a live example. `validate.py` owns and
+gates the shape.
 
 Disciplines:
 
