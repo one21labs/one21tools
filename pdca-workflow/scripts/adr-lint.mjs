@@ -33,6 +33,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET, DOC_BUDGETS, corpusOverage } from "./char-budget.mjs";
 import { positionals, integerFlag, flagValue } from "./cli-flags.mjs";
+import * as CHAR_BUDGET from "./char-budget.mjs";
 
 // All relative paths below resolve against the CURRENT WORKING DIRECTORY, not this file's
 // location — see char-budget.mjs's header comment: a fixed offset from this file would break a
@@ -449,8 +450,14 @@ function main(argv) {
     try { mdDocs.push({ name: p, text: readFileSync(p, "utf8") }); }
     catch (e) { if (e.code !== "ENOENT") throw e; }
   }
-  problems.push(...docIndexDrift(mdDocs,
-    { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS));
+  // DERIVED from char-budget's exports, never hand-listed. The literal set here named four of the
+  // five numeric scalars and silently omitted ADR_CORPUS_BUDGET -- the hard, CI-blocking cap, and
+  // the number most worth catching stale in a doc -- while the spec promised "a char-budget.mjs
+  // scalar constant" with no qualifier. A hand-kept list of things to check is a list that stops
+  // including new things, which is the coverage-gap class the guard itself exists to close.
+  const SCALARS = Object.fromEntries(
+    Object.entries(CHAR_BUDGET).filter(([, v]) => typeof v === "number"));
+  problems.push(...docIndexDrift(mdDocs, SCALARS, DOC_BUDGETS));
 
   // PR-scoped advisories: CI's PR-only step passes the diff-added ADR files (ADR 0051/0067).
   const newArg = flagValue(args, "new-adrs");
