@@ -9,7 +9,8 @@ summary: "Retroactive record for check-cite-ownership.mjs, which shipped as a bl
 
 - Date: 2026-07-26
 - Owner: PM
-- Context: `scripts/check-cite-ownership.mjs` shipped (#277) as a blocking CI gate with no ADR — a CLAUDE.md violation flagged on open PR #288 and confirmed at retrospect. Retroactive record of code already merged; the judgment isn't re-decided, only caught up.
+- Context: `check-cite-ownership.mjs` shipped as a blocking gate with no ADR. This catches the
+  record up; it does not re-decide the judgment.
 
 ## Decision
 1. **TERMS stays scar-backed, exactly two** (`check-cite-ownership.mjs:34`): `"append-only"`, `"eval-clustered"`. No syntactic marker separates a doctrine term from ordinary prose, so growth is per-scar: a third entry is added only on its own recorded mis-cite (`TERMS.length >= 2` is a floor, not a target).

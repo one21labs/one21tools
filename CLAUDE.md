@@ -54,8 +54,7 @@ logic; a doc restating them rots.
   version fields — updates key on git content (ADR 0075).
 - **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
-  available, post an "in progress" claim comment at start; clear it on completion. Retitle a
-  tracking issue whose title no longer matches its remaining scope before working under it.
+  available, post an "in progress" claim comment at start; clear it on completion.
 - **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
   fails the same way — PATCH the body via `gh api`.
 - **Read the PR's review comments before merging** — the advisory muda-review CI posts one

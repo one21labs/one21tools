@@ -30,15 +30,13 @@
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/CLAUDE.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/pdca-workflow/agents/pm.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","env":{"CLAUDE_PLUGIN_ROOT":"__REPO__/pdca-workflow"},"files":{"docs/decisions/0001-bad.md":"not an adr at all"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/.claude-plugin/plugin.json"}},"expect":{"exit":2}}
+# Path skeleton + gate-hit telemetry, one home for every file_path hook (lib/hook-lib.sh).
+# Sourced script-relative so it resolves from the installed plugin cache and under the canary
+# runner's throwaway project dir alike.
+. "$(dirname "${BASH_SOURCE[0]}")/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
-fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
-# Normalize to absolute before the case arms below: each is written */dir/..., needing a
-# literal "/" ahead of dir, so a repo-relative file_path silently skipped the lint. Third
-# copy of this skeleton; the shared-helper fix is tracked separately.
-case "$fp" in /*) ;; "") ;; *) fp="${CLAUDE_PROJECT_DIR:-.}/$fp" ;; esac
+fp=$(hook_fp "$input")   # forward slashes, absolute — the case arms below need both
 [ -z "$fp" ] && exit 0
-# Normalize JSON-escaped Windows backslashes to forward slashes for case matching.
-fp=$(printf '%s' "$fp" | sed 's/\\\\/\//g; s/\\/\//g')
 
 root="${CLAUDE_PROJECT_DIR:-.}"
 cd "$root" || exit 0   # adr-lint.mjs's checks resolve relative to CWD; never run it elsewhere.
@@ -56,11 +54,7 @@ esac
 [ -d "$root/docs/decisions" ] || exit 0
 
 out=$(node "${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs" "$root/docs/decisions" 2>&1) || {
-  # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — appended
-  # after the failure is decided, error-suppressed; docs/pdca existence already established
-  # above (ADR 0071 marker), never mkdir. Line format home: the consumer's scorecard parser
-  # (this repo: scripts/scorecard.mjs parseGateHits).
-  { printf '%s gate-hit adr-lint %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$fp" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
+  hook_gate_hit adr-lint "$fp"
   printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2
   exit 2
 }

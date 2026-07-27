@@ -9,7 +9,7 @@ summary: "Six corrections to the owned verdict layer (eval_verdict.py + protocol
 
 - Date: 2026-07-07
 - Owner: PM
-- Context: a 432-run grid's bias audit found validity gaps: correlated replicate pairs treated as independent; the per-1k denominator ignored references/*.md (skills flattered ~8x); graders saw the arm; raw runs were ephemeral so nothing was re-checkable.
+- Context: a 432-run grid's bias audit found the validity gaps each decision below closes.
 
 ## Decision
 1. **Eval-clustered CI (two-level report).** Keep pair-level W/L/T + mean delta as detail; the HEADLINE Wilson CI clusters replicates per eval, over non-tied evals. Warn under 4 non-tied evals.
