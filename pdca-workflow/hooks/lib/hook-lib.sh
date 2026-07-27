@@ -8,7 +8,7 @@
 # stops firing, and the surface it guards goes unwatched with no symptom. Hand-rolled per hook,
 # the copies drift apart one fix at a time. One home means one place to be right (CLAUDE.md
 # poka-yoke: delete the mirror, derive). The same logic cuts the other way and is the standing
-# risk of this file: a defect here disarms four guards at once, so every change needs every
+# risk of this file: a defect here disarms both consumers at once, so every change needs every
 # hook's test-*.sh suite run, not just the unit tests.
 #
 # CONSUMERS SOURCE IT SCRIPT-RELATIVE, not via CLAUDE_PROJECT_DIR — a hook's suite executes it
@@ -18,7 +18,7 @@
 #   repo-local hook:  . "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh"
 # BASH_SOURCE, not $0, so the path stays right if a hook is ever sourced rather than executed.
 #
-# A MISSING LIB FAILS OPEN (the consumer exits 0), which would silently disarm all four guards —
+# A MISSING LIB FAILS OPEN (the consumer exits 0), silently disarming both consumers —
 # the ADR 0086 silent-coverage-gap class. NOTHING CATCHES THAT NOW: the runner that executed each
 # hook's declared canaries was deleted 2026-07-27 (#311), and the `# canary:` lines left in these
 # headers are inert comments. Treat every edit here as unguarded.
