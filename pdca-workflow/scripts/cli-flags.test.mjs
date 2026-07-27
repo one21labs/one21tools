@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { flagValue, numericFlag, requiredFlag } from "./cli-flags.mjs";
+import { flagValue, numericFlag, requiredFlag, positionals } from "./cli-flags.mjs";
 
 test("both spellings are the same flag", () => {
   assert.equal(flagValue(["--max", "3"], "max"), "3");
@@ -81,4 +81,35 @@ test("a flag whose name prefixes another is not confused with it", () => {
   assert.equal(numericFlag(["--max-rounds", "9", "--max", "3"], "max", 5), 3);
   assert.equal(numericFlag(["--max-rounds=9", "--max=3"], "max", 5), 3);
   assert.equal(numericFlag(["--max-rounds=9"], "max", 5), 5);
+});
+
+test("a space-form flag's VALUE is not mistaken for a positional", () => {
+  // The scar: `sweep-state.mjs --max 5 rounds.jsonl` took "5" as the round log, because the
+  // positional picker was "first token not starting with --" while the flag reader had already
+  // been taught the grammar. One parser must know which tokens are values.
+  assert.deepEqual(positionals(["--max", "5", "rounds.jsonl"], ["max"]), ["rounds.jsonl"]);
+  assert.deepEqual(positionals(["--max=5", "rounds.jsonl"], ["max"]), ["rounds.jsonl"]);
+  assert.deepEqual(positionals(["rounds.jsonl", "--max", "5"], ["max"]), ["rounds.jsonl"]);
+});
+
+test("a numerically-named positional survives - the workaround it replaces silently dropped it", () => {
+  // issue-hygiene had patched around the same defect by discarding any all-digits token, which
+  // then ignored a dump file literally named 42 and read stdin instead.
+  assert.deepEqual(positionals(["42"], ["dormant-days"]), ["42"]);
+  assert.deepEqual(positionals(["--dormant-days", "21", "42"], ["dormant-days"]), ["42"]);
+});
+
+test("a boolean flag does not eat the following positional", () => {
+  assert.deepEqual(positionals(["--verbose", "file.json"], ["max"]), ["file.json"]);
+  assert.deepEqual(positionals(["--list"], []), []);
+});
+
+test("a value-taking flag at the end of argv consumes nothing, and a flag is never a value", () => {
+  assert.deepEqual(positionals(["file.json", "--max"], ["max"]), ["file.json"]);
+  assert.deepEqual(positionals(["--max", "--quiet-rounds", "2", "f"], ["max", "quiet-rounds"]), ["f"]);
+});
+
+test("positionals tolerates a non-array or non-string entries", () => {
+  assert.deepEqual(positionals(null, ["max"]), []);
+  assert.deepEqual(positionals([null, 7, "f"], ["max"]), ["f"]);
 });

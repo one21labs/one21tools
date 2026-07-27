@@ -32,7 +32,7 @@
  * build teaches people to stop running it.
  */
 import { readFileSync } from "node:fs";
-import { numericFlag } from "./cli-flags.mjs";
+import { numericFlag, positionals } from "./cli-flags.mjs";
 
 export const DEFAULTS = { dormantDays: 21, trackingMin: 5 };
 
@@ -92,7 +92,7 @@ function main(argv) {
     console.error(`issue-hygiene: ${e.message}`);
     return 1;
   }
-  const file = argv.find((a) => !a.startsWith("--") && !/^[\d.]+$/.test(a));
+  const file = positionals(argv, ["dormant-days", "tracking-min"])[0];
   let issues;
   try {
     issues = JSON.parse(readFileSync(file ?? 0, "utf8"));

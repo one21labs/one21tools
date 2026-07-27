@@ -66,6 +66,38 @@ export function numericFlag(argv, name, dflt) {
 }
 
 /**
+ * The POSITIONAL arguments, with flags and their values removed.
+ *
+ * Hand-rolling this is the other half of the class cli-flags.mjs exists to close. Both CLIs picked
+ * "the first token that does not start with --", so `sweep-state.mjs --max 5 rounds.jsonl` took
+ * "5" as the round log, and issue-hygiene patched around it by dropping any all-digits token —
+ * which then silently ignored a dump file whose name is numeric. One parser knows which tokens are
+ * values; the callers must not each guess.
+ *
+ * `valueFlags` names the flags that TAKE a value, so a boolean flag's successor is still a
+ * positional. A flag at the end of argv consumes nothing.
+ */
+export function positionals(argv, valueFlags = []) {
+  if (!Array.isArray(argv)) return [];
+  const takesValue = new Set(valueFlags);
+  const out = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (typeof a !== "string") continue;
+    if (a.startsWith("--")) {
+      const name = a.slice(2).split("=")[0];
+      // `--x=v` carries its own value; `--x v` eats the next token only if --x takes one and the
+      // next token is not itself a flag.
+      if (!a.includes("=") && takesValue.has(name)
+          && typeof argv[i + 1] === "string" && !argv[i + 1].startsWith("--")) i++;
+      continue;
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+/**
  * A required string flag (a path, an id). Throws RangeError when absent or empty, so a caller
  * cannot proceed on undefined and fail later somewhere less legible.
  */

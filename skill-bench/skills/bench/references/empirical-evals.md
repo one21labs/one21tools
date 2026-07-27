@@ -181,7 +181,7 @@ it — retention turns on WITH that check, not before.
 
 Measuring WHICH content within an always-loaded skill or CLAUDE.md earns its place (not just
 whether the whole does) is a deeper cut than the whole-skill verdict above — see
-section-ablation.md (dev-skills plugin).
+[section-ablation.md](section-ablation.md).
 
 ## Scope and limits
 

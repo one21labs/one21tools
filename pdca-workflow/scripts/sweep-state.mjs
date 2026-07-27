@@ -37,15 +37,22 @@
  *     {"round": 1, "ids": ["hook-lib-missing-test"], "xfam": "grok-4.5-build"}
  *   `ids` are stable slugs for VERIFIED findings only — an unverified finding is not a finding.
  *   An empty `ids` array is the normal shape of a quiet round and must still be logged.
- *   `xfam` is the MODEL ID that actually answered a cross-lineage lane in that round, read back
- *   from the lane rather than asserted (crosscheck.mjs owns that route and the family table).
+ *   `xfam` is the MODEL ID that answered a cross-lineage lane in that round, read back from the
+ *   lane rather than asserted (crosscheck.mjs owns that route and the family table).
  *   Omit it on rounds that had no foreign lane; one round carrying it is enough for the sweep.
+ *   RESIDUAL, stated because overstating it would be the same self-grading defect one level up:
+ *   this field is written by the agent being audited, so it can be FORGED by typing a foreign
+ *   model name. main() corroborates what it can — that a foreign lane is actually reachable on
+ *   this machine — which turns free forgery into a claim contradicted by `crosscheck.mjs --list`.
+ *   It cannot prove the lane was used. Only a committed artifact from the lane could, and that is
+ *   not built. Treat CLEAN as "converged, and a foreign lane was available and claimed", not as
+ *   proof one ran.
  * Exit 0 CLEAN | 1 EXHAUSTED | 2 RUNNING (another round is owed) | 3 malformed input
  *      | 4 FRAME-UNCHECKED (converged, but no round left the maker's family).
  */
 import { readFileSync } from "node:fs";
-import { familyOf, MAKER_FAMILY } from "./crosscheck.mjs";
-import { numericFlag } from "./cli-flags.mjs";
+import { familyOf, MAKER_FAMILY, availableLanes } from "./crosscheck.mjs";
+import { numericFlag, positionals } from "./cli-flags.mjs";
 
 export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3, "FRAME-UNCHECKED": 4 };
 
@@ -133,7 +140,7 @@ const USAGE = `usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-r
   `  --max defaults to ${DEFAULT_MAX_ROUNDS}, --quiet-rounds to 2 (both accept --flag=N too)`;
 
 function main(argv) {
-  const file = argv.find((a) => !a.startsWith("--"));
+  const file = positionals(argv, ["max", "quiet-rounds"])[0];
   if (!file) {
     console.error(USAGE);
     return EXIT.MALFORMED;
@@ -156,6 +163,17 @@ function main(argv) {
     return EXIT.MALFORMED;
   }
   const v = sweepState(rounds, max, quiet);
+  // Corroborate the log's cross-family claim against the machine (see RESIDUAL in the header).
+  // sweepState stays PURE — no fs, no exec — so the check that needs the environment lives here.
+  if (v.state === "CLEAN") {
+    const foreign = availableLanes().some((l) => l.name !== "custom" && familyOf(l.name) !== MAKER_FAMILY);
+    if (!foreign) {
+      console.error(`sweep-state: FRAME-UNCHECKED — the round log claims a lane outside ${MAKER_FAMILY} `
+        + `(${v.crossFamily.model}), but no foreign-vendor lane is reachable on this machine, so that `
+        + `claim cannot be corroborated. Run \`node crosscheck.mjs --list\` to see what is available.`);
+      return EXIT["FRAME-UNCHECKED"];
+    }
+  }
   if (v.state === "MALFORMED") {
     console.error(`sweep-state: ${v.reason}`);
     return EXIT.MALFORMED;
