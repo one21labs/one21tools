@@ -163,6 +163,18 @@ printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/docs/decisions/0001-x.
     bash "$HOOK" >/dev/null 2>&1 || code=$?
 assert_exit "empty CLAUDE_PLUGIN_ROOT -> no-op (exit 0)" 0 "$code"
 
+# EXIT 0 ALONE DOES NOT PIN THE GUARD. With the guard deleted, an empty root re-roots the linter at
+# `/scripts/adr-lint.mjs`, which does not exist on a normal host, so `[ -f ]` exits 0 anyway and the
+# assertion above stays green while the hook is once again willing to execute a path outside the
+# plugin. A cross-family review caught that. So trace the run and assert the hook never even forms
+# that path: the observable difference between "refused" and "happened not to find anything".
+trace=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/docs/decisions/0001-x.md"}}' "$FIX_BAD" \
+  | CLAUDE_PROJECT_DIR="$FIX_BAD" CLAUDE_PLUGIN_ROOT="" bash -x "$HOOK" 2>&1 >/dev/null || true)
+case "$trace" in
+  */scripts/adr-lint.mjs*) printf 'FAIL: empty root still forms a /-rooted linter path\n'; fail=$((fail+1)) ;;
+  *) printf 'PASS: empty CLAUDE_PLUGIN_ROOT never forms the /-rooted linter path\n'; pass=$((pass+1)) ;;
+esac
+
 # THE TALLY GOES LAST, always. It used to print before these final cases, so the suite announced
 # "15 passed" while 17 had run — and a failure in the last two would have been invisible in the
 # summary a reader actually looks at. Cheap to reintroduce (append a case, forget the printf is

@@ -49,8 +49,16 @@ PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git
 run_gate() {  # $1 = gate name for telemetry; rest = the gate command
   gname="$1"; shift
   command -v "$1" >/dev/null 2>&1 || return 0                      # interpreter absent
+  # Scoped honestly: this covers the "<interpreter> <script>" shape, which is the only shape every
+  # call site below uses. It does NOT cover a script passed after a flag (`node --foo g.mjs`) —
+  # that case falls through to the 126/127 arm, which is why both exist rather than either alone.
   { [ $# -lt 2 ] || [ "${2#-}" != "$2" ] || [ -f "$2" ]; } || return 0   # gate script absent
-  out=$("$@" 2>&1); rc=$?
+  # `rc=0; ... || rc=$?`, not `out=$(...); rc=$?`. The second form is correct today only because
+  # this file does not `set -e`; under it, the assignment's non-zero status would abort the hook
+  # before rc is ever read, making every branch below dead and silently restoring the fail-closed
+  # behaviour this function exists to remove. Costs nothing to be immune to a future `set -e`.
+  rc=0
+  out=$("$@" 2>&1) || rc=$?
   [ "$rc" -eq 0 ] && return 0
   [ "$rc" -eq 126 ] || [ "$rc" -eq 127 ] && return 0               # not executable / not found
   hook_gate_hit "$gname" "$fp"

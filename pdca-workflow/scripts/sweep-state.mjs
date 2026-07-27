@@ -140,8 +140,12 @@ export function sweepState(rounds, max, quietRounds = 2) {
     if (!lane) {
       const earlier = crossFamilyLane(rounds);
       const why = earlier
-        ? `its only foreign lane (${earlier.model}) ran before the quiet tail, on a round that DID `
-          + `find things — so nothing outside ${MAKER_FAMILY} has seen the quiet being called clean`
+        // Says only what crossFamilyLane actually establishes. An earlier draft added "on a round
+        // that DID find things", which the function never checks — it reads `xfam` and the family
+        // table, nothing about findings — so on an all-quiet log with a round-1 lane the message
+        // stated a falsehood. A diagnostic that invents a detail is worse than a vaguer true one.
+        ? `its only foreign lane (${earlier.model}) ran before the quiet tail, so nothing outside `
+          + `${MAKER_FAMILY} has seen the rounds now being called clean`
         : `no round recorded a lane outside ${MAKER_FAMILY} — the sweep audited its own family's work `
           + `and cannot settle that`;
       return { state: "FRAME-UNCHECKED",

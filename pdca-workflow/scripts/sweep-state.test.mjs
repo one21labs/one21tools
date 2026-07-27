@@ -144,6 +144,9 @@ test("a foreign lane BEFORE the quiet tail does not launder the tail", () => {
   assert.equal(v.state, "FRAME-UNCHECKED");
   // The message must say WHICH failure this is, or the operator re-reads it as "you never ran one".
   assert.match(v.reason, /before the quiet tail/);
+  // ...and must NOT claim anything crossFamilyLane does not check: an all-quiet log with a
+  // round-1 lane hits this same branch, so a "that round found things" clause would be false.
+  assert.doesNotMatch(v.reason, /DID find things/);
   assert.match(v.reason, /grok-4\.5/);
   assert.match(v.reason, /Run another round/);
 });
@@ -154,6 +157,15 @@ test("the tail rule scales with --quiet-rounds rather than assuming 2", () => {
   assert.equal(sweepState(late, 6, 3).state, "CLEAN");
   const early = [{ ids: ["a"], xfam: "grok-4.5" }, bare(), bare(), bare()];
   assert.equal(sweepState(early, 6, 3).state, "FRAME-UNCHECKED");
+  // THE DISCRIMINATING CASE, and the reason the two above are not enough on their own: put the
+  // lane where last-3 and last-2 DISAGREE. Above, `late` is inside both windows and `early` is
+  // outside both, so hardcoding the lane slice to 2 passed all of them — a cross-family review
+  // caught that, and mutating only the lane slice confirmed it: 23/23 green with the parameter
+  // ignored. Here the lane sits at n-3, so a hardcoded 2 reports FRAME-UNCHECKED and only the
+  // parameterised slice reports CLEAN.
+  const straddle = [bare("a"), { ids: [], xfam: "grok-4.5" }, bare(), bare()];
+  assert.equal(sweepState(straddle, 6, 3).state, "CLEAN", "lane at n-3 is inside a 3-round tail");
+  assert.equal(sweepState(straddle, 6, 2).state, "FRAME-UNCHECKED", "...and outside a 2-round one");
 });
 
 test("a same-family or unplaceable model id does NOT satisfy the check", () => {

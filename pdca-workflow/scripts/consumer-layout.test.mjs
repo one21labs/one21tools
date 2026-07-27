@@ -10,20 +10,38 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const SCRIPTS_DIR = fileURLToPath(new URL(".", import.meta.url));
 
-// The exact vendor set pdca-init's SKILL.md copies into a consumer's scripts/ (SSoT: SKILL.md
-// step 3 — keep this list in sync with it).
-// MUST match pdca-init/SKILL.md's copy list exactly. adr-lint gained a `cli-flags.mjs` import
-// and this test went red immediately -- which is the whole point: a consumer install would have
-// thrown ERR_MODULE_NOT_FOUND on first run, and nothing in this repo`s own layout would show it.
-const VENDOR_FILES = ["adr-lint.mjs", "adr-lint.test.mjs", "char-budget.mjs", "char-budget.test.mjs",
-  "cli-flags.mjs", "cli-flags.test.mjs"];
+// The vendor set is READ FROM pdca-init's SKILL.md, which is its SSoT — not restated here.
+// A hand-kept copy carrying the comment "MUST match SKILL.md exactly" is a promise nothing checks,
+// and this file had exactly that: the claim was prose while the array was maintained by hand. The
+// list a consumer actually gets comes from the SKILL, so the SKILL is what this test must copy;
+// deriving it means adding a file to the SKILL and forgetting the test is no longer possible, and
+// the reverse (test updated, SKILL not) fails here too.
+const SKILL = fileURLToPath(new URL("../skills/pdca-init/SKILL.md", import.meta.url));
+
+export function vendorFilesFrom(skillText) {
+  // Step 3's copy sentence names each file in backticks; the first carries a
+  // `${CLAUDE_PLUGIN_ROOT}/scripts/` prefix. Take every backticked *.mjs in that sentence.
+  const sentence = skillText.match(/Copy `\$\{CLAUDE_PLUGIN_ROOT\}[\s\S]*?into the project's/);
+  if (!sentence) return [];
+  return [...new Set([...sentence[0].matchAll(/`([^`]*?([A-Za-z0-9._-]+\.mjs))`/g)].map((m) => m[2]))];
+}
+
+const VENDOR_FILES = vendorFilesFrom(readFileSync(SKILL, "utf8"));
+
+test("the vendor set is derived from the SKILL, and is not empty", () => {
+  // If the SKILL's wording changes shape, this fails loudly rather than silently copying nothing
+  // and declaring a consumer layout healthy.
+  assert.ok(VENDOR_FILES.length >= 4, `parsed only ${VENDOR_FILES.length}: ${VENDOR_FILES}`);
+  assert.ok(VENDOR_FILES.includes("adr-lint.mjs"));
+  assert.ok(VENDOR_FILES.includes("char-budget.mjs"));
+});
 
 test("adr-lint runs cleanly from a consumer-shaped layout (pdca-init's vendor set, one level deep)", () => {
   const consumerRoot = mkdtempSync(join(tmpdir(), "pdca-consumer-layout-"));
