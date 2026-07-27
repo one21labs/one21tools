@@ -9,9 +9,7 @@ summary: "Doc size is capped in chars, not lines (line caps are gameable by long
 
 - Date: 2026-06-30
 - Owner: PM
-- Context: the ADR size budget was a LINE cap (`adr-lint` `--budget=70`), gameable by cramming
-  more onto longer lines — it measures layout, not the signal/token cost the budget targets
-  (`0006-retrospect-agent-model-tier.md` passed at 70 lines / 8,813 chars).
+- Context: a LINE cap measures layout, not the signal/token cost the budget targets.
 
 ## Decision
 Budget docs in CHARS, not lines. Caps: `CLAUDE.md` <=6,000 (the always-loaded layer); ADRs
