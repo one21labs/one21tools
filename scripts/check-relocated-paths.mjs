@@ -113,6 +113,26 @@ export function walkFrozenDirs(root, readdir = readdirSync) {
   return out;
 }
 
+/**
+ * Pure given `run`: is this working copy missing the history the ever-existed filter needs?
+ *
+ * SCAR (2026-07-26): this repo was cloned shallow (8 commits) and this gate printed
+ * "none stranded" all session. Its header already WARNED that a shallow clone makes every path
+ * read as never-existed — a permanent false negative — but warning is not detecting, so the gate
+ * reported a pass it could not have earned. That is the ADR 0086 silent-coverage class: a guard
+ * that fails open with no symptom is indistinguishable from a guard that found nothing.
+ * `git rev-parse --is-shallow-repository` decides it outright, so this does not belong in prose.
+ */
+export function isShallowClone(run) {
+  try {
+    return run("git rev-parse --is-shallow-repository").trim() === "true";
+  } catch {
+    // Not a git work tree at all: the ever-existed filter cannot run either, so treat it the same
+    // way rather than passing. Failing closed is the whole point of this check.
+    return true;
+  }
+}
+
 function main(argv) {
   const root = argv[2] ?? ".";
   let filePaths, knownTopDirs;
@@ -123,6 +143,13 @@ function main(argv) {
       .map(e => e.name));
   } catch (e) {
     console.error(`check-relocated-paths: cannot walk ${root}/benchmarks: ${e.message}`);
+    process.exit(2);
+  }
+  if (isShallowClone((cmd) => execSync(cmd, { cwd: root, encoding: "utf8" }))) {
+    console.error(
+      "check-relocated-paths: REFUSING TO REPORT — this is a shallow clone, so `git log --all` " +
+      "cannot tell a relocated path from one that never existed, and every cited path would read " +
+      "as fine. Run `git fetch --unshallow` (CI: actions/checkout with fetch-depth: 0), then re-run.");
     process.exit(2);
   }
   const files = [];

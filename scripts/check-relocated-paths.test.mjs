@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs } from "./check-relocated-paths.mjs";
+import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, isShallowClone } from "./check-relocated-paths.mjs";
 
 const TOP = new Set(["benchmarks", "skills", "skill-bench", "docs", "scripts", "pdca-workflow"]);
 const run = (files, existing = [], ever = []) => checkRelocatedPaths({
@@ -114,4 +114,27 @@ test("walk tolerates a subdir vanishing mid-walk, never the benchmarks root", ()
   const readdir = p => { const k = p.replace(/\\/g, "/").replace(/^\.\//, ""); if (!(k in tree)) { const e = new Error("ENOENT"); e.code = "ENOENT"; throw e; } return tree[k]; };
   assert.deepEqual(walkFrozenDirs(".", readdir), ["benchmarks/2026-07-10-x/README.md"]);
   assert.throws(() => walkFrozenDirs("elsewhere", readdir), /ENOENT/);
+});
+
+test("a shallow clone is detected, so the gate cannot report a pass it could not have earned", () => {
+  // Scar: this repo was cloned shallow and the gate printed "none stranded" for a whole session.
+  // The header warned about it; warning is not detecting. `git log --all` on a shallow clone
+  // returns nothing for EVERY path, so every cited path reads as never-existed and no strand can
+  // ever be flagged - a permanent false negative that looks exactly like success.
+  assert.equal(isShallowClone(() => "true\n"), true);
+  assert.equal(isShallowClone(() => "false\n"), false);
+  assert.equal(isShallowClone(() => "  true  "), true);
+});
+
+test("a git failure fails CLOSED, because the ever-existed filter cannot run there either", () => {
+  // Not a work tree, git absent, permissions - all of them leave the filter unable to distinguish
+  // relocated from never-existed. Returning false would hand back the same false green.
+  assert.equal(isShallowClone(() => { throw new Error("not a git repository"); }), true);
+  assert.equal(isShallowClone(() => { throw new Error("ENOENT git"); }), true);
+});
+
+test("only the exact string true counts - a chatty or empty git does not read as full history", () => {
+  // Reading anything-not-"false" as full history would re-open the false green from the other side.
+  assert.equal(isShallowClone(() => ""), false);
+  assert.equal(isShallowClone(() => "false"), false);
 });
