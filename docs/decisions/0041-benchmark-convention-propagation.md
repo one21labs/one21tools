@@ -8,9 +8,6 @@ summary: "Fix the stale-benchmark-copy vector at its root: new harnesses DERIVE 
 # 0041 — propagate benchmark conventions by deriving from lib, not copying stale dirs
 
 - Date: 2026-07-10
-- Context: new benchmarks were scaffolded by copying the previous dir, so conventions and the
-  shared lib never propagated — the deny-list was triplicated as hand-copied literals across
-  three harnesses, none importing the lib, none carrying new tool-deny extensions.
 
 ## Decision
 1. **Poka-yoke — new harnesses DERIVE shared helpers from `benchmarks/lib`, not redefine them.**

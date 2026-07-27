@@ -10,7 +10,7 @@ summary: "Operationalize the README goal as a COMPASS (corrections/shipped-work 
 - Date: 2026-07-18
 - Owner: PM
 - Context: owner wants the README goal measured (issue #240); metrics are gates, not optimization
-  targets. Detail lives in `scripts/scorecard.mjs` (+ test); this ADR carries the decisions.
+  targets.
 
 ## Decision
 **(a) North-star = compass, not a gate — owner-confirmation pending.** "Corrections per unit

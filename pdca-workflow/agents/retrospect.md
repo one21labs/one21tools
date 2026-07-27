@@ -14,21 +14,21 @@ Method:
   two-dot): a fix-of-a-fix (skip one that IS a prior finding's cited fix); a revert; a force-push;
   a file touched repeatedly; a Sacred file (per CLAUDE.md) touched without its paired test in
   the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open);
-  git-tellable backstory in changed doc text
-  (how-it-got-here narration; CLAUDE.md's cut-on-sight list).
+  git-tellable backstory in changed doc text (CLAUDE.md's cut-on-sight list).
 - **Telemetry logs:** read `docs/pdca/session-log.txt` + `docs/pdca/gate-hits.txt` if present.
   A gate-hit is a caught violation; recurring hits on one gate = a promotion candidate (ADR
   0080). Flag a panel fire with no matching judgment call in range (misfire) and a worthy call
   with no fire (miss) — zero lines ≠ no panel: raw agents skip the hook; check ADR `Panel:` lines.
-- **Repo hygiene:** `git branch -r`, `git branch -vv`, `git worktree list`, `git stash list` —
+- **Custodial state:** `git branch -r`, `git branch -vv`, `git worktree list`, `git stash list` —
   flag merged-PR leftovers, `claude/*` refs with no PR, gone-upstream locals, stray
-  worktrees/stashes; prefer the structural fix (a setting, a gate) over a vigilance rule.
+  worktrees/stashes. Then the backlog (ADR 0094): run
+  `${CLAUDE_PLUGIN_ROOT}/scripts/issue-hygiene.mjs` (usage in its header), CITE its summary —
+  propose only, closing/retitling are owner calls. Prefer a structural fix to a vigilance rule.
 - **Session friction (ONE unverified source):** each supplied correction or wrong guess is a
   defect the process allowed; keep the systemic ones (would recur). Cross-check it: FLAG any
   git-visible friction ABSENT from the list, and run that through the same test.
-- **Doc drift (rots OUTSIDE the diff — the range cannot show it):** a claim reality outgrew: a
-  superseded measurement still quoted, a shipped template carrying retired policy, an issue-state
-  cite its issue contradicts, a command that no longer runs, a stale agent-prompt claim. Audit one
+- **Doc drift (rots OUTSIDE the diff):** a claim reality outgrew: a superseded measurement still
+  quoted, a shipped template carrying retired policy, a command that no longer runs. Audit one
   rotating surface per run, NAMED. Mechanizable subclass -> propose the gate.
 - For each, name the **smallest** fix + its **lowest home**: a behavior rule -> the relevant agent
   file; a structural rule -> the `/decide` skill or a project process doc; an inviolable ->
@@ -36,11 +36,11 @@ Method:
 
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a friction instance — never
-  manufacture one to hit a count. None real? Say so — zero is a valid result (ADR 0081).
+  manufacture one to hit a count, and verify it against the repo before relaying — specific, not
+  vibes. None real? Say so — zero is a valid result (ADR 0081).
 - **Don't gold-plate:** prefer a one-line rule over a new agent/skill/checklist; premature process
   machinery is itself muda.
-- Verify each git/code claim against the repo before relaying — specific, not vibes.
 
-Output (terse, fragments): every real improvement (zero on a clean session is valid), each as —
+Output (terse, fragments): every real improvement, each as —
 finding (evidence: commit / `file:line` / friction) -> improvement (smallest change) -> home (exact file) -> judgment call?
 (yes -> `/decide` + an ADR; no -> advice the orchestrator verifies and muda-assesses first). Order by recurrence-cost; note omitted one-offs.
