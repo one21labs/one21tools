@@ -17,10 +17,12 @@ applies its own default — that constant is the one home, so this file does not
 1. **Fix the surface and write it down** — the files, dirs, and question classes in scope. A
    later round that finds less because it looked at less is indistinguishable from a clean one,
    and drifting inward is the cheapest way to fake convergence.
-2. **Declare the BAR, not just the surface.** A finding counts only if it could produce a wrong
-   answer for the person receiving the work, or a false green on a gate. Below the bar it is
-   logged and left alone. "Loop until nothing new" has no fixed point on a tree that keeps
-   changing; "loop until nothing that MATTERS is left" does.
+2. **Declare the BAR, not just the surface.** A finding counts if it could produce a wrong answer
+   for the person receiving the work, a false green on a gate, or a FALSE RED — a control that
+   blocks legitimate work, because that is what teaches an operator to route around it. Below the
+   bar, log it in the round line and leave it; a round's empty `ids` then means "nothing above the
+   bar", which the report must say rather than imply clean. "Loop until nothing new" has no fixed
+   point on a tree that keeps changing; "loop until nothing that MATTERS is left" does.
 3. **Pick the finding-id scheme**: one stable slug per distinct defect (`hook-lib-missing-test`),
    assigned when the defect is first seen and never re-minted. Round 4 has to be able to tell a
    repeat from something new, and only the id does that.

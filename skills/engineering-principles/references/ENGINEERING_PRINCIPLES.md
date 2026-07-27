@@ -55,11 +55,12 @@ Manufacturing-origin mapping and per-domain breakdown: [waste-identification.md]
 
 ### Detection-Latency Ladder (Poka-yoke, Ranked)
 
-Ranked by how early they catch — earlier is stronger. Rungs 1-5 guard a hazard; rung 0 removes it:
+**Ask ELIMINATION first — it is not on this ladder.** Can the hazard go: the code, option, step,
+state? Nothing below removes anything; each is a control on a surviving hazard, and is itself code
+that can be wrong. This ranks how early a control fires, not whether it should exist.
 
 | Rung | Stage | Surface |
 |------|-------|---------|
-| 0 | Eliminate | Delete what made the error possible — code, option, step, state |
 | 1 | Prevent | Blocking pre-action check (e.g. a deny hook) — the error cannot happen |
 | 2 | Detect at creation | Post-edit check, immediately after the change is made |
 | 3 | Detect at commit | Pre-commit check |
@@ -68,7 +69,7 @@ Ranked by how early they catch — earlier is stronger. Rungs 1-5 guard a hazard
 
 **Executable-home rule.** A machine-decidable requirement is never homed in prose where an executable surface exists — a tool-call moment at which a check can fire. Prose holds judgment calls, and is an interim home at best.
 
-- **Choosing the rung**: try rung 0 first — a hazard removed needs no guard, and every guard is itself code that can be wrong. Otherwise take the cheapest rung that catches it; promoting requires scar tissue (a cited recurring miss) plus economics.
+- **Choosing the rung**: take the cheapest rung that catches it; promoting requires scar tissue (a cited recurring miss) plus economics.
 - **Full coverage deletes the mirror**: once a mechanism fully enforces a rule, its prose restatement is waste — cut it (a later-rung backstop such as CI may remain).
 - **Faithful predicate**: the mechanism must test the rule it claims to enforce; a partial predicate ships with its residue recorded.
 - **Undecidable intent warns, never denies**: when a check cannot separate violation from legitimate use, it warns — false blocks train users to bypass the guard.
