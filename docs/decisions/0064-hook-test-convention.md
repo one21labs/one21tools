@@ -18,6 +18,6 @@ summary: "New bash hooks are tested by a self-contained gates.yml-invoked siblin
   node-spawns-bash tests are Windows-skipped locally, and auto-wires into CI by
   glob; the corpus had already converged (8 of 10 hook tests, every hook since
   the ADR 0047 hooks wave).
-- Enforced: `.github/workflows/gates.yml` runs every `test-*.sh` suite; the static enumerator was deleted 2026-07-27 (#311).
-  any non-grandfathered hook lacking a gates.yml-invoked `test-<basename>.sh`;
-  decision logic pinned by each suite itself.
+- Enforced: `.github/workflows/gates.yml` runs every `test-*.sh` suite that EXISTS; the
+  enumerator that failed a hook lacking one was deleted 2026-07-27 (#311), so the pairing is
+  unenforced. Decision logic is pinned by each suite itself.

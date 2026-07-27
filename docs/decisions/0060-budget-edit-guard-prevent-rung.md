@@ -18,5 +18,4 @@ summary: "Owner-direct: the measure-first discipline (doc-budgets.md) gets a pok
   edit-validate-trim rework after the fact; computing the verdict before the edit is the
   cheapest point in the ladder and makes the failure impossible rather than caught.
 - Enforced: `test-budget-edit-guard.sh` (deny + headroom math, shrink-always-allowed, lite
-  tier, skill class + cap bridge, fail-open) in the gates.yml hook glob
-  registers it.
+  tier, skill class + cap bridge, fail-open) in the gates.yml hook glob.
