@@ -52,7 +52,7 @@
  */
 import { readFileSync } from "node:fs";
 import { familyOf, MAKER_FAMILY, availableLanes } from "./crosscheck.mjs";
-import { numericFlag, positionals } from "./cli-flags.mjs";
+import { integerFlag, positionals } from "./cli-flags.mjs";
 
 export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3, "FRAME-UNCHECKED": 4 };
 
@@ -149,8 +149,8 @@ function main(argv) {
   // `argv.indexOf` this replaced made `--max=2` miss the flag and run to the default cap instead.
   let max, quiet;
   try {
-    max = numericFlag(argv, "max", DEFAULT_MAX_ROUNDS);
-    quiet = numericFlag(argv, "quiet-rounds", 2);
+    max = integerFlag(argv, "max", DEFAULT_MAX_ROUNDS);
+    quiet = integerFlag(argv, "quiet-rounds", 2);
   } catch (e) {
     console.error(`sweep-state: ${e.message}\n${USAGE}`);
     return EXIT.MALFORMED;

@@ -122,3 +122,31 @@ test("gate-hit telemetry (ADR 0080): deny appends exactly one line, allow append
     rmSync(fix, { recursive: true, force: true });
   }
 });
+
+test("an EMPTY or NULL model does not satisfy the guard - presence is not a value", { skip }, () => {
+  // Counting the `"model":` KEY let `"model": ""` and `"model": null` through while the call
+  // still inherited the parent session model. Same shape as a value-less flag coercing to NaN
+  // and skipping the check: the token is there, the decision is not.
+  for (const model of ["", null]) {
+    const r = runToolInput({ prompt: "x", model });
+    assert.match(r.stdout, /"permissionDecision":"deny"/,
+      `model=${JSON.stringify(model)} must still deny`);
+  }
+});
+
+test("a real model string still passes, so the tightened match did not over-deny", { skip }, () => {
+  for (const model of ["haiku", "sonnet", "opus", "claude-opus-5"]) {
+    const r = runToolInput({ prompt: "x", model });
+    assert.doesNotMatch(r.stdout, /"permissionDecision":"deny"/, `model=${model} must pass`);
+  }
+});
+
+test("whitespace-only and spacing variants are handled the way a caller would expect", { skip }, () => {
+  // `"model": "  "` is not a usable model id, but it IS a non-empty string - the guard is a
+  // syntactic check, not a model-name registry, so it passes. Pinned so the boundary is a
+  // decision on record rather than an accident of the regex.
+  assert.doesNotMatch(runToolInput({ prompt: "x", model: "  " }).stdout, /"permissionDecision":"deny"/);
+  // And the key/value spacing the serializer chooses must not change the answer.
+  const spaced = run('{"tool_name":"Agent","tool_input":{"prompt":"x","model"  :  "haiku"}}');
+  assert.doesNotMatch(spaced.stdout, /"permissionDecision":"deny"/);
+});

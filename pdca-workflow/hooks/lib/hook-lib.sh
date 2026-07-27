@@ -125,6 +125,12 @@ hook_deny_payload() {
 # parses per line and splits on whitespace — hence the scrub, so a path containing a newline or a
 # tab cannot split a row or shift a field. docs/pdca is the ADR 0071 adoption marker — checked,
 # never created.
+# One scrub policy for every whitespace-delimited log this plugin writes. Both readers
+# (scorecard.mjs parseGateHits, and the session-log line counters) parse per line and split on
+# whitespace, so a newline or tab inside a field splits a row or shifts a column. Two logs sharing
+# a line grammar must not each decide this: gate-hits scrubbed and session-log did not.
+hook_scrub() { printf '%s' "$1" | tr '\n\r\t' '   '; }
+
 # PATHS ARE LOGGED PROJECT-RELATIVE, NEVER ABSOLUTE. This log is COMMITTED (docs/pdca is a tracked
 # adoption marker), so in a public repo an absolute path publishes the operator's home directory and
 # local tree layout on every single gate fire — this repo shipped 76 such lines before anyone
@@ -135,8 +141,8 @@ hook_deny_payload() {
 # that rung already failed 76 times.
 hook_gate_hit() {
   local root="${CLAUDE_PROJECT_DIR:-.}" name path
-  name=$(printf '%s' "$1" | tr '\n\r\t' '   ')
-  path=$(printf '%s' "$2" | tr '\n\r\t' '   ')
+  name=$(hook_scrub "$1")
+  path=$(hook_scrub "$2")
   while [ "$root" != "${root%/}" ]; do root="${root%/}"; done   # /proj/// and /proj strip alike
   [ -n "$root" ] && [ "$root" != "." ] && path="${path#"$root"/}"
   { [ -d "$root/docs/pdca" ] && printf '%s gate-hit %s %s\n' \

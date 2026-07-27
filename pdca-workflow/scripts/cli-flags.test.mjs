@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { flagValue, numericFlag, requiredFlag, positionals } from "./cli-flags.mjs";
+import { flagValue, numericFlag, requiredFlag, positionals, integerFlag } from "./cli-flags.mjs";
 
 test("both spellings are the same flag", () => {
   assert.equal(flagValue(["--max", "3"], "max"), "3");
@@ -112,4 +112,32 @@ test("a value-taking flag at the end of argv consumes nothing, and a flag is nev
 test("positionals tolerates a non-array or non-string entries", () => {
   assert.deepEqual(positionals(null, ["max"]), []);
   assert.deepEqual(positionals([null, 7, "f"], ["max"]), ["f"]);
+});
+
+test("integerFlag rejects a fraction at the layer that can name it", () => {
+  // --max=2.5 used to parse fine, then die inside sweepState with "rounds must be an array and
+  // max a positive integer" - an error naming neither the flag nor the value. Two layers
+  // disagreeing on the domain is the same drift class as two spellings of a flag.
+  assert.equal(integerFlag(["--max=3"], "max", 5), 3);
+  assert.equal(integerFlag([], "max", 5), 5);
+  assert.throws(() => integerFlag(["--max=2.5"], "max", 5), RangeError);
+  assert.throws(() => integerFlag(["--max", "2.5"], "max", 5), RangeError);
+});
+
+test("the fraction message quotes the value and teaches both spellings", () => {
+  try {
+    integerFlag(["--quiet-rounds=1.5"], "quiet-rounds", 2);
+    assert.fail("expected a RangeError");
+  } catch (e) {
+    assert.match(e.message, /whole number/);
+    assert.match(e.message, /"1\.5"/);
+    assert.match(e.message, /--quiet-rounds 2/);
+    assert.match(e.message, /--quiet-rounds=2/);
+  }
+});
+
+test("integerFlag still inherits numericFlag's rejections rather than re-deciding them", () => {
+  for (const bad of ["abc", "0", "-3", ""]) {
+    assert.throws(() => integerFlag([`--max=${bad}`], "max", 5), RangeError, `expected reject: ${bad}`);
+  }
 });

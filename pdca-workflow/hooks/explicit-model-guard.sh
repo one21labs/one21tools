@@ -35,7 +35,10 @@ input=$(cat)
 scope=$(printf '%s' "$input" | sed -n 's/.*\("tool_input".*\)/\1/p')
 [ -z "$scope" ] && exit 0
 
-has_model=$(printf '%s' "$scope" | grep -c '"model"[[:space:]]*:')
+# PRESENCE IS NOT A VALUE. Counting the `"model":` KEY let `"model": ""` and `"model": null`
+# satisfy the guard while inheriting the parent model anyway — the same shape as a value-less
+# flag coercing to NaN and skipping the check. Require a non-empty quoted string.
+has_model=$(printf '%s' "$scope" | grep -c '"model"[[:space:]]*:[[:space:]]*"[^"]\{1,\}"')
 subagent_type=$(printf '%s' "$scope" | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "general-purpose" ]; }; then

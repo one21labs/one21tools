@@ -56,13 +56,20 @@
 # string VALUE is JSON-escaped (\") and lacks the contiguous bytes the pattern requires (same
 # safety argument as explicit-model-guard.sh). Fails OPEN (exit 0, no log line) on
 # malformed/empty stdin or a missing skill/subagent_type field.
+# hook_scrub's one home. Script-relative, and a missing lib exits 0 — this hook is pure
+# observability and must never become the reason a spawn did or did not happen.
+. "$(dirname "${BASH_SOURCE[0]}")/lib/hook-lib.sh" 2>/dev/null || exit 0
+
 input=$(cat)
 tool=$(printf '%s' "$input" | sed -n 's/.*"tool_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 
 log_line() {  # $1 = event tag, $2 = name as given
   root="${CLAUDE_PROJECT_DIR:-.}"
   [ -d "$root/docs/pdca" ] || return 0
-  printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2" >> "$root/docs/pdca/session-log.txt" 2>/dev/null
+  # Scrub via the lib's one policy: this log is whitespace-delimited and read per line, so an
+  # embedded newline or tab would split a row or shift a field for its counters.
+  printf '%s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(hook_scrub "$1")" "$(hook_scrub "$2")" \
+    >> "$root/docs/pdca/session-log.txt" 2>/dev/null
 }
 
 case "$tool" in

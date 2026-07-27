@@ -66,6 +66,23 @@ export function numericFlag(argv, name, dflt) {
 }
 
 /**
+ * A positive-INTEGER flag. Separate from numericFlag because a caller that counts rounds cannot
+ * use 2.5, and letting the parse succeed only for the consumer to reject it produces an error
+ * about the wrong thing: `--max=2.5` parsed, then failed with "rounds must be an array and max a
+ * positive integer", which names neither the flag nor the value. Reject at the layer that can say
+ * what arrived.
+ */
+export function integerFlag(argv, name, dflt) {
+  const n = numericFlag(argv, name, dflt);
+  if (!Number.isInteger(n)) {
+    const raw = flagValue(argv, name);
+    throw new RangeError(`--${name} takes a whole number; got "${raw}". ` +
+      `Pass one (--${name} ${dflt} or --${name}=${dflt}) or drop the flag for the default ${dflt}.`);
+  }
+  return n;
+}
+
+/**
  * The POSITIONAL arguments, with flags and their values removed.
  *
  * Hand-rolling this is the other half of the class cli-flags.mjs exists to close. Both CLIs picked

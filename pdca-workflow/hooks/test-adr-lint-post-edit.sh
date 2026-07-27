@@ -147,4 +147,22 @@ assert_exit "as-of-decision constant number in an ADR -> excluded via the hook's
 rm -rf "$FIX_HIST"
 
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
+# A BROKEN INSTALL MUST NO-OP, NOT BLOCK. Running the linter through a missing
+# $CLAUDE_PLUGIN_ROOT made every Edit in an adopted project exit 2, so a bad plugin cache became a
+# hard edit gate. Every sibling hook fails OPEN on absent machinery; this one must too. The
+# converse still has to hold, so the real-failure case above is what stops this from being a
+# licence to never block.
+code=0
+printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/docs/decisions/0001-x.md"}}' "$FIX_BAD" \
+  | CLAUDE_PROJECT_DIR="$FIX_BAD" CLAUDE_PLUGIN_ROOT=/nonexistent-plugin-root \
+    bash "$HOOK" >/dev/null 2>&1 || code=$?
+assert_exit "missing CLAUDE_PLUGIN_ROOT -> no-op (exit 0), never a blanket edit block" 0 "$code"
+
+code=0
+printf '{"tool_name":"Edit","tool_input":{"file_path":"%s/docs/decisions/0001-x.md"}}' "$FIX_BAD" \
+  | CLAUDE_PROJECT_DIR="$FIX_BAD" CLAUDE_PLUGIN_ROOT="" \
+    bash "$HOOK" >/dev/null 2>&1 || code=$?
+assert_exit "empty CLAUDE_PLUGIN_ROOT -> no-op (exit 0)" 0 "$code"
+
 [ "$fail" -eq 0 ]
+

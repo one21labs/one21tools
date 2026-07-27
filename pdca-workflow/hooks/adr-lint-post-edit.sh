@@ -53,7 +53,16 @@ esac
 # Degrade gracefully: a consumer with no ADR corpus has nothing for this hook to gate.
 [ -d "$root/docs/decisions" ] || exit 0
 
-out=$(node "${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs" "$root/docs/decisions" 2>&1) || {
+# "THE GATE SAID NO" AND "THE GATE COULD NOT RUN" ARE DIFFERENT ANSWERS, and only the first may
+# block. Running the linter through a missing $CLAUDE_PLUGIN_ROOT, or with no node on the hook's
+# PATH, made every Edit and Write in an adopted project exit 2 — so a broken plugin cache or a
+# node-less shell became a hard edit gate rather than a no-op. Every sibling here fails OPEN on
+# absent machinery (a missing lib exits 0); this one did not, and an adopter feels it worst.
+linter="${CLAUDE_PLUGIN_ROOT:-}/scripts/adr-lint.mjs"
+[ -f "$linter" ] || exit 0                     # plugin cache missing or misrooted
+command -v node >/dev/null 2>&1 || exit 0      # no runtime to lint with
+
+out=$(node "$linter" "$root/docs/decisions" 2>&1) || {
   hook_gate_hit adr-lint "$fp"
   printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2
   exit 2
