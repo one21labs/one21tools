@@ -27,27 +27,22 @@
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["skills/building-skills/scripts/validate.py"],"files":{"skills/foo/SKILL.md":"just a body with no frontmatter"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/skills/foo/SKILL.md"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-workflow.mjs"],"files":{"benchmarks/x.workflow.js":"const r = await agent(\"do the thing\", {label: \"x\"});"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/benchmarks/x.workflow.js"}},"expect":{"exit":2}}
 # canary: {"event":"PostToolUse","tool":"Edit","copy":["scripts/check-restatement.mjs"],"files":{"README.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa","docs/a.md":"alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa"},"stdin":{"tool_name":"Edit","tool_input":{"file_path":"__FIXTURE__/README.md"}},"expect":{"exit":2}}
+# Path skeleton + gate-hit telemetry, one home for every file_path hook. This repo-local hook
+# sources the pdca-workflow plugin's copy from the working tree (the plugin is the shipped
+# artifact and owns the skeleton; .claude/hooks are its in-repo consumers). Script-relative, so
+# it also resolves under the canary runner's throwaway project dir.
+. "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
-fp=$(printf '%s' "$input" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+fp=$(hook_fp "$input")   # forward slashes, absolute — the case arms below need both
 [ -z "$fp" ] && exit 0
-# Normalize JSON-escaped Windows backslashes to forward slashes for case matching.
-norm_slashes() { printf '%s' "$1" | sed 's/\\\\/\//g; s/\\/\//g'; }
-fp=$(norm_slashes "$fp")
 root="${CLAUDE_PROJECT_DIR:-.}"
-# Same latent hole budget-edit-guard carried: every case arm below is written */dir/..., which
-# needs a literal "/" ahead of dir, so a repo-relative file_path fell through and the gate never
-# ran. Third copy of this skeleton in .claude/hooks; the real fix is deleting the triplication.
-case "$fp" in /*) ;; *) fp="$root/$fp" ;; esac
 cd "$root" || exit 0   # gates assume repo-root cwd; never run them elsewhere.
 PY=$(command -v python3 || command -v python)  # Linux/CI ship python3 only; git-bash ships python.
 
 run_gate() {  # $1 = gate name for telemetry; rest = the gate command
   gname="$1"; shift
   out=$("$@" 2>&1) || {
-    # Gate-hit telemetry (ADR 0080): observability only, never in the failure path — appended
-    # after the failure is decided, error-suppressed; marker-guarded, never mkdir (ADR 0071).
-    # Line format home: scorecard.mjs parseGateHits.
-    { [ -d "$root/docs/pdca" ] && printf '%s gate-hit %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$gname" "$fp" >> "$root/docs/pdca/gate-hits.txt"; } 2>/dev/null
+    hook_gate_hit "$gname" "$fp"
     printf '%s\n' "GATE FAILED (fix now, before continuing): $out" >&2; exit 2
   }
 }
@@ -58,12 +53,12 @@ case "$fp" in
     # `skills/<name>` capture strips `pdca-workflow/`-style prefixes, so the dir guard below
     # silently skipped every plugin-scoped skill. Normalize root's backslashes the same way as
     # fp's, or the prefix strip fails on Windows and reintroduces the same silent skip.
-    rootn=$(norm_slashes "$root")
+    rootn=$(hook_norm_slashes "$root")
     relfp=${fp#"$rootn"/}
     # If the strip missed (root is the "." fallback, or carries a trailing slash), retry
     # against $PWD — after `cd "$root"` above it IS the absolute root — else an absolute fp
     # keeps its full prefix, the dir guard tests a nonsense path, and the gate silently skips.
-    [ "$relfp" = "$fp" ] && relfp=${fp#"$(norm_slashes "$PWD")"/}
+    [ "$relfp" = "$fp" ] && relfp=${fp#"$(hook_norm_slashes "$PWD")"/}
     # "skills" must match as a WHOLE path component — a greedy `.*skills\/` also matched folder
     # names merely ENDING in "skills" (skills/building-skills/scripts/x derived .../scripts as
     # the skill dir and failed the gate on a missing SKILL.md).
