@@ -24,17 +24,16 @@ don't restate. Operationalized, not a slogan:
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
   Process-Level Poka-yoke.
-- **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
-  one findings comment, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
-  empty findings valid, never a green line.
+- **Forcing functions:** `adr-lint` guards the decision log. `/retrospect` closes EVERY session
+  (+ on demand; ADR 0081) — empty findings valid, never a green line.
 - **Two-why (ADR 0081):** before fixing any gate/CI/verifier failure: instance or class? which
   rung should have caught it? "My error" never ends the chain.
 
 ## Sacred (do not break)
 - The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
   `plugin.json`. A broken or duplicate entry breaks `/plugin install`.
-- **SKILL.md frontmatter:** `name` FIRST (must match the folder), description-as-trigger;
-  `disable-model-invocation` for explicit-invoke skills. Run `validate.py` after any SKILL.md edit.
+- **SKILL.md frontmatter:** `validate.py` owns the rules and prescribes each on failure — run it
+  after any SKILL.md edit rather than reading them off here.
 - `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge.
 
 ## Docs — one home per fact
@@ -42,6 +41,9 @@ Every fact has ONE home at the lowest altitude that owns it; higher docs referen
 (backstory rules: `ssot-enforcement.md`). The ladder's home is `doc-budgets.md`; its bottom rung
 here = manifests, SKILL.md, scripts — they own skill names, the registry, the deterministic
 logic; a doc restating them rots.
+**The ladder sizes an ADR too (owner, 26-Jul-2026):** name the ONE file owning a decision — if you
+can, it is that file's header. Many files or none = ADR. Checkable, unlike "non-obvious", so no
+write bar ships.
 
 ## Never
 - ship a SKILL.md that fails `validate.py`, or invalid marketplace/plugin JSON
