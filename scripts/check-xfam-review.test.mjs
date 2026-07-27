@@ -7,6 +7,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readdirSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { diffHash, artifactModel, coverage, ARTIFACT_DIR } from "./check-xfam-review.mjs";
 
 const art = (hash, model, body = "findings...") =>
@@ -71,4 +74,19 @@ test("coverage never throws on absent or malformed input", () => {
   assert.equal(coverage(DIFF, null).ok, false);
   assert.equal(artifactModel(null).foreign, false);
   assert.equal(artifactModel(undefined).foreign, false);
+});
+
+test("the artifact directory holds ONLY hash-named artifacts, never free prose", () => {
+  // check-restatement skips this directory, because a reviewer quoting our code back at us is
+  // evidence rather than a second home for a fact. A cross-family review of that exclusion named
+  // its residual: the skip makes the directory a blind spot, so anything parked there -- a living
+  // doc, a copy of a README, an ADR draft -- inherits a permanent exemption from the one-home rule.
+  // Nothing about the exclusion prevents that; this does. Every entry must be <16-hex>.md, which is
+  // exactly what this gate files and nothing a person would write by hand.
+  const dir = join(dirname(fileURLToPath(import.meta.url)), "..", ARTIFACT_DIR);
+  if (!existsSync(dir)) return;   // no artifacts yet is not a violation
+  const stray = readdirSync(dir).filter((f) => !/^[0-9a-f]{16}\.md$/.test(f));
+  assert.deepEqual(stray, [],
+    `${ARTIFACT_DIR} is skipped by check-restatement, so it must contain ONLY hash-named review `
+    + `artifacts — these would sit in a permanent one-home blind spot: ${stray.join(", ")}`);
 });

@@ -45,7 +45,14 @@ export const ALLOW_PAIRS = [
   [/^pdca-workflow\/README\.md$/, /^skill-bench\/README\.md$/],
 ];
 
-const SKIP = /(^|[\\/])(\.git|node_modules|benchmarks[\\/]20\d\d-)/;
+// docs/pdca/xfam holds VERBATIM output from an external reviewer, filed as evidence that a
+// cross-family review happened against a specific diff. It quotes this repo's code by design --
+// that is what makes it evidence -- and it must never be edited, because editing it falsifies the
+// record. Same category as the dated benchmark archives above: an immutable artifact nobody
+// maintains, not authored prose with a one-home obligation. Without this the gate reads a
+// reviewer quoting a file back at us as a restatement of it, and the only way to clear the red
+// would be to doctor the evidence.
+const SKIP = /(^|[\\/])(\.git|node_modules|benchmarks[\\/]20\d\d-|docs[\\/]pdca[\\/]xfam[\\/])/;
 
 export function allowed(a, b, pairs = ALLOW_PAIRS) {
   return pairs.some(([p, q]) => (p.test(a) && q.test(b)) || (p.test(b) && q.test(a)));
