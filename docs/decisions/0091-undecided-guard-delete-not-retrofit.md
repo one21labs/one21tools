@@ -24,4 +24,4 @@ summary: "gate-pipe-guard.sh (both copies) + tests deleted, not retrofitted — 
 - Reopen-if: a second BLOCKING, zero-predicate, re-cited mechanism surfaces — apply this path.
   A record cites 0091 to delete adr-lint.mjs/post-edit-gate.sh/claude-review.yml — invalid on
   its face. PR#134's pipe-mask hazard recurs — rebuild targets `pipefail`/`PIPESTATUS` first.
-- Enforced: deletion is in the working tree; `check-gate-tests.mjs` reports the guard-free count.
+- Enforced: deletion is in the tree; `.github/workflows/gates.yml` is the one home for the wired set, so an unwired guard has no invocation.

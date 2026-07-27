@@ -22,4 +22,4 @@ summary: "check-gate-tests.mjs gains two rung-4 DENY predicates: (a) a hook test
   the class (two live scars refute "needed an audit once"); an undecidable exit-0 detector (no
   scar for the non-literal variant, false-positives on platform guards).
 - Reopen-if: (a) fires on a legitimate hard-coded path -> demote to WARN.
-- Enforced: `check-gate-tests.mjs` predicates (a)/(d), pinned by `check-gate-tests.test.mjs`.
+- Enforced: NOTHING — the gate this record decided was deleted 2026-07-27 after zero CI failures in 552 runs (issue #311). Re-decide before rebuilding it.
