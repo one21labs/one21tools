@@ -74,7 +74,18 @@ function main(argv) {
   const dir = argv[2] ?? "benchmarks";
   const problems = [];
   let count = 0;
-  for (const file of walk(dir)) {
+  // A missing root is caller error, not a finding: say which path and what to pass, the way
+  // check-cite-ownership and check-relocated-paths already do. A raw ENOENT stack trace names
+  // node:fs, not the argument the operator got wrong.
+  let files;
+  try { files = [...walk(dir)]; }
+  catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    console.error(`check-workflow: cannot walk ${dir}: ${e.message}. Pass an existing directory ` +
+      `(usage: node scripts/check-workflow.mjs [dir], default "benchmarks").`);
+    return 2;
+  }
+  for (const file of files) {
     count++;
     const source = readFileSync(file, "utf8");
     problems.push(...syntaxProblems(source, file));

@@ -149,8 +149,16 @@ function main(argv) {
   const root = args.find(a => !a.startsWith("--")) ?? ".";
   const window = Number((args.find(a => a.startsWith("--window=")) ?? `--window=${WINDOW}`).split("=")[1]);
 
+  let walked;
+  try { walked = mdFiles(root); }
+  catch (e) {
+    if (e.code !== "ENOENT") throw e;
+    console.error(`check-restatement: cannot walk ${root}: ${e.message}. Pass an existing ` +
+      `directory (usage: node scripts/check-restatement.mjs [root] [--window=N]).`);
+    return 2;
+  }
   const files = [];
-  for (const p of mdFiles(root)) {
+  for (const p of walked) {
     // Same #282 race: a walked file can vanish before this read — skip it.
     try { files.push({ name: relative(root, p).replaceAll("\\", "/"), text: readFileSync(p, "utf8") }); }
     catch (e) { if (e.code !== "ENOENT") throw e; }

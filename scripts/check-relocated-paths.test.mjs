@@ -6,6 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, isShallowClone } from "./check-relocated-paths.mjs";
 
 const TOP = new Set(["benchmarks", "skills", "skill-bench", "docs", "scripts", "pdca-workflow"]);
@@ -137,4 +138,51 @@ test("only the exact string true counts - a chatty or empty git does not read as
   // Reading anything-not-"false" as full history would re-open the false green from the other side.
   assert.equal(isShallowClone(() => ""), false);
   assert.equal(isShallowClone(() => "false"), false);
+});
+
+test("every module a frozen dir imports THROUGH the shim layer has a forwarding shim", () => {
+  // ADR 0089's class, in the dependency mechanism rather than a backticked path. benchmarks/lib
+  // moved to skill-bench/scripts/lib (ADR 0055) and the shim set covered bench_io, verdict and
+  // mechanized_checks - but not hermetic_driver, which frozen scripts import. Three of four
+  // resolved, so the layer LOOKED complete. Frozen dirs are never edited (ADR 0041), so the only
+  // remedy is that the shim exists.
+  //
+  // SCOPE IS THE WHOLE DIFFICULTY, and two earlier versions of this test got it wrong by being
+  // broader than the invariant. Frozen dirs use TWO idioms and only one goes through the shim:
+  //   shim layer:  sys.path.insert(0, str(HERE.parent / "lib"))
+  //   direct:      sys.path.insert(0, str(REPO / "skill-bench" / "scripts" / "lib"))
+  // A file on the direct path resolves against skill-bench and owes the shim layer nothing, so
+  // counting its imports produced seven false positives.
+  const SHIM_INSERT = /sys\.path\.insert\([^)]*\blib\b[^)]*\)/g;
+  const files = [];
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(p);
+      else if (e.name.endsWith(".py")) files.push(p);
+    }
+  };
+  for (const e of readdirSync("benchmarks", { withFileTypes: true })) {
+    if (e.isDirectory() && /^20\d\d-\d\d-\d\d-/.test(e.name)) walk(`benchmarks/${e.name}`);
+  }
+
+  const realLib = new Set(readdirSync("skill-bench/scripts/lib")
+    .filter((f) => f.endsWith(".py") && !f.endsWith("_test.py"))
+    .map((f) => f.slice(0, -3)));
+
+  const owed = new Set();
+  for (const f of files) {
+    const text = readFileSync(f, "utf8");
+    const inserts = [...text.matchAll(SHIM_INSERT)].map((m) => m[0]);
+    // Through the shim only if some insert names `lib` WITHOUT routing to skill-bench's copy.
+    if (!inserts.some((i) => !/skill-bench|scripts/.test(i))) continue;
+    for (const m of text.matchAll(/^\s*(?:from|import)\s+([a-z_][a-z0-9_]*)/gim)) {
+      if (realLib.has(m[1])) owed.add(m[1]);
+    }
+  }
+
+  const missing = [...owed].filter((m) => !existsSync(`benchmarks/lib/${m}.py`)).sort();
+  assert.deepEqual(missing, [],
+    `frozen dirs route these through benchmarks/lib with no shim: ${missing.join(", ")}`);
+  assert.ok(owed.has("hermetic_driver"), "the walk must still see the import this test was written for");
 });
