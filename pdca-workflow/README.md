@@ -107,13 +107,16 @@ skills/
     references/       adr-template, adr-lint, metrics-engine, doc-budgets
   advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
   retrospect/        the Act loop
+  sweep/             iterate an audit until it converges, or report that the cap ran out
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
 commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
-scripts/       adr-lint.mjs, char-budget.mjs (+ .test.mjs each)
-                 the ADR-corpus + doc-budget poka-yoke, hook decision-logic tests (node, zero-dep)
+scripts/       adr-lint.mjs, char-budget.mjs, sweep-state.mjs, issue-hygiene.mjs (+ .test.mjs each)
+                 the ADR-corpus + doc-budget poka-yoke, the sweep stop verdict, backlog signals
+                 (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
 hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
+  lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
 ```
 
 The five meta-roles ship here. The **advisor panel is project-specific** and is generated for

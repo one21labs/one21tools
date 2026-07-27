@@ -9,7 +9,7 @@ summary: "Each local gate hook appends one line to docs/pdca/gate-hits.txt ON FI
 
 - Date: 2026-07-19
 - Owner: PM
-- Context: gates catch-and-forget — a deny/exit-2 is fed back in-session then lost, so "corrections caught at source" was unmeasured. Precedent in-tree: `three-dot-warn.sh` already logs its fires.
+- Context: gates catch-and-forget — a deny/exit-2 is fed back in-session then lost, so "corrections caught at source" was unmeasured.
 
 ## Decision
 **(a) Instrument the HOOK layer, not the gate scripts.** A hook fire = a real attempted action caught at source; a bare script run is a pre-flight check, not a correction. Firing points (deny/exit-2 only): `budget-edit-guard`, `post-edit-gate`, `pr-create-guard`, `adr-lint-post-edit`, `explicit-model-guard`. `three-dot-warn` keeps its own session-log channel — not migrated.

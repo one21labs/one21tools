@@ -22,14 +22,21 @@
 # legitimately never happen in a window (ADR 0086 (b)).
 # canary: {"event":"PreToolUse","tool":"Write","stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/docs/decisions/0001-canary.md","content":"Shipped as MSH-baby and renamed to MSH on owner direction, 26-Jul-2026."}},"expect":{"deny":true}}
 # canary: {"event":"PreToolUse","tool":"Write","stdin":{"tool_name":"Write","tool_input":{"file_path":"__FIXTURE__/README.md","content":"An earlier draft of this paragraph said otherwise; that clause is deleted."}},"expect":{"deny":true}}
+# Path skeleton, deny predicate and gate-hit telemetry: lib/hook-lib.sh owns all three and
+# documents why (including why this is sourced script-relative). Do not restate it here.
+. "$(dirname "${BASH_SOURCE[0]}")/../../pdca-workflow/hooks/lib/hook-lib.sh" 2>/dev/null || exit 0
 input=$(cat)
 export BSG_INPUT="$input"
-python3 <<'PYEOF' 2>/dev/null || exit 0
+export BSG_FP="$(hook_fp "$input")"   # forward slashes + absolute, same as every sibling hook:
+                                      # the exemption match below is a path test, and a raw
+                                      # Windows path does not match the docs/pdca arm.
+# Deny is signalled by the marker, not inferred from output shape — contract in hook-lib.sh.
+out=$(python3 <<'PYEOF' 2>/dev/null
 import json, os, re, sys
 try:
     d = json.loads(os.environ["BSG_INPUT"])
     ti = d.get("tool_input") or {}
-    fp = ti.get("file_path") or ""
+    fp = os.environ.get("BSG_FP") or ti.get("file_path") or ""
     if not fp.endswith(".md"):
         sys.exit(0)
     # Frozen/append-only records legitimately narrate history; live docs do not.
@@ -73,17 +80,6 @@ try:
     if not hits:
         sys.exit(0)
 
-    # Gate-hit telemetry (ADR 0080): observability only, never in the failure path.
-    try:
-        from datetime import datetime, timezone
-        pdca = os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", "."), "docs", "pdca")
-        if os.path.isdir(pdca):
-            with open(os.path.join(pdca, "gate-hits.txt"), "a", encoding="utf-8") as lf:
-                lf.write(datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                         + f" gate-hit backstory-edit-guard {fp}\n")
-    except Exception:
-        pass
-
     phrase, line, snippet = hits[0]
     reason = (f"backstory-edit-guard: this edit adds git-tellable backstory to {fp} — "
               f'line {line} of the added text says "{phrase}"'
@@ -93,9 +89,19 @@ try:
                 "ssot-enforcement.md). Delete the narration and state only what is true NOW. If "
                 "the history is genuinely load-bearing for a reader, it belongs in the commit "
                 "message or an ADR Justification, not in the prose.")
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
-          "permissionDecision": "deny", "permissionDecisionReason": reason}}))
+    # Marker prefix = the deny signal (hook-lib.sh).
+    sys.stdout.write(os.environ["HOOK_DENY_MARK"] + json.dumps(
+        {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+         "permissionDecision": "deny", "permissionDecisionReason": reason}}))
 except Exception:
     sys.exit(0)  # fail open
 PYEOF
+)
+# No `|| out=""`: a body that printed a decision and THEN died has still decided, and the marker
+# is what separates that from noise. Both PreToolUse guards read this identically, so neither can
+# quietly become the lenient one.
+if hook_is_deny "$out"; then
+  hook_gate_hit backstory-edit-guard "$BSG_FP"
+  printf '%s\n' "$(hook_deny_payload "$out")"
+fi
 exit 0

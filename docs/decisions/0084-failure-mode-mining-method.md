@@ -9,7 +9,7 @@ summary: "#268 asks whether recurring failure-mode classes exist beyond the two 
 
 - Date: 2026-07-21
 - Owner: PM
-- Context: #268 asks whether recurring failure-mode classes exist beyond the two seeds (ADR 0081, 0083), each found INCIDENTALLY, never by deliberate mining. ADR 0042 forbids spend before pre-registration.
+- Context: #268 asks whether recurring failure-mode classes exist beyond the two seeds (ADR 0081, 0083), each found INCIDENTALLY, never by deliberate mining.
 
 ## Decision
 Falsifiable criterion: after the in-repo pass over the corpus, every mined mode is dispositioned recurring or one-off, and every confirmed class is mapped to the ADR 0047 rung that catches it today (or "none").
