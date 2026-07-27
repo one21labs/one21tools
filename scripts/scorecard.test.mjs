@@ -310,3 +310,17 @@ test("countSessionLogLines: pattern + since filter on ISO-stamped lines; null te
   assert.equal(countSessionLogLines(log, /^(skill-spawn|agent-spawn) \S*retrospect$/, "2026-07-20"), 2);
   assert.equal(countSessionLogLines(null, /x/, ""), 0);
 });
+
+test("gate-hits RETIRED matches whole names, not substrings — a short name is not live by accident", () => {
+  // `includes` answers "does this character sequence appear anywhere", which is a different
+  // question: `hit` and `gate` are substrings of `hook_gate_hit budget-edit-guard`, so under
+  // substring matching a deleted short-named gate reads as live forever — the readout's own
+  // failure mode one level down.
+  const guardText = 'hook_gate_hit budget-edit-guard "$fp"';
+  const emitted = new Set(guardText.match(/[A-Za-z0-9_.-]+/g) ?? []);
+  const retired = (g) => !emitted.has(g);
+  assert.equal(retired("hit"), true);
+  assert.equal(retired("gate"), true);
+  assert.equal(retired("budget-edit-guard"), false);
+  assert.equal(retired("gate-pipe-guard"), true);
+});

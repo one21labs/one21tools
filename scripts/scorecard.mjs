@@ -204,7 +204,14 @@ export function analyze(adrs, config = SCORECARD_CONFIG, today, gateHits = parse
   // reads as one that still catches things. Every emitter names itself as a literal in its own
   // text, so a gate name absent from every wired guard can no longer fire: mark it, never drop it
   // (the log is the record). No liveness read = no wired-guard text = no retirement claimed.
-  const retired = (g) => liveness?.guardText != null && !liveness.guardText.includes(g);
+  // Membership is by TOKEN, not substring. `includes` answers "does this character sequence
+  // appear anywhere", which is a different question: a short gate name like `hit` or `gate` is a
+  // substring of `hook_gate_hit budget-edit-guard`, so it would read as live forever no matter
+  // which guard emitted it — the readout's own failure mode, one level down. Gate names are
+  // shell/JS identifiers, so word boundaries decide it exactly.
+  const emitted = liveness?.guardText == null ? null
+    : new Set(liveness.guardText.match(/[A-Za-z0-9_.-]+/g) ?? []);
+  const retired = (g) => emitted != null && !emitted.has(g);
   rows.push({
     metric: "gate hits by gate (lifetime readout, no band)", value: null, display: `${gateHits.hits.length} hit(s)`,
     sample: gateHits.hits.length, status: "readout",
