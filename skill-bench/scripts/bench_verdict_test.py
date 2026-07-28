@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decision-logic tests for the bench-verdict math + judge-divergence (CLAUDE.md: never ship a
 process-gating script without a test of its decision logic). Pure/offline; no judge calls."""
-import os, sys, unittest
+import os, pathlib, sys, unittest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import benchstats as bs  # noqa: E402
@@ -165,6 +165,28 @@ class TestVerdictMath(unittest.TestCase):
         self.assertGreater(bs.t95(30), bs.Z95)
         self.assertEqual(bs.t80(99), bs.Z80)       # beyond the table, the asymptote is correct
         self.assertEqual(bs.t95(99), bs.Z95)
+
+    def test_the_published_verdict_table_matches_what_keep_verdict_can_emit(self):
+        # cost-and-verdict.md reproduces the verdict table on purpose (it is the contract a reader
+        # checks a result against). A self-granted restatement exception needs a guard or it rots
+        # silently on the next threshold change (advisory review, PR #318). This is that guard:
+        # the doc's verdict vocabulary must be exactly what the implementation can produce.
+        doc = (pathlib.Path(__file__).resolve().parents[1]
+               / "skills/bench/references/cost-and-verdict.md").read_text(encoding="utf8")
+        emitted = {
+            bs.keep_verdict({"mean": 0.3, "ci95": [0.1, 0.5], "n_clusters": 6})["verdict"],
+            bs.keep_verdict({"mean": -0.3, "ci95": [-0.5, -0.1], "n_clusters": 6})["verdict"],
+            bs.keep_verdict({"mean": 0.01, "ci95": [-0.04, 0.06], "n_clusters": 6},
+                            practical=0.10)["verdict"],
+            bs.keep_verdict({"mean": 0.01, "ci95": [-0.3, 0.32], "n_clusters": 6})["verdict"],
+        }
+        self.assertEqual(emitted, {"KEEP", "HARMFUL", "CUT", "INCONCLUSIVE"})
+        for word in emitted:
+            self.assertIn(f"| {word} |", doc, f"{word} is emitted but absent from the doc table")
+        # And nothing the doc names can be unreachable: NO-DATA is emitted but is an error state,
+        # not a verdict row, so the table must not claim it.
+        self.assertNotIn("| NO-DATA |", doc)
+        self.assertNotIn("CUT-CANDIDATE", doc.split("## Reading it honestly")[0])
 
     def test_cut_requires_an_equivalence_result_not_a_point_estimate_near_zero(self):
         # The only honest route to "this skill is not worth keeping": the whole interval inside

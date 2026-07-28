@@ -36,6 +36,6 @@ Forces every context-cost artifact toward its best benefit-per-token, not merely
 The shipped rule read the verdict off the point estimate, not the CI. Restored, plus an owner-set
 practical bar tested on the interval's LOWER bound, a per-scenario win rate, and CUT only on an
 equivalence result. Rule, rationale and sizing (`sd_between`/`clusters_for`) live at
-`skill-bench/scripts/lib/benchstats.py:keep_verdict` — the one home (ADR 0092), which is why this
-is an amendment, not a new record. `lib/verdict.py` is FROZEN for 11 append-only dated
+`skill-bench/scripts/lib/benchstats.py:keep_verdict` — the one home (CLAUDE.md's one-home rule),
+so this is an amendment, not a new record. `lib/verdict.py` is FROZEN for 11 append-only dated
 aggregators (ADR 0041); the single recomputation of record is in #310.
