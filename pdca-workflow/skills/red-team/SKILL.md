@@ -1,6 +1,6 @@
 ---
 name: red-team
-description: Use when a decision, design, or change is about to be accepted and needs an adversary — especially safety-adjacent or assumption-heavy work. Spawns the fresh red-team agent to break it against the real product; every break must be answered or folded in, and a self-referential candidate with no cross-lineage adversary returns FRAME-UNCHECKED.
+description: Use when a decision, design, or change is about to be accepted and needs an adversary — especially safety-adjacent or assumption-heavy work.
 ---
 
 # /red-team — the adversary, standalone (Check)

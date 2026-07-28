@@ -1,8 +1,8 @@
 ---
 id: 0079
 title: "Repo self-measurement scorecard: north-star as compass, ship a gated hit-rate + a mechanical reference-veracity hook, defer graders + Level-1"
-status: accepted
-summary: "Operationalize the README goal as a COMPASS (corrections/shipped-work at cost), not a gate — flagged for owner confirmation. Ship the assumption hit-rate (first metrics-engine.md implementation) + reference-veracity as a mechanical PR-diff hook. Accept DERIVED/CITED/MEASURED routing as doctrine. Defer every grader-needing rate and Level-1 (design in #236, gated on PR #219)."
+status: accepted, superseded in part (#311)
+summary: "Operationalize the README goal as a COMPASS (corrections/shipped-work at cost), not a gate — flagged for owner confirmation. Ship the assumption hit-rate (first metrics-engine.md implementation) + reference-veracity as a mechanical PR-diff hook. Accept DERIVED/CITED/MEASURED routing as doctrine. Defer every grader-needing rate and Level-1 (design in #236, gated on PR #219). SUPERSEDED IN PART 2026-07-27: the hit-rate half (scorecard.mjs) was deleted for gating nothing and never being invoked by CI (#311), so the repo measures itself with nothing; the reference-veracity hook is live and mutation-verified."
 ---
 
 # 0079 — repo self-measurement scorecard
@@ -18,11 +18,10 @@ shipped work, at cost" has no direct sensor; gating it means gating a mirror of 
 Numerator from committed artifacts only, never transcripts. Live proxies = (b)'s two instruments.
 
 **(b) Ship a gated hit-rate + a mechanical reference-veracity hook; defer/reject the rest.**
-- SHIP — assumption hit-rate (`scripts/scorecard.mjs` + decision-logic test): a controlled outcome
-  vocabulary `verified|violated|still-open` enforced by adr-lint; unparsed lines are NOT EVALUATED;
-  an ADR-age coverage row (no `## Act` = uncovered); a gated aggregate that prints NOT INSTRUMENTED
-  for every deferred instrument and reads PARTIAL while any miss-class is uninstrumented.
-  rate = violated/(verified+violated); FIRE/WATCH bands fire a `/decide` — never a CI block.
+- SHIP — assumption hit-rate (`scripts/scorecard.mjs`): **DELETED 2026-07-27 — never invoked by
+  CI, gated nothing (#311); the hit-rate is unmeasured and the corpus has no self-measurement.**
+  Spec in this file's git history (reproducing a design for deleted machinery is
+  inventory, ADR 0086); re-decide before rebuilding.
 - SHIP — reference-veracity as a mechanical PR-diff hook: a diff adding an external URL/arXiv-ID
   to a tracked corpus path must also touch a `sources/*-reference-audit*` record. Mechanizes
   because the trigger is syntactic; the fetch-audit's truth stays the manual adversarial step.
@@ -36,11 +35,8 @@ can't run under hermetic tool-denied `claude -p`); derived cost $360-480 fails t
 bar. Design records in #236; execution gated on #219 resolved AND a battery adopted.
 
 ## Justification
-- **NOTE (2026-07-27):** `scorecard.mjs` DELETED — never invoked by CI, gated nothing; the
-  hit-rate is now unmeasured. Re-decide before rebuilding (#311).
-
-Every shipped item was grader-free and mechanically enforced until the NOTE above; every deferred item needs a grader
-that is itself the gaming surface it would introduce.
+Every shipped item was grader-free and mechanically enforced until the (b) deletion; every
+deferred item needs a grader that is itself the gaming surface it would introduce.
 
 ## Assumptions
 - [unverifiable] WEAKEST: hit-rate + reference-veracity move WITH the real trust gap (owner corrections per shipped PR) while the direct corrections numerator stays deferred. REOPEN-IF the owner records a correction neither instrument anticipated, OR the coverage row degrades below its band, OR a mechanical defect marker diverges from the proxies.

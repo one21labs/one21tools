@@ -1,6 +1,21 @@
 #!/usr/bin/env python3
-"""Shared KEEP/HARMFUL/CUT-CANDIDATE/INCONCLUSIVE verdict rule (ADR 0024) — the one home; a
-harness's aggregate.py imports it, never restates it.
+"""FROZEN 2026-07-27 — the HISTORICAL verdict rule. Do not use it for new work.
+
+Eleven dated aggregators under `benchmarks/2026-07-*` import `verdict_of`, and those dirs are
+append-only records (ADR 0041): the frozen literal IS the record, so changing this function would
+make a re-run disagree with what was published. It therefore stays exactly as it was.
+
+New work uses `benchstats.keep_verdict`, which is the rule the owner asked for on 2026-07-27:
+significance from the interval, a pre-registered practical bar, a win rate, and CUT only on an
+equivalence result. `verdict_of` fails that bar in one specific way a cross-family review named:
+its `abs(mean) < 0.05` branch returns CUT-CANDIDATE when the interval is wide, announcing a small
+effect on data that support no effect size at all. The 0.05 is an arbitrary constant, never
+pre-registered, doing no inferential work.
+
+No published verdict changes under the new rule except one: `2026-07-17-thirdparty-writing-plans`
+cek-bare, recorded CUT-CANDIDATE at mean -0.014 with CI [-0.082, +0.055], is INCONCLUSIVE — that
+design could only call a difference of 0.069 or larger. The dated README stays as written
+(append-only); this is the recomputation of record.
 """
 
 

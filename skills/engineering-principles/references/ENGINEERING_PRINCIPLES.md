@@ -80,7 +80,7 @@ Doctrine (owner, 18-Jul-2026): **prevention outranks detection, as a ladder — 
 apply to the process itself, not just the product.**
 
 - **Gates on gates**: no gating script ships without a decision-logic test; exit codes must
-  not be maskable (the pipe guard denies piped gate invocations, rung 1).
+  not be maskable — run a gate bare, check its exit, then act, never in one piped chain.
 - **The knowledge base is guarded like code**: decision records are linted (char budgets,
   amendment back-pointers, version-agnosticism); cross-file restatement of a fact fails CI;
   budgeted docs block over-cap edits at authoring time (rung 2), not review time.

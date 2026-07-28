@@ -2,7 +2,7 @@
 id: 0093
 title: "Self-referential loop claims need cross-family independence"
 status: accepted
-summary: "26-Jul-2026 (#236): a fresh same-family verifier + red-team + ~20 lanes over one session's own work missed three defects, all claims about the SELF; a cross-family agent found all three. Both check agents now REFUSE that class; `scripts/crosscheck.mjs` routes it to whichever foreign-vendor CLI the machine has and verifies which model answered, else returns one token, FRAME-UNCHECKED."
+summary: "26-Jul-2026 (#236): a fresh same-family verifier + red-team + ~20 lanes over one session's own work missed three defects, all claims about the SELF; a cross-family agent found all three. Both check agents now REFUSE that class; `pdca-workflow/scripts/crosscheck.mjs` routes it to whichever foreign-vendor CLI the machine has and verifies which model answered, else returns one token, FRAME-UNCHECKED."
 ---
 
 # 0093 — cross-family independence for self-referential claims
@@ -28,7 +28,7 @@ return one shared token, `FRAME-UNCHECKED`: not a pass, not a break, carried int
 consumes the verdict, and never grounds for a further same-lineage round. `/decide` records it as
 an `[unverifiable]` assumption, never a block.
 
-**The route ships (amended).** `scripts/crosscheck.mjs` probes for a foreign CLI
+**The route ships (amended).** `pdca-workflow/scripts/crosscheck.mjs` probes for a foreign CLI
 (`$PDCA_CROSSCHECK_CMD`, grok, copilot), sends the claim with READ allowed and writes denied, and
 reads back WHICH model answered. A nominally foreign CLI that resolves into the maker's family, or
 names a model the script cannot place, returns FRAME-UNCHECKED anyway — copilot's `auto` was

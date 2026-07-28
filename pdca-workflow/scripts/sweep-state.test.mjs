@@ -5,9 +5,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sweepState, EXIT } from "./sweep-state.mjs";
+import { sweepState, EXIT, DEFAULT_MAX } from "./sweep-state.mjs";
 
 const r = (...ids) => ({ ids });
+
+test("DEFAULT_MAX is a usable cap — an omitted --max must not be MALFORMED (sweep/SKILL.md promises a default)", () => {
+  assert.ok(Number.isInteger(DEFAULT_MAX) && DEFAULT_MAX >= 1);
+  const v = sweepState([r("a")], DEFAULT_MAX);
+  assert.equal(v.state, "RUNNING");
+});
 
 test("two consecutive empty rounds after findings is CLEAN", () => {
   const v = sweepState([r("a", "b"), r("c"), r(), r()], 10);

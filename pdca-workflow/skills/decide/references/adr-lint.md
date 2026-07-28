@@ -35,7 +35,9 @@ summary: "<one line for the skim catalog>"
 3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
    the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
 4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited inside an ADR
-   resolves to a file on disk (the renumber/fold catcher; a self-cite is fine).
+   resolves to a file on disk OR to the README's Retired-ids map (a record deleted after its
+   content hoisted to the file that owns it — the altitude test, doc-budgets.md). A retired id
+   with a live record fails as a zombie. (The renumber/fold catcher; a self-cite is fine.)
 5. **Falsifiability (Plan-phase criterion-minting gate)** — every FULL ADR states at least one
    criterion the Check can later test: a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]`
    assumption bullet, OR a `- [unverifiable]` paired with a same-bullet REOPEN-IF (revisitable on a
@@ -86,8 +88,8 @@ machinery:
 
 13. **Outcome vocabulary** (ADR 0079; a corpus check, numbered here to keep checks 1-12's
     historical numbers stable) — every `- [outcome]` row carries exactly ONE whole-word of
-    `verified` / `violated` / `still-open`: the controlled input a metrics-engine consumer (a
-    hit-rate scorecard) classifies on. A free-text synonym ("FALSIFIED") or a double-tag is
+    `verified` / `violated` / `still-open`: the controlled input any metrics-engine consumer
+    would classify on. A free-text synonym ("FALSIFIED") or a double-tag is
     unclassifiable — and a dropped miss reads as no miss.
 
 14. **Stale status on recorded discharge** (ADR 0088; a corpus check) — a `;`-split clause of a

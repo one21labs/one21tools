@@ -1,6 +1,6 @@
 ---
 name: retrospect
-description: Use when a session closes (standing, ADR 0081) or when shipped work felt wrong or worth learning from — never as per-PR ritual. Derives routed process improvements from git history plus this session's friction (an empty result is valid), then applies or escalates each. Trigger-bound: fires only at those triggers, never outside them.
+description: Use when a session closes (standing, ADR 0081) or when shipped work felt wrong or worth learning from — never as per-PR ritual and never outside those triggers.
 ---
 
 # /retrospect — automate the PDCA Act loop

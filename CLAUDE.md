@@ -71,8 +71,9 @@ logic; a doc restating them rots.
   outside one21labs/* without the owner's per-item approval of the exact text. An internal issue
   saying "file upstream" authorizes DRAFTING, not posting — leave the draft in the internal issue
   and stop.
-- **Deferred = issues** (ADR 0021): a deferred item someone must act on gets a GitHub issue; the
-  PR's Deferred section links it. No handoff/TODO files — work-state tracks in issues,
+- **Findings valve** (ADR 0021, amended 28-Jul-2026): fix it in-session, discard it, or hand the
+  owner a memo — an issue is the EXCEPTION, only for work someone must act on later; the PR's
+  Deferred section links any it creates. No handoff/TODO files — work-state tracks in issues,
   decision-state stays in ADRs.
 
 ## Feedback = PDCA trigger

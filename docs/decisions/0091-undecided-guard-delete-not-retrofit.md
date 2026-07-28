@@ -3,7 +3,7 @@ id: 0091
 title: "gate-pipe-guard.sh deleted, not retrofitted: scoped by a three-prong test, not blanket undecided-cleanup"
 status: accepted
 tier: lite
-summary: "gate-pipe-guard.sh (both copies) + tests deleted, not retrofitted — no ADR ever decided its predicate, yet it was re-cited as settled authority (mention-laundering). Scoped by a three-prong test so it can never be cited to delete adr-lint.mjs, post-edit-gate.sh, or claude-review.yml."
+summary: "gate-pipe-guard.sh (both copies) + tests deleted, not retrofitted — no ADR ever decided its predicate, yet it was re-cited as settled authority (mention-laundering). Scoped by a three-prong test so it can never be cited to delete adr-lint.mjs or claude-review.yml."
 ---
 
 # 0091 — delete-not-retrofit for an undecided BLOCKING guard, scoped narrowly

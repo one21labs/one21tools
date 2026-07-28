@@ -20,7 +20,7 @@
  * fs) so the decision logic is unit-testable, matching check-restatement.mjs's detect()/main()
  * split. main() is the thin IO wrapper.
  *
- * Usage: node sweep-state.mjs <rounds.jsonl> --max <N> [--quiet-rounds <K>]
+ * Usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-rounds <K>]
  *   rounds.jsonl: one JSON object per line, appended as each round completes:
  *     {"round": 1, "ids": ["hook-lib-missing-test", "stale-judge-default"]}
  *   `ids` are stable slugs for VERIFIED findings only — an unverified finding is not a finding.
@@ -30,6 +30,9 @@
 import { readFileSync } from "node:fs";
 
 export const EXIT = { CLEAN: 0, EXHAUSTED: 1, RUNNING: 2, MALFORMED: 3 };
+
+// The cap applied when --max is omitted. One home: sweep/SKILL.md points here and states no number.
+export const DEFAULT_MAX = 6;
 
 /**
  * Pure verdict on a sweep's round log.
@@ -81,7 +84,7 @@ function main(argv) {
     return i === -1 ? dflt : Number(argv[i + 1]);
   };
   if (!file) {
-    console.error("usage: node sweep-state.mjs <rounds.jsonl> --max <N> [--quiet-rounds <K>]");
+    console.error("usage: node sweep-state.mjs <rounds.jsonl> [--max <N>] [--quiet-rounds <K>]");
     return EXIT.MALFORMED;
   }
   let rounds;
@@ -91,7 +94,7 @@ function main(argv) {
     console.error(`sweep-state: cannot read round log ${file}: ${e.message}`);
     return EXIT.MALFORMED;
   }
-  const v = sweepState(rounds, num("--max", NaN), num("--quiet-rounds", 2));
+  const v = sweepState(rounds, num("--max", DEFAULT_MAX), num("--quiet-rounds", 2));
   if (v.state === "MALFORMED") {
     console.error(`sweep-state: ${v.reason}`);
     return EXIT.MALFORMED;

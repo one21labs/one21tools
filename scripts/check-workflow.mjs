@@ -11,6 +11,8 @@
  *
  * Decision logic (findMissingModel, wrapForCheck) is pure and unit-tested
  * (check-workflow.test.mjs); main() is the thin IO wrapper. Runs in gates.yml on every PR.
+ * Required-gate status was an owner call (#54, retired ADR 0029): the missing-model defect
+ * recurred across 5 merged files before #53 backfilled it — prevent beat advisory.
  *
  * Usage: node scripts/check-workflow.mjs [dir]   (dir default: benchmarks)
  * Exit 1 listing every syntax or missing-model problem; exit 0 otherwise.

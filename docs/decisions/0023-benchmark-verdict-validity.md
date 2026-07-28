@@ -32,7 +32,8 @@ reproducible, at bounded git-scale, only if a consumer actually uses it.
 
 ## Assumptions
 - [checkable] the completeness check's decision logic is covered by `eval_verdict_test.py` —
-  owner: gates; result: pending the check's implementation (#31).
+  owner: gates; result: shipped — `load_sample_rule`/`AuditSampleError`,
+  `skill-bench/scripts/eval_verdict.py` (#31).
 - [unverifiable] a planted-defect + boundary sample is enough to catch evidence-selection.
   REOPEN-IF a silent-dropped cell is ever found outside the sample -> widen `sample_rule`.
 

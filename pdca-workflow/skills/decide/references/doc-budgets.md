@@ -22,6 +22,12 @@ The tier order a fact's home is ranked against (high -> low):
 Code is the lowest tier and owns executables — schema versions, signatures, dims, filenames,
 breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A copy above its home is drift.
 
+**The ADR altitude test (owner, 26-Jul-2026):** a decision record is for calls that affect MANY
+files or none in particular — policies. Name the ONE file that owns the decision: if you can,
+the decision belongs in that file's header comment, not an ADR; a retired record's id maps to
+its new home in `docs/decisions/README.md` (ids are never renumbered or reused; gaps are
+correct).
+
 ## Budgeted docs
 
 `~tok` is the chars / 4 anchor (see Method) — reference only; budgets are set and checked in **chars**.

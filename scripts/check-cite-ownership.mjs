@@ -31,6 +31,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Doctrine terms whose mis-attribution is a RECORDED scar. Add an entry only with one. */
+// A scar is necessary but NOT sufficient: the precision bar above outranks the entry rule. Terms
+// that read as ordinary English fail it — they false-fire on descriptive use, and a gate that
+// cries wolf gets routed around. "one home" was tried and rejected on that ground 2026-07-27.
 export const TERMS = ["append-only", "eval-clustered"];
 
 const CITE = /ADR (\d{4})/g;

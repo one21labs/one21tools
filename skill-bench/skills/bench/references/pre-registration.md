@@ -32,8 +32,27 @@ Record the pre-screen result and any dropped/hardened eval in the dated dir BEFO
 Guardrail (ADR 0024): the pre-screen restores discriminating power — it is never
 difficulty-tuning toward a desired verdict; a hardened eval may CONFIRM the negative
 direction, recorded either way.
+Mechanization of this pre-screen is deferred to its first consumer (#177; retired ADR 0065) —
+today the rungs are this doc rule and the /bench Guardrails pointer. Reopen: a grid reaches
+verdict on an eval discovered ceilinged/floored only after spend -> mechanize as a lib gate
+with its own decision-logic test.
 
-## Design for signal (ADR 0065)
+## No primed conclusions (ADR 0059)
+
+Every pre-registration, experiment issue, and eval title states a FALSIFIABLE hypothesis
+neutrally — kill conditions and bars up front, motivation labeled as grounding (never evidence),
+a null recorded as an equally valid outcome. Titles pose the question, never the answer.
+Advocacy wording is itself a contamination channel: agents read it.
+
+## Infrastructure is never quality (#191)
+
+Every generative step in an arm carries an output contract with one retry, or a pre-registered
+ERROR-cell rule — above all the step producing the graded artifact. A cell whose graded artifact
+fails the mechanical shape check (`lib/artifact_check.py`) is an ERROR cell, never a quality 0.
+Before blinding, run the capture-symmetry sweep (`blind.capture_symmetry`) — arm-skewed emptiness
+is an infrastructure defect to fix before grading, not signal.
+
+## Design for signal (retired ADR 0065)
 
 - **Gate or optimization?** — mandatory field (ADR 0062 two-stage doctrine): is this run a
   cheap go/no-go gate or a powered optimization? Powered designs are reserved for
@@ -41,9 +60,38 @@ direction, recorded either way.
 - **Variance is a primary metric** — a skill's point is raising the mean while damping output
   variance; pre-register per-arm consistency (within-scenario rep variance / worst-rep score)
   alongside the mean deltas.
-- **Power the design** — size reps/scenarios from measured variance components for a target CI
-  width; prefer more reps on fewer, harder scenarios (ceilinged easy expectations carry no
-  information); state the minimum detectable effect in the pre-registration.
+- **Power the design — two numbers, both stated before the run.** (1) The PRACTICAL BAR: the
+  smallest difference worth paying context for, tested against the interval's LOWER bound so KEEP
+  means "at least this much". Set after the fact it is worthless. (2) The SCENARIO COUNT that
+  makes that bar reachable: `clusters_for(sd_between(prior_delta), target)`, at 80% power, sized
+  from a prior run's measured spread rather than guessed (ADR 0076 applied to power). A grid
+  sized below it can only return INCONCLUSIVE — spend with a known-null outcome.
+
+## Sizing, at this repo's measured spread of 0.24
+
+| To reliably call | scenarios (80% power) | at 50% power, for contrast |
+|---|---|---|
+| 0.40 | 5 | 4 |
+| 0.25 | 10 | 7 |
+| 0.15 | 23 | 13 |
+| 0.10 | 46 | 25 |
+| 0.05 | 181 | 89 |
+
+The 50% column is shown only so the gap is visible; never plan from it.
+
+**Variance is the cheap lever; scenarios are the expensive one.** At spread 0.24, six scenarios
+reliably call only 0.34 or larger, so a real 0.18 effect needs 16. One run here achieved a spread
+of 0.065, where six scenarios reach 0.09 and that same effect needs **four**. More reps per cell,
+a tighter rubric, and harder scenarios that are not ceilinged all buy more than adding scenarios,
+and cost less.
+
+**Treat the returned count as a FLOOR, not a plan**, and do not size one comparison class from
+another's prior — a skill-vs-bare `sd` does not size a skill-version grid. Prefer a conservative
+pre-registered value or an upper bound. Why both hazards bite: `clusters_for`'s docstring.
+
+Skill-versus-bare effects here have run 0.18 to 0.44, so that question is answerable at these
+sizes. Skill-VERSION differences are far smaller, which is why a six-scenario grid comparing two
+wordings can only return INCONCLUSIVE.
 
 ## Prior-art pass before designing a paid experiment
 

@@ -1,6 +1,6 @@
 ---
 name: advise
-description: Use when weighing a contested judgment call — scope, threshold, design, sequencing — before acting on it. Spawns fresh parallel advisors (opposing counsel on two-sided calls) and returns terse effort x risk x value recommendations with tagged assumptions. Advice only, no decision, no ADR.
+description: Use when weighing a contested judgment call — scope, threshold, design, sequencing — before acting on it. Advice only, no decision, no ADR.
 ---
 
 # /advise — the advisor panel, standalone (Plan input)

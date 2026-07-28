@@ -14,13 +14,15 @@ re-analysis reports zero (no live calls).
 
 A pre-registration states a NUMERIC judge/grading-cost estimate on this same notional basis
 (generation spend already has cost-pilot-first + cost_gate; grading had no analogous
-checkpoint, ADR 0066). When the measured figure exceeds the estimate by more than 2x, record
-the gap in the verdict README and the routing ADR's Act.
+checkpoint, retired ADR 0066). When the measured figure exceeds the estimate by more than 2x,
+record the gap in the verdict README and the routing ADR's Act. A hard stop on notional spend
+was declined — machinery without dollars.
 
-**The initial estimate is DERIVED, never guessed (ADR 0076):** take the most recent measured
-$/cell for the same judge/model from a prior committed `metadata.json` cost block (grep
+**The initial estimate is DERIVED, never guessed (retired ADR 0076):** take the most recent
+measured $/cell for the same judge/model from a prior committed `metadata.json` cost block (grep
 `benchmarks/*/metadata.json` for `actuals`); no prior exists → run the 2-cell pilot BEFORE
-recording any number. Three guessed estimates missed by 2-17x (ADR 0061; PR #219; PR #227).
+recording any number. Three guessed estimates missed by 2-17x (ADR 0061; PR #219; PR #227). A
+mechanical warn is the named escalation if guessing recurs despite this rule.
 
 **`ceiling_usd` derivation (ADR 0073):** the generation cost gate's `ceiling_usd` is set to 2x
 the pre-registered notional estimate — the >2x stop-rule of record — NEVER the estimate itself.
@@ -38,17 +40,45 @@ and variable-length skill-eval rubrics both work.
 ## The verdict
 
 Arm means are the mean fraction-met per arm. The headline contrast is clustered by scenario: the
-mean of the per-scenario deltas, with a 95% CI over those clusters. The verdict reads the point
-estimate for direction (KEEP when the structured arm leads, CUT-CANDIDATE otherwise) and treats the
-CI as a confidence signal — strong when it clears zero, weak when it straddles it.
+mean of the per-scenario deltas, with a 95% CI over those clusters. **The interval decides the
+verdict; the point estimate never does.**
+
+| Verdict | Condition | What you may claim |
+|---|---|---|
+| KEEP | CI lower bound > the pre-registered practical bar | at least that much better, with 95% confidence |
+| HARMFUL | CI upper bound < 0 | measurably worse |
+| CUT | the whole CI sits inside +/- the practical bar | no difference worth having — an equivalence result |
+| INCONCLUSIVE | anything else | nothing; the run cannot answer |
+
+The table is reproduced here ON PURPOSE and is the one exception to cite-don't-restate in this
+file: it is the contract you read a result against, and an adopter should not have to open plugin
+source to learn what a verdict word means. Everything ABOUT it — why there is no "probably a bit
+better", why the bar is worthless unless pre-registered, why CUT is unreachable without one, and
+what `win_rate` may and may not be used for — has one home, `benchstats.keep_verdict`'s docstring.
+Read that before setting a bar.
+
+Every verdict also carries `half_width`, `mde80` (below) and `win_rate`, the share of scenarios
+the treatment actually won.
 
 ## Reading it honestly
 
-Cluster counts are small (often eight scenarios), so CIs are wide and every verdict is exploratory,
-not significance. A weak KEEP with a straddling CI is "no detectable difference," not "it works." A
-judge flip between families, or a verdict that only holds under one grader, is a reason to re-measure
-rather than to conclude. Report the direction and the caveat together; never launder a wide-CI point
-estimate into a claim.
+Cluster counts are small, so intervals are wide. **Read `mde80` before reading the mean.** An
+INCONCLUSIVE verdict whose observed mean is below `mde80` means the run was underpowered for the
+effect it saw — not that the effect is absent. Those are opposite conclusions, and the point
+estimate cannot tell them apart.
+
+Both are reported and they are not interchangeable: `half_width` is a 50%-power figure and
+overstates the design by about 40%, `mde80` is what it calls reliably. Why, in full:
+`benchstats.keep_verdict`'s docstring. Sizing the NEXT run from these is design-time work —
+[pre-registration.md](pre-registration.md).
+
+A judge flip between families, or a verdict that holds under one grader only, is a reason to
+re-measure rather than to conclude.
+
+**Mechanism claims cite cells (#191).** Any causal "the mechanism is X" sentence in a verdict
+README cites its supporting cells or carries an exploratory label. A bar miss that flips or halves
+without its top contributing cells (`benchstats.top_cell_attribution`) triggers inspection of those
+cells for infrastructure failure before interpretation.
 
 Post-grading, run the arm-asymmetric overturn check (`scripts/lib/overturn.py --dir <dir>
 --pattern <regex>`, the regex pre-registered as the decision signature): cells in different arms

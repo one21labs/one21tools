@@ -57,16 +57,33 @@ class TestBenchSkill(unittest.TestCase):
         agg = bs.aggregate(cells)
         self.assertEqual(agg["arm_means"]["with"], 1.0)
         self.assertEqual(agg["arm_means"]["without"], 0.25)
-        self.assertEqual(agg["with_minus_without"]["verdict"], "KEEP")
         self.assertEqual(agg["per_scenario"]["t1"], 0.5)
         self.assertEqual(agg["per_scenario"]["t2"], 1.0)
+        # TWO scenarios cannot support KEEP however lopsided the means look: t(df=1) is 12.706, so
+        # the interval is enormous. This asserted KEEP until 2026-07-27 — a claim off two data
+        # points, which is the shape a reviewer rejects first.
+        self.assertEqual(agg["with_minus_without"]["verdict"], "INCONCLUSIVE")
 
-    def test_aggregate_no_benefit_is_cut_candidate(self):
+    def test_a_real_effect_reaches_keep_once_enough_scenarios_carry_it(self):
+        # Same direction as above, at six scenarios with a consistent margin: now callable.
+        cells = []
+        for i in range(6):
+            cells += [{"bid": f"t{i}:with", "arm": "with", "scenario": f"t{i}",
+                       "met": {1: True, 2: True}},
+                      {"bid": f"t{i}:without", "arm": "without", "scenario": f"t{i}",
+                       "met": {1: True, 2: i == 0}}]
+        v = bs.aggregate(cells)["with_minus_without"]
+        self.assertEqual(v["verdict"], "KEEP")
+        self.assertGreater(v["win_rate"], 0.6)
+
+    def test_no_benefit_is_inconclusive_not_a_cut(self):
+        # One scenario, identical arms. The old rule called this CUT-CANDIDATE off a zero point
+        # estimate; with no interval it supports nothing. CUT requires an equivalence result.
         cells = [
             {"bid": "t1:with", "arm": "with", "scenario": "t1", "met": {1: True}},
             {"bid": "t1:without", "arm": "without", "scenario": "t1", "met": {1: True}},
         ]
-        self.assertEqual(bs.aggregate(cells)["with_minus_without"]["verdict"], "CUT-CANDIDATE")
+        self.assertEqual(bs.aggregate(cells)["with_minus_without"]["verdict"], "INCONCLUSIVE")
 
     def test_missing_expectations_default_false(self):
         gen = [{"prompt_id": "t1", "arm": "with", "output": "PARTIAL"}]
