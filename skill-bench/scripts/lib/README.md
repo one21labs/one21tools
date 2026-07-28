@@ -18,12 +18,24 @@ its home is the script that regenerates it, not git.
   `all.tar.gz` (ADR 0023's sample rule + ADR 0026's raw-retention amendment).
 
 
-## verdict.py
+## benchstats.py — the verdict rule (use this)
 
-- `verdict_of(mean, lo, hi, n)` — the shared KEEP/HARMFUL/CUT-CANDIDATE/INCONCLUSIVE rule (ADR
-  0024): CI excludes 0 and positive -> KEEP, excludes 0 and negative -> HARMFUL, straddles 0 with
-  |mean| < 0.05 -> CUT-CANDIDATE, else INCONCLUSIVE. One home instead of copy-pasted into each
-  harness's `aggregate.py`.
+- `keep_verdict(delta, practical=0.0)` — KEEP iff the CI's LOWER bound clears the pre-registered
+  practical bar, HARMFUL iff the upper bound is below 0, CUT iff the whole interval sits inside
+  +/- that bar (an equivalence result, unreachable at 0), INCONCLUSIVE otherwise. The interval
+  decides; the point estimate never does. Also returns `detectable` (the half-width — the smallest
+  difference this design could call) and `win_rate` (share of scenarios won). Full rationale and
+  what it replaced live in the function's own docstring; do not restate them here.
+- `sd_between(delta)` / `clusters_for(sd, target)` — recover the between-scenario spread from a
+  completed run, and size the next one from it rather than from a guess. A pre-registration states
+  both the practical bar and the resulting scenario count.
+
+## verdict.py — FROZEN, historical
+
+- `verdict_of(mean, lo, hi, n)` — the rule shipped before 2026-07-27, kept unchanged because 11
+  append-only dated aggregators import it (ADR 0041) and a re-run must reproduce what was
+  published. **Not for new work**: its `|mean| < 0.05` branch names a small effect on data that
+  support no effect size. New harnesses call `benchstats.keep_verdict`.
 - `merge_verdict(mean_diff, ci_lo, ci_hi, n, chars_delta)` — the shared with-new-vs-with-old MERGE
   rule (ADR 0027, amended, both prongs: issue #142): PRIMARY `mean_diff > 0` -> MERGE, else NO
   MERGE. CI excludes 0 -> "strong" confidence, merges regardless of cost. CI straddles 0 -> "weak"
