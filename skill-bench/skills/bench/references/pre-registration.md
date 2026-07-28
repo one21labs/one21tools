@@ -81,11 +81,9 @@ of 0.065, where six scenarios reach 0.09 and that same effect needs **four**. Mo
 a tighter rubric, and harder scenarios that are not ceilinged all buy more than adding scenarios,
 and cost less.
 
-Two hazards in the sizing input itself. `sd` from a G=6 run carries df=5 — very noisy, and biased
-low whenever the realized spread happened to be small, so the returned count is a FLOOR. And a
-prior from a different comparison class is not a draw from the same spread at all: skill-vs-bare
-priors do not size a skill-version comparison. Prefer a conservative pre-registered value or an
-upper bound on `sd`.
+**Treat the returned count as a FLOOR, not a plan**, and do not size one comparison class from
+another's prior — a skill-vs-bare `sd` does not size a skill-version grid. Prefer a conservative
+pre-registered value or an upper bound. Why both hazards bite: `clusters_for`'s docstring.
 
 Skill-versus-bare effects here have run 0.18 to 0.44, so that question is answerable at these
 sizes. Skill-VERSION differences are far smaller, which is why a six-scenario grid comparing two
