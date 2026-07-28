@@ -179,6 +179,11 @@ class TestVerdictMath(unittest.TestCase):
         self.assertGreater(bs.clusters_for(sd, 0.05), 100)     # a small effect stays expensive
         self.assertIsNone(bs.clusters_for(sd, 0.0))            # no target -> no answer
         self.assertIsNone(bs.clusters_for(float("nan"), 0.1))  # no prior -> no answer
+        # An unsupported power level is REFUSED, never silently served another level's answer:
+        # power=0.90 once returned 0.80's count, mis-sizing a study inside the sizing function.
+        for bad in (0.90, 0.65, 0.95, 0):
+            with self.assertRaises(ValueError):
+                bs.clusters_for(sd, 0.1, power=bad)
         self.assertNotEqual(bs.sd_between({"ci95": [float("nan")] * 2, "n_clusters": 1}),
                             bs.sd_between({"ci95": [float("nan")] * 2, "n_clusters": 1}))  # NaN
 

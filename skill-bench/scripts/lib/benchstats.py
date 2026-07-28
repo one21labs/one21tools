@@ -119,10 +119,17 @@ def clusters_for(sd, target, power=0.80, max_g=4000):
     A pre-registration states this number (references/pre-registration.md). A grid sized below it
     can only return INCONCLUSIVE for the effect it is looking for — spend with a known-null
     outcome."""
+    if power not in (0.50, 0.80):
+        # Only two power levels have critical-value tables here, and a silently-honoured wrong
+        # one is a mis-sized study in the function whose entire job is sizing: power=0.90 would
+        # have been served 0.80's answer. Fail loud rather than generalize -- an arbitrary-beta
+        # quantile table is machinery this has no measured need for.
+        raise ValueError(f"power must be 0.50 or 0.80, got {power!r}. Only those two have "
+                         f"critical values here; add a table before asking for another.")
     if sd != sd or sd <= 0 or target <= 0:
         return None
     for g in range(2, max_g + 1):
-        crit = t95(g - 1) + (t80(g - 1) if power >= 0.80 else 0.0)
+        crit = t95(g - 1) + (t80(g - 1) if power == 0.80 else 0.0)
         if crit * sd / math.sqrt(g) <= target:
             return g
     return None
