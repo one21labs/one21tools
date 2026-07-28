@@ -62,10 +62,11 @@ difference is smaller than nothing. The rule shipped until 2026-07-27 reached CU
 point estimate near zero, which is indistinguishable from an underpowered run — that is how a
 null could be laundered into a decision.
 
-Every verdict carries **`detectable`**, the smallest difference the design could have called
-(exactly the CI half-width), and **`win_rate`**, the share of scenarios the treatment actually
-won. A mean carried by one scenario is not "clearly better most of the time"; the interval alone
-cannot tell you which you have, so the win rate is reported beside it.
+Every verdict carries **`half_width`** and **`mde80`** (below), plus **`win_rate`**, the share of
+scenarios the treatment actually won. A mean carried by one scenario is not "clearly better most
+of the time"; the interval alone cannot tell you which you have, so the win rate is reported
+beside it. It has no inferential status — over 6-8 scenarios it is a coin-flip count with no
+interval, so read it as a prompt to check attribution, never as a criterion.
 
 ## Reading it honestly
 

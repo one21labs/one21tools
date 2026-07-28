@@ -23,9 +23,10 @@ its home is the script that regenerates it, not git.
 - `keep_verdict(delta, practical=0.0)` — KEEP iff the CI's LOWER bound clears the pre-registered
   practical bar, HARMFUL iff the upper bound is below 0, CUT iff the whole interval sits inside
   +/- that bar (an equivalence result, unreachable at 0), INCONCLUSIVE otherwise. The interval
-  decides; the point estimate never does. Also returns `detectable` (the half-width — the smallest
-  difference this design could call) and `win_rate` (share of scenarios won). Full rationale and
-  what it replaced live in the function's own docstring; do not restate them here.
+  decides; the point estimate never does. Also returns `half_width` (precision — a 50%-power
+  figure, NOT a detectable effect), `mde80` (what the design calls reliably) and `win_rate` (share
+  of scenarios won). Full rationale and what it replaced live in the function's own docstring; do
+  not restate them here.
 - `sd_between(delta)` / `clusters_for(sd, target)` — recover the between-scenario spread from a
   completed run, and size the next one from it rather than from a guess. A pre-registration states
   both the practical bar and the resulting scenario count.

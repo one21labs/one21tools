@@ -142,6 +142,16 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(bs.keep_verdict(consistent)["verdict"], "KEEP")
         self.assertNotIn("why", v)
 
+    def test_the_published_sizing_table_matches_what_clusters_for_actually_returns(self):
+        # references/pre-registration.md prints a scenario-count table at sd=0.24. Nothing tied
+        # the table to the function, so a constant change would have silently rotted it (advisory
+        # review, PR #318). This is that tie: change clusters_for and this fails, not the doc.
+        sd = 0.24
+        for target, at80, at50 in ((0.40, 5, 4), (0.25, 10, 7), (0.15, 22, 13),
+                                   (0.10, 46, 25), (0.05, 181, 89)):
+            self.assertEqual(bs.clusters_for(sd, target), at80, f"80% row for {target}")
+            self.assertEqual(bs.clusters_for(sd, target, power=0.50), at50, f"50% row for {target}")
+
     def test_cut_requires_an_equivalence_result_not_a_point_estimate_near_zero(self):
         # The only honest route to "this skill is not worth keeping": the whole interval inside
         # the practical band, so the data SUPPORT no-difference rather than failing to find one.
