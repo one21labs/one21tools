@@ -72,25 +72,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
 - Cost is priced notionally at published rates even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.
-- **No primed conclusions (ADR 0059):** every pre-registration, experiment issue, and eval title
-  states a FALSIFIABLE hypothesis neutrally — kill conditions and bars up front, motivation labeled
-  as grounding (never evidence), a null recorded as an equally valid outcome. Titles pose the
-  question, never the answer. Advocacy wording is itself a contamination channel: agents read it.
 - Never edits a frozen dated benchmark dir (append-only, ADR 0041).
-- **Saturation pre-screen (ADR 0065):** before any grid, run 1 control-arm rep per
-  eval/substrate; drop or harden any past the pre-registered ceiling (flag a 0 floor) and
-  record the screen in the dated dir — restoring discriminating power, never difficulty-tuning
-  (ADR 0024).
-- **Infrastructure is never quality (#191):** every generative step in an arm carries an output
-  contract with one retry, or a pre-registered ERROR-cell rule — above all the step producing the
-  graded artifact. A cell whose graded artifact fails the mechanical shape check
-  (`lib/artifact_check.py`) is an ERROR cell, never a quality 0. Before blinding, run the
-  capture-symmetry sweep (`blind.capture_symmetry`) — arm-skewed emptiness is an infrastructure
-  defect to fix before grading, not signal.
-- **Mechanism claims cite cells (#191):** any causal "the mechanism is X" sentence in a verdict
-  README cites its supporting cells or carries an exploratory label. A bar miss that flips or
-  halves without its top contributing cells (`benchstats.top_cell_attribution`) triggers
-  inspection of those cells for infrastructure failure before interpretation.
+- **Design-time rules live one tier down — read them BEFORE a grid, not during.** Wording a
+  pre-registration neutrally, arm output contracts and the ERROR-cell rule, and the saturation
+  pre-screen: [pre-registration.md](references/pre-registration.md). What a verdict README may
+  claim: [cost-and-verdict.md](references/cost-and-verdict.md).
 
 New benchmark dirs start from the canonical templates in `templates/` (grid runner, blinding,
 grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs

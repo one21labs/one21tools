@@ -42,6 +42,13 @@ mean of the per-scenario deltas, with a 95% CI over those clusters. The verdict 
 estimate for direction (KEEP when the structured arm leads, CUT-CANDIDATE otherwise) and treats the
 CI as a confidence signal — strong when it clears zero, weak when it straddles it.
 
+**That rule is UNDECIDED and contradicts ADR 0024 (issue #310).** ADR 0024 reads the verdict off
+the CI; this reads it off the point estimate, so it returns KEEP for any positive mean at any
+interval width — about half the time under a true null. A cross-family review found the stricter
+sibling rule (`lib/verdict.py:verdict_of`) also unsound: its `|mean| < 0.05` floor announces
+CUT-CANDIDATE on data that support nothing. No recorded verdict differs under either rule, so
+nothing published is affected — but do not cite this section as settled methodology.
+
 ## Reading it honestly
 
 Cluster counts are small (often eight scenarios), so CIs are wide and every verdict is exploratory,
@@ -49,6 +56,11 @@ not significance. A weak KEEP with a straddling CI is "no detectable difference,
 judge flip between families, or a verdict that only holds under one grader, is a reason to re-measure
 rather than to conclude. Report the direction and the caveat together; never launder a wide-CI point
 estimate into a claim.
+
+**Mechanism claims cite cells (#191).** Any causal "the mechanism is X" sentence in a verdict
+README cites its supporting cells or carries an exploratory label. A bar miss that flips or halves
+without its top contributing cells (`benchstats.top_cell_attribution`) triggers inspection of those
+cells for infrastructure failure before interpretation.
 
 Post-grading, run the arm-asymmetric overturn check (`scripts/lib/overturn.py --dir <dir>
 --pattern <regex>`, the regex pre-registered as the decision signature): cells in different arms
