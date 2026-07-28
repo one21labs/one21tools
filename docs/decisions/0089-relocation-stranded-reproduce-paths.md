@@ -32,3 +32,51 @@ A diff-scoped sweep catches zero of the two known instances — both sit outside
 - The WEAKEST REOPEN-IF fires -> delete `benchmarks/lib/` and this gate.
 - A third session strands a reference outside `benchmarks/<date>-*/`, or the gate fires on a never-moved path -> re-measure precision; demote to WARN if refuted.
 - The vendor-copy half reaches 0084(c)'s bar -> decide separately.
+
+## Act (2026-07-28) — shipped; (b)'s remedy split gains a ship-visibility axis
+
+Shipped in `8d698bc`: the gate runs from `.github/workflows/gates.yml:62-63`, and pointer stubs
+restored the stranded paths.
+
+- [outcome] the rung-4 tree invariant holds — verified: 39 cited path tokens across 191
+  frozen-dir files, none stranded (28-Jul run).
+- [outcome] the WEAKEST assumption (someone actually reproduces a frozen dated dir) — still-open;
+  its 12-month REOPEN-IF is unchanged by this amendment.
+
+**Amendment — (b) splits on SHIP-visibility, not only gate-visibility.** (b) assumed the old path
+is repo-internal. Three stubs are not: `skills/building-skills/` ships inside the dev-skills
+plugin (`.claude-plugin/marketplace.json`), so preserving a path there exports repo-internal
+reproduce debt into every adopter install, and each stub points at a `skill-bench/` path absent
+from a dev-skills-only install. Inside a shipped plugin source the remedy is (b)(ii)'s correction
+note, never a stub. Split by what the gate can see:
+
+1. `skills/building-skills/references/section-ablation.md` — DELETE with a one-line correction
+   note in the citing dir's README anyway: its citations sit in FOUR files,
+   `benchmarks/2026-07-12-pdca-decide-outcome/outputs/B{1..4}-C-r1.json`, all outside the
+   gate's scanned extensions (`check-relocated-paths.mjs:40`) — the note serves the human
+   reader the gate structurally cannot; frozen `outputs/` files are never edited.
+2. `references/description-ablation.md` (doc-only) — DELETE together with a narrowed predicate:
+   FAIL iff absent AND ever-existed AND NOT (the path is `.md`, lies under a shipped skill dir
+   derived from the manifest's `skills[]` entries — never the bare `source` roots, which would
+   exempt whole toolchains — AND the CITING FILE carries a structured line
+   `MOVED: <old-path> -> <new-path>`, old path whole-token plain text, not the cited line
+   itself, new path backticked and resolving in the worktree). A prose mention is not a note:
+   the cited line contains the path as a substring, and an unrelated Correction heading already
+   coexists in one citing dir — only the structured marker is earned. `scripts/eval_verdict.py`
+   is EXECUTABLE and stays as its forwarding shim ((b)'s own split: a note cannot run); its two
+   citing dirs keep resolving through it. The derived set is printed on every gate run and
+   pinned by a fixture test; the exception ships as a pure export with decision-logic tests
+   (never `main()`-only), including shipped-WITHOUT-marker still FAILing.
+3. Landing is ATOMIC — predicate, correction notes, and the deletion in ONE change; the same
+   change repoints the two live shipped references the original enumeration missed:
+   `skill-bench/scripts/run_eval.py:32` and ADR 0013's Decision cite, both to the live
+   `skill-bench` homes. Split across commits, `main` is red in between.
+
+Outside shipped plugin sources, (b) stands unchanged, as does the WEAKEST REOPEN-IF — if it
+fires, the correction notes are all that remain to remove, a cheaper cleanup than today's stubs.
+
+- [process] the exemption is earned, not granted: it requires the structured marker, so a
+  relocation still cannot silently strand a path. The invariant keeps its purpose — a reproducer
+  can always find where the file went — and sheds only the adopter-facing cost. Narrowing the
+  obligation beat teaching the gate a new remedy.
+- [outcome] the amendment's implementation (predicate, markers, deletion, repoints) — still-open

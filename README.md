@@ -1,7 +1,8 @@
 # one21tools
 
 Claude Code plugins that measure whether their own guidance works: skills are kept, improved, or
-reverted by hermetic paired evals — never on faith — plus a PM-led decision workflow whose
+reverted by hermetic paired evals at dated baselines — every claim names its baseline, and edits
+since accrue to the next batched re-measure (ADR 0095) — plus a PM-led decision workflow whose
 records and gates are enforced in CI.
 
 **Goal: quality output, autonomously, judged as the person receiving it.** Two levers, and
@@ -44,10 +45,11 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
 below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
-validity threat (#317).
+validity threat (#317). Each verdict measured the skill AS OF its dated dir — the text may have
+changed since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
 - `code-standards`: KEEP, judge-robust (2026-07-17 re-measure).
-- `building-skills`: unsettled — the shipped version measured +0.153 [-0.016, +0.321]
+- `building-skills`: unsettled — the 2026-07-18 baseline measured +0.153 [-0.016, +0.321]
   (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
   iter-3 revision missed its pre-registered bar and was reverted
   (`benchmarks/2026-07-18-bs-iter3-remeasure/`).
