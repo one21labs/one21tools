@@ -75,10 +75,9 @@ INCONCLUSIVE verdict whose observed mean is below `mde80` means the run was unde
 effect it saw — not that the effect is absent. Those are opposite conclusions, and the point
 estimate cannot tell them apart.
 
-`half_width` and `mde80` are both reported and are not the same number. A true difference equal to
-the half-width clears zero only about **half** the time, so half-width is a 50%-power figure;
-treating it as "what the design can detect" overstates the design by about 40%. `mde80` is what it
-calls reliably. Sizing the NEXT run from these is design-time work and lives in
+Both are reported and they are not interchangeable: `half_width` is a 50%-power figure and
+overstates the design by about 40%, `mde80` is what it calls reliably. Why, in full:
+`benchstats.keep_verdict`'s docstring. Sizing the NEXT run from these is design-time work —
 [pre-registration.md](pre-registration.md).
 
 A judge flip between families, or a verdict that holds under one grader only, is a reason to

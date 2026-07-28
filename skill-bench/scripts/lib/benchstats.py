@@ -107,10 +107,8 @@ def clusters_for(sd, target, power=0.80, max_g=4000):
     WITH the stated power. Iterative because both t multipliers depend on the answer. None means
     `max_g` is not enough — the honest result for a target this design cannot reach affordably.
 
-    `power=0.80` is the default because 0.50 is what you get by ignoring the second term, and a
-    design that succeeds half the time is not a design. Passing `power=0.50` reproduces the
-    naive sizing (target == half-width) and roughly HALVES the answer; a cross-family review
-    caught exactly that under-sizing here on 2026-07-27.
+    `power=0.80` is the default; `power=0.50` reproduces the naive sizing (target == half-width)
+    and roughly HALVES the answer. Why 50% is not a design: `keep_verdict`'s docstring owns it.
 
     `sd` is a PLUG-IN estimate and usually comes from a G=6 run, where it carries df=5 — very
     noisy, and biased low when the realized spread happened to be small. Treat the result as a

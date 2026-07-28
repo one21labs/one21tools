@@ -73,8 +73,7 @@ is an infrastructure defect to fix before grading, not signal.
 | 0.10 | 46 | 25 |
 | 0.05 | 181 | 89 |
 
-The 50% column is what you get by sizing so the target equals the CI half-width — a design that
-succeeds on a coin flip. It is shown only so the difference is visible; never plan from it.
+The 50% column is shown only so the gap is visible; never plan from it.
 
 **Variance is the cheap lever; scenarios are the expensive one.** At spread 0.24, six scenarios
 reliably call only 0.34 or larger, so a real 0.18 effect needs 16. One run here achieved a spread
