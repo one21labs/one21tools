@@ -21,8 +21,8 @@ summary: "The measurement promise is owed to the CLAIM, not to the edit: a verdi
   per improvement-loop iteration, and no gate fires on an unmeasured edit (checked against
   `.github/workflows/gates.yml`). Measured 28-Jul-2026: 8 distinct commits since 2026-07-19
   edited measured-skill CONTENT (SKILL.md or `references/`) with no re-measure; the newest
-  benchmark dir is dated 2026-07-18. Per skill: code-standards 0, building-skills 4,
-  optimizing-context 2, engineering-principles 6. The promise sat above its enforcement.
+  benchmark dir is dated 2026-07-18. Per skill (one commit can touch
+  several): code-standards 0, building-skills 4, optimizing-context 2, engineering-principles 6. The promise sat above its enforcement.
   Owner directive 28-Jul-2026: "everything must improve this repo for the adopter."
 
 ## Decision
