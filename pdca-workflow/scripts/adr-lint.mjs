@@ -47,9 +47,14 @@ import { overBudget, oversizeDocs, oversizeAgents, agentNameMismatches, ADR_CHAR
 // and the falsifiability bullet scan; they had this pattern copy-pasted (muda review, #295).
 const WRAPPED = String.raw`(?:\n(?![ \t]*(?:[-*#]|$))[^\n]*)*`;
 
-export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET, repoFiles }) {
+export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CHAR_BUDGET, repoFiles, retired }) {
   const problems = [];
   const adrs = [];
+  // Retired ids (owner ruling, 28-Jul-2026): a below-altitude record is DELETED after its
+  // content hoists into the file that owns it; the id is never reused and README.md's
+  // "Retired ids" map says where the decision went. A cite of a retired id is therefore not
+  // dangling — the map resolves it. `retired` is that Set (main() parses README.md).
+  const retiredIds = retired ?? new Set();
 
   // Lite `Enforced:` resolution (ADR 0087): `repoFiles` is the repo-relative file list the cited
   // tokens resolve against (main() walks the tree; omit to skip resolution — presence is still
@@ -79,6 +84,9 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
   if (dupes.length) problems.push(`Duplicate ADR ids: ${dupes.join(", ")} — two branches allocated the same number. Renumber the UNMERGED one to max(local, origin/main, every origin/* branch) + 1 and re-point its cites`);
 
   const onDisk = new Set(ids);
+  // A retired id with a live record is a contradiction — retired means deleted-and-mapped.
+  const zombies = [...retiredIds].filter(id => onDisk.has(id));
+  if (zombies.length) problems.push(`Retired id(s) still on disk: ${zombies.join(", ")} — delete the record, or drop the id from README.md's Retired-ids map`);
   for (const a of adrs) {
     // Version-agnostic: no three-part release version anywhere in the ADR.
     const vers = [...new Set([...a.text.matchAll(/\bv?\d+\.\d+\.\d+\b/g)].map(m => m[0]))];
@@ -91,8 +99,8 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     for (const m of a.text.matchAll(/\[(\d{4})\]/g)) cited.add(m[1]);
     for (const m of a.text.matchAll(/superseded by (\d{4})/gi)) cited.add(m[1]);
     cited.delete(a.id); // self-reference (title/header) is fine
-    const dangling = [...cited].filter(id => !onDisk.has(id));
-    if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")} — the cited record is not in this corpus. Ship it in the same PR (mutually-citing records must land together), or correct the number`);
+    const dangling = [...cited].filter(id => !onDisk.has(id) && !retiredIds.has(id));
+    if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")} — the cited record is not in this corpus. Ship it in the same PR (mutually-citing records must land together), correct the number, or add the id to README.md's Retired-ids map if its content was hoisted`);
 
     // Outcome vocabulary (ADR 0079, spec check 13): every `## Act` `- [outcome]` row carries
     // EXACTLY ONE of verified|violated|still-open — the controlled input a hit-rate
@@ -409,9 +417,16 @@ function main(argv) {
     for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
       console.log(`  ${name}: ${text.length} chars`);
 
+  // Retired-ids map: README.md "- NNNN -> path" lines mark ids whose record was deleted after
+  // its content hoisted to the owning file (never reused; the map is where the decision went).
+  let retired;
+  try {
+    retired = new Set([...readFileSync(join(dir, "README.md"), "utf8").matchAll(/^- (\d{4}) ->/gm)].map(m => m[1]));
+  } catch { retired = new Set(); }
+
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
   const repoFiles = repoFileList();
-  const { problems } = lint({ files, budget, repoFiles });
+  const { problems } = lint({ files, budget, repoFiles, retired });
   problems.push(...oversizeDocs().map(d => `doc over budget: ${d}`));
   // Corpus WIP cap (ADR 0092): per-file caps bound each record but never the count. Measured from
   // the SAME `files` already read, so no second walk can disagree with the per-record report above.

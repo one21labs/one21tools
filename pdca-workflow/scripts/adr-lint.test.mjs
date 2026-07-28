@@ -99,6 +99,21 @@ test("a self-cite is not flagged as dangling", () => {
   assert.deepEqual(lint({ files }).problems, []);
 });
 
+test("a cite of a RETIRED id is not dangling — the README map resolves it", () => {
+  const files = [adr("0001-first.md", { body: "\n# 0001\n\nPer ADR 0099's convention.\n" })];
+  assert.deepEqual(lint({ files, retired: new Set(["0099"]) }).problems, []);
+});
+
+test("the retired map does not blanket-disable the dangling guard for other ids", () => {
+  const files = [adr("0001-first.md", { body: "\n# 0001\n\nPer ADR 0098 and ADR 0099.\n" })];
+  assert.match(lint({ files, retired: new Set(["0099"]) }).problems[0], /dangling ADR cite\(s\): 0098/);
+});
+
+test("a retired id with a live record is a zombie — retired means deleted-and-mapped", () => {
+  const files = [adr("0001-first.md"), adr("0002-second.md")];
+  assert.match(lint({ files, retired: new Set(["0002"]) }).problems[0], /Retired id\(s\) still on disk: 0002/);
+});
+
 test("a resolvable cross-ADR cite is not flagged", () => {
   const files = [adr("0001-a.md", { body: "\n# 0001\n\nBuilds on ADR 0002.\n" }), adr("0002-b.md")];
   assert.deepEqual(lint({ files }).problems, []);

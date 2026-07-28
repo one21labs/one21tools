@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matcher: Edit|Write) for THIS REPO's .claude/settings.json: the PREVENT rung
-# for char budgets (ADR 0060; ladder: ADR 0047). Computes the file's PROJECTED post-edit size and
+# for char budgets (retired ADR 0060; ladder: ADR 0047). Repo-local by decision — promotion into
+# the plugin is a consumer-facing call for a later /decide; the CI rung stays (defense in depth,
+# this hook fails open). Computes the file's PROJECTED post-edit size and
 # DENIES an Edit/Write that would land over its cap, reporting cap/current/projected/headroom —
 # the over-budget edit becomes impossible instead of detected by the post-edit lint or CI.
 #

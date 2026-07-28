@@ -32,6 +32,9 @@ be wrong, plus the decision axes those correctness experts don't own.
    re-include a child once the whole dir is excluded, so a negation under `.claude/` is silently
    inert), then add `!.claude/agents/` so the advisors are tracked. Do NOT relocate them out of
    `.claude/agents/` (that breaks discovery). The plugin's own meta-roles are tracked the same way.
+   Guidance only, by decision (retired ADR 0004): advisors live in the consumer's repo, where a
+   plugin cannot enforce VCS. A consumer reporting advisors still untracked after `/pdca-init`
+   means: scaffold the negation automatically instead of instructing it.
 5. **Record the roster.** Write `docs/decisions/panel.md`: each advisor, its lens, and one line
    on why this project needs it. This is what the user edits to tune the panel.
 

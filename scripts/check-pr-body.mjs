@@ -1,11 +1,15 @@
 #!/usr/bin/env node
 /*
  * check-pr-body.mjs — gate, PR-description checks:
- * - ADR 0054: the title must not close an issue the body declares `Partial: #NNN` — a
- *   closing-keyword title becomes the squash-commit subject on main and auto-closes the issue.
- *   Only the decidable contradiction denies; a closing title with a silent body PASSes
- *   (undecidable intent — ADR 0047 precondition ii).
- * - ADR 0078: the same contradiction inside the body alone (`Closes #N` + `Partial: #N`).
+ * - Retired ADR 0054: the title must not close an issue the body declares `Partial: #NNN` — a
+ *   closing-keyword title becomes the squash-commit subject on main and auto-closes the issue
+ *   (scar: PR #166 closed #164 with 2 findings open, no red CI). Only the decidable
+ *   contradiction denies; a closing title with a silent body PASSes (undecidable intent —
+ *   ADR 0047 precondition ii; blanket-denying closing titles was owner-REJECTED as too strict).
+ * - Retired ADR 0078: the same contradiction inside the body alone (`Closes #N` + `Partial: #N`).
+ * Accepted residue: a hand-edited squash title after CI ran; a single-commit PR whose lone
+ * commit message carries the keyword. A partial-fix mis-close recurring with a prose-only
+ * "stays open" signal -> strengthen adoption (PR-template scaffolding), not the predicate.
  * The predicates (titleClosesDeclaredPartial, bodyClosesDeclaredPartial) are pure and unit-tested;
  * reading env + exit is the thin IO wrapper. Zero-dependency .mjs, same constraint as the
  * sibling gate scripts (adr-lint, check-workflow).

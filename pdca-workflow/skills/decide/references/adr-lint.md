@@ -35,7 +35,9 @@ summary: "<one line for the skim catalog>"
 3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
    the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
 4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited inside an ADR
-   resolves to a file on disk (the renumber/fold catcher; a self-cite is fine).
+   resolves to a file on disk OR to the README's Retired-ids map (a record deleted after its
+   content hoisted to the file that owns it — the altitude test, doc-budgets.md). A retired id
+   with a live record fails as a zombie. (The renumber/fold catcher; a self-cite is fine.)
 5. **Falsifiability (Plan-phase criterion-minting gate)** — every FULL ADR states at least one
    criterion the Check can later test: a `- [checkable]`/`- [checkable-doc]`/`- [contradiction]`
    assumption bullet, OR a `- [unverifiable]` paired with a same-bullet REOPEN-IF (revisitable on a

@@ -97,8 +97,10 @@ def find_doc_structure_problems(text: str, label: str, base_dir: Path) -> List[s
     return problems
 
 
-# R6.2 (ADR 0044): info-strings treated as runnable commands; a ```text/tree-diagram/bare fence
-# is not linted, and this inline marker suppresses a deliberate worked example on its line.
+# R6.2 (retired ADR 0044): info-strings treated as runnable commands; a ```text/tree-diagram/bare
+# fence is not linted, and this inline marker suppresses a deliberate worked example on its line.
+# Reopen-if: the escape hatches prove insufficient for a real teaching case -> widen the
+# override; a break slips through a non-fenced surface (inline code) -> extend the scanner.
 RUNNABLE_INFO_STRINGS = {"bash", "sh", "shell", "console"}
 SELF_PATH_ALLOW_MARKER = "validate:allow-self-path"
 
