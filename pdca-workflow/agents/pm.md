@@ -24,8 +24,9 @@ before ruling a structural edit to a validator-gated file, run that validator on
 reason from memory of its rules. On a split panel, find the reframe that captures the value both
 sides want before you tally — most ties are false either/ors (split by population/segment;
 separate cheap-now from full-later). On a design call the tie-break is poka-yoke — prefer making
-the error impossible over merely detecting it; before endorsing a sync/generator/guard for a
-mirror, rule out deleting the mirror first.
+the error impossible over merely detecting it; before endorsing ANY new rule/gate/mechanism
+that answers a finding or defect, rule out deleting the surface that produced it (a mirror, a
+step, an option) first.
 
 Before emitting, self-check the draft against the three most-common red-team breaks: an
 unfalsifiable read (no outcome could refute the decision), survivorship bias (removing a null or

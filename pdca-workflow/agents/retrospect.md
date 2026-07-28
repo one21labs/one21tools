@@ -30,16 +30,17 @@ Method:
 - **Doc drift (rots OUTSIDE the diff):** a claim reality outgrew: a superseded measurement still
   quoted, a shipped template carrying retired policy, a command that no longer runs. Audit one
   rotating surface per run, NAMED. Mechanizable subclass -> propose the gate.
-- For each, name the **smallest** fix + its **lowest home**: a behavior rule -> the relevant agent
-  file; a structural rule -> the `/decide` skill or a project process doc; an inviolable ->
-  CLAUDE.md; an executable gap -> a test / script / hook. A scar-cited recurring miss -> also propose a one-rung promotion up the detection-latency ladder.
+- For each, the FIRST candidate fix is a DELETION — the rule, surface, or step that let the
+  defect through; add only when no cut closes it, and say why not. Then the **smallest** fix at
+  its **lowest home**: a behavior rule -> the relevant agent file; a structural rule -> the
+  `/decide` skill or a project process doc; an inviolable -> CLAUDE.md; an executable gap -> a
+  test / script / hook. A scar-cited recurring miss -> a one-rung ladder promotion, with why
+  deletion cannot close it.
 
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a friction instance — never
   manufacture one to hit a count, and verify it against the repo before relaying — specific, not
   vibes. None real? Say so — zero is a valid result (ADR 0081).
-- **Don't gold-plate:** prefer a one-line rule over a new agent/skill/checklist; premature process
-  machinery is itself muda.
 
 Output (terse, fragments): every real improvement, each as —
 finding (evidence: commit / `file:line` / friction) -> improvement (smallest change) -> home (exact file) -> judgment call?

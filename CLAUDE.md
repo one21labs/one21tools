@@ -11,8 +11,10 @@ Validate a skill: `python3 skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
 any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
-Plugin skills/hooks/agents run from the installed CACHE, not the working tree — a stale cache
-silently enforces RETIRED policy; reinstall after any plugin-touching merge.
+Plugin skills/hooks/agents run from the installed CACHE — a stale cache silently enforces
+RETIRED policy. After a plugin-touching merge: `/plugin marketplace update one21tools` THEN
+`/reload-plugins` (reload does not pull). Mid-PR the cache always lags — the working-tree
+gate is the authority.
 
 ## Muda — ruthlessly cut on sight
 Duplicated logic / one-home violations, dead code or
@@ -60,8 +62,7 @@ logic; a doc restating them rots.
   comment; address each finding or say why not. Merging unread leaves muda on `main`.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
-  before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges). Preview with
-  three-dot (`origin/main...branch`), never two-dot (ADR 0072).
+  before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges).
 - PR body: Purpose / Changes / Testing / Deferred (ADR 0030); an added external ref carries its
   fetch-audit (`check-references`, ADR 0079).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,

@@ -25,13 +25,13 @@ File headers own each file's role + constraints. Start at <the core module> (the
 - <any other inviolable this project must not break — keep only what applies.>
 
 ## Conventions
-- Watch for and cut **muda** as you go — duplicated logic / one-home violations, dead code or
+- Watch for and cut **muda** — duplicated logic / one-home violations, dead code or
   fields, premature abstraction, drift, git-tellable backstory (git is the SSoT — see Docs).
   Cite-or-silence; don't gold-plate.
 - Poka-yoke: prefer a design that makes an error impossible over one that only detects it — delete
-  the mirror, don't guard it; derive, don't duplicate; compute the verdict, don't assert it. A
-  guard/test is the fallback when prevention can't be designed in.
-- One module per concern; inline until reused in 2+ places. Reuse existing helpers; don't duplicate.
+  the error's surface (a mirror, a step, a rule), don't guard it; derive, don't duplicate; compute
+  the verdict, don't assert it. A guard/test is the fallback when prevention can't be designed in.
+- One module per concern; inline until reused in 2+ places. Reuse existing helpers.
 - Do work while you wait — when a background agent/decision runs, scan for non-blocked items
   (prep valid under any outcome, independent work) and run them in parallel rather than idling.
 - <project-specific conventions — naming, error handling, units, layering, etc.>
