@@ -86,8 +86,8 @@ machinery:
 
 13. **Outcome vocabulary** (ADR 0079; a corpus check, numbered here to keep checks 1-12's
     historical numbers stable) — every `- [outcome]` row carries exactly ONE whole-word of
-    `verified` / `violated` / `still-open`: the controlled input a metrics-engine consumer (a
-    hit-rate scorecard) classifies on. A free-text synonym ("FALSIFIED") or a double-tag is
+    `verified` / `violated` / `still-open`: the controlled input any metrics-engine consumer
+    would classify on. A free-text synonym ("FALSIFIED") or a double-tag is
     unclassifiable — and a dropped miss reads as no miss.
 
 14. **Stale status on recorded discharge** (ADR 0088; a corpus check) — a `;`-split clause of a

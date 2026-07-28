@@ -19,7 +19,9 @@ hooks, and skills, not prose (autonomy).
 /plugin install skill-bench@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
 
-Updates: `/plugin marketplace update one21tools`. Or clone and symlink individual skills:
+Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
+history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
+individual skills:
 `ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
 
 Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are

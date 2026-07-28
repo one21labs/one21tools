@@ -401,9 +401,13 @@ function main(argv) {
     process.exit(2);
   }
 
-  // Poka-yoke: print each ADR's char count (compute the number, never hand-assert it in prose).
-  for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
-    console.log(`  ${name}: ${text.length} chars`);
+  // Poka-yoke: --verbose prints each ADR's char count (compute the number, never hand-assert it
+  // in prose — run with --verbose when drafting). Quiet by default: the post-edit hook feeds this
+  // output into the agent's context as a blocking deny message, and 94 listing lines buried the
+  // one line that mattered (#272).
+  if (args.includes("--verbose"))
+    for (const { name, text } of [...files].sort((a, b) => a.name.localeCompare(b.name)))
+      console.log(`  ${name}: ${text.length} chars`);
 
   // ADR corpus + the named-doc self-budgets (CLAUDE.md) + agent prompts share the char-budget.mjs SSoT.
   const repoFiles = repoFileList();

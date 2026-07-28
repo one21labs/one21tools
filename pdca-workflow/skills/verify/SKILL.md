@@ -1,6 +1,6 @@
 ---
 name: verify
-description: Use when a claim, a fix, or produced output needs independent confirmation before you rely on it or ship it. Spawns the fresh verifier agent to reproduce load-bearing claims against real code and output; returns PASS, BLOCK findings, or FRAME-UNCHECKED for a claim no independent checker could reach.
+description: Use when a claim, a fix, or produced output needs independent confirmation before you rely on it or ship it.
 ---
 
 # /verify — the independent gate, standalone (Check)

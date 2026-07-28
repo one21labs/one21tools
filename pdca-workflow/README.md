@@ -58,8 +58,8 @@ source repo's committed benchmarks:
   superiority claim.
 - **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
   measured state is in "Measured" below: specific edges (false-positive halving, failure
-  anticipation from independent perspectives) and honest nulls elsewhere; the direct
-  panel-vs-single-advisor comparison is queued (#236). Until it runs, "closed nowhere else"
+  anticipation from independent perspectives) and honest nulls elsewhere; a direct
+  panel-vs-single-advisor comparison has not run. Until it does, "closed nowhere else"
   is a fact about the field, not evidence of value.
 
 ## The cycle
