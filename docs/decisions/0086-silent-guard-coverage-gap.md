@@ -2,7 +2,7 @@
 id: 0086
 title: "Confirmed failure-mode class FM-1: silent guard-coverage gap; mitigation is guard-liveness instrumentation"
 status: accepted
-summary: "First confirmed NEW class from the #268 mining study (method: ADR 0084): a wired guard silently fails to fire on part or all of its intended surface — fail-open by design, and nothing watches for non-firing, so discovery is by audit or incident (rung: none). Four independent instances plus one adjacent enforcement-config variant. Mitigation (instrument-first, 0084(f)): boundary-coupled liveness readout in scorecard.mjs + per-declared-input-class canaries in check-gate-tests.mjs; build deferred to #276, whose acceptance requires flagging the live instance (the empty session-end series). Undeclared partial-surface gaps stay at rung NONE."
+summary: "First confirmed NEW class from the #268 mining study (method: ADR 0084): a wired guard silently fails to fire on part or all of its intended surface — fail-open by design, and nothing watches for non-firing, so discovery is by audit or incident (rung: none). Four independent instances plus one adjacent enforcement-config variant. UNMITIGATED as of 2026-07-27: both decided carriers were deleted (#311), so the class is LIVE and nothing detects it."
 ---
 
 # 0086 — FM-1: silent guard-coverage gap
@@ -33,18 +33,14 @@ audit, muda-audit, retrospect, or incident.
   as dead. Boundary-coupled iff the guard fires once per an event independently logged
   elsewhere; per-event-exempt only iff firing is contingent on a condition that may legitimately
   never occur.
-- **(c) Invocation-path canaries** — DELETED 2026-07-27 with their host (#311). Were: each hook's REAL
-  invocation path is asserted — file exists, is executable, and its matcher fires on a synthetic
-  representative of EACH declared input class. Generalizes ADR 0069 from "must not self-skip" to
-  "registration must provably reach the script on every declared class."
+- **(c) Invocation-path canaries** — DELETED 2026-07-27 with their host (#311). Were: assert each
+  hook's REAL invocation path exists, is executable, and its matcher fires on every declared input
+  class. Generalized ADR 0069's "must not self-skip".
 - **(d) First target:** `session-end` is DECLARED boundary-coupled and DENIED the (b) exemption —
   readout (a) must flag it until it fires or ADR 0081(d) is re-scoped. #276 must root-cause and
   fix or re-scope it.
 - **(e) Residual:** partial-surface non-firing in a guard with NO enumerable surface declaration
   remains at rung NONE — narrowed, not eliminated.
-
-Falsifiable: after #276 ships, a boundary-coupled guard that stops firing is surfaced by the next
-Neither runs now; an unreachable hook fails nothing.
 
 ## Justification
 - **NOTE (2026-07-27):** (a) and (c) are GONE — both host scripts were deleted (#311). No
