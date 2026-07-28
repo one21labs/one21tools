@@ -42,9 +42,18 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 ## Measured state (the honest block)
 
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
-append-only evidence, one dated dir per run.
+append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
+below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
+validity threat (#317).
 
-- `code-standards`: KEEP, strong, judge-robust (2026-07-17 re-measure).
+- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure).
+- `building-skills`: unsettled — the shipped version measured +0.153 [-0.016, +0.321]
+  (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
+  iter-3 revision missed its pre-registered bar and was reverted
+  (`benchmarks/2026-07-18-bs-iter3-remeasure/`).
+- `optimizing-context`: measured once — improvement-loop iteration 1 (2026-07-09) recorded
+  MERGE, d_new +0.269 [+0.123, +0.414] (`benchmarks/2026-07-09-three-skills-remeasure/`); no
+  re-measure since.
 - `engineering-principles`: what SHIPS is the slim operational core (2026-07-18, #248/#249), and
   it ships on a NON-INFERIORITY bar, not a fresh effect proof — slim +0.170, CI [-0.029, +0.370],
   straddling zero at n=6; slim minus full +0.043, CI [+0.016, +0.069], excluding zero in the

@@ -147,9 +147,9 @@ python3 scripts/package.py <skill-folder> [output-directory]
 ### Validation (errors)
 
 - [ ] `name:` FIRST, `description:` SECOND in frontmatter
-- [ ] Name: matches folder, kebab-case, <=64 chars, no reserved words
-- [ ] Description: STARTS with trigger, <=1024 chars, no XML chars
-- [ ] Body: within the char cap (validate.py owns the number), ToC if >150 lines
+- [ ] Name: matches folder, kebab-case, within NAME_MAX, no reserved words
+- [ ] Description: STARTS with trigger, within DESC_MAX, no XML chars
+- [ ] Body: within the char cap, ToC beyond TOC_THRESHOLD (validate.py owns the numbers)
 - [ ] No emojis in SKILL.md, scripts, or references/*.md (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
 
 ### Process
