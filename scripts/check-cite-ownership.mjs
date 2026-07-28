@@ -31,15 +31,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Doctrine terms whose mis-attribution is a RECORDED scar. Add an entry only with one. */
-// REJECTED 2026-07-27: "one home". It has a real scar (ADR 0024's Act credited it to ADR 0092,
-// which is the corpus WIP cap and says nothing about it), so it met the entry rule — and it still
-// failed the PRECISION bar above, which outranks the entry rule. Tried and measured: two hits on
-// a clean tree, both false. `(ADR 0077)` crediting merge=union sat 30 chars from an unrelated
-// "the format's one home"; "one home for work-state (ADR 0021)" is substantively CORRECT and
-// fails only because 0021 does not use the literal phrase. Unlike "append-only" and
-// "eval-clustered", this is ordinary English used descriptively all over the corpus, so binding
-// it to the nearest cite is noise. A gate that cries wolf gets routed around, which costs more
-// than the miss it prevents. The class stays unguarded, and that is the honest state.
+// A scar is necessary but NOT sufficient: the precision bar above outranks the entry rule. Terms
+// that read as ordinary English fail it — they false-fire on descriptive use, and a gate that
+// cries wolf gets routed around. "one home" was tried and rejected on that ground 2026-07-27.
 export const TERMS = ["append-only", "eval-clustered"];
 
 const CITE = /ADR (\d{4})/g;
