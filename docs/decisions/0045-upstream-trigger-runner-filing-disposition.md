@@ -1,7 +1,7 @@
 ---
 id: 0045
 title: "Keep the upstream trigger-runner filing open, narrowed to the one uncovered fix"
-status: accepted
+status: superseded
 tier: lite
 summary: "Disposition of #94: narrowed to the one uncovered fix, both drafts posted in-issue. Superseded 2026-07-11 — owner declined the upstream posting; #94 closed not-planned. ADR 0033's revisit trigger (upstream lands the fixes -> re-diff, consider un-vendoring) still watches independently."
 ---

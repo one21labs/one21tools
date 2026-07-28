@@ -53,15 +53,14 @@ lives at the coverage-assumption level, which only a cross-guard instrument sees
 - [checkable] 0086 is free and max+1 on origin/main. result: verified.
 
 ## Rejected alternatives
-- Liveness as a blocking CI gate — cries wolf on legitimate silence; scorecard is readout-only.
+- Liveness as a blocking CI gate — cries wolf on legitimate silence; scorecard was decided
+  readout-only (deleted 2026-07-27, lines above).
 - Inferring per-event guard death from zero hits — zero is the healthy state most windows.
 - Per-guard hardening only, no cross-guard instrument — the status quo that produced five
   instances.
-- Waiting for a second confirmed instance before acting — the readout is the cheap detector that
-  would confirm or kill it.
+- Waiting for a second confirmed instance before acting — the readout was the decided cheap
+  detector that would have confirmed or killed it.
 
 ## Revisit triggers
-- The WEAKEST REOPEN-IF fires -> re-scope #276's instrument before trusting any green reading.
-- #276's root cause lands on "sessions rarely terminate" -> re-scope the 0081(d) metric to a
-  boundary that actually occurs.
-- The readout's NOT-FIRING flags exceed ~1/week sustained -> /decide whether to consolidate.
+- A new FM-1 instance is confirmed, or the WEAKEST REOPEN-IF fires -> /decide the rebuild; per
+  the 2026-07-27 amendment above, rebuilding detection requires a fresh decision, not this record.
