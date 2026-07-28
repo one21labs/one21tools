@@ -68,7 +68,7 @@ class TestVerdictMath(unittest.TestCase):
         self.assertAlmostEqual(d["mean"], 0.375)
         half = (d["ci95"][1] - d["ci95"][0]) / 2
         self.assertAlmostEqual(half, 0.5135, places=3)
-        self.assertEqual(bs.keep_verdict(d)["confidence"], "weak")
+        self.assertEqual(bs.keep_verdict(d)["verdict"], "INCONCLUSIVE")
         # And the old multiplier really would have said otherwise — not a hypothetical.
         self.assertGreater(d["mean"] - bs.Z95 * (half / d["t_crit"]), 0)
 
@@ -77,17 +77,81 @@ class TestVerdictMath(unittest.TestCase):
         d = bs.clustered_delta(cells, "C", "B")
         self.assertEqual(d["n_clusters"], 1)
         self.assertNotEqual(d["ci95"][0], d["ci95"][0])  # NaN: one cluster carries no width
-        self.assertEqual(bs.keep_verdict(d)["confidence"], "weak")
+        self.assertEqual(bs.keep_verdict(d)["verdict"], "INCONCLUSIVE")
+        self.assertIsNone(bs.keep_verdict(d)["detectable"])
 
-    def test_keep_verdict_direction_and_confidence(self):
-        pos = {"mean": 0.2, "ci95": [0.05, 0.35]}
-        self.assertEqual(bs.keep_verdict(pos)["verdict"], "KEEP")
-        self.assertEqual(bs.keep_verdict(pos)["confidence"], "strong")  # CI clears zero
-        weak = {"mean": 0.01, "ci95": [-0.15, 0.17]}
-        self.assertEqual(bs.keep_verdict(weak)["verdict"], "KEEP")
-        self.assertEqual(bs.keep_verdict(weak)["confidence"], "weak")   # CI spans zero
-        neg = {"mean": -0.1, "ci95": [-0.3, 0.1]}
-        self.assertEqual(bs.keep_verdict(neg)["verdict"], "CUT-CANDIDATE")
+    def test_the_interval_decides_the_verdict_never_the_point_estimate(self):
+        # The regression this replaces: KEEP on mean>0 alone fires about half the time under a
+        # true null, so it carried no error control. Each case below returned KEEP before.
+        clears = {"mean": 0.2, "ci95": [0.05, 0.35]}
+        self.assertEqual(bs.keep_verdict(clears)["verdict"], "KEEP")
+        for spans in ({"mean": 0.01, "ci95": [-0.15, 0.17]},    # tiny positive, wide interval
+                      {"mean": 0.20, "ci95": [-0.10, 0.50]}):   # large positive, wider interval
+            v = bs.keep_verdict(spans)
+            self.assertEqual(v["verdict"], "INCONCLUSIVE")
+            self.assertIn("could only call a difference of", v["why"])
+        below = {"mean": -0.3, "ci95": [-0.5, -0.1]}
+        self.assertEqual(bs.keep_verdict(below)["verdict"], "HARMFUL")
+        # A negative point estimate whose interval spans zero is NOT evidence of harm.
+        self.assertEqual(bs.keep_verdict({"mean": -0.1, "ci95": [-0.3, 0.1]})["verdict"],
+                         "INCONCLUSIVE")
+
+    def test_detectable_is_the_half_width_so_an_inconclusive_run_reads_as_underpowered(self):
+        v = bs.keep_verdict({"mean": 0.01, "ci95": [-0.18, 0.20]})
+        self.assertAlmostEqual(v["detectable"], 0.19, places=3)
+        self.assertLess(abs(v["mean"]), v["detectable"])   # underpowered, not "no effect"
+
+    def test_a_pre_registered_practical_bar_raises_the_verdict_above_bare_significance(self):
+        # Owner requirement: "the effect size to be significant, so that the skill is CLEARLY
+        # better". A real but trivial difference must not read KEEP against a bar of 0.10.
+        trivial = {"mean": 0.06, "ci95": [0.02, 0.10]}      # significant, but small
+        self.assertEqual(bs.keep_verdict(trivial)["verdict"], "KEEP")            # bar 0 (default)
+        v = bs.keep_verdict(trivial, practical=0.10)
+        self.assertEqual(v["verdict"], "INCONCLUSIVE")
+        self.assertIn("practical bar", v["why"])
+        self.assertEqual(v["practical"], 0.10)
+        big = {"mean": 0.40, "ci95": [0.30, 0.50]}
+        self.assertEqual(bs.keep_verdict(big, practical=0.10)["verdict"], "KEEP")
+
+    def test_win_rate_catches_a_mean_carried_by_one_scenario(self):
+        # Owner requirement: "clearly better, MOST OF THE TIME". One huge win plus three losses
+        # can clear the bar on the mean while losing 75% of scenarios.
+        lopsided = {"mean": 0.2, "ci95": [0.05, 0.35],
+                    "per_scenario": {"S1": 1.0, "S2": -0.1, "S3": -0.1, "S4": -0.1}}
+        v = bs.keep_verdict(lopsided)
+        self.assertEqual(v["verdict"], "KEEP")
+        self.assertEqual(v["win_rate"], 0.25)
+        self.assertIn("won only 25% of scenarios", v["why"])
+        consistent = {"mean": 0.2, "ci95": [0.05, 0.35],
+                      "per_scenario": {"S1": 0.2, "S2": 0.25, "S3": 0.15, "S4": 0.2}}
+        w = bs.keep_verdict(consistent)
+        self.assertEqual(w["win_rate"], 1.0)
+        self.assertNotIn("why", w)
+
+    def test_cut_requires_an_equivalence_result_not_a_point_estimate_near_zero(self):
+        # The only honest route to "this skill is not worth keeping": the whole interval inside
+        # the practical band, so the data SUPPORT no-difference rather than failing to find one.
+        tight_null = {"mean": 0.01, "ci95": [-0.04, 0.06]}
+        self.assertEqual(bs.keep_verdict(tight_null, practical=0.10)["verdict"], "CUT")
+        # Same point estimate, wide interval: underpowered, NOT equivalent. This is the exact
+        # pair the deleted rule could not tell apart.
+        wide_null = {"mean": 0.01, "ci95": [-0.30, 0.32]}
+        self.assertEqual(bs.keep_verdict(wide_null, practical=0.10)["verdict"], "INCONCLUSIVE")
+        # Unreachable without a bar: nothing is provably smaller than nothing.
+        self.assertEqual(bs.keep_verdict(tight_null)["verdict"], "INCONCLUSIVE")
+
+    def test_clusters_for_sizes_a_run_from_a_measured_prior(self):
+        # sd_between recovers the spread from a completed run; clusters_for turns it into the
+        # scenario count the next run needs. Both halves of "power the design" (ADR 0065).
+        done = {"mean": 0.438, "ci95": [0.186, 0.690], "n_clusters": 6}
+        sd = bs.sd_between(done)
+        self.assertAlmostEqual(sd, 0.240, places=2)
+        self.assertLessEqual(bs.clusters_for(sd, 0.25), 8)     # a large effect is cheap
+        self.assertGreater(bs.clusters_for(sd, 0.05), 50)      # a small one is not
+        self.assertIsNone(bs.clusters_for(sd, 0.0))            # no target -> no answer
+        self.assertIsNone(bs.clusters_for(float("nan"), 0.1))  # no prior -> no answer
+        self.assertNotEqual(bs.sd_between({"ci95": [float("nan")] * 2, "n_clusters": 1}),
+                            bs.sd_between({"ci95": [float("nan")] * 2, "n_clusters": 1}))  # NaN
 
     def test_divergence_counts_and_kappa(self):
         base = [cell("x", "C", "S1", [1, 1, 1, 1]), cell("y", "B", "S1", [1, 1, 1, 1])]
@@ -100,13 +164,18 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(dv["grok_met_rate"], 0.375)
 
     def test_verdict_flip_detects_direction_change(self):
-        # The load-bearing #172 finding: null under one judge, positive under another.
-        cl = [cell("c", "C", "S1", [1, 0, 0, 0]), cell("b", "B", "S1", [1, 0, 0, 0])]   # C-B = 0
-        gk = [cell("c", "C", "S1", [1, 1, 1, 0]), cell("b", "B", "S1", [1, 0, 0, 0])]   # C-B = +0.5
+        # The load-bearing #172 finding: null under one judge, positive under another. This used
+        # ONE scenario until 2026-07-27, so the "flip" it proved was two point estimates with no
+        # interval between them — the diagnostic demonstrating itself on data that can support no
+        # verdict. Six scenarios, so judge B genuinely clears and judge A genuinely does not.
+        cl, gk = [], []
+        for i in range(6):
+            cl += [cell(f"c{i}", "C", f"S{i}", [1, 0, 0, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
+            gk += [cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
         flip = bs.verdict_flip(bs.clustered_delta(cl, "C", "B"), bs.clustered_delta(gk, "C", "B"))
         self.assertTrue(flip["flipped"])
-        self.assertEqual(flip["judge_a_verdict"], "CUT-CANDIDATE")
-        self.assertEqual(flip["judge_b_verdict"], "KEEP")
+        self.assertEqual(flip["judge_a_verdict"], "INCONCLUSIVE")   # a flat null: no interval width
+        self.assertEqual(flip["judge_b_verdict"], "KEEP")           # +0.5 every scenario
 
     def test_summarize_generalizes_to_any_arm_pair(self):
         # --primary D,C (#180 arm-D grid): arm means infer from the cells, delta keys follow the pair

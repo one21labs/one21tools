@@ -56,9 +56,14 @@ is an infrastructure defect to fix before grading, not signal.
 - **Variance is a primary metric** — a skill's point is raising the mean while damping output
   variance; pre-register per-arm consistency (within-scenario rep variance / worst-rep score)
   alongside the mean deltas.
-- **Power the design** — size reps/scenarios from measured variance components for a target CI
-  width; prefer more reps on fewer, harder scenarios (ceilinged easy expectations carry no
-  information); state the minimum detectable effect in the pre-registration.
+- **Power the design — two numbers, both stated before the run.** (1) The PRACTICAL BAR: the
+  smallest difference worth paying context for. It is tested against the interval's lower bound,
+  so KEEP means "at least this much"; set after the fact it is worthless. (2) The SCENARIO COUNT
+  that makes that bar reachable: `clusters_for(sd_between(prior_delta), target)`, sized from a
+  prior run's measured spread, never guessed (ADR 0076's rule applied to power). A grid sized
+  below it can only return INCONCLUSIVE, so it is spend with a known-null outcome. Prefer more
+  reps on fewer, harder scenarios — ceilinged easy expectations carry no information, and
+  reducing the spread is cheaper than adding scenarios.
 
 ## Prior-art pass before designing a paid experiment
 

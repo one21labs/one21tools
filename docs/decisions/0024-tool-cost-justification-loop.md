@@ -31,3 +31,11 @@ Forces every context-cost artifact toward its best benefit-per-token, not merely
 ## Revisit triggers
 - An artifact needs >3 valid iterations for a benefit that later replicates -> raise the cap, or separate measurement-fix from artifact-fix budgets.
 - A recorded null is later shown beneficial under better testing -> re-measure and supersede it.
+
+## Act (2026-07-27) — decision 1 restored in code, and extended
+The shipped rule read the verdict off the point estimate, not the CI. Restored, plus an owner-set
+practical bar tested on the interval's LOWER bound, a per-scenario win rate, and CUT only on an
+equivalence result. Rule, rationale and sizing (`sd_between`/`clusters_for`) live at
+`skill-bench/scripts/lib/benchstats.py:keep_verdict` — the one home (ADR 0092), which is why this
+is an amendment, not a new record. `lib/verdict.py` is FROZEN for 11 append-only dated
+aggregators (ADR 0041); the single recomputation of record is in #310.

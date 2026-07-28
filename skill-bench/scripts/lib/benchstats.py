@@ -76,30 +76,112 @@ def per_expectation(cells):
     return out
 
 
-def keep_verdict(delta):
-    """KEEP/CUT-CANDIDATE on the clustered C-B point estimate; CI is the confidence signal, not a
-    gate. Direction + whether the CI clears zero.
+def sd_between(delta):
+    """Between-cluster SD implied by a COMPLETED run — the input `clusters_for` needs, recovered
+    from the run itself so the next design is sized from a measured prior instead of a guess (ADR
+    0076's derive-never-guess rule, applied to power). NaN when the run carries no interval."""
+    lo, hi = delta["ci95"]
+    g = delta["n_clusters"]
+    if lo != lo or g < 2:
+        return float("nan")
+    return ((hi - lo) / 2 / t95(g - 1)) * math.sqrt(g)
 
-    CONTRADICTS ADR 0024 AND IS UNDECIDED — do not read this rule as settled (issue #310).
-    ADR 0024 decision 1 reads the verdict OFF the CI: "CI excludes zero and positive means it is
-    measurably earning its cost." This function gates KEEP on `m > 0` alone, so it returns KEEP for
-    any positive point estimate at any interval width — under a true null it fires about half the
-    time. It cited "ADR 0052 bar" until 2026-07-27; 0052 defines no KEEP bar and its `Enforced:`
-    line names verdict.py, the competing rule, so the citation granted nothing.
 
-    The divergence is real and reproducible: mean=+0.010, CI [-0.18,+0.20] -> verdict_of says
-    CUT-CANDIDATE, this says KEEP. No PUBLISHED verdict flips (every recorded one has a CI
-    excluding zero), so the defect is latent. A cross-family review found BOTH rules unsound —
-    verdict_of's |mean|<0.05 floor overclaims on uninformative data — and neither is the fix.
-    Deciding it is owner work, entangled with #303 (cluster-t coverage at G=4-6).
-    """
+def clusters_for(sd, target, max_g=4000):
+    """Scenario clusters needed before a TRUE difference of `target` clears zero, at `sd` between
+    clusters. Iterative because the t multiplier depends on the answer. None means `max_g` is not
+    enough — the honest result for a target this design cannot reach at any affordable size.
+
+    A pre-registration states this number (references/pre-registration.md, "Power the design"). A
+    grid sized below it can only return INCONCLUSIVE for the effect it is looking for, so it is
+    spend with a known-null outcome: measured here as 6-8 scenarios against skill-VERSION deltas,
+    which need ~25-97 at the observed spread. Skill-vs-bare deltas (0.18-0.44 recorded) clear at
+    6, which is why that question has always worked and version comparisons never could."""
+    if sd != sd or sd <= 0 or target <= 0:
+        return None
+    for g in range(2, max_g + 1):
+        if t95(g - 1) * sd / math.sqrt(g) <= target:
+            return g
+    return None
+
+
+def keep_verdict(delta, practical=0.0):
+    """THE VERDICT IS THE INTERVAL, never the point estimate. KEEP iff the 95% CI clears the
+    PRACTICAL threshold, HARMFUL iff it clears zero negative, INCONCLUSIVE otherwise.
+
+    Verdicts: KEEP (clearly better), HARMFUL (clearly worse), CUT (equivalent to nothing, and
+    only reachable with a practical bar set), INCONCLUSIVE (the data cannot tell you). There is no
+    verdict meaning "probably a bit better" because no such claim is supportable.
+
+    Three requirements, all from the owner, 2026-07-27 — a verdict must satisfy every one:
+    (1) "within statistical significance" -> the interval decides, not the point estimate;
+    (2) "the effect size to be significant, so that the skill is CLEARLY better" -> `practical`,
+        the minimum difference worth having, tested against the interval's LOWER bound so KEEP
+        means "at least this much, with 95% confidence" rather than "more than nothing";
+    (3) "most of the time" -> `win_rate`, the share of scenarios the treatment actually won. A
+        large mean carried by one scenario is not "clearly better most of the time", and the
+        interval alone cannot tell you which you have.
+
+    **`practical` is PRE-REGISTERED or it is worthless.** Set it before the run, in the
+    pre-registration; picking it after seeing which way the numbers went is precisely the failure
+    this whole audit exists to catch. Default 0.0 keeps the bar at bare significance, which is the
+    weakest defensible setting, not the recommended one.
+
+    Setting `practical > 0` raises the sample size needed: you must separate the true effect from
+    the threshold, not from zero, so size with `clusters_for(sd, true_effect - practical)`.
+
+    This restores ADR 0024 decision 1 ("CI excludes zero and positive means it is measurably
+    earning its cost") and adds the practical bar 0024 never had.
+
+    Two rules were deleted to get here, each of which a reviewer refuses:
+    - KEEP on `mean > 0` alone (shipped here until 2026-07-27): under a true null a symmetric
+      estimator is positive about half the time, so KEEP carried no error control at all. It cited
+      "ADR 0052 bar"; 0052 defines no bar and its Enforced line names the competing rule.
+    - CUT-CANDIDATE on `abs(mean) < 0.05` (verdict.py's floor): with a wide interval the data
+      support no effect size, so naming a small one overclaims. The floor was an arbitrary
+      constant doing no inferential work. A cross-family review named both defects independently.
+    The `confidence` field went with them: under an interval rule a "weak KEEP" cannot exist.
+
+    `detectable` is the smallest true difference this design could have called — exactly the CI
+    half-width, since KEEP requires `mean > t*SE`. It costs nothing to report and makes an
+    INCONCLUSIVE verdict readable on sight: an observed mean below it means the run was
+    underpowered for the effect it saw, NOT that the effect is absent. Size the next one with
+    `clusters_for(sd_between(delta), target)`."""
     m, lo, hi = delta["mean"], delta["ci95"][0], delta["ci95"][1]
+    per = list((delta.get("per_scenario") or {}).values())
+    win = (sum(1 for d in per if d > 0) / len(per)) if per else None
     if m != m:
-        return {"verdict": "NO-DATA", "confidence": "none"}
-    strong = (lo > 0) or (hi < 0)
-    return {"verdict": "KEEP" if m > 0 else "CUT-CANDIDATE",
-            "mean": round(m, 4), "ci95": [round(lo, 4), round(hi, 4)],
-            "confidence": "strong" if strong else "weak"}
+        return {"verdict": "NO-DATA"}
+    if lo != lo:
+        return {"verdict": "INCONCLUSIVE", "mean": round(m, 4), "ci95": [None, None],
+                "detectable": None, "practical": practical, "win_rate": win,
+                "why": "a single cluster carries no interval, so no difference is callable"}
+    if lo > practical:
+        verdict = "KEEP"
+    elif hi < 0:
+        verdict = "HARMFUL"
+    elif practical > 0 and -practical < lo and hi < practical:
+        # EQUIVALENCE (TOST shape): the whole interval sits inside the practical band, so the
+        # data positively support "no difference worth having" rather than merely failing to
+        # find one. This is the ONLY honest route to CUT — the deleted rule reached it from a
+        # point estimate near zero, which is indistinguishable from an underpowered run and is
+        # why a null could be laundered into a decision. Unreachable at practical=0: you cannot
+        # prove a difference is smaller than nothing.
+        verdict = "CUT"
+    else:
+        verdict = "INCONCLUSIVE"
+    half = (hi - lo) / 2
+    out = {"verdict": verdict, "mean": round(m, 4), "ci95": [round(lo, 4), round(hi, 4)],
+           "detectable": round(half, 4), "practical": practical,
+           "win_rate": None if win is None else round(win, 3)}
+    if verdict == "INCONCLUSIVE":
+        bar = "zero" if practical == 0 else f"the practical bar of {practical:+.3f}"
+        out["why"] = (f"the 95% interval does not clear {bar}; this design could only call a "
+                      f"difference of {half:.3f} or larger, and the observed mean is {m:+.3f}")
+    elif verdict == "KEEP" and win is not None and win < 0.6:
+        out["why"] = (f"clears the bar on the mean, but the treatment won only "
+                      f"{win:.0%} of scenarios — check `attribution` before calling it consistent")
+    return out
 
 
 def top_cell_attribution(cells, x, y, top_n=3):

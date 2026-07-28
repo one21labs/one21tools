@@ -38,24 +38,61 @@ and variable-length skill-eval rubrics both work.
 ## The verdict
 
 Arm means are the mean fraction-met per arm. The headline contrast is clustered by scenario: the
-mean of the per-scenario deltas, with a 95% CI over those clusters. The verdict reads the point
-estimate for direction (KEEP when the structured arm leads, CUT-CANDIDATE otherwise) and treats the
-CI as a confidence signal — strong when it clears zero, weak when it straddles it.
+mean of the per-scenario deltas, with a 95% CI over those clusters. **The interval decides the
+verdict; the point estimate never does.**
 
-**That rule is UNDECIDED and contradicts ADR 0024 (issue #310).** ADR 0024 reads the verdict off
-the CI; this reads it off the point estimate, so it returns KEEP for any positive mean at any
-interval width — about half the time under a true null. A cross-family review found the stricter
-sibling rule (`lib/verdict.py:verdict_of`) also unsound: its `|mean| < 0.05` floor announces
-CUT-CANDIDATE on data that support nothing. No recorded verdict differs under either rule, so
-nothing published is affected — but do not cite this section as settled methodology.
+| Verdict | Condition | What you may claim |
+|---|---|---|
+| KEEP | CI lower bound > the pre-registered practical bar | at least that much better, with 95% confidence |
+| HARMFUL | CI upper bound < 0 | measurably worse |
+| CUT | the whole CI sits inside +/- the practical bar | no difference worth having — an equivalence result |
+| INCONCLUSIVE | anything else | nothing; the run cannot answer |
+
+There is deliberately no verdict meaning "probably a bit better", because no such claim is
+supportable from a straddling interval.
+
+**The practical bar is pre-registered or it is worthless.** It is the smallest difference worth
+paying context for. Testing it against the LOWER bound is what turns "better than nothing" into
+"clearly better". Choosing it after seeing which way the numbers went is the exact failure
+pre-registration exists to prevent. Left at 0, the bar is bare significance — the weakest
+defensible setting, not the recommended one.
+
+**CUT needs the bar.** With no bar, a null result is INCONCLUSIVE forever: you cannot prove a
+difference is smaller than nothing. The rule shipped until 2026-07-27 reached CUT-CANDIDATE from a
+point estimate near zero, which is indistinguishable from an underpowered run — that is how a
+null could be laundered into a decision.
+
+Every verdict carries **`detectable`**, the smallest difference the design could have called
+(exactly the CI half-width), and **`win_rate`**, the share of scenarios the treatment actually
+won. A mean carried by one scenario is not "clearly better most of the time"; the interval alone
+cannot tell you which you have, so the win rate is reported beside it.
 
 ## Reading it honestly
 
-Cluster counts are small (often eight scenarios), so CIs are wide and every verdict is exploratory,
-not significance. A weak KEEP with a straddling CI is "no detectable difference," not "it works." A
-judge flip between families, or a verdict that only holds under one grader, is a reason to re-measure
-rather than to conclude. Report the direction and the caveat together; never launder a wide-CI point
-estimate into a claim.
+Cluster counts are small, so intervals are wide. **Read `detectable` before reading the mean.** An
+INCONCLUSIVE verdict whose observed mean is below `detectable` means the run was underpowered for
+the effect it saw — not that the effect is absent. Those are opposite conclusions and the point
+estimate cannot tell them apart.
+
+Sizing is not optional, and it is cheap: `sd_between(delta)` recovers the between-scenario spread
+from any completed run, and `clusters_for(sd, target)` turns it into the scenario count the next
+one needs. Measured on this repo's own results, spread is about 0.24, which means:
+
+| To call a difference of | you need |
+|---|---|
+| 0.40 | 4 scenarios |
+| 0.25 | 7 |
+| 0.15 | 13 |
+| 0.10 | 25 |
+| 0.05 | 97 |
+
+Skill-versus-bare effects here have run 0.18 to 0.44, which is why six scenarios have always
+sufficed for that question. Skill-VERSION differences are far smaller, so a six-scenario grid
+comparing two wordings can only ever return INCONCLUSIVE — spend with a known-null outcome. Size
+it, or reduce the spread first; adding scenarios is the most expensive of the available fixes.
+
+A judge flip between families, or a verdict that holds under one grader only, is a reason to
+re-measure rather than to conclude.
 
 **Mechanism claims cite cells (#191).** Any causal "the mechanism is X" sentence in a verdict
 README cites its supporting cells or carries an exploratory label. A bar miss that flips or halves
