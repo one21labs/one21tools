@@ -78,28 +78,40 @@ class TestVerdictMath(unittest.TestCase):
         self.assertEqual(d["n_clusters"], 1)
         self.assertNotEqual(d["ci95"][0], d["ci95"][0])  # NaN: one cluster carries no width
         self.assertEqual(bs.keep_verdict(d)["verdict"], "INCONCLUSIVE")
-        self.assertIsNone(bs.keep_verdict(d)["detectable"])
+        self.assertIsNone(bs.keep_verdict(d)["half_width"])
+        self.assertIsNone(bs.keep_verdict(d)["mde80"])
 
     def test_the_interval_decides_the_verdict_never_the_point_estimate(self):
         # The regression this replaces: KEEP on mean>0 alone fires about half the time under a
         # true null, so it carried no error control. Each case below returned KEEP before.
         clears = {"mean": 0.2, "ci95": [0.05, 0.35]}
         self.assertEqual(bs.keep_verdict(clears)["verdict"], "KEEP")
-        for spans in ({"mean": 0.01, "ci95": [-0.15, 0.17]},    # tiny positive, wide interval
-                      {"mean": 0.20, "ci95": [-0.10, 0.50]}):   # large positive, wider interval
+        for spans in ({"mean": 0.01, "ci95": [-0.15, 0.17], "n_clusters": 6},
+                      {"mean": 0.20, "ci95": [-0.10, 0.50], "n_clusters": 6}):
             v = bs.keep_verdict(spans)
             self.assertEqual(v["verdict"], "INCONCLUSIVE")
-            self.assertIn("could only call a difference of", v["why"])
+            self.assertIn("reliably call a difference of", v["why"])
+        # Without n_clusters no power figure is computable, and the message says so rather than
+        # printing a number it cannot stand behind.
+        bare = bs.keep_verdict({"mean": 0.01, "ci95": [-0.15, 0.17]})
+        self.assertIsNone(bare["mde80"])
+        self.assertIn("no stated power", bare["why"])
         below = {"mean": -0.3, "ci95": [-0.5, -0.1]}
         self.assertEqual(bs.keep_verdict(below)["verdict"], "HARMFUL")
         # A negative point estimate whose interval spans zero is NOT evidence of harm.
         self.assertEqual(bs.keep_verdict({"mean": -0.1, "ci95": [-0.3, 0.1]})["verdict"],
                          "INCONCLUSIVE")
 
-    def test_detectable_is_the_half_width_so_an_inconclusive_run_reads_as_underpowered(self):
-        v = bs.keep_verdict({"mean": 0.01, "ci95": [-0.18, 0.20]})
-        self.assertAlmostEqual(v["detectable"], 0.19, places=3)
-        self.assertLess(abs(v["mean"]), v["detectable"])   # underpowered, not "no effect"
+    def test_half_width_and_mde80_are_reported_separately_because_they_differ(self):
+        # A true effect equal to the half-width clears zero only ~half the time, so half-width is
+        # a 50%-power figure and is NOT a minimum detectable effect. Reporting only it overstates
+        # the design by ~40%. mde80 is the number an observed mean should be compared against.
+        v = bs.keep_verdict({"mean": 0.01, "ci95": [-0.18, 0.20], "n_clusters": 6})
+        self.assertAlmostEqual(v["half_width"], 0.19, places=3)
+        self.assertGreater(v["mde80"], v["half_width"])
+        self.assertAlmostEqual(v["mde80"] / v["half_width"], 1.36, places=1)
+        self.assertLess(abs(v["mean"]), v["mde80"])        # underpowered, not "no effect"
+        self.assertIn("reliably call", v["why"])
 
     def test_a_pre_registered_practical_bar_raises_the_verdict_above_bare_significance(self):
         # Owner requirement: "the effect size to be significant, so that the skill is CLEARLY
@@ -121,12 +133,14 @@ class TestVerdictMath(unittest.TestCase):
         v = bs.keep_verdict(lopsided)
         self.assertEqual(v["verdict"], "KEEP")
         self.assertEqual(v["win_rate"], 0.25)
-        self.assertIn("won only 25% of scenarios", v["why"])
         consistent = {"mean": 0.2, "ci95": [0.05, 0.35],
                       "per_scenario": {"S1": 0.2, "S2": 0.25, "S3": 0.15, "S4": 0.2}}
-        w = bs.keep_verdict(consistent)
-        self.assertEqual(w["win_rate"], 1.0)
-        self.assertNotIn("why", w)
+        self.assertEqual(bs.keep_verdict(consistent)["win_rate"], 1.0)
+        # Same verdict either way, and NO warning threshold: over 6-8 scenarios win_rate is a
+        # coin-flip count with no interval, so any cutoff would be exactly the arbitrary constant
+        # this rule was written to delete. It is a prompt to read attribution, not a criterion.
+        self.assertEqual(bs.keep_verdict(consistent)["verdict"], "KEEP")
+        self.assertNotIn("why", v)
 
     def test_cut_requires_an_equivalence_result_not_a_point_estimate_near_zero(self):
         # The only honest route to "this skill is not worth keeping": the whole interval inside
@@ -146,8 +160,13 @@ class TestVerdictMath(unittest.TestCase):
         done = {"mean": 0.438, "ci95": [0.186, 0.690], "n_clusters": 6}
         sd = bs.sd_between(done)
         self.assertAlmostEqual(sd, 0.240, places=2)
-        self.assertLessEqual(bs.clusters_for(sd, 0.25), 8)     # a large effect is cheap
-        self.assertGreater(bs.clusters_for(sd, 0.05), 50)      # a small one is not
+        # Default is 80% power. Sizing at 50% (target == half-width) roughly HALVES the answer,
+        # which is the under-sizing a cross-family review caught: such a design succeeds on a
+        # coin flip. Both are available; the honest default is the one that works.
+        self.assertGreater(bs.clusters_for(sd, 0.25), bs.clusters_for(sd, 0.25, power=0.50))
+        self.assertGreaterEqual(bs.clusters_for(sd, 0.25, power=0.50) * 2,
+                                bs.clusters_for(sd, 0.25) - 2)
+        self.assertGreater(bs.clusters_for(sd, 0.05), 100)     # a small effect stays expensive
         self.assertIsNone(bs.clusters_for(sd, 0.0))            # no target -> no answer
         self.assertIsNone(bs.clusters_for(float("nan"), 0.1))  # no prior -> no answer
         self.assertNotEqual(bs.sd_between({"ci95": [float("nan")] * 2, "n_clusters": 1}),

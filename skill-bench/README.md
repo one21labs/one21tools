@@ -19,7 +19,7 @@ outside this plugin's shipped files, so no link survives an install.
   /bench (verdict | skill | trigger)                  <- one skill, three subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
-  cross-family judge (pluggable) | verdict.py            keep in-repo; no vendor sells this
+  cross-family judge (pluggable) | benchstats.py         keep in-repo; no vendor sells this
   ---------------------------------------------------
   hermetic_driver adapter interface                   <- swappable RUNNER
      -> promptfoo (npx, version-pinned; CI regression gating)

@@ -57,13 +57,40 @@ is an infrastructure defect to fix before grading, not signal.
   variance; pre-register per-arm consistency (within-scenario rep variance / worst-rep score)
   alongside the mean deltas.
 - **Power the design — two numbers, both stated before the run.** (1) The PRACTICAL BAR: the
-  smallest difference worth paying context for. It is tested against the interval's lower bound,
-  so KEEP means "at least this much"; set after the fact it is worthless. (2) The SCENARIO COUNT
-  that makes that bar reachable: `clusters_for(sd_between(prior_delta), target)`, sized from a
-  prior run's measured spread, never guessed (ADR 0076's rule applied to power). A grid sized
-  below it can only return INCONCLUSIVE, so it is spend with a known-null outcome. Prefer more
-  reps on fewer, harder scenarios — ceilinged easy expectations carry no information, and
-  reducing the spread is cheaper than adding scenarios.
+  smallest difference worth paying context for, tested against the interval's LOWER bound so KEEP
+  means "at least this much". Set after the fact it is worthless. (2) The SCENARIO COUNT that
+  makes that bar reachable: `clusters_for(sd_between(prior_delta), target)`, at 80% power, sized
+  from a prior run's measured spread rather than guessed (ADR 0076 applied to power). A grid
+  sized below it can only return INCONCLUSIVE — spend with a known-null outcome.
+
+## Sizing, at this repo's measured spread of 0.24
+
+| To reliably call | scenarios (80% power) | at 50% power, for contrast |
+|---|---|---|
+| 0.40 | 5 | 4 |
+| 0.25 | 10 | 7 |
+| 0.15 | 22 | 13 |
+| 0.10 | 46 | 25 |
+| 0.05 | 181 | 89 |
+
+The 50% column is what you get by sizing so the target equals the CI half-width — a design that
+succeeds on a coin flip. It is shown only so the difference is visible; never plan from it.
+
+**Variance is the cheap lever; scenarios are the expensive one.** At spread 0.24, six scenarios
+reliably call only 0.34 or larger, so a real 0.18 effect needs 16. One run here achieved a spread
+of 0.065, where six scenarios reach 0.09 and that same effect needs **four**. More reps per cell,
+a tighter rubric, and harder scenarios that are not ceilinged all buy more than adding scenarios,
+and cost less.
+
+Two hazards in the sizing input itself. `sd` from a G=6 run carries df=5 — very noisy, and biased
+low whenever the realized spread happened to be small, so the returned count is a FLOOR. And a
+prior from a different comparison class is not a draw from the same spread at all: skill-vs-bare
+priors do not size a skill-version comparison. Prefer a conservative pre-registered value or an
+upper bound on `sd`.
+
+Skill-versus-bare effects here have run 0.18 to 0.44, so that question is answerable at these
+sizes. Skill-VERSION differences are far smaller, which is why a six-scenario grid comparing two
+wordings can only return INCONCLUSIVE.
 
 ## Prior-art pass before designing a paid experiment
 

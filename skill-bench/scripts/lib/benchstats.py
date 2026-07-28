@@ -24,6 +24,21 @@ _T95 = {1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365, 8
         30: 2.042}
 Z95 = 1.96
 
+# One-sided 80% t quantiles — the POWER term. Sizing uses the standard identity
+# delta >= (t_{1-alpha/2} + t_{1-beta}) * SE; dropping the second term sizes for 50% power, which
+# is the trap a cross-family review caught here on 2026-07-27: a design sized so that the true
+# effect equals the half-width clears zero only about half the time.
+_T80 = {1: 1.376, 2: 1.061, 3: 0.978, 4: 0.941, 5: 0.920, 6: 0.906, 7: 0.896, 8: 0.889,
+        9: 0.883, 10: 0.879, 12: 0.873, 15: 0.866, 20: 0.860, 25: 0.856, 30: 0.854}
+Z80 = 0.842
+
+
+def t80(df):
+    """One-sided 80% critical value at `df` — the power term in the sizing identity."""
+    if df < 1:
+        return float("nan")
+    return _T80.get(df, Z80)
+
 
 def t95(df):
     """Two-sided 95% critical value at `df` degrees of freedom. Exported so a consumer can show
@@ -87,20 +102,30 @@ def sd_between(delta):
     return ((hi - lo) / 2 / t95(g - 1)) * math.sqrt(g)
 
 
-def clusters_for(sd, target, max_g=4000):
-    """Scenario clusters needed before a TRUE difference of `target` clears zero, at `sd` between
-    clusters. Iterative because the t multiplier depends on the answer. None means `max_g` is not
-    enough — the honest result for a target this design cannot reach at any affordable size.
+def clusters_for(sd, target, power=0.80, max_g=4000):
+    """Scenario clusters needed to call a TRUE difference of `target`, at `sd` between clusters,
+    WITH the stated power. Iterative because both t multipliers depend on the answer. None means
+    `max_g` is not enough — the honest result for a target this design cannot reach affordably.
 
-    A pre-registration states this number (references/pre-registration.md, "Power the design"). A
-    grid sized below it can only return INCONCLUSIVE for the effect it is looking for, so it is
-    spend with a known-null outcome: measured here as 6-8 scenarios against skill-VERSION deltas,
-    which need ~25-97 at the observed spread. Skill-vs-bare deltas (0.18-0.44 recorded) clear at
-    6, which is why that question has always worked and version comparisons never could."""
+    `power=0.80` is the default because 0.50 is what you get by ignoring the second term, and a
+    design that succeeds half the time is not a design. Passing `power=0.50` reproduces the
+    naive sizing (target == half-width) and roughly HALVES the answer; a cross-family review
+    caught exactly that under-sizing here on 2026-07-27.
+
+    `sd` is a PLUG-IN estimate and usually comes from a G=6 run, where it carries df=5 — very
+    noisy, and biased low when the realized spread happened to be small. Treat the result as a
+    floor, not a plan: prefer an upper confidence bound on sd, or a conservative pre-registered
+    value. A prior run on different scenarios or a different comparison class is not a draw from
+    the same sd at all, which is the case that bites version-vs-version sizing.
+
+    A pre-registration states this number (references/pre-registration.md). A grid sized below it
+    can only return INCONCLUSIVE for the effect it is looking for — spend with a known-null
+    outcome."""
     if sd != sd or sd <= 0 or target <= 0:
         return None
     for g in range(2, max_g + 1):
-        if t95(g - 1) * sd / math.sqrt(g) <= target:
+        crit = t95(g - 1) + (t80(g - 1) if power >= 0.80 else 0.0)
+        if crit * sd / math.sqrt(g) <= target:
             return g
     return None
 
@@ -120,7 +145,11 @@ def keep_verdict(delta, practical=0.0):
         means "at least this much, with 95% confidence" rather than "more than nothing";
     (3) "most of the time" -> `win_rate`, the share of scenarios the treatment actually won. A
         large mean carried by one scenario is not "clearly better most of the time", and the
-        interval alone cannot tell you which you have.
+        interval alone cannot tell you which you have. **`win_rate` carries NO inferential
+        status** — over 6-8 scenarios it is a coin-flip count with no interval, so it is a
+        prompt to look at `top_cell_attribution`, never a criterion. It deliberately has no
+        threshold: a cross-family review pointed out that any cutoff here would be the same
+        arbitrary constant this rule was written to delete.
 
     **`practical` is PRE-REGISTERED or it is worthless.** Set it before the run, in the
     pre-registration; picking it after seeing which way the numbers went is precisely the failure
@@ -142,11 +171,15 @@ def keep_verdict(delta, practical=0.0):
       constant doing no inferential work. A cross-family review named both defects independently.
     The `confidence` field went with them: under an interval rule a "weak KEEP" cannot exist.
 
-    `detectable` is the smallest true difference this design could have called — exactly the CI
-    half-width, since KEEP requires `mean > t*SE`. It costs nothing to report and makes an
-    INCONCLUSIVE verdict readable on sight: an observed mean below it means the run was
-    underpowered for the effect it saw, NOT that the effect is absent. Size the next one with
-    `clusters_for(sd_between(delta), target)`."""
+    Two precision numbers, NOT one, because they are routinely confused:
+    - `half_width` = t*SE, the boundary this run's own standard error allows. A true difference
+      exactly this size clears zero about HALF the time, so it is a 50%-power figure, not a
+      minimum detectable effect. Reporting it as "what the design could detect" overstates the
+      design by ~40%, which is the error a cross-family review caught here on 2026-07-27.
+    - `mde80` = (t95 + t80)*SE, the smallest difference this design would call RELIABLY (80% of
+      the time). This is the number to compare an observed mean against.
+    An observed mean below `mde80` means the run was underpowered for the effect it saw, NOT that
+    the effect is absent. Size the next one with `clusters_for(sd_between(delta), target)`."""
     m, lo, hi = delta["mean"], delta["ci95"][0], delta["ci95"][1]
     per = list((delta.get("per_scenario") or {}).values())
     win = (sum(1 for d in per if d > 0) / len(per)) if per else None
@@ -154,33 +187,38 @@ def keep_verdict(delta, practical=0.0):
         return {"verdict": "NO-DATA"}
     if lo != lo:
         return {"verdict": "INCONCLUSIVE", "mean": round(m, 4), "ci95": [None, None],
-                "detectable": None, "practical": practical, "win_rate": win,
+                "half_width": None, "mde80": None, "practical": practical, "win_rate": win,
                 "why": "a single cluster carries no interval, so no difference is callable"}
     if lo > practical:
         verdict = "KEEP"
     elif hi < 0:
         verdict = "HARMFUL"
     elif practical > 0 and -practical < lo and hi < practical:
-        # EQUIVALENCE (TOST shape): the whole interval sits inside the practical band, so the
-        # data positively support "no difference worth having" rather than merely failing to
-        # find one. This is the ONLY honest route to CUT — the deleted rule reached it from a
-        # point estimate near zero, which is indistinguishable from an underpowered run and is
-        # why a null could be laundered into a decision. Unreachable at practical=0: you cannot
-        # prove a difference is smaller than nothing.
+        # CONSERVATIVE EQUIVALENCE, deliberately not TOST-at-5%: a 5% TOST is the 90% interval
+        # inside the band, so requiring the 95% interval is STRICTER — fewer CUTs, less power
+        # against true nulls, false-equivalence risk below alpha. Stated rather than dressed up
+        # as TOST, per a cross-family review. It is one honest route to "not worth keeping", not
+        # the only one (cost-benefit and Bayesian ROPE are others); it is the one shipped here.
+        # The deleted rule reached CUT from a point estimate near zero, indistinguishable from an
+        # underpowered run — that is how a null got laundered into a decision. Unreachable at
+        # practical=0: nothing is provably smaller than nothing.
         verdict = "CUT"
     else:
         verdict = "INCONCLUSIVE"
     half = (hi - lo) / 2
+    g = delta.get("n_clusters") or 0
+    se = half / t95(g - 1) if g >= 2 else float("nan")
+    mde80 = (t95(g - 1) + t80(g - 1)) * se if se == se else float("nan")
     out = {"verdict": verdict, "mean": round(m, 4), "ci95": [round(lo, 4), round(hi, 4)],
-           "detectable": round(half, 4), "practical": practical,
-           "win_rate": None if win is None else round(win, 3)}
+           "half_width": round(half, 4),
+           "mde80": None if mde80 != mde80 else round(mde80, 4),
+           "practical": practical, "win_rate": None if win is None else round(win, 3)}
     if verdict == "INCONCLUSIVE":
         bar = "zero" if practical == 0 else f"the practical bar of {practical:+.3f}"
-        out["why"] = (f"the 95% interval does not clear {bar}; this design could only call a "
-                      f"difference of {half:.3f} or larger, and the observed mean is {m:+.3f}")
-    elif verdict == "KEEP" and win is not None and win < 0.6:
-        out["why"] = (f"clears the bar on the mean, but the treatment won only "
-                      f"{win:.0%} of scenarios — check `attribution` before calling it consistent")
+        reach = (f"reliably call a difference of {mde80:.3f} or larger" if mde80 == mde80
+                 else "reach no stated power (cluster count unknown)")
+        out["why"] = (f"the 95% interval does not clear {bar}; this design could only {reach}, "
+                      f"and the observed mean is {m:+.3f}")
     return out
 
 

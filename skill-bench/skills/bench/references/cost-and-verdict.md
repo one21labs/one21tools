@@ -69,27 +69,16 @@ cannot tell you which you have, so the win rate is reported beside it.
 
 ## Reading it honestly
 
-Cluster counts are small, so intervals are wide. **Read `detectable` before reading the mean.** An
-INCONCLUSIVE verdict whose observed mean is below `detectable` means the run was underpowered for
-the effect it saw — not that the effect is absent. Those are opposite conclusions and the point
+Cluster counts are small, so intervals are wide. **Read `mde80` before reading the mean.** An
+INCONCLUSIVE verdict whose observed mean is below `mde80` means the run was underpowered for the
+effect it saw — not that the effect is absent. Those are opposite conclusions, and the point
 estimate cannot tell them apart.
 
-Sizing is not optional, and it is cheap: `sd_between(delta)` recovers the between-scenario spread
-from any completed run, and `clusters_for(sd, target)` turns it into the scenario count the next
-one needs. Measured on this repo's own results, spread is about 0.24, which means:
-
-| To call a difference of | you need |
-|---|---|
-| 0.40 | 4 scenarios |
-| 0.25 | 7 |
-| 0.15 | 13 |
-| 0.10 | 25 |
-| 0.05 | 97 |
-
-Skill-versus-bare effects here have run 0.18 to 0.44, which is why six scenarios have always
-sufficed for that question. Skill-VERSION differences are far smaller, so a six-scenario grid
-comparing two wordings can only ever return INCONCLUSIVE — spend with a known-null outcome. Size
-it, or reduce the spread first; adding scenarios is the most expensive of the available fixes.
+`half_width` and `mde80` are both reported and are not the same number. A true difference equal to
+the half-width clears zero only about **half** the time, so half-width is a 50%-power figure;
+treating it as "what the design can detect" overstates the design by about 40%. `mde80` is what it
+calls reliably. Sizing the NEXT run from these is design-time work and lives in
+[pre-registration.md](pre-registration.md).
 
 A judge flip between families, or a verdict that holds under one grader only, is a reason to
 re-measure rather than to conclude.
