@@ -30,7 +30,9 @@ Use two Claude instances:
 
 5. **Test with Claude B**: Give Claude B (fresh instance with skill loaded) real tasks.
 
-6. **Iterate**: "Claude B forgot to filter test accounts. Should we add a section?"
+6. **Iterate**: "Claude B forgot to filter test accounts." First ask: does an existing line
+   contradict, bury, or fail to cover this — fix or cut that before reaching for a new
+   section. Only if nothing existing can absorb it: add one.
 
 ### Iterating on Existing Skills
 

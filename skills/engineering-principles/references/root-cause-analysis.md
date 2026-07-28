@@ -38,6 +38,13 @@ Stop when you reach a cause that is:
 2. **Systemic** - fixing it prevents the class of problem, not just this instance
 3. **Within control** - you have authority to address it
 
+### Countermeasure Ranking
+
+Before naming the countermeasure, ask ELIMINATION first: can the step, field, or code path
+that let the root cause occur be REMOVED rather than guarded or monitored? Rank per
+ENGINEERING_PRINCIPLES.md's poka-yoke ladder — deletion beats prevention beats detection.
+Guard only when nothing can be cut, and say why.
+
 ### Example: Bug in Production
 
 ```
@@ -53,8 +60,8 @@ No session validation before accessing user data
 ↓ Why?
 Root Cause: No standard pattern for session handling across modules
 
-Countermeasure: Create session validation middleware, 
-               add to coding standards, retrofit existing endpoints
+Countermeasure: DELETE the scattered per-endpoint session reads (the surface
+               that allowed the miss); one validation middleware replaces them
 ```
 
 ### Common Mistakes

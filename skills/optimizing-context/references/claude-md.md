@@ -157,9 +157,11 @@ CLAUDE.md should evolve:
 
 1. Start minimal (or empty)
 2. Notice when Claude makes mistakes
-3. Add targeted corrections
-4. Remove entries when Claude stops needing them
-5. Simplify tooling when CLAUDE.md grows too large
+3. Check whether an existing entry caused it (cut it) or already covers it
+   (strengthen it) before adding anything
+4. Add targeted corrections only when nothing existing can absorb the fix
+5. Remove entries when Claude stops needing them
+6. Simplify tooling when CLAUDE.md grows too large
 
 ## Sources
 
