@@ -32,6 +32,10 @@ Record the pre-screen result and any dropped/hardened eval in the dated dir BEFO
 Guardrail (ADR 0024): the pre-screen restores discriminating power — it is never
 difficulty-tuning toward a desired verdict; a hardened eval may CONFIRM the negative
 direction, recorded either way.
+Mechanization of this pre-screen is deferred to its first consumer (#177; retired ADR 0065) —
+today the rungs are this doc rule and the /bench Guardrails pointer. Reopen: a grid reaches
+verdict on an eval discovered ceilinged/floored only after spend -> mechanize as a lib gate
+with its own decision-logic test.
 
 ## No primed conclusions (ADR 0059)
 
@@ -48,7 +52,7 @@ fails the mechanical shape check (`lib/artifact_check.py`) is an ERROR cell, nev
 Before blinding, run the capture-symmetry sweep (`blind.capture_symmetry`) — arm-skewed emptiness
 is an infrastructure defect to fix before grading, not signal.
 
-## Design for signal (ADR 0065)
+## Design for signal (retired ADR 0065)
 
 - **Gate or optimization?** — mandatory field (ADR 0062 two-stage doctrine): is this run a
   cheap go/no-go gate or a powered optimization? Powered designs are reserved for
