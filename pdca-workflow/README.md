@@ -53,7 +53,8 @@ source repo's committed benchmarks:
   (`2026-07-17-crossjudge-regrade`); the other 9 held — the instrument detects
   judge-dependence without manufacturing it.
 - **pre-registration + cost gates** — observed saves on record (a 3.5x cost-estimate miss
-  caught and revised pre-grid, per ADR 0066/0076's paper trail), but NO controlled
+  caught and revised pre-grid; paper trail: retired ADRs 0066/0076 ->
+  `skill-bench/skills/bench/references/cost-and-verdict.md`), but NO controlled
   comparison against running without them yet — that is a discipline claim, not a measured
   superiority claim.
 - **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
@@ -84,7 +85,7 @@ very different magnitudes (FP guard per clean cell: v2 1.33 vs 2.50, a halving; 
 1.333, ~12%).
 `/decide` shows no rubric-quality edge over a token-matched deliberation prompt
 (judge-sensitive: +0.010 same-family; the cross-family re-grade moves it positive — direction
-only, prototype basis per ADR 0057; CIs straddle zero); a 7x-cheaper
+only, prototype basis per ADR 0057; CIs straddle zero); a 6.6x-cheaper
 decider+probes replacement failed all pre-registered quality bars across a 3-iteration
 improvement loop under BOTH judges; a poker/Delphi numeric-estimation round at 0.29x cost
 failed three of four bars under BOTH judges (its planted-trap losses trace mostly to a
@@ -95,8 +96,9 @@ per-run variance and NO run-to-run variance damping (three same-config runs: pan
 spread ~ bare spread). A mechanical DoD record check predicts record quality among bare
 records only (+0.21/+0.23 both corpora); panel records satisfy its items by construction.
 Measured value so far: process guarantees, FP discipline, and that independence edge — not
-per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into ADR 0065,
-and #186's Phase-1 was closed won't-do (the ceremony cut) — no enforcement gate ships.
+per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into retired ADR 0065
+(-> `skill-bench/skills/bench/references/pre-registration.md`), and #186's Phase-1 was closed
+won't-do (the ceremony cut) — no enforcement gate ships.
 
 ## What's in the box
 

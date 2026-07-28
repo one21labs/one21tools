@@ -131,3 +131,9 @@ kept in `outputs/`, remainder in `outputs/all.tar.gz` (ADR 0026).
   recall", never "real-world".
 - Small cluster count (6) -> wide CI; confidence language pre-committed above.
 - Same-family grader (Claude-grades-Claude, ADR 0019 residual) — unchanged here.
+
+## Correction (appended 2026-07-28, ADR 0089(b))
+
+The benchmarks/lib README named in build_substrates.py's docstring (an un-backticked cite, left
+unedited per ADR 0089(b)) moved in the skill-bench extraction; the convention it names now
+lives at `skill-bench/scripts/lib/README.md`.

@@ -1,6 +1,7 @@
 # skill-bench
 
-The repo's unique asset — the only public hermetic skill-**measurement** pipeline — packaged so any
+The repo's unique asset — the only public hermetic skill-**measurement** pipeline found in a
+Jul-2026 survey of the field — packaged so any
 skill author can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
 ADR 0055 (scope) + ADR 0063 (completion set); plan: #170 — all in the source repo's decision log,
 outside this plugin's shipped files, so no link survives an install.
@@ -9,8 +10,9 @@ outside this plugin's shipped files, so no link survives an install.
 
 - **Is:** a causal + pre-registration measurement layer — arm design (bare / cost-matched / structured),
   blind normalization, an adversarial prosecutor, a **cross-family judge**, cost gates, and
-  pre-registration discipline. No commercial eval tool (promptfoo, Inspect, Braintrust, LangSmith,
-  OpenAI Evals, Anthropic Console) ships these; all of them report aggregate pass rates only.
+  pre-registration discipline. As of the Jul-2026 survey, no commercial eval tool checked
+  (promptfoo, Inspect, Braintrust, LangSmith, OpenAI Evals, Anthropic Console) ships these; all
+  of them report aggregate pass rates only.
 - **Is not:** an execution/observability engine. That is *rented* — see Substrate below.
 
 ## Architecture: bespoke layer on a rented substrate
