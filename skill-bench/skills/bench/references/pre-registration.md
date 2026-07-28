@@ -69,7 +69,7 @@ is an infrastructure defect to fix before grading, not signal.
 |---|---|---|
 | 0.40 | 5 | 4 |
 | 0.25 | 10 | 7 |
-| 0.15 | 22 | 13 |
+| 0.15 | 23 | 13 |
 | 0.10 | 46 | 25 |
 | 0.05 | 181 | 89 |
 

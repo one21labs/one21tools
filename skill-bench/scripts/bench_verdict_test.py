@@ -147,10 +147,24 @@ class TestVerdictMath(unittest.TestCase):
         # the table to the function, so a constant change would have silently rotted it (advisory
         # review, PR #318). This is that tie: change clusters_for and this fails, not the doc.
         sd = 0.24
-        for target, at80, at50 in ((0.40, 5, 4), (0.25, 10, 7), (0.15, 22, 13),
+        for target, at80, at50 in ((0.40, 5, 4), (0.25, 10, 7), (0.15, 23, 13),
                                    (0.10, 46, 25), (0.05, 181, 89)):
             self.assertEqual(bs.clusters_for(sd, target), at80, f"80% row for {target}")
             self.assertEqual(bs.clusters_for(sd, target, power=0.50), at50, f"50% row for {target}")
+
+    def test_the_t_tables_have_no_gaps_that_silently_fall_back_to_the_asymptote(self):
+        # A sparse table serves the asymptote on its gaps. Both quantile families DECREASE toward
+        # it, so every gap under-states the multiplier: t95's gap widens no interval, t80's gap
+        # relaxes clusters_for and returns fewer scenarios than the requested power needs. That
+        # was live until 2026-07-27 — _T80 skipped df 11,13,14,16-19,21-24,26-29 and the published
+        # 0.15 row read 22 where df=21 gives 23. Monotonicity is what proves no gap remains.
+        for df in range(1, 30):
+            self.assertGreaterEqual(bs.t80(df), bs.t80(df + 1), f"t80 not decreasing at df={df}")
+            self.assertGreaterEqual(bs.t95(df), bs.t95(df + 1), f"t95 not decreasing at df={df}")
+        self.assertGreater(bs.t80(30), bs.Z80)     # still above the asymptote at the table's end
+        self.assertGreater(bs.t95(30), bs.Z95)
+        self.assertEqual(bs.t80(99), bs.Z80)       # beyond the table, the asymptote is correct
+        self.assertEqual(bs.t95(99), bs.Z95)
 
     def test_cut_requires_an_equivalence_result_not_a_point_estimate_near_zero(self):
         # The only honest route to "this skill is not worth keeping": the whole interval inside

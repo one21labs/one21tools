@@ -48,25 +48,15 @@ verdict; the point estimate never does.**
 | CUT | the whole CI sits inside +/- the practical bar | no difference worth having — an equivalence result |
 | INCONCLUSIVE | anything else | nothing; the run cannot answer |
 
-There is deliberately no verdict meaning "probably a bit better", because no such claim is
-supportable from a straddling interval.
+The table is reproduced here ON PURPOSE and is the one exception to cite-don't-restate in this
+file: it is the contract you read a result against, and an adopter should not have to open plugin
+source to learn what a verdict word means. Everything ABOUT it — why there is no "probably a bit
+better", why the bar is worthless unless pre-registered, why CUT is unreachable without one, and
+what `win_rate` may and may not be used for — has one home, `benchstats.keep_verdict`'s docstring.
+Read that before setting a bar.
 
-**The practical bar is pre-registered or it is worthless.** It is the smallest difference worth
-paying context for. Testing it against the LOWER bound is what turns "better than nothing" into
-"clearly better". Choosing it after seeing which way the numbers went is the exact failure
-pre-registration exists to prevent. Left at 0, the bar is bare significance — the weakest
-defensible setting, not the recommended one.
-
-**CUT needs the bar.** With no bar, a null result is INCONCLUSIVE forever: you cannot prove a
-difference is smaller than nothing. The rule shipped until 2026-07-27 reached CUT-CANDIDATE from a
-point estimate near zero, which is indistinguishable from an underpowered run — that is how a
-null could be laundered into a decision.
-
-Every verdict carries **`half_width`** and **`mde80`** (below), plus **`win_rate`**, the share of
-scenarios the treatment actually won. A mean carried by one scenario is not "clearly better most
-of the time"; the interval alone cannot tell you which you have, so the win rate is reported
-beside it. It has no inferential status — over 6-8 scenarios it is a coin-flip count with no
-interval, so read it as a prompt to check attribution, never as a criterion.
+Every verdict also carries `half_width`, `mde80` (below) and `win_rate`, the share of scenarios
+the treatment actually won.
 
 ## Reading it honestly
 

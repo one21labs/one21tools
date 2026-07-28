@@ -28,9 +28,18 @@ Z95 = 1.96
 # delta >= (t_{1-alpha/2} + t_{1-beta}) * SE; dropping the second term sizes for 50% power, which
 # is the trap a cross-family review caught here on 2026-07-27: a design sized so that the true
 # effect equals the half-width clears zero only about half the time.
-_T80 = {1: 1.376, 2: 1.061, 3: 0.978, 4: 0.941, 5: 0.920, 6: 0.906, 7: 0.896, 8: 0.889,
-        9: 0.883, 10: 0.879, 12: 0.873, 15: 0.866, 20: 0.860, 25: 0.856, 30: 0.854}
-Z80 = 0.842
+# FULL df=1..30 coverage, deliberately, matching _T95. A sparse table falls back to the asymptote
+# on the gaps, and because these quantiles DECREASE toward it, every fallback is smaller than the
+# truth — which relaxes clusters_for's stopping condition and returns a g below the power asked
+# for. Silent under-sizing in the sizing function: the same failure the `power` guard rejects
+# loudly, and it was live here until 2026-07-27 (the published 0.15 row read 22 where df=21's true
+# quantile gives 23).
+_T80 = {1: 1.3764, 2: 1.0607, 3: 0.9785, 4: 0.9410, 5: 0.9195, 6: 0.9057, 7: 0.8960,
+        8: 0.8889, 9: 0.8834, 10: 0.8791, 11: 0.8755, 12: 0.8726, 13: 0.8702, 14: 0.8681,
+        15: 0.8662, 16: 0.8647, 17: 0.8633, 18: 0.8620, 19: 0.8610, 20: 0.8600, 21: 0.8591,
+        22: 0.8583, 23: 0.8575, 24: 0.8569, 25: 0.8562, 26: 0.8557, 27: 0.8551, 28: 0.8546,
+        29: 0.8542, 30: 0.8538}
+Z80 = 0.8416
 
 
 def t80(df):
