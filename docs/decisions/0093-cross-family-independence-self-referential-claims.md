@@ -36,6 +36,18 @@ measured listing `claude-haiku-4.5` among its own candidates. So the token now m
 reachable rather than nobody looked, and `adr-lint` requires the probe recorded on the bullet that
 claims it.
 
+**Anti-priming (amended 2026-07-29).** The lane is only as clean as the PROMPT sent down it: an
+observed incident sent maker framing to a foreign lane — clean lineage, contaminated frame.
+(a) Persist claim + raw response + resolved model id per run, at the `runLane` boundary, BOTH
+branches, to a path outside the repo tree. Not a one-line fix: the tmpdir is rmSync'd, the
+response never touches disk, the custom lane writes no file. Ships now — today no evidence of
+priming survives the run that produced it. (b) `--blind` REFUSES (FRAME-UNCHECKED) on a
+maker-tell hit; never redacts — silent redaction would alter the claim the lane sees. Opt-in,
+independence-critical checks only; DEFERRED behind (a): the tell list derives from the persisted
+corpus, not guesses. (c) Prompt-author separation — an independence-critical claim is a verbatim
+artifact quote plus a neutral question, else the prompt is authored by a fresh minimal-context
+agent. Decided here because it changes this record's mechanism.
+
 ## Justification
 Fresh clears contaminated REASONING, not shared PRIORS. So the failure worth closing is the
 default-open one — an agent CONFIRMING a self-referential claim it had no standing to confirm —
@@ -47,6 +59,7 @@ and it closes at the agent, where a mis-classifying parent cannot route around i
   fail-open — an unplaceable model id passing as foreign — that a cross-lineage round caught and
   this lineage, having just written the rule it broke, did not.
 - [unverifiable] a human reviewer counts as another lineage here — REOPEN-IF a human check on this class misses what a cross-vendor model catches -> name the two routes separately.
+- [unverifiable] maker framing measurably moved the observed lane's verdict — n=1, and the evidence was destroyed by the rmSync that (a) fixes. REOPEN-IF the first persisted corpus shows no framing effect -> (b) never ships and (c) downgrades to advisory.
 
 ## Rejected alternatives
 - Pinning a vendor or model — entitlement decides what a CLI will run (copilot rejects every
