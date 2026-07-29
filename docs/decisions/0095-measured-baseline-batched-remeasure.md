@@ -60,8 +60,8 @@ summary: "The measurement promise is owed to the CLAIM, not to the edit: a verdi
 
 ## Justification
 Per-edit re-measurement at the batteries this repo actually runs is underpowered: MDE 0.24-0.37
-at G=6 across the observed cluster spread (t-arithmetic, reproduced via `benchstats.mde80`)
-against July deltas of +0.009..+0.27. Re-measuring now buys likely-INCONCLUSIVE verdicts for ~$63 and changes no
+at G=6 across the observed cluster spread (closed form `(t95(G-1)+t80(G-1))*se`, the
+`mde80` field of `benchstats.keep_verdict()`) against July deltas of +0.009..+0.27. Re-measuring now buys likely-INCONCLUSIVE verdicts for ~$63 and changes no
 decision. Scoping the promise DELETES the overclaim instead of building machinery to service it —
 the subtractive half of the trade, and the half the adopter actually feels: a claim they can
 trust beats a thermometer they never see.

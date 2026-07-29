@@ -50,7 +50,8 @@ a claim they can check. Root-cause framing (path conflation) beats six point edi
 - [verified] 2 arms not 3 (`bench_skill.py:71-72`); no prosecute in the skill path
   (`bench_skill.py:24-36`); manifest descriptions byte-identical.
 - [checkable] 0095's closed-form MDE cite reproduces 0.24-0.37 at G=6 unaided — owner: gate;
-  result: verified (via `benchstats.mde80`, t multipliers 3.49 at G=6, s 0.17-0.26).
+  result: verified (`(t95(5)+t80(5))*se` = 3.49 x s/sqrt(6) for s 0.17-0.26; the `mde80`
+  field of `benchstats.keep_verdict()`).
 - [unverifiable] the three vendor refutations hold at merge — REOPEN-IF a named vendor drops
   the capability -> re-date the honest-limits paragraph, never re-universalize.
 
