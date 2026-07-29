@@ -25,6 +25,7 @@ from artifact_check import check_artifact          # noqa: E402
 from blind import assign_bids, capture_symmetry    # noqa: E402
 from judge import JudgeError, make_judge, met_map  # noqa: E402
 from rubric import GRADE_SCHEMA                    # noqa: E402
+from markers import measure                                # noqa: E402
 from tells import detect_tells, strip_report, strip_tells  # noqa: E402
 
 MIN_CHARS = 400
@@ -121,16 +122,32 @@ def main():
                 bid = bid_of[r["cell"]]
                 if bid in done:
                     continue
-                try:
-                    v = judge.grade(grade_prompt(r["clean"]), GRADE_SCHEMA)
-                except JudgeError as e:
-                    print(f"[{jname}:{r['cell']}] JUDGE ERROR {e}", file=sys.stderr, flush=True)
+                # Catch Exception, not just JudgeError. lib/judge.py's ClaudeJudge.grade escapes
+                # its own documented contract: a malformed model response surfaces as a raw
+                # json.JSONDecodeError, which killed this pass at cell 18 of 30 on the first run.
+                # That is the SAME defect class the library already fixed for TimeoutExpired
+                # (PR #219 retrospective) and did not fix here. Grading is resumable and
+                # append-once, so a retry is safe and a persistent failure is an ERROR cell.
+                v = None
+                for attempt in (1, 2, 3):
+                    try:
+                        v = judge.grade(grade_prompt(r["clean"]), GRADE_SCHEMA)
+                        break
+                    except (JudgeError, Exception) as e:   # noqa: B014 - explicit about intent
+                        print(f"[{jname}:{r['cell']}] attempt {attempt} failed: "
+                              f"{type(e).__name__}: {str(e)[:200]}", file=sys.stderr, flush=True)
+                if v is None:
+                    errors.append({"cell": r["cell"], "judge": jname,
+                                   "reason": "judge failed 3 attempts"})
                     continue
                 m = met_map(v)
                 met = {c["id"]: bool(m.get(c["id"], False)) for c in CRITERIA}
                 row = {"bid": bid, "cell": r["cell"], "lane": r["lane"], "arm": r["arm"],
                        "rep": r["rep"], "answering_model": r["summary"].get("answering_model"),
                        "response_chars": len(r["clean"]),
+                       # Judge-independent rival-explanation counters, carried on every row so the
+                       # analysis can test "is it just vocabulary / just length" without a judge.
+                       "markers": measure(r["clean"]),
                        "score": sum(met.values()) / len(met), "met": met,
                        "why": {e["id"]: e.get("why", "") for e in v.get("expectations", [])}}
                 f.write(json.dumps(row) + "\n")
@@ -139,6 +156,10 @@ def main():
                       f"{row['score']:.3f}", flush=True)
         print(f"{jname}: notional judge cost ${judge.cost_usd()} over {judge.calls} calls",
               flush=True)
+
+    # Rewritten AFTER grading so judge failures land in the record too, not just generation ones.
+    (HERE / "graded" / "error-cells.json").write_text(json.dumps(errors, indent=1),
+                                                      encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -20,9 +20,64 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import assaystats as S  # noqa: E402
 
-CRITERIA = json.loads((HERE / "criteria.json").read_text(encoding="utf-8"))["criteria"]
+_CRIT_DOC = json.loads((HERE / "criteria.json").read_text(encoding="utf-8"))
+CRITERIA = _CRIT_DOC["criteria"]
+SUBSETS = {k: v for k, v in _CRIT_DOC.get("subsets", {}).items() if isinstance(v, list)}
 PRACTICAL = json.loads((HERE / "metadata.json").read_text(encoding="utf-8")).get(
     "practical_bar", 0.0)
+
+
+def subset_effects(rows):
+    """Effect on each pre-registered criterion subset.
+
+    The load-bearing comparison: an effect present in the FULL set but absent in the
+    content_bearing subset is verbosity or formatting transfer, not better feedback. Reported
+    because the headline number alone cannot tell those apart.
+    """
+    out = {}
+    for name, ids in SUBSETS.items():
+        scored = [dict(r, score=sum(r["met"][i] for i in ids if i in r["met"]) /
+                       max(1, len([i for i in ids if i in r["met"]]))) for r in rows]
+        cells = S.cell_table(scored, "score")
+        eff = S.arm_main_effect(cells)
+        eff["verdict"] = S.verdict(eff, PRACTICAL)
+        eff["n_criteria"] = len(ids)
+        eff["mean_bare"] = round(statistics.mean(
+            [r["score"] for r in scored if r["arm"] == "bare"]), 4)
+        eff["mean_wp"] = round(statistics.mean(
+            [r["score"] for r in scored if r["arm"] == "wp"]), 4)
+        out[name] = eff
+    return out
+
+
+def marker_effects(rows):
+    """Judge-independent rival-explanation counters, per arm."""
+    if not rows or "markers" not in rows[0]:
+        return {}
+    out = {}
+    for key in ("treatment_markers_distinct", "treatment_markers_per_1k",
+                "plan_anchors_distinct", "plan_anchors_per_1k", "findings", "chars"):
+        vals = [dict(r, m=r["markers"].get(key) or 0) for r in rows]
+        cells = S.cell_table(vals, "m")
+        out[key] = {
+            "bare": round(statistics.mean([v["m"] for v in vals if v["arm"] == "bare"]), 3),
+            "wp": round(statistics.mean([v["m"] for v in vals if v["arm"] == "wp"]), 3),
+            "effect": S.arm_main_effect(cells),
+        }
+    return out
+
+
+def score_length_correlation(rows):
+    """Pre-registered check: if score tracks length above r=0.5, the arm delta is reported
+    length-restricted and labeled descriptive (metadata.json:length_confound_rule)."""
+    xs = [r["response_chars"] for r in rows]
+    ys = [r["score"] for r in rows]
+    if len(xs) < 3 or len(set(xs)) < 2 or len(set(ys)) < 2:
+        return None
+    mx, my = statistics.mean(xs), statistics.mean(ys)
+    num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    den = (sum((x - mx) ** 2 for x in xs) * sum((y - my) ** 2 for y in ys)) ** 0.5
+    return round(num / den, 3) if den else None
 
 
 def load(judge):
@@ -84,6 +139,9 @@ def analyse(rows, label):
         "model_main_effect": S.model_main_effect(cells),
         "verbosity": {"cells": S.consistency(chars),
                       "arm_main_effect_chars": S.arm_main_effect(chars)},
+        "subset_effects": subset_effects(rows),
+        "marker_effects": marker_effects(rows),
+        "score_length_r": score_length_correlation(rows),
         "per_criterion": per_criterion(rows),
         "answering_models": dict(sorted(
             {m: sum(1 for r in rows if r.get("answering_model") == m)
@@ -144,11 +202,31 @@ def report(res):
         L.append(f"   F({mm['df1']},{mm['df2']}) = {mm['F']}   p = {mm['p']}")
         L.append("   means: " + "  ".join(f"{k}={v:.3f}" for k, v in mm["lane_means"].items()))
 
+    L.append(f"\n-- IS THE EFFECT QUALITY, OR STRUCTURE AND VOCABULARY? (pre-registered subsets) --")
+    L.append(f"{'subset':<16} {'k':>3} {'bare':>7} {'wp':>7} {'delta':>8} {'mde80':>7}  verdict")
+    for name, e in res.get("subset_effects", {}).items():
+        mde = e["mde80"] if e.get("mde80") is not None else float("nan")
+        L.append(f"{name:<16} {e['n_criteria']:>3} {e['mean_bare']:>7.3f} {e['mean_wp']:>7.3f} "
+                 f"{e['delta']:>+8.3f} {mde:>7.3f}  {e['verdict']['verdict']}")
+    L.append("   Read: an effect in the full set but NOT in content_bearing is verbosity or")
+    L.append("   formatting transfer, not better feedback.")
+
     vb = res["verbosity"]["arm_main_effect_chars"]
-    L.append(f"\n-- RIVAL EXPLANATION: IS IT JUST LENGTH? --")
+    L.append(f"\n-- RIVAL EXPLANATION: IS IT JUST LENGTH OR VOCABULARY? --")
     if vb.get("ci95", [None])[0] is not None:
         L.append(f"   treatment changes response length by {vb['delta']:+.0f} chars "
                  f"[{vb['ci95'][0]:+.0f}, {vb['ci95'][1]:+.0f}], p={vb['p']}")
+    r = res.get("score_length_r")
+    if r is not None:
+        L.append(f"   correlation(score, length) across all cells = {r}"
+                 + ("   ABOVE the pre-registered 0.5 bar — length is a live confound"
+                    if abs(r) > 0.5 else "   below the pre-registered 0.5 bar"))
+    me = res.get("marker_effects", {})
+    if me:
+        L.append(f"   {'counter':<28} {'bare':>9} {'wp':>9} {'delta':>9}")
+        for k, v in me.items():
+            L.append(f"   {k:<28} {v['bare']:>9.2f} {v['wp']:>9.2f} "
+                     f"{v['effect'].get('delta', float('nan')):>+9.2f}")
 
     L.append(f"\n-- WHICH CRITERIA CARRY THE EFFECT --")
     ranked = sorted(res["per_criterion"].items(), key=lambda kv: -abs(kv[1]["delta"]))
