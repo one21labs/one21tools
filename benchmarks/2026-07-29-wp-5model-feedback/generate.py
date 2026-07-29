@@ -41,8 +41,44 @@ REPS = 3
 TIMEOUT_S = 900
 CLAUDE_DENY = (HERE.parents[1] / "skill-bench" / "scripts" / "lib" / "deny_tools.txt"
                ).read_text().split()
-GROK_DENY = "Bash,Read,Write,Edit,WebSearch,WebFetch"  # known-good set (judge.py: longer lists
-                                                       # trip a grok tool-config validation bug)
+# Grok takes an ALLOW-list, and its tool vocabulary is lowercase snake_case (read_file, list_dir,
+# grep, run_terminal_command, ...). MEASURED 29-Jul-2026: `--disallowed-tools` is a NO-OP here — a
+# cell run with `--disallowed-tools read_file,...` still read a planted file and returned its
+# contents, and so did a cell run with the CamelCase names skill-bench/scripts/lib/judge.py uses.
+# The allow-list DOES hold: the same probe under `--tools todo_write` answered "CANNOT READ".
+# todo_write is an internal no-op with no filesystem or network reach. (`--sandbox` would be
+# stronger but needs bubblewrap, which is not installed here.)
+GROK_ALLOW = "todo_write"
+
+# Copilot's tool vocabulary, read back from the CLI itself 29-Jul-2026. MEASURED: the bare
+# `--available-tools` flag that skill-bench/scripts/lib/judge.py relies on does NOT strip tools
+# (a probe cell read a planted file through it), and `--available-tools=none` merely pushed the
+# model onto `curl file://`. The full `--excluded-tools` list below DOES hold: the same probe
+# returned no planted value and the event stream shows no tool invocation.
+COPILOT_EXCLUDE = ("bash,read_bash,stop_bash,list_bash,view,create,edit,web_fetch,"
+                   "fetch_copilot_cli_documentation,skill,sql,session_store_sql,read_agent,"
+                   "list_agents,write_agent,grep,glob,task,git,curl")
+
+
+def count_copilot_tool_calls(stdout):
+    """Tool INVOCATION events in copilot's JSONL stream (config events do not count).
+
+    Hermeticity here is enforced by a flag whose behaviour is version-dependent, so every cell
+    records whether the flag actually held rather than assuming it did.
+    """
+    n = 0
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            ev = json.loads(line)
+        except ValueError:
+            continue
+        t = (ev.get("type") or "").lower()
+        if "tool" in t and "updated" not in t and "status" not in t:
+            n += 1
+    return n
 GROK_BIN = os.environ.get("GROK_BIN") or os.path.expanduser("~/.grok/bin/grok")
 COPILOT_BIN = (os.environ.get("COPILOT_BIN") or shutil.which("copilot") or os.path.expanduser(
     "~/.vscode-server/data/User/globalStorage/github.copilot-chat/copilotCli/copilot"))
@@ -113,6 +149,9 @@ def run_claude(prompt, model, env, cwd, timeout):
         "usage": env_obj.get("usage"),
         "stop_reason": env_obj.get("stop_reason"),
         "answering_model": model,
+        # num_turns > 1 means the model took extra turns; with every tool denied that is
+        # reasoning, not tool use, but it is recorded so the claim is checkable per cell.
+        "num_turns": env_obj.get("num_turns"),
     }
 
 
@@ -122,7 +161,7 @@ def run_grok(prompt, model, env, cwd, timeout):
         pf = f.name
     try:
         cmd = [GROK_BIN, "--prompt-file", pf, "-m", model, "--output-format", "json",
-               "--disallowed-tools", GROK_DENY, "--no-memory", "--disable-web-search"]
+               "--tools", GROK_ALLOW, "--no-memory", "--disable-web-search"]
         r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                            env=env, cwd=cwd, timeout=timeout)
         if r.returncode != 0:
@@ -145,8 +184,8 @@ def run_copilot(prompt, model, env, cwd, timeout):
     recorded — owner direction, 29-Jul: 'copilot with auto is fine. Just note what model it is
     using for each run.'"""
     cmd = [COPILOT_BIN, "-p", prompt, "--model", model, "--output-format", "json",
-           "--available-tools", "--no-custom-instructions", "--disable-builtin-mcps",
-           "--no-remote", "--no-remote-export", "--log-level", "none"]
+           f"--excluded-tools={COPILOT_EXCLUDE}", "--no-custom-instructions",
+           "--disable-builtin-mcps", "--no-remote", "--no-remote-export", "--log-level", "none"]
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                        env=env, cwd=cwd, timeout=timeout)
     if r.returncode != 0:
@@ -155,7 +194,8 @@ def run_copilot(prompt, model, env, cwd, timeout):
     if not text:
         raise RuntimeError(f"copilot produced no assistant text; stdout_tail={r.stdout[-400:]!r}")
     return text, {"cost_usd": None, "usage": None, "stop_reason": None,
-                  "answering_model": answered}
+                  "answering_model": answered,
+                  "tool_calls": count_copilot_tool_calls(r.stdout)}
 
 
 LANES = {
@@ -208,6 +248,8 @@ def run_cell(lane, arm, rep, out, state, lock, cap):
         "usage": meta.get("usage"),
         "stop_reason": meta.get("stop_reason"),
         "answering_model": meta.get("answering_model"),
+        "tool_calls": meta.get("tool_calls"),      # copilot lane: measured, not assumed
+        "num_turns": meta.get("num_turns"),        # claude lanes
         "response_chars": len(text or ""),
         "timestamps": {"start": started.isoformat(),
                        "end": datetime.now(timezone.utc).isoformat()},
