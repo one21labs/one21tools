@@ -13,3 +13,10 @@ escalated to 3 reps, all resolved in the variant's favor or as ties. Verdict: ad
 Character savings (always-loaded bytes): building-skills 271 -> 121, code-standards 196 -> 146,
 engineering-principles 334 -> 264, optimizing-context 348 -> 161 — 457 chars (~40%) off every
 request's context.
+
+## Correction (appended 2026-07-28, ADR 0089 Act)
+
+The building-skills reference cited above was a pointer stub inside a shipped plugin; the
+stub is deleted and the content's live home is named by the marker the path gate keys on:
+
+MOVED: skills/building-skills/references/description-ablation.md -> `skill-bench/skills/bench/references/description-ablation.md`

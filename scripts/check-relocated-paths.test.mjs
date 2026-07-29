@@ -6,7 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs } from "./check-relocated-paths.mjs";
+import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, shippedSkillDirs, movedMarkers } from "./check-relocated-paths.mjs";
+import { readFileSync } from "node:fs";
 
 const TOP = new Set(["benchmarks", "skills", "skill-bench", "docs", "scripts", "pdca-workflow"]);
 const run = (files, existing = [], ever = []) => checkRelocatedPaths({
@@ -114,4 +115,66 @@ test("walk tolerates a subdir vanishing mid-walk, never the benchmarks root", ()
   const readdir = p => { const k = p.replace(/\\/g, "/").replace(/^\.\//, ""); if (!(k in tree)) { const e = new Error("ENOENT"); e.code = "ENOENT"; throw e; } return tree[k]; };
   assert.deepEqual(walkFrozenDirs(".", readdir), ["benchmarks/2026-07-10-x/README.md"]);
   assert.throws(() => walkFrozenDirs("elsewhere", readdir), /ENOENT/);
+});
+
+// ADR 0089 Act: the shipped-skill MOVED-marker exemption. Doc-only paths under a manifest
+// skills[] dir may delete behind a structured marker in the citing file; everything else FAILs.
+const SHIPPED = new Set(["skills/building-skills"]);
+const OLD_MD = "skills/building-skills/references/description-ablation.md";
+const NEW_MD = "skill-bench/skills/bench/references/description-ablation.md";
+const CITE = { path: "benchmarks/2026-07-09-description-ablation/README.md",
+  text: "protocol + validity rules: `" + OLD_MD + "`, ADR 0033;\n\nMOVED: " + OLD_MD + " -> `" + NEW_MD + "`" };
+const runX = (files, ever, extra = {}) => checkRelocatedPaths({
+  candidates: extractPathTokens(files, TOP), existingPaths: new Set(), everExisted: new Set(ever),
+  shippedDirs: SHIPPED, markersByFile: movedMarkers(files),
+  resolvableNewPaths: new Set([NEW_MD]), ...extra });
+
+test("exemption: shipped .md with resolving MOVED marker passes", () => {
+  assert.equal(runX([CITE], [OLD_MD]).problems.length, 0);
+});
+
+test("shipped .md WITHOUT a marker still FAILs", () => {
+  const noMarker = { path: CITE.path, text: "cites `" + OLD_MD + "` here" };
+  assert.equal(runX([noMarker], [OLD_MD]).problems.length, 1);
+});
+
+test("marker whose new path does not resolve still FAILs", () => {
+  assert.equal(runX([CITE], [OLD_MD], { resolvableNewPaths: new Set() }).problems.length, 1);
+});
+
+test("executables never qualify: .py under a shipped dir FAILs despite a marker", () => {
+  const oldPy = "skills/building-skills/scripts/eval_verdict.py";
+  const f = { path: CITE.path,
+    text: "run `" + oldPy + "`\nMOVED: " + oldPy + " -> `skill-bench/scripts/eval_verdict.py`" };
+  assert.equal(runX([f], [oldPy], { resolvableNewPaths: new Set(["skill-bench/scripts/eval_verdict.py"]) }).problems.length, 1);
+});
+
+test("a MOVED line with trailing prose is not a marker", () => {
+  const f = { path: CITE.path,
+    text: "cites `" + OLD_MD + "`\nMOVED: " + OLD_MD + " -> `" + NEW_MD + "` (see notes)" };
+  assert.equal(runX([f], [OLD_MD]).problems.length, 1);
+});
+
+test("unshipped path is untouched by the exemption machinery", () => {
+  const oldDoc = "docs/pdca/gone.md";
+  const f = { path: CITE.path, text: "cites `" + oldDoc + "`\nMOVED: " + oldDoc + " -> `" + NEW_MD + "`" };
+  assert.equal(runX([f], [oldDoc]).problems.length, 1);
+});
+
+test("shippedSkillDirs derives skills[] entries only, never bare source roots", () => {
+  const manifest = { plugins: [
+    { name: "dev-skills", source: "./skills", skills: ["./code-standards", "./building-skills"] },
+    { name: "skill-bench", source: "./skill-bench" },
+  ] };
+  assert.deepEqual([...shippedSkillDirs(manifest)].sort(),
+    ["skills/building-skills", "skills/code-standards"]);
+});
+
+// Pin today's real derivation: a marketplace.json edit that moves the exemption set must
+// surface HERE, in a failing test, not only in a silently different gate verdict.
+test("real manifest pins the exemption set (ADR 0089 Act: blast radius is reviewable)", () => {
+  const real = JSON.parse(readFileSync(".claude-plugin/marketplace.json", "utf8"));
+  assert.deepEqual([...shippedSkillDirs(real)].sort(), [
+    "skills/building-skills", "skills/code-standards",
+    "skills/engineering-principles", "skills/optimizing-context"]);
 });

@@ -1,19 +1,46 @@
 # skill-bench
 
-The repo's unique asset — the only public hermetic skill-**measurement** pipeline found in a
-Jul-2026 survey of the field — packaged so any
-skill author can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
+A public hermetic pipeline for measuring YOUR OWN skill's value — packaged so any skill author
+can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
 ADR 0055 (scope) + ADR 0063 (completion set); plan: #170 — all in the source repo's decision log,
 outside this plugin's shipped files, so no link survives an install.
 
+Related work (surveyed 29-Jul-2026): bring-your-own-skill measurement is a crowded lane —
+anthropics/skills' skill-creator is the reference design for paired with/without arms and blind
+A/B comparison; adewale/skill-eval-harness reaches paired-arm rigor with an exact sign-flip
+permutation test and judge-calibration tooling; aws-samples/sample-agent-skill-eval pairs arms
+and prices runs. benchflow-ai's **SkillsBench** (arXiv:2602.12670) is a different thing: a
+fixed-corpus leaderboard with deterministic verifiers, not a BYO harness. What this plugin adds
+is the conjunction for JUDGED domains, plus three mechanisms that survey did not find shipped
+elsewhere — each named with the path that implements it:
+
+- a machine-checked **pre-registration guard** (`prereg_guard.py`, step 1 of
+  `evaluating-your-own-work.md`'s procedure) — refuses a design with unstated power, an
+  unreachable equivalence margin, or an author-written arm with no falsifier (methodology prior
+  art: arXiv:2606.11217, arXiv:2605.27789; the enforcement-as-code we did not find);
+- a cross-family judge **verified, not merely configured** — the copilot lane reads back which
+  model actually answered and fails closed on a same-family landing (`judge.py`); routing alone
+  ships in Inspect, Braintrust, and promptfoo;
+- a **downgrade-only adversarial prosecutor** in a separate pass — on the `/bench verdict` path;
+  `/bench skill` grades once, with no prosecutor today (arXiv:2603.12123 on separate-context
+  second passes).
+
+Blind grading here means schema normalization that strips format, role, and header tells before
+the judge sees anything (arXiv:2604.23178 finds style/format bias dominates), not A/B labels alone.
+
 ## What this plugin is (and is not)
 
-- **Is:** a causal + pre-registration measurement layer — arm design (bare / cost-matched / structured),
-  blind normalization, an adversarial prosecutor, a **cross-family judge**, cost gates, and
-  pre-registration discipline. As of the Jul-2026 survey, no commercial eval tool checked
-  (promptfoo, Inspect, Braintrust, LangSmith, OpenAI Evals, Anthropic Console) ships these; all
-  of them report aggregate pass rates only.
-- **Is not:** an execution/observability engine. That is *rented* — see Substrate below.
+- **Is:** a causal + pre-registration measurement layer — paired hermetic arms, blind
+  normalization, a prosecutor (verdict path), a **cross-family judge**, spend gates, and
+  pre-registration discipline.
+- **Is not:** an execution/observability engine (that is *rented* — see Substrate below), a
+  leaderboard, or a SKILL.md linter.
+
+**Honest limits.** The verdict interval is a one-sample t on eval-clustered deltas (ADR 0019,
+the paired-and-clustered recipe of arXiv:2411.00640); sequential escalation and pilot stop rules
+are uncorrected optional stopping, so an escalated run's nominal coverage is optimistic. The
+prosecutor does not run on `/bench skill`. Cost gating is a pre-run estimate plus a spend
+refusal, not a runtime ceiling — Inspect AI's native dollar limits are stronger on that axis.
 
 ## Architecture: bespoke layer on a rented substrate
 
@@ -21,7 +48,7 @@ outside this plugin's shipped files, so no link survives an install.
   /bench (verdict | skill | trigger)                  <- one skill, three subcommands
   ---------------------------------------------------
   arm design | blind.py | prosecutor | cost_gate      <- BESPOKE causal + pre-reg layer (the asset)
-  cross-family judge (pluggable) | benchstats.py         keep in-repo; no vendor sells this
+  cross-family judge (pluggable) | benchstats.py         keep in-repo; the bespoke layer
   ---------------------------------------------------
   hermetic_driver adapter interface                   <- swappable RUNNER
      -> promptfoo (npx, version-pinned; CI regression gating)

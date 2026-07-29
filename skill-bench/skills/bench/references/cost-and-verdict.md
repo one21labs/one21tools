@@ -33,9 +33,10 @@ mechanical gate must be the same number.
 
 ## Scoring
 
-Each cell scores the fraction of its expectations met, after the grade-then-prosecute min rule (see
-[judging.md](judging.md)). Fraction-met is arity-generic: the fixed four-expectation decision rubric
-and variable-length skill-eval rubrics both work.
+Each cell scores the fraction of its expectations met — after the grade-then-prosecute min rule on
+the verdict path; a `/bench skill` cell carries a single grade (see [judging.md](judging.md)).
+Fraction-met is arity-generic: the fixed four-expectation decision rubric and variable-length
+skill-eval rubrics both work.
 
 ## The verdict
 
