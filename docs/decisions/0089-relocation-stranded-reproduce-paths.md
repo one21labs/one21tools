@@ -79,4 +79,4 @@ fires, the correction notes are all that remain to remove, a cheaper cleanup tha
   relocation still cannot silently strand a path. The invariant keeps its purpose — a reproducer
   can always find where the file went — and sheds only the adopter-facing cost. Narrowing the
   obligation beat teaching the gate a new remedy.
-- [outcome] the amendment's implementation (predicate, markers, deletion, repoints) — still-open
+- [outcome] the amendment's implementation (predicate, markers, deletions, repoints) — verified

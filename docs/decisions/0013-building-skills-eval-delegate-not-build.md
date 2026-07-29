@@ -12,7 +12,8 @@ summary: "Empirical skill evals are hybrid: execution stays delegated to skill-c
   assertions + aggregate stats); protocol home is
   `skill-bench/skills/bench/references/empirical-evals.md`. Own two things only: (1) the schema
   gate — validate.py R7 gates eval artifact shape; (2) the verdict layer —
-  `skills/building-skills/scripts/eval_verdict.py` + test, post-processing upstream
+  `skill-bench/scripts/eval_verdict.py` + test (shim at the old path, ADR 0089),
+  post-processing upstream
   `benchmark.json` only: Wilson 95% CI win rate, mean pass-rate delta, and delta per 1k chars of
   SKILL.md body. Not a CI gate (non-deterministic; only decision logic runs in gates).
 - Why: budgets cap cost but nothing measured benefit. Upstream has the expensive machinery but
@@ -20,7 +21,7 @@ summary: "Empirical skill evals are hybrid: execution stays delegated to skill-c
   maintaining a rival harness against a moving upstream schema.
 - Rejected: a full owned paired runner (re-forks upstream execution for zero marginal
   information); adopting upstream as-is (cost-normalization unmet); mirroring the schema into
-  docs (drifts on the next upstream change); making eval runs a CI gate (ADR 0012).
+  docs (drifts); making eval runs a CI gate (ADR 0012).
 - Reopen-if: `eval_verdict.py` breaks on an upstream schema change twice in a row -> reconsider
   owning execution.
 - Enforced: validate.py R7 (`validate_test.py`); `eval_verdict.py` + `eval_verdict_test.py`.
