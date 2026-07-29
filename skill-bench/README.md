@@ -1,10 +1,16 @@
 # skill-bench
 
-The repo's unique asset — the only public hermetic skill-**measurement** pipeline found in a
-Jul-2026 survey of the field — packaged so any
+The repo's unique asset — a public hermetic pipeline for measuring YOUR OWN skill's value —
+packaged so any
 skill author can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
 ADR 0055 (scope) + ADR 0063 (completion set); plan: #170 — all in the source repo's decision log,
 outside this plugin's shipped files, so no link survives an install.
+
+Related work (surveyed 28-Jul-2026): benchflow-ai's **SkillsBench** (arXiv:2602.12670)
+benchmarks how well agents use a FIXED 87-task skill corpus with deterministic verifier
+scripts — a leaderboard, not a bring-your-own-skill harness. This plugin is the complement:
+it measures the skill YOU wrote, on evals you author, in subjective domains where outputs
+are judged rather than oracle-checked — which is why the judge-integrity layer below exists.
 
 ## What this plugin is (and is not)
 
