@@ -76,9 +76,11 @@ array is the workflow's own RETURN VALUE, which lands in the run's task `.output
 `"result"` field — NOT in `journal.jsonl`, which records each step's raw pre-`.then()` return and
 was never meant to carry the enrichment.
 
-Persist convention: read `result` from the task's `.output` JSON and write it straight to the
-benchmark's `graded/*.jsonl` with `bench_io.dump_records(result, "graded/verdicts.jsonl",
-fmt="jsonl")` — never reconstruct it from `journal.jsonl`.
+Persist convention: read `result` from the task's `.output` JSON — never reconstruct it from
+`journal.jsonl`. The template returns `{frame, cells, errors, audit}`: write `result.cells` with
+`bench_io.dump_records(result["cells"], "graded/verdicts.jsonl", fmt="jsonl")`; `result.errors`
+are ungraded cells (regenerate, then re-run `blind_cells.py`, whose `blind_salt.txt` at the bench
+root keeps bids stable); keep `frame` with the grades until a cross-family re-grade.
 
 When a prosecutor stage overrides `pass`/`met`, also overwrite every first-grader field it
 re-judged (`evidence` at minimum) — otherwise the persisted record cites reasoning for the

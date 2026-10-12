@@ -20,7 +20,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
   [--out report.json]
 ```
 
-- `--dir` must hold `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
+- `--dir` must hold `graded/{verdicts.jsonl,keys.json}` and `arm_map.tsv` at the dir root, outside
+  what the grader sees (`graded/arm_map.tsv` is still read for older dirs).
 - `--judge auto` (default) resolves a backend per [judging.md](references/judging.md); `both` adds
   the judge-divergence diagnostic (agreement, kappa, verdict flip).
 - Emits arm means, clustered C-B with 95% CI, KEEP/CUT, per-expectation, and `notional_cost_usd`.

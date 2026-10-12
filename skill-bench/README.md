@@ -99,9 +99,10 @@ ADR 0058). What a consumer must provide / knows:
   landing rather than reporting it as independent.
 - **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench` subcommands call
   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/..."` so they resolve from any working directory.
-- **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode —
-  NOT by `/bench verdict` or the native `/bench skill`): set `$SKILL_BENCH_CONFIG_DIR` to a clean
-  credentials-only Claude config dir. The default is this repo's fallback and won't exist elsewhere.
+- **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode):
+  set `$SKILL_BENCH_CONFIG_DIR` to a clean credentials-only Claude config dir. The default is this
+  repo's fallback and won't exist elsewhere. The Claude judge uses `$SKILL_BENCH_CONFIG_DIR` when
+  set, else your own login.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
   (#170 hard-problem 4).
 - **Method depth ships in-plugin** (ADR 0063 Call 2 as reworked): pre-registration,

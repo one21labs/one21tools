@@ -36,8 +36,9 @@ Only matched-protocol A/B deltas are. An absolute trigger rate is bound to its f
   SHARED project root; the model sees N near-identical planted skills and invokes at most one,
   so rates collapse toward 1/N. `--num-workers 1` is therefore MANDATORY, not a tuning choice.
 - **Timeout scoring.** Under load, a genuine trigger's stream event can arrive after the
-  query's clock expires. The runner records a timeout as null — excluded from the rate's
-  denominator and from pass/fail, surfaced as a `timeouts` count — never a False. Treat any
+  query's clock expires. The runner records a timeout, a nonzero exit, or a session with no result
+  event as null — excluded from the rate's denominator and from pass/fail, surfaced as a
+  `timeouts` count (it counts every null run) — never a False. Treat any
   run with `timeouts > 0` as SUSPECT (something contended for the machine); prefer re-running
   to reading around it.
 

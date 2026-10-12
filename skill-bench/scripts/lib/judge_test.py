@@ -135,12 +135,12 @@ class TestJudge(unittest.TestCase):
         # forced on an adopter it made every judge call exit 1 unauthenticated (24/24 NO-DATA).
         _, _, kw = self._claude_call()
         self.assertNotIn("CLAUDE_CONFIG_DIR", kw["env"])              # CLI default login
-        _, _, kw = self._claude_call(caller_env={"CLAUDE_CONFIG_DIR": "/home/u/.cc"})
-        self.assertEqual(kw["env"]["CLAUDE_CONFIG_DIR"], "/home/u/.cc")  # the caller's own
+        _, _, kw = self._claude_call(caller_env={"CLAUDE_CONFIG_DIR": "/opt/cc-config"})
+        self.assertEqual(kw["env"]["CLAUDE_CONFIG_DIR"], "/opt/cc-config")  # the caller's own
 
     def test_claude_judge_config_dir_is_explicit_arg_then_skill_bench_var(self):
         _, _, kw = self._claude_call(caller_env={"SKILL_BENCH_CONFIG_DIR": "/clean",
-                                                 "CLAUDE_CONFIG_DIR": "/home/u/.cc"})
+                                                 "CLAUDE_CONFIG_DIR": "/opt/cc-config"})
         self.assertEqual(kw["env"]["CLAUDE_CONFIG_DIR"], "/clean")
         _, _, kw = self._claude_call(caller_env={"SKILL_BENCH_CONFIG_DIR": "/clean"},
                                      config_dir="/empty")   # g8-shortfall/grade.py's form
