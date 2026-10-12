@@ -32,7 +32,7 @@ SKILLS = ("building-skills", "code-standards", "engineering-principles", "optimi
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 EFFORT = "medium"
 REPS = 2
-TIMEOUT_S = 900
+TIMEOUT_S = 600
 ISOLATION = ("--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--effort", EFFORT)
 
 

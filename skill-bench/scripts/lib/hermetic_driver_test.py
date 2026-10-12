@@ -35,13 +35,15 @@ class BuildEnv(unittest.TestCase):
                   "CLAUDE_CODE_SESSION_ID": "s", "CLAUDE_CODE_SYNC_SKILLS": "1",
                   "CLAUDE_SESSION_INGRESS_TOKEN_FILE": "/t", "CCR_SESSION_PROFILE": "p",
                   "SESSION_INGRESS_URL": "u", "CLAUDE_CODE_OAUTH_TOKEN": "tok",
-                  "ANTHROPIC_API_KEY": "k", "HTTPS_PROXY": "http://proxy"}
+                  "ANTHROPIC_API_KEY": "k", "HTTPS_PROXY": "http://proxy",
+                  "CLAUDE_ENABLE_STREAM_WATCHDOG": "1"}
         with unittest.mock.patch.dict(os.environ, parent, clear=True):
             env = build_env()
         for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SYNC_SKILLS",
                      "CLAUDE_SESSION_INGRESS_TOKEN_FILE", "CCR_SESSION_PROFILE", "SESSION_INGRESS_URL"):
             self.assertNotIn(gone, env)
-        for kept in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "HTTPS_PROXY"):
+        for kept in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "HTTPS_PROXY",
+                     "CLAUDE_ENABLE_STREAM_WATCHDOG"):
             self.assertIn(kept, env)
 
     def test_effort_override(self):
