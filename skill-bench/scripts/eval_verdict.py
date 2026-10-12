@@ -82,12 +82,12 @@ def pairs_by_eval(runs: list) -> dict:
     return grouped
 
 
-def eval_level(by_eval: dict) -> dict:
+def eval_level(by_eval: dict, practical: float = 0.0) -> dict:
     """Cluster replicates per eval (ADR 0019): an eval's mean delta > 0 is a win,
     < 0 a loss, 0 a tie. The headline Wilson CI is over non-tied EVALS - replicates
     within an eval are correlated and must not inflate n. `mean_delta` is the mean of
     per-eval means (an eval with 6 reps weighs what one with 1 rep does) and `verdict`
-    is benchstats.keep_verdict on the same clusters."""
+    is benchstats.keep_verdict on the same clusters at the pre-registered `practical` bar."""
     wins = losses = ties = 0
     per = {}
     for eval_id, pairs in by_eval.items():
@@ -102,7 +102,7 @@ def eval_level(by_eval: dict) -> dict:
     return {"evals": len(by_eval), "wins": wins, "losses": losses, "ties": ties,
             "win_ci": wilson_ci(wins, wins + losses),
             "mean_delta": delta["mean"] if per else 0.0,
-            "verdict": benchstats.keep_verdict(delta)}
+            "verdict": benchstats.keep_verdict(delta, practical)}
 
 
 def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
@@ -232,6 +232,8 @@ def fmt_report(agg: dict, evals: dict, content_chars: int, tok_delta: float,
     v = evals["verdict"]
     ci = v.get("ci95") or [None, None]
     ci_txt = f"[{ci[0]:+.3f}, {ci[1]:+.3f}]" if ci[0] is not None else "no interval"
+    if v.get("practical") is not None:
+        ci_txt += f", practical bar {v['practical']:+.3f}"
     lines = [
         f"paired runs: {agg['pairs']}  wins: {agg['wins']}  losses: {agg['losses']}  "
         f"ties: {agg['ties']}",
@@ -286,6 +288,9 @@ def main() -> int:
     parser.add_argument("--loaded-chars", type=int, default=None,
                         help="exact measured chars loaded per with_skill run; overrides the "
                              "body/references estimate (ADR 0019)")
+    parser.add_argument("--practical", type=float, default=0.0,
+                        help="pre-registered minimum difference worth having; KEEP needs the CI's "
+                             "lower bound above it (benchstats.keep_verdict)")
     parser.add_argument("--fail-under", type=float, default=None,
                         help="exit 1 if the mean pass-rate delta falls below this")
     parser.add_argument("--check-audit-sample", type=Path, default=None, metavar="BENCHMARK_DIR",
@@ -316,7 +321,7 @@ def main() -> int:
               "run skill-creator's benchmark mode with both configurations")
         return 1
     chars, basis = denominator(args.skill, args.loaded_chars, args.include_references)
-    evals = eval_level(by_eval)
+    evals = eval_level(by_eval, args.practical)
     print(fmt_report(aggregate(pairs), evals, chars,
                      token_cost(benchmark.get("run_summary", {})), basis))
     if args.fail_under is not None and evals["mean_delta"] < args.fail_under:

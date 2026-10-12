@@ -123,14 +123,17 @@ class _CostTracking:
 
 
 class GrokJudge(_CostTracking):
+    """grok CLI. No model flag is passed (none is known to this repo), so the model is NOT pinned:
+    every call reads back who served it (the envelope's `modelUsage` keys), `name` becomes that
+    model, and a call served by the generator's family or by no placeable model raises — the same
+    per-call check as CopilotJudge. `name` starts as the price key for the default model."""
     name = "grok-4.5"
 
-    def __init__(self, bin=None, model="grok-4.5", timeout=300):
+    def __init__(self, bin=None, timeout=300):
         # Portable resolution: explicit arg, then $GROK_BIN, then PATH, then the default installer
         # location. Works when skill-bench is installed as a plugin on any machine.
         self.bin = (bin or os.environ.get("GROK_BIN") or shutil.which("grok")
                     or os.path.expanduser("~/.grok/bin/grok"))
-        self.model = model
         self.timeout = timeout
         self.cwd = tempfile.mkdtemp(prefix="grok-judge-")  # empty: no project context to discover
         self._init_usage()
@@ -153,6 +156,14 @@ class GrokJudge(_CostTracking):
                 raise JudgeError(f"grok exit {r.returncode}: {r.stderr[-300:]}")
             env = json.loads(r.stdout)
             self._record(env)
+            served = sorted((env.get("modelUsage") or {}).keys())
+            fams = {family_of(m) for m in served}
+            if not served or fams & {GENERATOR_FAMILY, "unknown"}:
+                raise JudgeError(
+                    f"grok reported {served or 'no model'} ({sorted(fams)}) as serving this "
+                    f"grade, so it cannot be shown to be cross-family. Re-run, use --judge "
+                    f"copilot, or pin one via $SKILL_BENCH_JUDGE_CMD.")
+            self.name = "+".join(served)
             so = env.get("structuredOutput")
             if not so:
                 raise JudgeError("grok returned no structuredOutput")
@@ -163,12 +174,14 @@ class GrokJudge(_CostTracking):
 
 class ClaudeJudge(_CostTracking):
     """claude -p with the generation-side isolation (ADR 0023): detached from any parent Claude
-    Code session (build_env), the same clean config dir generation uses (build_env's
-    CLAUDE_CONFIG_DIR, credentials only; `config_dir` overrides it, e.g. an empty dir where auth
-    comes from the environment), a neutral cwd outside the checkout, every tool stripped. Without it a judge run inside a session shared
-    that session's id and loaded the repo CLAUDE.md into the grader. `name` starts as the price
-    key for the alias and becomes the model the envelope says served the last call; an exact
-    `claude-*` model id is a pin, and a call served by anything else raises."""
+    Code session (build_env), a neutral cwd outside the checkout, every tool stripped. Without it
+    a judge run inside a session shared that session's id and loaded the repo CLAUDE.md into the
+    grader. Config dir: `config_dir` when passed, else $SKILL_BENCH_CONFIG_DIR, else the caller's
+    own login (their $CLAUDE_CONFIG_DIR, or the CLI default when unset) — never build_env's
+    fallback, a path only this repo's machine has (an adopter's every call failed
+    unauthenticated). `name` starts as the price key for the alias and becomes the model the
+    envelope says served the last call; an exact `claude-*` model id is a pin, and a call served
+    by anything else raises."""
     name = "claude-opus-4-8"
 
     def __init__(self, bin="claude", model="opus", timeout=300, effort="medium", config_dir=None):
@@ -176,7 +189,8 @@ class ClaudeJudge(_CostTracking):
         self.model = model
         self.timeout = timeout
         self.effort = effort
-        self.config = config_dir or build_env(effort)["CLAUDE_CONFIG_DIR"]
+        self.config = (config_dir or os.environ.get("SKILL_BENCH_CONFIG_DIR")
+                       or os.environ.get("CLAUDE_CONFIG_DIR"))
         self.cwd = neutral_cwd("judge")
         self.real_cost_usd = 0.0  # billed envelope cost; cost_usd() is the notional price table
         self._init_usage()
@@ -184,11 +198,14 @@ class ClaudeJudge(_CostTracking):
     def grade(self, prompt, schema):
         # claude -p has no --json-schema; ask for JSON-only and parse, retrying tolerant of fences.
         p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
+        call_env = build_env(self.effort)
+        call_env.pop("CLAUDE_CONFIG_DIR")
+        if self.config:
+            call_env["CLAUDE_CONFIG_DIR"] = self.config
         env = usage_guard.guarded_run(
             [self.bin, "-p", "--output-format", "json", "--model", self.model, "--tools", "",
              "--disable-slash-commands", "--strict-mcp-config", "--effort", self.effort],
-            timeout=self.timeout, error=JudgeError, input=p, cwd=self.cwd,
-            env={**build_env(self.effort), "CLAUDE_CONFIG_DIR": self.config})
+            timeout=self.timeout, error=JudgeError, input=p, cwd=self.cwd, env=call_env)
         self._record(env)
         self.real_cost_usd += env.get("total_cost_usd") or 0.0
         served = sorted((env.get("modelUsage") or {}).keys())
@@ -290,10 +307,11 @@ class CommandJudge(_CostTracking):
 
 class CachedJudge(_CostTracking):
     """Placeholder for offline --cache re-analysis: no live CLI needed, 0 calls, $0 cost. Lets
-    bench-verdict recompute a verdict from a prior judge run on a machine with no grok/claude."""
+    bench-verdict recompute a verdict from a prior judge run on a machine with no grok/claude.
+    `name` is whatever the cache says graded it ("cached" when it says nothing) — never mapped
+    onto a backend, so a cache cannot read as cross-family unless it says so."""
     def __init__(self, name="cached"):
-        self.name = name if name in costing.PRICES else "grok-4.5"
-        self.display_name = name
+        self.name = name
         self._init_usage()
         self.fallback_note = None
 

@@ -69,6 +69,44 @@ class WriteBlinded(unittest.TestCase):
                 orders.add(tuple(order))
         self.assertNotIn(tuple(m["bid"] for m in arm_map), orders)
 
+    def test_a_passed_salt_reproduces_the_bids(self):
+        with tempfile.TemporaryDirectory() as d:
+            a = write_blinded(RECS, d, lambda r: r["cell"], lambda r: {}, salt="s")
+            b = write_blinded(RECS, d, lambda r: r["cell"], lambda r: {}, salt="s")
+        self.assertEqual(a, b)
+
+
+class BlindCellsTemplateRerun(unittest.TestCase):
+    """templates/blind_cells.py re-run (the resumable path after regenerating ERROR cells) must
+    keep every bid, or existing verdicts silently stop joining, and must leave no stale item."""
+
+    def run_template(self, bench):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            "blind_cells", Path(__file__).resolve().parents[2] / "templates" / "blind_cells.py")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.HERE = Path(bench)
+        with patch("sys.stdout"), patch("sys.stderr"):
+            mod.main()
+        return (Path(bench) / "arm_map.tsv").read_text(), \
+            sorted(p.name for p in (Path(bench) / "graded" / "items").iterdir())
+
+    def test_rerun_reproduces_the_same_bids_and_no_stale_items(self):
+        with tempfile.TemporaryDirectory() as d:
+            out = Path(d, "outputs")
+            out.mkdir()
+            for arm in "AC":
+                out.joinpath(f"T1-{arm}.json").write_text(json.dumps(
+                    {"cell": f"T1-{arm}-r1", "arm": arm, "scenario": "T1", "rep": 1,
+                     "response": "a response long enough to pass the artifact check " * 2}))
+            first = self.run_template(d)
+            Path(d, "graded", "items", "stale.json").write_text("{}")
+            second = self.run_template(d)
+            self.assertEqual(first, second)
+            self.assertTrue(Path(d, "blind_salt.txt").exists())
+            self.assertNotIn("blind_salt.txt", os.listdir(Path(d, "graded")))
+
 
 class CaptureSymmetry(unittest.TestCase):
     def recs(self, arm, texts):

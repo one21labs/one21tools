@@ -9,6 +9,7 @@ main() is a thin IO wrapper over these.
 """
 import unittest
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -84,6 +85,21 @@ class EvalClusteredMean(unittest.TestCase):
         by = {i: [(0.4, 0.8 + 0.01 * i)] for i in range(6)}
         self.assertEqual(eval_level(by)["verdict"]["verdict"], "KEEP")
         self.assertIn("): KEEP", report_for(by))
+
+    def test_practical_bar_is_applied_and_printed(self):
+        # KEEP at bar 0 must not print as KEEP when a pre-registered bar sits above the CI's floor
+        by = {i: [(0.4, 0.8 + 0.01 * i)] for i in range(6)}
+        self.assertIn("practical bar +0.000): KEEP", report_for(by))
+        ev = eval_level(by, practical=0.42)  # CI [0.405, 0.445] straddles it
+        self.assertEqual(ev["verdict"]["verdict"], "INCONCLUSIVE")
+        report = fmt_report(aggregate([p for ps in by.values() for p in ps]), ev, 1000, 0.0)
+        self.assertIn("practical bar +0.420): INCONCLUSIVE", report)
+
+    def test_practical_flag_reaches_the_cli(self):
+        import subprocess
+        r = subprocess.run([sys.executable, str(Path(__file__).with_name("eval_verdict.py")),
+                            "--help"], capture_output=True, text=True)
+        self.assertIn("--practical", r.stdout)
 
 
 class WilsonCI(unittest.TestCase):

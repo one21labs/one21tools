@@ -9,7 +9,7 @@ import tarfile
 import tempfile
 import unittest
 
-from bench_io import dump_records, load_records, sample_and_archive_raw
+from bench_io import dump_records, load_arm_map, load_records, sample_and_archive_raw
 
 RECORDS = [
     {"bid": "1", "skill": "building-skills", "arm": "with"},
@@ -183,6 +183,32 @@ class SampleAndArchiveRawTest(unittest.TestCase):
             # A second pass over the now-sampled dir must not try to tar its own archive file.
             kept, archived = sample_and_archive_raw(tmp, keep_per_group=1, group_fn=_group_of)
             self.assertEqual((kept, archived), (1, 0))
+
+
+class LoadArmMapTest(unittest.TestCase):
+    """The map's location rule has one home; both readers (bench_verdict, overturn) use it."""
+    def _write(self, path, rows):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        dump_records([{"bid": b, "arm": a, "scenario": s, "rep": r} for b, a, s, r in rows],
+                     path, fmt="tsv")
+
+    def test_template_layout_reads_the_root_map(self):
+        # templates/blind_cells.py writes the un-blinding key at the root, outside graded/.
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(os.path.join(tmp, "arm_map.tsv"), [("b1", "C", "S1", 1)])
+            os.makedirs(os.path.join(tmp, "graded"))
+            self.assertEqual(load_arm_map(tmp), {"b1": ("C", "S1")})
+
+    def test_legacy_layout_falls_back_to_graded(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(os.path.join(tmp, "graded", "arm_map.tsv"), [("b2", "B", "S2", 1)])
+            self.assertEqual(load_arm_map(tmp), {"b2": ("B", "S2")})
+
+    def test_root_map_wins_when_both_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self._write(os.path.join(tmp, "arm_map.tsv"), [("b1", "C", "S1", 1)])
+            self._write(os.path.join(tmp, "graded", "arm_map.tsv"), [("b1", "A", "S9", 1)])
+            self.assertEqual(load_arm_map(tmp), {"b1": ("C", "S1")})
 
 
 if __name__ == "__main__":

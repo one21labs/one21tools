@@ -15,7 +15,8 @@ import json
 import unittest
 from pathlib import Path
 
-from run_eval import DetectState, detect_trigger_line, planned_runs, summarize_query, summarize_results
+from run_eval import (DetectState, detect_trigger_line, planned_runs, run_single_query,
+                      session_verdict, summarize_query, summarize_results)
 
 
 def sse(event: dict) -> str:
@@ -225,11 +226,55 @@ class TimeoutAsNull(unittest.TestCase):
         s = summarize_results(results)
         self.assertEqual(s, {"total": 3, "passed": 1, "failed": 1, "timeouts": 2})
 
-    def test_run_single_query_timeout_path_returns_none(self):
-        # Source-level guard (like the stdin one below): the timeout sentinel in
-        # run_single_query must return None, not fall through to state.triggered.
-        source = Path(__file__).with_name("run_eval.py").read_text(encoding="utf-8")
-        self.assertRegex(source, r"if timed_out:\n\s+return None")
+    def test_session_verdict_is_null_unless_the_session_completed_cleanly(self):
+        self.assertIsNone(session_verdict(True, True, 0, False))     # timed out
+        self.assertIsNone(session_verdict(False, False, 0, False))   # no result event
+        self.assertIsNone(session_verdict(False, True, 1, False))    # nonzero exit (usage limit)
+        self.assertIs(session_verdict(False, True, 0, False), False)  # a real quiet session
+
+
+class RunSingleQueryStubCli(unittest.TestCase):
+    """run_single_query against a stub `claude` on PATH (no paid call): a failed session is a
+    null run, never scored not-triggered (a usage-limited run must not read as a quieter
+    description)."""
+
+    def _run(self, body):
+        import os, stat, sys, tempfile
+        from unittest import mock
+        bindir = tempfile.mkdtemp(prefix="stub-claude-")
+        cli = Path(bindir) / "claude"
+        cli.write_text("#!" + sys.executable + "\nimport sys\n" + body + "\n")
+        cli.chmod(cli.stat().st_mode | stat.S_IEXEC)
+        proj = tempfile.mkdtemp(prefix="proj-")
+        with mock.patch.dict(os.environ, {"PATH": bindir + os.pathsep + os.environ["PATH"]}):
+            return run_single_query("q", "s", "d", 20, proj)
+
+    def test_nonzero_exit_without_result_is_null(self):
+        self.assertIsNone(self._run('sys.stderr.write("limit"); sys.exit(1)'))
+
+    def test_result_then_nonzero_exit_is_null(self):
+        self.assertIsNone(self._run(f"print({result_line()!r}); sys.exit(1)"))
+
+    def test_clean_exit_without_result_event_is_null(self):
+        self.assertIsNone(self._run("pass"))
+
+    def test_clean_session_with_result_is_not_triggered(self):
+        self.assertIs(self._run(f"print({result_line()!r})"), False)
+
+    def test_a_match_before_a_failure_still_triggers(self):
+        # positive evidence stands; the stub names the command file run_single_query wrote
+        body = ("import glob, json, os\n"
+                "name = os.path.basename(glob.glob('.claude/commands/*.md')[0])[:-3]\n"
+                "print(json.dumps({'type': 'assistant', 'message': {'content': [{'type': "
+                "'tool_use', 'name': 'Skill', 'input': {'skill': name}}]}}))\nsys.exit(1)")
+        self.assertIs(self._run(body), True)
+
+    def test_null_runs_are_neither_passes_nor_fails(self):
+        # a should-NOT-trigger query whose runs all failed used to read [False]*n -> a PASS
+        r = summarize_query("q", [None, None], should_trigger=False, trigger_threshold=0.5)
+        self.assertIsNone(r["pass"])
+        s = summarize_results([r])
+        self.assertEqual((s["passed"], s["failed"], s["timeouts"]), (0, 0, 2))
 
 
 class StdinDevnullRegression(unittest.TestCase):

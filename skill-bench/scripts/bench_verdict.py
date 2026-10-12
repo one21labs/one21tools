@@ -10,8 +10,8 @@ Two modes:
                         JUDGE-DIVERGENCE diagnostic (agreement, kappa, stricter-count, verdict flip).
 
 Input dir must contain graded/verdicts.jsonl (bid, scenario, norm, expectations[baseline judge]),
-arm_map.tsv (bid arm scenario rep; at the dir root, outside what the grader sees, or graded/ in
-dirs blinded before that move), graded/keys.json (scenario -> rubric key).
+arm_map.tsv (bid arm scenario rep; located by bench_io.load_arm_map), graded/keys.json
+(scenario -> rubric key).
 
 Normalization is REUSED from the committed cells (the only stage that sees raw output) so the judge
 family is the sole changed variable. Reads the benchmark dir read-only; writes only to --out
@@ -22,31 +22,34 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
+from bench_io import load_arm_map  # noqa: E402
 from judge import (make_judge, met_map, JudgeError, cli_available, CachedJudge,  # noqa: E402
-                   BACKENDS)
+                   BACKENDS, family_of, GENERATOR_FAMILY)
 
 
 def load_dir(d):
-    amap = {}
-    root_map = os.path.join(d, "arm_map.tsv")
-    with open(root_map if os.path.exists(root_map) else os.path.join(d, "graded/arm_map.tsv")) as f:
-        for line in f:
-            if line.startswith("bid"):
-                continue
-            b, a, s, r = line.strip().split("\t")
-            amap[b] = (a, s)
+    """-> (cells, baseline, keys, baseline_errors). A committed row that is an error row (the
+    grading template records judge failures as {bid, error}) or whose expectations are not ids
+    1..len(EXP_IDS) with boolean met is excluded from the baseline and recorded in
+    baseline_errors, never scored 0; an error row is not re-graded either (it has no norm)."""
+    amap = load_arm_map(d)
     cells, baseline, berrs = [], [], []
     with open(os.path.join(d, "graded/verdicts.jsonl")) as f:
         for line in f:
             v = json.loads(line)
             if v.get("bid") not in amap:
                 continue
+            if "error" in v:
+                berrs.append({"bid": v["bid"], "error": str(v["error"])[:200]})
+                continue
             arm, scn = amap[v["bid"]]
             cells.append({"bid": v["bid"], "arm": arm, "scenario": scn, "norm": v["norm"]})
             try:  # a malformed committed verdict is excluded from the baseline, never scored 0
-                baseline.append({"bid": v["bid"], "arm": arm, "scenario": scn, "met": met_map(v)})
+                met = met_map(v, len(benchstats.EXP_IDS))
             except JudgeError as e:
                 berrs.append({"bid": v["bid"], "error": str(e)[:200]})
+                continue
+            baseline.append({"bid": v["bid"], "arm": arm, "scenario": scn, "met": met})
     with open(os.path.join(d, "graded/keys.json")) as f:
         keys = json.load(f)
     return cells, baseline, keys, berrs
@@ -61,11 +64,29 @@ def regrade_cell(judge, cell, key):
             "met": {i: gm.get(i, False) and pm.get(i, False) for i in benchstats.EXP_IDS}}
 
 
+def cache_judge_name(rows):
+    """The judge a --cache file says graded it: the `judge` every row carries, when they all carry
+    the same one; otherwise "cached". Never a live backend's name — whatever CLI is reachable now
+    did not produce these grades."""
+    names = {r.get("judge") for r in rows}
+    return names.pop() if len(names) == 1 and isinstance(next(iter(names)), str) else "cached"
+
+
 def regrade(judge, cells, keys, workers, cache=None):
-    if cache:  # reuse a prior run's per-cell met (offline demo / resumable)
-        cm = {c["bid"]: c["met"] for c in cache}
-        return [{**c, "met": cm[c["bid"]]} for c in cells if c["bid"] in cm], []
     out, errs = [], []
+    if cache is not None:  # reuse a prior run's per-cell grades (offline / resumable)
+        rows = {r["bid"]: r for r in cache}
+        for c in cells:
+            r = rows.get(c["bid"])
+            if r is None:
+                continue
+            try:  # an error row or a malformed grade is an error, as it would be live
+                if "error" in r:
+                    raise JudgeError(str(r["error"]))
+                out.append({**c, "met": met_map(r, len(benchstats.EXP_IDS))})
+            except JudgeError as e:
+                errs.append({"bid": c["bid"], "error": str(e)[:200]})
+        return out, errs
     with ThreadPoolExecutor(max_workers=workers) as ex:
         futs = {ex.submit(regrade_cell, judge, c, keys[c["scenario"]]): c["bid"] for c in cells}
         for i, fut in enumerate(as_completed(futs), 1):
@@ -122,34 +143,32 @@ def main():
     cells, baseline, keys, baseline_errs = load_dir(a.dir)
     if a.limit:
         cells, baseline = cells[:a.limit], baseline[:a.limit]
-    cache = None
-    if a.cache:
-        cache = [{"bid": j["bid"], "arm": dict((c["bid"], c["arm"]) for c in cells)[j["bid"]],
-                  "scenario": dict((c["bid"], c["scenario"]) for c in cells)[j["bid"]],
-                  "met": {int(k): v for k, v in ({e["id"]: e["met"] for e in j["expectations"]}).items()}}
-                 for j in map(json.loads, open(a.cache)) if "error" not in j and j["bid"] in {c["bid"] for c in cells}]
+    cache = [json.loads(line) for line in open(a.cache) if line.strip()] if a.cache else None
 
-    # 'both' needs ONE reachable cross-family judge: the baseline half is read off the committed
-    # cells, never re-graded (references/judging.md). Degrade gracefully if none is reachable.
+    # 'both' needs ONE cross-family judge: the baseline half is read off the committed cells,
+    # never re-graded (references/judging.md). Live, that is a reachable cross-family CLI; with
+    # --cache it is the cache naming a cross-family judge — a CLI on PATH graded nothing here.
     want_both = a.judge == "both"
     degrade_note = None
-    if want_both and not any(cli_available(n) for n, s in BACKENDS.items() if s["cross_family"]):
-        want_both = False
-        degrade_note = ("--judge both needs a reachable cross-family judge for the divergence "
-                        "diagnostic; none is — reporting a single-judge verdict instead")
-    primary = "auto" if a.judge in ("auto", "both") else a.judge
-    try:
-        judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none
-    except JudgeError:
-        if not cache:
-            raise  # a live re-grade genuinely needs a judge CLI
-        judge = CachedJudge("cached")  # offline --cache re-analysis needs no CLI
+    if cache is not None:
+        judge = CachedJudge(cache_judge_name(cache))  # offline: no CLI, never a live name
+        if want_both and family_of(judge.name) in (GENERATOR_FAMILY, "unknown"):
+            want_both = False
+            degrade_note = (f"--judge both needs a cross-family judge; the --cache file names "
+                            f"{judge.name!r}, not one — reporting a single-judge verdict instead")
+    else:
+        if want_both and not any(cli_available(n) for n, s in BACKENDS.items() if s["cross_family"]):
+            want_both = False
+            degrade_note = ("--judge both needs a reachable cross-family judge for the divergence "
+                            "diagnostic; none is — reporting a single-judge verdict instead")
+        # resolves per judge.AUTO_ORDER; raises with remedy if none
+        judge = make_judge("auto" if a.judge in ("auto", "both") else a.judge)
     if judge.fallback_note:
         print("NOTE: " + judge.fallback_note, file=sys.stderr)
     if degrade_note:
         print("NOTE: " + degrade_note, file=sys.stderr)
     print(f"re-grading {len(cells)} cells with judge={judge.name}"
-          + (" (cached)" if cache else ""), file=sys.stderr)
+          + (" (from --cache)" if cache is not None else ""), file=sys.stderr)
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
     if a.cells_out:
         with open(a.cells_out, "w") as f:
@@ -169,7 +188,7 @@ def main():
     if degrade_note:
         report["degraded"] = degrade_note
     if want_both:
-        report["baseline_judge"] = "committed (opus)"
+        report["baseline_judge"] = "committed"
         report["baseline"] = summarize(baseline, px, py, a.practical)
         if baseline_errs:
             report["baseline_errors"] = baseline_errs

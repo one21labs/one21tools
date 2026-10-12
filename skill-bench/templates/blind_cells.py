@@ -9,7 +9,10 @@ COPY into a dated benchmark dir and adapt the `ADAPT` blocks. The recipe you kee
   Also written: keys.json (the grading key per scenario), audit_bids.json (the guess-the-arm
   sample validating the blinding), and arm_map.tsv (the join the aggregator uses) — at the
   benchmark root, NOT under graded/: the map is the un-blinding key, so it never sits in the
-  directory the grader reads.
+  directory the grader reads. Same for blind_salt.txt, the bid salt: minted on the first run
+  and reused after, so a re-run (the resumable path once ERROR cells are regenerated) keeps
+  every bid and existing grades still join. Each run rewrites graded/items from scratch, so no
+  stale item survives; delete blind_salt.txt only to re-blind from zero (old grades orphan).
 
 #191 hardening baked in: ERROR cells are split out mechanically (classify_cells) before
 blinding — infrastructure, never quality zeros — and the capture-symmetry sweep runs over ALL
@@ -17,6 +20,8 @@ cells with every exclusion counted, BEFORE they are dropped (run on the survivor
 see the skew); a skewed sweep aborts (fix the harness, don't grade the skew).
 """
 import json
+import secrets
+import shutil
 import sys
 from pathlib import Path
 
@@ -58,9 +63,14 @@ def main():
     if sweep["skewed"]:
         sys.exit("arm-skewed capture — fix the harness before grading, this is not signal")
 
+    salt_file = HERE / "blind_salt.txt"   # root, never under graded/: it un-blinds every bid
+    if not salt_file.exists():
+        salt_file.write_text(secrets.token_hex(16), encoding="utf-8")
+    shutil.rmtree(graded / "items", ignore_errors=True)
     arm_map = write_blinded(ok, graded, lambda r: r["cell"],
                             lambda r: {"scenario": r["scenario"],
-                                       "response": merged_response(r)})
+                                       "response": merged_response(r)},
+                            salt=salt_file.read_text(encoding="utf-8").strip())
     for m, r in zip(arm_map, ok):
         m["scenario"], m["rep"] = r["scenario"], r["rep"]
     bench_io.dump_records(arm_map, str(HERE / "arm_map.tsv"), fmt="tsv")

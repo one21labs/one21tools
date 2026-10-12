@@ -40,15 +40,17 @@ def assign_bids(records, key_fn, salt=None):
 
 
 def write_blinded(records, graded_dir, key_fn, payload_fn, arm_key="arm",
-                  allowed=("scenario", "response")):
+                  allowed=("scenario", "response"), salt=None):
     """Write graded_dir/items/<bid>.json = {bid, **payload_fn(record)} and return the arm-map
     records [{bid, arm}] (in input order) for bench_io.dump_records — written by the caller
     OUTSIDE graded_dir, since the map is the un-blinding key. Payload keys are WHITELISTED
     (`allowed`): a blacklist of the arm key's one name let `condition`, `cell`, or a renamed arm
-    through. Items are written in shuffled order so file mtimes do not recover the arm order."""
+    through. Items are written in shuffled order so file mtimes do not recover the arm order.
+    `salt` as in assign_bids: a re-run that must keep its bids (so existing grades still join)
+    passes the salt it persisted, outside graded_dir, on the first run."""
     items = Path(graded_dir) / "items"
     items.mkdir(parents=True, exist_ok=True)
-    bids = assign_bids(records, key_fn)
+    bids = assign_bids(records, key_fn, salt)
     payloads = []
     for bid, r in bids:
         payload = payload_fn(r)
