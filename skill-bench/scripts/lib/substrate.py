@@ -128,7 +128,7 @@ class NativeSubstrate:
         if r.returncode != 0 or is_error:
             # a failed or usage-limited call is not a quality result: the caller excludes it
             row["error"] = f"exit {r.returncode}{' is_error' if is_error else ''}: " \
-                           f"{(r.stderr or r.stdout).strip()[-200:]}"
+                           f"{(r.stderr.strip() or row['output'])[-200:]}"
         return row
 
     def run(self, prompts, arms, workdir=None):

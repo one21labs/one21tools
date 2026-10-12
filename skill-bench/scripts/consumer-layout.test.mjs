@@ -1,14 +1,14 @@
 /*
  * consumer-layout.test.mjs — proves skill-bench runs AS AN INSTALLED PLUGIN would (#170 M2/M6):
  * copy scripts/ into a temp dir shaped like the plugin cache, build a synthetic graded benchmark,
- * and run bench_verdict.py from an UNRELATED working directory with NO grok/claude CLI (the offline
+ * and run bench_verdict.py from an UNRELATED working directory with NO model CLI on PATH (the offline
  * --cache path). Pins cwd-independence + self-containment (lib imports resolve via the script's own
  * dir, not the caller's) so cross-repo use can't silently break.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, cpSync, writeFileSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -52,15 +52,28 @@ test("bench_verdict reproduces a verdict from an installed-plugin layout, offlin
     writeFileSync(cache,
       ARM_MAP.map(([bid]) => JSON.stringify({ bid, expectations: expsFrom(MET[bid]) })).join("\n") + "\n");
 
-    // 4. Run from an UNRELATED cwd, invoking the script by absolute path (as ${CLAUDE_PLUGIN_ROOT} would).
+    // 4. Strip every model CLI: PATH is a dir holding only node + python3 (a claude installed
+    //    beside node — npm's global bin — would otherwise stay reachable), and the judge
+    //    override variables are dropped.
+    const python = spawnSync("python3", ["-c", "import sys; print(sys.executable)"],
+      { encoding: "utf8" }).stdout.trim();
+    const bin = join(root, "bin");
+    mkdirSync(bin);
+    symlinkSync(process.execPath, join(bin, "node"));
+    symlinkSync(python, join(bin, "python3"));
+    const env = { ...process.env, PATH: bin };
+    for (const k of ["GROK_BIN", "COPILOT_BIN", "SKILL_BENCH_JUDGE_CMD"]) delete env[k];
+
+    // 5. Run from an UNRELATED cwd, invoking the script by absolute path (as ${CLAUDE_PLUGIN_ROOT} would).
     const out = join(root, "report.json");
-    const r = spawnSync("python3",
+    const r = spawnSync(python,
       [join(root, "scripts", "bench_verdict.py"), "--dir", join(root, "bench"),
        "--judge", "auto", "--cache", cache, "--out", out],
-      { cwd: otherCwd, encoding: "utf8" });
+      { cwd: otherCwd, encoding: "utf8", env });
     assert.equal(r.status, 0, `bench_verdict failed: ${r.stderr}`);
 
     const report = JSON.parse(readFileSync(out, "utf8"));
+    assert.equal(report.judge, "cached"); // the cache names no judge, so none is claimed
     assert.equal(report.n_cells, 6);
     assert.equal(report.regraded.arm_means.C, 1.0);
     assert.equal(report.regraded.arm_means.B, 0.5);

@@ -22,7 +22,7 @@ from pathlib import Path
 
 def assign_bids(records, key_fn, salt=None):
     """[(bid, record)] with bid = sha256(salt + key_fn(record))[:12]. The salt is a fresh random
-    secret unless given (tests): an unsalted hash of a public key (cell names carry the arm) is
+    secret unless given (tests; a re-run reusing its persisted salt): an unsalted hash of a public key (cell names carry the arm) is
     recomputable offline, which un-blinds every item. The caller must not write the salt where
     the grader can read it. key_fn must be unique per record — a duplicate key would silently
     overwrite its item file, so duplicates and hash collisions both raise."""

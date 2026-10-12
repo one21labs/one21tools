@@ -25,8 +25,9 @@ VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated
   2. Pure, subprocess-free extractions so the fixed behavior is unit-testable
      (run_eval_test.py) without spawning `claude -p`: the per-line stream detection into
      `detect_trigger_line()`, the per-query/summary aggregation into `summarize_query()` /
-     `summarize_results()`, the end-of-session null decision into `session_verdict()`. `run_single_query()`/`run_eval()` call them with control flow
-     otherwise unchanged.
+     `summarize_results()`, the end-of-session null decision into `session_verdict()`.
+     `run_single_query()`/`run_eval()` call them; the stream loop also parses the lines that
+     arrive with the exit (fix 4).
   3. `parse_skill_md` vendored inline from skill-creator/scripts/utils.py -- this file has no
      package-relative import and runs standalone: `python3 run_eval.py ...`.
 

@@ -394,5 +394,114 @@ class TestTopCellAttribution(unittest.TestCase):
         self.assertEqual(bv.summarize(cells, "C", "B", 0.25)["C_minus_B"]["practical"], 0.25)
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def bench_dir(d, rows, root_map=True):
+    """Synthetic graded dir: rows = [(bid, arm, scenario, verdict-row-extras)]."""
+    import json
+    os.makedirs(os.path.join(d, "graded"), exist_ok=True)
+    with open(os.path.join(d, "arm_map.tsv" if root_map else "graded/arm_map.tsv"), "w") as f:
+        f.write("bid\tarm\tscenario\trep\n" + "".join(f"{b}\t{a}\t{s}\t1\n" for b, a, s, _ in rows))
+    with open(os.path.join(d, "graded/verdicts.jsonl"), "w") as f:
+        for b, _, s, extra in rows:
+            f.write(json.dumps({"bid": b, "scenario": s, **extra}) + "\n")
+    with open(os.path.join(d, "graded/keys.json"), "w") as f:
+        json.dump({"S1": {}, "S2": {}}, f)
+
+
+def exps(m):
+    return {"norm": {"decision": "d"},
+            "expectations": [{"id": i + 1, "met": bool(v)} for i, v in enumerate(m)]}
+
+
+GRID = [("c1", "C", "S1", [1, 1, 1, 1]), ("b1", "B", "S1", [1, 0, 0, 0]),
+        ("c2", "C", "S2", [1, 1, 1, 0]), ("b2", "B", "S2", [1, 1, 0, 0])]
+
+
+class TestLoadDirAndCache(unittest.TestCase):
+    def test_load_dir_records_error_and_malformed_rows_instead_of_crashing_or_scoring(self):
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID]
+                      + [("e1", "C", "S1", {"error": "judge exit 1"}),            # template error row
+                         ("m1", "B", "S1", {"norm": {}, "expectations": [{"id": 1, "met": True}]})])
+            cells, baseline, _, berrs = bv.load_dir(d)
+        self.assertEqual({c["bid"] for c in cells}, {"c1", "b1", "c2", "b2", "m1"})  # m1 has a norm
+        self.assertEqual({c["bid"] for c in baseline}, {"c1", "b1", "c2", "b2"})
+        self.assertEqual({e["bid"] for e in berrs}, {"e1", "m1"})
+
+    def test_load_dir_reads_the_legacy_graded_arm_map(self):
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID], root_map=False)
+            self.assertEqual(len(bv.load_dir(d)[1]), 4)
+
+    def test_cache_judge_name_is_what_the_cache_says_or_cached(self):
+        import bench_verdict as bv
+        self.assertEqual(bv.cache_judge_name([{"judge": "grok-4.5"}] * 2), "grok-4.5")
+        for rows in ([], [{}], [{"judge": "grok-4.5"}, {}], [{"judge": "a"}, {"judge": "b"}],
+                     [{"judge": 7}]):
+            self.assertEqual(bv.cache_judge_name(rows), "cached", repr(rows))
+
+    def test_cached_rows_go_through_the_strict_met_map(self):
+        import bench_verdict as bv
+        cells = [{"bid": b, "arm": a, "scenario": s} for b, a, s, _ in GRID[:3]]
+        cache = [{"bid": "c1", **exps([1, 1, 1, 1])},
+                 {"bid": "b1", "expectations": [{"id": 1, "met": "false"}]},   # string met
+                 {"bid": "c2", "error": "timeout"}]
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual([c["bid"] for c in out], ["c1"])
+        self.assertEqual({e["bid"] for e in errs}, {"b1", "c2"})
+
+    def _run_cached(self, judge_arg, cache_judge=None):
+        """bench_verdict --cache with stub grok AND claude on PATH that fail if ever called."""
+        import json, subprocess, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID])
+            bindir = os.path.join(d, "bin")
+            os.makedirs(bindir)
+            for cli in ("grok", "claude"):
+                with open(os.path.join(bindir, cli), "w") as f:
+                    f.write("#!/bin/sh\necho live call >&2\nexit 1\n")
+                os.chmod(os.path.join(bindir, cli), 0o755)
+            cache = os.path.join(d, "cache.jsonl")
+            with open(cache, "w") as f:
+                for b, _, _, m in GRID:
+                    row = {"bid": b, **exps(m)}
+                    if cache_judge:
+                        row["judge"] = cache_judge
+                    f.write(json.dumps(row) + "\n")
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("SKILL_BENCH_JUDGE_CMD", "GROK_BIN", "COPILOT_BIN")}
+            env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "bench_verdict.py"), "--dir", d,
+                                "--judge", judge_arg, "--cache", cache],
+                               capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return json.loads(r.stdout)
+
+    def test_a_cache_is_never_labelled_with_a_live_backends_name(self):
+        # grok and claude both reachable: the label was grok-4.5 / claude-opus-4-8, whichever
+        # CLI resolved, regardless of who produced the cached grades.
+        for arg in ("auto", "grok", "claude"):
+            rep = self._run_cached(arg)
+            self.assertEqual(rep["judge"], "cached", arg)
+            self.assertEqual(rep["notional_cost_usd"]["judge_calls"], 0)
+        self.assertEqual(self._run_cached("auto", "claude-opus-4-8")["judge"], "claude-opus-4-8")
+
+    def test_both_on_a_cache_needs_the_cache_to_name_a_cross_family_judge(self):
+        for unproven in (None, "claude-opus-4-8"):
+            rep = self._run_cached("both", unproven)
+            self.assertIn("degraded", rep)
+            self.assertNotIn("divergence", rep)
+        rep = self._run_cached("both", "grok-4.5")
+        self.assertEqual(rep["judge"], "grok-4.5")
+        self.assertEqual(rep["baseline_judge"], "committed")  # no judge recorded for the baseline
+        self.assertIn("divergence", rep)
+
+
 if __name__ == "__main__":
     unittest.main()
