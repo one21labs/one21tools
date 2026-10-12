@@ -15,10 +15,9 @@ summary: "Owner policy 12-Oct-2026 for every skill-bench user: detect 80% of a u
   waits until the latest triggering reset + 60 s; in-flight calls finish. Default ON for every
   caller of the shared driver and the Claude judge; `$SKILL_BENCH_PAUSE_AT` overrides the
   threshold, and no setting retries into a window the limit already closed.
-- Why: benchmark cells draw on the operator's own subscription windows. Run to exhaustion, the
-  limit rejected calls with exit 1 and an empty stderr — 46/80, then 23/80 prescreen cells on
-  12-Oct read as a harness defect and starved the operator's session. A pause turns a hard
-  failure into a wait and keeps 20% headroom for the person.
+- Why: benchmark calls share the operator's own subscription windows; run to exhaustion they fail
+  as empty ERROR cells and starve the operator's session (measured cases and mechanism:
+  `usage_guard.py` header). A pause turns a hard failure into a wait and keeps 20% headroom.
 - Rejected: a per-run cell cap — counts cells, not the window, so it neither prevents nor
   explains a rejection. Pausing only on REJECTED — leaves the operator at 100% mid-session.
   Polling a usage endpoint — none exposed; the event rides every call.

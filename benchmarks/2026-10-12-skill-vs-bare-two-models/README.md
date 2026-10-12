@@ -4,7 +4,7 @@ Owner directive 12-Oct: test each measured skill against the bare model on Opus 
 Sonnet 5.5. Pre-registration: `metadata.json` (committed before any generation). Also ADR 0095's
 first batched re-measure. Every verdict below was graded by Claude Opus 5.5 — the generators'
 family — so none may back a README claim until a cross-family judge grades the same committed
-cells (`python3 grade.py --dirs outputs --judges grok`, then `aggregate.py --judge grok`).
+cells (`python3 grade.py --dirs outputs --judges grok`, then `aggregate.py --judge grok`, written to `results-grok.json` beside this one).
 
 ## Result (with − without fraction-met; eval-clustered 95% t-interval; 2 reps per cell)
 
@@ -19,7 +19,7 @@ cells (`python3 grade.py --dirs outputs --judges grok`, then `aggregate.py --jud
 | Sonnet 5.5 | code-standards | 7 | 0.545 | 0.910 | +0.364 [+0.094, +0.635] | 0.370 | KEEP | diagnostic (G<8) |
 | Sonnet 5.5 | optimizing-context | 5 | 0.548 | 0.677 | +0.103 [−0.048, +0.254] | 0.202 | INCONCLUSIVE | diagnostic (G<8) |
 
-Per-eval deltas and win rates: `results.json`. No (skill, model) pair is HARMFUL.
+Per-eval deltas and win rates: `results-claude-opus-5-5.json`. No (skill, model) pair is HARMFUL.
 
 ## How to read it
 

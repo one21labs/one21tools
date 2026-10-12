@@ -103,7 +103,7 @@ def main():
         sys.exit("grid refused by the cost gate (see log) — stopping for the owner, nothing graded")
     sh("python3", "-u", "grade.py", "--dirs", "outputs")
     sh("python3", "aggregate.py")
-    commit("Grid graded and aggregated (results.json)")
+    commit("Grid graded and aggregated (results-<judge>.json)")
 
 
 if __name__ == "__main__":

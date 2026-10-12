@@ -2,7 +2,7 @@
 """Selection (after prescreen) and verdicts (after the grid), per metadata.json.
 
   python3 aggregate.py --select   graded prescreen -> selection.json (per-model surviving evals)
-  python3 aggregate.py            graded grid      -> results.json + printed table
+  python3 aggregate.py [--judge J] graded grid      -> results-<J>.json + printed table
 
 Verdict per (skill, model) = benchstats.keep_verdict(clustered_delta(with - without)) — the live
 interval rule, practical bar 0, eval-clustered (ADR 0019). Below 8 surviving evals a cell is
@@ -66,7 +66,9 @@ def verdicts(judge):
             print(f"{mk:6s} {s:24s} G={g:2d} bare={v['arm_means']['without']:.3f} "
                   f"with={v['arm_means']['with']:.3f} delta={v.get('mean', float('nan')):+.3f} "
                   f"CI={v.get('ci95')} {v['verdict']} [{v['status'].split(' ')[0]}]")
-    (HERE / "results.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    # One file per judge: a cross-family re-grade must sit beside the same-family result, never
+    # overwrite it (the agreement between the two is what promotes a verdict).
+    (HERE / f"results-{judge}.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
 
 
 def main():
