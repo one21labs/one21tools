@@ -26,6 +26,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import usage_guard
+
 DEFAULT_TIMEOUT_S = 600
 
 # One language-neutral deny-list home (ADR 0041): newline-delimited deny_tools.txt, read here
@@ -111,7 +113,8 @@ def safe_get(d, *keys, default=None):
     return cur
 
 
-def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(), extra_args=()):
+def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(), extra_args=(),
+                   gate=None):
     """One `claude -p` subprocess call. `run` is injectable for tests.
 
     `allow` is the ADR 0052 carve-out: tools REMOVED from the deny list for a skill/agent arm
@@ -137,30 +140,45 @@ def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(
         }
 
     try:
-        proc = run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                   env=env, cwd=cwd, timeout=timeout)
+        proc = run(usage_guard.streaming(cmd), input=prompt, capture_output=True, text=True,
+                   encoding="utf-8", env=env, cwd=cwd, timeout=timeout)
     except subprocess.TimeoutExpired:
         return result("", None, f"timeout after {timeout}s")
-    if proc.returncode != 0:
-        return result("", None, f"nonzero exit {proc.returncode}: {(proc.stderr or '')[-2000:]}")
-    try:
-        envelope = json.loads(proc.stdout)
-    except json.JSONDecodeError as e:
-        return result("", None, f"json parse failure: {e}; stdout_tail={proc.stdout[-500:]!r}")
+    envelope, info = usage_guard.parse_stream(proc.stdout)
+    verdict = (gate or usage_guard.GATE).observe(info)
+    if proc.returncode != 0 or envelope is None:
+        out = result("", None, f"nonzero exit {proc.returncode}: {(proc.stderr or '')[-2000:]}"
+                     if proc.returncode != 0 else
+                     f"json parse failure: no result event; stdout_tail={(proc.stdout or '')[-500:]!r}")
+        out["usage_limited"] = bool(verdict and verdict["pause"] and "REJECTED" in verdict["why"])
+        return out
     text = envelope.get("result") if isinstance(envelope, dict) else None
     return result(text or "", envelope, None)
 
 
 def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.run,
-            allow=(), extra_args=()):
-    """One claude -p call; retries ONCE on timeout or nonzero exit, then gives up."""
-    attempt = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
-                             extra_args=extra_args)
-    attempt["retried"] = False
-    if attempt["error"] is None:
-        return attempt
-    retry = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
-                           extra_args=extra_args)
+            allow=(), extra_args=(), gate=None):
+    """One claude -p call; retries ONCE on timeout or nonzero exit, then gives up.
+
+    Usage-limit policy (usage_guard, ADR 0099): every attempt first waits out any pause the gate
+    holds (a window at >= 80%), and an attempt the limit REJECTED waits for the reset and is
+    re-issued without spending the one retry — a closed window is not a cell failure."""
+    gate = gate or usage_guard.GATE
+
+    def attempt():
+        for _ in range(usage_guard.MAX_LIMIT_WAITS + 1):
+            gate.wait()
+            a = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
+                               extra_args=extra_args, gate=gate)
+            if not a.get("usage_limited"):
+                return a
+        return a
+
+    first = attempt()
+    first["retried"] = False
+    if first["error"] is None:
+        return first
+    retry = attempt()
     retry["retried"] = True
     return retry
 

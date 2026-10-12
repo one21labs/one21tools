@@ -49,6 +49,21 @@ class BuildEnv(unittest.TestCase):
 
 
 class DoCall(unittest.TestCase):
+    def test_limit_rejection_waits_and_reissues_without_spending_the_retry(self):
+        import usage_guard
+        clock = {"t": 1_000_000}
+        gate = usage_guard.UsageGate(threshold=0.8, now=lambda: clock["t"], log=lambda m: None,
+                                     sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
+        rejected = json.dumps({"type": "rate_limit_event", "rate_limit_info": {
+            "status": "rejected", "resetsAt": clock["t"] + 600, "rateLimitType": "five_hour",
+            "unifiedWindows": {"five_hour": {"utilization": 1.0, "resetsAt": clock["t"] + 600}}}})
+        outs = iter([SimpleNamespace(returncode=1, stdout=rejected, stderr=""),
+                     SimpleNamespace(returncode=0, stdout=json.dumps(ENVELOPE), stderr="")])
+        call = do_call("p", "sonnet", {}, ".", run=lambda cmd, **kw: next(outs), gate=gate)
+        self.assertIsNone(call["error"])
+        self.assertFalse(call["retried"])
+        self.assertGreaterEqual(clock["t"], 1_000_600)
+
     def test_success_no_retry(self):
         call = do_call("p", "sonnet", {}, ".", run=fake_run())
         self.assertIsNone(call["error"])

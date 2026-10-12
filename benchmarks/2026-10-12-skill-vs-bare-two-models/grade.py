@@ -11,7 +11,6 @@ excluded, never quality 0); per-judge resumable jsonl; a JudgeError records and 
 """
 import argparse
 import json
-import subprocess
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -20,6 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
 import rubric  # noqa: E402
+import usage_guard  # noqa: E402
 from artifact_check import check_artifact  # noqa: E402
 from blind import capture_symmetry  # noqa: E402
 from hermetic_driver import build_env, neutral_cwd  # noqa: E402
@@ -44,14 +44,9 @@ class IsolatedClaudeJudge(ClaudeJudge):
         p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
         cmd = [self.bin, "-p", "--output-format", "json", "--model", self.model, "--tools", "",
                "--disable-slash-commands", "--strict-mcp-config", "--effort", "medium"]
-        try:
-            r = subprocess.run(cmd, input=p, capture_output=True, text=True, timeout=self.timeout,
-                               cwd=self.cwd, env={**build_env("medium"), "CLAUDE_CONFIG_DIR": self.config})
-        except subprocess.TimeoutExpired:
-            raise JudgeError(f"claude timeout after {self.timeout}s")
-        if r.returncode != 0:
-            raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
-        env = json.loads(r.stdout)
+        env = usage_guard.guarded_run(cmd, timeout=self.timeout, error=JudgeError, input=p,
+                                      cwd=self.cwd,
+                                      env={**build_env("medium"), "CLAUDE_CONFIG_DIR": self.config})
         self._record(env)
         self.real_cost_usd += env.get("total_cost_usd") or 0.0
         served = sorted((env.get("modelUsage") or {}).keys())

@@ -25,6 +25,7 @@ Adding a family is a registry entry, not a new branch in the resolver — see BA
 """
 import json, os, re, shutil, subprocess, tempfile
 import costing
+import usage_guard
 
 # Known-good pure-text sandbox. NOTE (grok 0.2.99): longer deny lists or --disable-web-search trip a
 # run_terminal_cmd tool-config validation bug — keep this exact set.
@@ -166,16 +167,9 @@ class ClaudeJudge(_CostTracking):
     def grade(self, prompt, schema):
         # claude -p has no --json-schema; ask for JSON-only and parse, retrying tolerant of fences.
         p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
-        try:
-            r = subprocess.run(
-                [self.bin, "-p", p, "--output-format", "json", "--model", self.model,
-                 "--disallowedTools", CLAUDE_DENY],
-                capture_output=True, text=True, timeout=self.timeout)
-        except subprocess.TimeoutExpired:
-            raise JudgeError(f"claude timeout after {self.timeout}s")  # same contract as grok
-        if r.returncode != 0:
-            raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
-        env = json.loads(r.stdout)
+        env = usage_guard.guarded_run(
+            [self.bin, "-p", p, "--output-format", "json", "--model", self.model,
+             "--disallowedTools", CLAUDE_DENY], timeout=self.timeout, error=JudgeError)
         self._record(env)
         return json.loads(strip_json_fence(env.get("result", "")))
 
