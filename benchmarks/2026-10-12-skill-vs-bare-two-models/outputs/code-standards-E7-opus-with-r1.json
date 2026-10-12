@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E7-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15940.1,
+  "duration_ms": 15278,
+  "duration_api_ms": 15018,
+  "cost_usd": 0.034541,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 717,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1398,
+   "output_tokens_details": {
+    "thinking_tokens": 404
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 717,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1398,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 717,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 717
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:29:50.774465+00:00",
+   "end": "2026-10-12T19:30:06.714595+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.034541
+ },
+ "response": "Here's the rename-only version. Behavior is identical. I kept the function name `f` because your callers reference it, and I kept the parameter order so positional calls still work.\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef f(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        token_payload = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_payload)\n        return token_payload['access_token']\n    except Exception:\n        return None\n```\n\nIf any caller passes these by keyword (`f(u=..., p=...)`), it will break. A quick grep for `u=`, `p=`, `h=`, `t=` near calls to `f` will tell you.\n\n**However, the names are not the only problem.** Three issues are worth raising, and the first one is urgent:\n\n1. **The service password and access token are being logged.** `log.info('auth ok for %s with %s -> %s', u, p, d)` writes the plaintext password and the full token response at INFO level, roughly once a minute. Those logs go to a Datadog index the whole company can search. The credentials have probably been exposed there for a year. I'd treat them as compromised: rotate the service password, revoke the outstanding tokens, and ask whoever owns Datadog about purging or restricting those log entries. The fix is a one-line change:\n   ```python\n   log.info('auth ok for %s', username)\n   ```\n\n2. **The mutable default `h=[]` grows on every call.** The same list object is reused across calls, so each call appends another `'X-Client: billing-sync'`. After a year in a long-running worker, that's hundreds of thousands of entries, all rebuilt into a dict each minute. The headers still come out correct because the dict dedupes them, but it's a slow memory leak. The fix:\n   ```python\n   def f(username, password, header_lines=None, timeout_seconds=10):\n       header_lines = list(header_lines or []) + ['X-Client: billing-sync']\n   ```\n\n3. **`except Exception: return None` discards every failure silently.** Bad credentials, a down auth service, a timeout, a non-JSON response, and a missing `access_token` key all look the same to the caller and leave nothing in the logs. Your callers can keep the `None` contract, but log the error first. Don't log the response body, since it may contain secrets:\n   ```python\n   except Exception as err:\n       log.error('auth failed for %s: %s', username, type(err).__name__)\n       return None\n   ```\n\nNone of these fixes changes the caller contract (`tok = f(svc_user, svc_pass)`, `None` on failure). I'd ship #1 today alongside the credential rotation. Want me to put all three together into one version?"
+}

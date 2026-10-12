@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 64615.4,
+  "duration_ms": 63901,
+  "duration_api_ms": 63680,
+  "cost_usd": 0.156245,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 700,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 7490,
+   "output_tokens_details": {
+    "thinking_tokens": 4002
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 700,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7490,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 700,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 700
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:28:05.469671+00:00",
+   "end": "2026-10-12T19:29:10.085131+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.156245
+ },
+ "response": "Both modules below share a per-record correlation ID, `<run_id>:<line_no>`. Grepping the run ID returns the whole run, and grepping the full ID returns one record's path through both modules.\n\n## ingest.py\n\n```python\n\"\"\"\ningest.py - JSONL ingestion pipeline entry point\n\nARCHITECTURE ROLE:\n    Reads input records, delegates enrichment to enrich.py, persists results.\n    Owns logging configuration and correlation ID assignment; enrich.py only\n    emits logs under the IDs it is given.\n\nDESIGN CONSTRAINTS:\n    - One bad record never aborts a run: parse and enrichment failures are\n      logged and counted, then processing continues.\n    - Input/output I/O failures abort the run: silently dropping writes\n      would lose data.\n    - Correlation ID format is \"<run_id>:<line_no>\". Grep the run_id for the\n      whole run, the full ID for one record across both modules.\n    - Record contents are never logged (may contain PII); logs carry line\n      numbers, key names, and error positions only.\n\nLOGGING:\n    One JSON object per line on stderr. LOG_LEVEL env var sets the level\n    (default INFO). Per-record success is DEBUG so production stays quiet;\n    the end-of-run summary is WARN when any record failed.\n\nSEE ALSO:\n    enrich.py - region-to-zone enrichment\n\"\"\"\nimport json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\nfrom datetime import datetime, timezone\n\nfrom enrich import enrich_record\n\nOUTPUT_PATH = \"out.jsonl\"\nDEFAULT_LOG_LEVEL = \"INFO\"\n\nOUTCOME_SAVED = \"saved\"\nOUTCOME_SKIPPED = \"skipped\"\nOUTCOME_FAILED = \"failed\"\n\nlog = logging.getLogger(__name__)\n\n\nclass JsonFormatter(logging.Formatter):\n    def format(self, record):\n        entry = {\n            \"timestamp\": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"correlation_id\": getattr(record, \"correlation_id\", None),\n            \"message\": record.getMessage(),\n            \"context\": getattr(record, \"context\", {}),\n        }\n        if record.exc_info:\n            entry[\"exception\"] = self.formatException(record.exc_info)\n        return json.dumps(entry, default=str)\n\n\ndef configure_logging():\n    handler = logging.StreamHandler(sys.stderr)\n    handler.setFormatter(JsonFormatter())\n    root = logging.getLogger()\n    root.handlers = [handler]\n\n    level_name = os.environ.get(\"LOG_LEVEL\", DEFAULT_LOG_LEVEL).upper()\n    level = logging.getLevelName(level_name)\n    # getLevelName returns a \"Level X\" string, not an int, for unknown names.\n    if isinstance(level, int):\n        root.setLevel(level)\n    else:\n        root.setLevel(DEFAULT_LOG_LEVEL)\n        log.warning(\n            \"Unknown LOG_LEVEL, using default\",\n            extra={\"context\": {\"log_level\": level_name, \"default\": DEFAULT_LOG_LEVEL}},\n        )\n\n\ndef run(input_path, output_path=OUTPUT_PATH):\n    run_id = uuid.uuid4().hex\n    counts = {\"read\": 0, OUTCOME_SAVED: 0, OUTCOME_SKIPPED: 0, OUTCOME_FAILED: 0}\n    started = time.monotonic()\n    log.info(\n        \"Run started\",\n        extra={\"correlation_id\": run_id,\n               \"context\": {\"input_path\": input_path, \"output_path\": output_path}},\n    )\n\n    try:\n        with open(input_path) as source, open(output_path, \"a\") as sink:\n            for line_no, line in enumerate(source, start=1):\n                counts[\"read\"] += 1\n                outcome = _process_line(line, line_no, f\"{run_id}:{line_no}\", sink)\n                counts[outcome] += 1\n    except OSError:\n        log.error(\n            \"Run aborted on I/O failure\",\n            exc_info=True,\n            extra={\"correlation_id\": run_id,\n                   \"context\": {\"input_path\": input_path, \"output_path\": output_path,\n                               \"counts\": counts}},\n        )\n        raise\n\n    summary_level = logging.WARNING if counts[OUTCOME_FAILED] else logging.INFO\n    log.log(\n        summary_level,\n        \"Run finished\",\n        extra={\"correlation_id\": run_id,\n               \"context\": {\"counts\": counts,\n                           \"duration_s\": round(time.monotonic() - started, 3)}},\n    )\n    return counts\n\n\ndef _process_line(line, line_no, correlation_id, sink):\n    \"\"\"Returns one of the OUTCOME_* constants. Lets OSError from sink propagate.\"\"\"\n    if not line.strip():\n        log.debug(\"Blank line skipped\",\n                  extra={\"correlation_id\": correlation_id, \"context\": {\"line_no\": line_no}})\n        return OUTCOME_SKIPPED\n\n    try:\n        rec = json.loads(line)\n    except json.JSONDecodeError as err:\n        log.warning(\n            \"Unparseable JSON line\",\n            extra={\"correlation_id\": correlation_id,\n                   \"context\": {\"line_no\": line_no, \"error\": err.msg,\n                               \"column\": err.colno, \"line_length\": len(line)}},\n        )\n        return OUTCOME_FAILED\n\n    try:\n        enriched = enrich_record(rec, correlation_id)\n    except Exception:\n        # An exception here is a bug in enrich.py, not bad data; isolate it to\n        # this record so one defect doesn't discard the rest of the run.\n        log.error(\"Enrichment raised unexpectedly\", exc_info=True,\n                  extra={\"correlation_id\": correlation_id, \"context\": {\"line_no\": line_no}})\n        return OUTCOME_FAILED\n\n    if enriched is None:\n        return OUTCOME_SKIPPED  # enrich_record already logged the reason\n\n    sink.write(json.dumps(enriched) + \"\\n\")\n    log.debug(\"Record saved\",\n              extra={\"correlation_id\": correlation_id, \"context\": {\"line_no\": line_no}})\n    return OUTCOME_SAVED\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    if len(sys.argv) != 2:\n        log.error(\"Usage: ingest.py <input.jsonl>\", extra={\"context\": {\"argv\": sys.argv}})\n        sys.exit(2)\n    run(sys.argv[1])\n```\n\n## enrich.py\n\n```python\n\"\"\"\nenrich.py - region-to-zone enrichment\n\nARCHITECTURE ROLE:\n    Transforms one record. Does not read input, write output, or configure\n    logging; ingest.py owns all three.\n\nDESIGN CONSTRAINTS:\n    - No I/O beyond logging.\n    - correlation_id is supplied by the caller and attached to every log\n      line, so a record can be traced from ingest.py through here.\n    - Returns None for records that cannot be enriched, after logging why.\n      Callers treat None as \"skipped\", not as an error.\n    - Record contents are never logged; region codes and key names only.\n\nUSED BY:\n    ingest.py\n\"\"\"\nimport logging\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\nlog = logging.getLogger(__name__)\n\n\ndef enrich_record(rec, correlation_id):\n    if not isinstance(rec, dict):\n        log.warning(\"Record is not a JSON object\",\n                    extra={\"correlation_id\": correlation_id,\n                           \"context\": {\"record_type\": type(rec).__name__}})\n        return None\n\n    region = rec.get(\"region\")\n    if not isinstance(region, str):\n        log.warning(\"Record has missing or non-string region\",\n                    extra={\"correlation_id\": correlation_id,\n                           \"context\": {\"region_type\": type(region).__name__,\n                                       \"record_keys\": sorted(rec)}})\n        return None\n\n    zone = GEO.get(region)\n    if zone is None:\n        log.warning(\"Unknown region\",\n                    extra={\"correlation_id\": correlation_id,\n                           \"context\": {\"region\": region, \"known_regions\": sorted(GEO)}})\n        return None\n\n    rec[\"zone\"] = zone\n    log.debug(\"Record enriched\",\n              extra={\"correlation_id\": correlation_id,\n                     \"context\": {\"region\": region, \"zone\": zone}})\n    return rec\n```\n\n## What changed and why\n\n- **Tracing.** Each run gets a `run_id`, and each record gets `<run_id>:<line_no>`. That ID is on every log line in both modules. `enrich_record` now takes `correlation_id` as a required argument. Its only caller is `ingest.py`.\n- **Previously silent failures are now logged with their reason.** Before, an unknown region, a missing `region`, or a non-object line disappeared without a trace. A missing `region` raised `KeyError` and killed the run. All three now log a WARN with context and the run continues.\n- **Crash behavior.**\n  - Bad JSON on one line used to abort the whole run. Now it is logged and counted, and the run continues.\n  - A bug inside enrichment is logged at ERROR with a traceback and isolated to that record.\n  - Input/output `OSError`s still abort the run, but they now log the counts reached so far. Continuing past a failed write would lose data silently.\n- **Volume.**\n  - Per-record success is DEBUG and off by default (`LOG_LEVEL=DEBUG` turns it on).\n  - The run summary (read/saved/skipped/failed/duration) is INFO, or WARN if anything failed. An on-call engineer can see at a glance whether a run went wrong.\n- **PII.** Logs carry line numbers, key names, region codes, and JSON error positions, never record contents.\n- **Incidental fixes.**\n  - The input file is now closed (`with`).\n  - The output file is opened once per run instead of once per record.\n  - The output path is a named constant.\n  - A `__main__` entry point configures logging. Library imports never touch logging config.\n\nOne judgment call to revisit: unknown regions log at WARN on the assumption that they're unexpected. If they're routine in your data, demote that line to DEBUG and rely on the `skipped` count in the summary so they don't flood production logs."
+}

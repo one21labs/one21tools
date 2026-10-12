@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E7-opus-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E7",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18192.4,
+  "duration_ms": 17573,
+  "duration_api_ms": 17361,
+  "cost_usd": 0.04118139999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 809,
+   "cache_read_input_tokens": 4307,
+   "output_tokens": 1692,
+   "output_tokens_details": {
+    "thinking_tokens": 448
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 809,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1692,
+     "cache_read_input_tokens": 4307,
+     "cache_creation_input_tokens": 809,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 809
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:27:06.755917+00:00",
+   "end": "2026-10-12T19:27:24.948379+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04118139999999999
+ },
+ "response": "Here's the SKILL.md. I made four changes from your pasted instructions, because packaging them verbatim would either leak a credential or produce a skill that doesn't work reliably.\n\n## Changes from your original\n\n1. **The GitHub token is removed. Rotate it now.** A token inside SKILL.md is readable by anyone with repo access, gets committed to history, and loads into every session's context. It also appeared in this chat, so treat it as compromised. Revoke it at GitHub -> Settings -> Developer settings -> Tokens. The skill now uses `gh`'s own auth (`gh auth login`, or a `GH_TOKEN` environment variable set outside the skill).\n2. **The description is rewritten.** You asked for \"Release notes helper.\" The description is the only part of a skill that's always in context, and it's what decides whether the skill activates. A passive label like that often won't trigger when you say \"draft the changelog for v2.3.\" The version below starts with trigger phrases and stays short.\n3. **\"List every commit\" conflicted with \"under 150 words.\"** A release with 30 features can't satisfy both. The resolution I chose: every kept commit is still covered, but related commits can be merged into one line to fit the limit. Nothing is silently dropped. If you'd rather the word limit or the full list win outright, say so and I'll change that rule.\n4. **Breaking-change detection is fixed.** `--oneline` shows only commit subjects, so a `BREAKING CHANGE:` footer in the commit body would never be seen. The skill now reads full commit bodies and also catches the `feat!:` shorthand.\n\nI also added a confirmation step before `gh release create`, since that publishes publicly.\n\n## `skills/release-notes/SKILL.md`\n\n````markdown\n---\nname: release-notes\ndescription: Use when asked to write, draft, or publish release notes or a changelog for a new version. Collect commits since the last tag, group by conventional-commit prefix, write customer-facing notes under 150 words, confirm before posting with gh.\n---\n\n# Release Notes\n\n## 1. Collect commits\n\n```bash\nLAST_TAG=$(git describe --tags --abbrev=0)\ngit log \"$LAST_TAG\"..HEAD --format='%h %s%n%b%n---'\n```\n\nIf `git describe` fails (no tags), ask the user which ref to start from.\n\n## 2. Group\n\n| Prefix | Section |\n|--------|---------|\n| `feat` | Features |\n| `fix` | Bug Fixes |\n| `perf` | Performance |\n\nDrop `chore`, `ci`, `docs`, `test`. Scopes (`feat(api):`) group with their type. Omit empty sections.\n\n## 3. Breaking changes\n\nIf any commit body has a `BREAKING CHANGE:` footer, or its type ends in `!` (`feat!:`), put a **Breaking changes** section at the very top, before Features.\n\n## 4. Write\n\n- Cover every kept commit. Never silently drop one.\n- Keep the whole document under 150 words. When needed, merge related commits into one line rather than omitting any.\n- Write for customers: describe the effect, not the implementation. No file paths, no internal ticket IDs (e.g. `PLAT-1234`), no commit hashes.\n- Tone: plain, confident, no exclamation marks.\n\n## 5. Post\n\nWrite the draft to `release-notes.md` and show it to the user. **Confirm before publishing.** Then:\n\n```bash\ngh release create <tag> --notes-file release-notes.md\n```\n\nAuthentication comes from `gh auth login` or the `GH_TOKEN` environment variable. Never put a token in this file or in commands.\n````\n\nOnce you've rotated the token, run `gh auth login` once and the skill will publish without needing a token anywhere in the text."
+}

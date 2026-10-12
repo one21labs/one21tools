@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-opus-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 54599.2,
+  "duration_ms": 53870,
+  "duration_api_ms": 53651,
+  "cost_usd": 0.11922279999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2774,
+   "output_tokens": 5933,
+   "output_tokens_details": {
+    "thinking_tokens": 3511
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5933,
+     "cache_read_input_tokens": 2774,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:28:28.976759+00:00",
+   "end": "2026-10-12T19:29:23.575954+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.11922279999999999
+ },
+ "response": "Both modules use the stdlib `logging` module and log in `key=value` form, so lines are easy to grep and to parse into a log aggregator. Every per-record line carries `run_id`, `line` and `record_id`. To trace one record, grep for its `run_id` and `line` (or its `record_id`) and you see it across both modules.\n\n### ingest.py\n\n```python\nimport json\nimport logging\nimport time\nimport uuid\n\nfrom enrich import enrich_record\n\nlogger = logging.getLogger(__name__)\n\nOUT_PATH = \"out.jsonl\"\n# Field used as the business identifier in logs; line number is always logged too.\nRECORD_ID_FIELD = \"id\"\n\n\ndef run(path, run_id=None):\n    run_id = run_id or uuid.uuid4().hex[:12]\n    stats = {\"read\": 0, \"saved\": 0, \"dropped\": 0}\n    line_no = 0\n    started = time.monotonic()\n    logger.info(\"run_id=%s event=run_start input=%r output=%r\", run_id, path, OUT_PATH)\n    try:\n        with open(path) as f:\n            for line_no, line in enumerate(f, start=1):\n                stats[\"read\"] += 1\n                _process_line(line, path, line_no, run_id, stats)\n    except Exception:\n        logger.exception(\n            \"run_id=%s event=run_aborted input=%r last_line=%d read=%d saved=%d dropped=%d elapsed_s=%.2f\",\n            run_id, path, line_no, stats[\"read\"], stats[\"saved\"], stats[\"dropped\"],\n            time.monotonic() - started,\n        )\n        raise\n    logger.info(\n        \"run_id=%s event=run_complete input=%r read=%d saved=%d dropped=%d elapsed_s=%.2f\",\n        run_id, path, stats[\"read\"], stats[\"saved\"], stats[\"dropped\"],\n        time.monotonic() - started,\n    )\n    return stats\n\n\ndef _process_line(line, path, line_no, run_id, stats):\n    trace = {\"run_id\": run_id, \"line\": line_no, \"record_id\": None}\n    try:\n        rec = json.loads(line)\n    except json.JSONDecodeError as e:\n        # Raw line content is deliberately not logged (may contain PII);\n        # input path + line number is enough to retrieve it.\n        logger.error(\n            \"run_id=%s line=%d event=record_failed stage=parse input=%r error=%r\",\n            run_id, line_no, path, str(e),\n        )\n        raise\n    if isinstance(rec, dict):\n        trace[\"record_id\"] = rec.get(RECORD_ID_FIELD)\n    logger.debug(\"run_id=%s line=%d record_id=%r event=record_read\", run_id, line_no, trace[\"record_id\"])\n\n    try:\n        out = enrich_record(rec, trace)\n    except Exception as e:\n        logger.error(\n            \"run_id=%s line=%d record_id=%r event=record_failed stage=enrich error_type=%s error=%r\",\n            run_id, line_no, trace[\"record_id\"], type(e).__name__, str(e),\n        )\n        raise\n\n    if not out:\n        stats[\"dropped\"] += 1\n        return\n    save(out, trace)\n    stats[\"saved\"] += 1\n\n\ndef save(rec, trace=None):\n    trace = trace or {}\n    try:\n        with open(OUT_PATH, \"a\") as f:\n            f.write(json.dumps(rec) + \"\\n\")\n    except (OSError, TypeError, ValueError) as e:\n        logger.error(\n            \"run_id=%s line=%s record_id=%r event=record_failed stage=save output=%r error_type=%s error=%r\",\n            trace.get(\"run_id\"), trace.get(\"line\"), trace.get(\"record_id\"),\n            OUT_PATH, type(e).__name__, str(e),\n        )\n        raise\n    logger.debug(\n        \"run_id=%s line=%s record_id=%r event=record_saved output=%r\",\n        trace.get(\"run_id\"), trace.get(\"line\"), trace.get(\"record_id\"), OUT_PATH,\n    )\n```\n\n### enrich.py\n\n```python\nimport logging\n\nlogger = logging.getLogger(__name__)\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec, trace=None):\n    trace = trace or {}\n    ctx = (trace.get(\"run_id\"), trace.get(\"line\"), trace.get(\"record_id\"))\n\n    try:\n        raw_region = rec[\"region\"]\n    except (KeyError, TypeError):\n        logger.error(\n            \"run_id=%s line=%s record_id=%r event=enrich_failed reason=missing_region record_type=%s keys=%s\",\n            *ctx, type(rec).__name__, sorted(rec) if isinstance(rec, dict) else None,\n        )\n        raise\n\n    region = GEO.get(raw_region)\n    if region is None:\n        logger.warning(\n            \"run_id=%s line=%s record_id=%r event=record_dropped reason=unknown_region region=%r known=%s\",\n            *ctx, raw_region, sorted(GEO),\n        )\n        return None\n\n    rec[\"zone\"] = region\n    logger.debug(\n        \"run_id=%s line=%s record_id=%r event=record_enriched region=%r zone=%s\",\n        *ctx, raw_region, region,\n    )\n    return rec\n```\n\n### Notes\n\n- **Behavior is unchanged.** A malformed line, a missing `region`, or a write failure still stops the run as before. The difference is that each failure now produces:\n  - one contextual `record_failed` line that says which stage failed, for which record, and why;\n  - one `run_aborted` line with the full traceback and the counts at the moment of failure.\n  \n  If you'd rather skip bad records and keep going, swap the `raise` in `_process_line` for a counter increment. I didn't do that because it changes semantics.\n- **Silent drops are now visible.** Records with an unknown region used to vanish without a trace. They now log at WARNING with the offending value. This is probably the most common \"where did my record go\" case. If it's too noisy at your volume, lower it to INFO, since the `dropped` count still appears in `run_complete`.\n- **Log volume:** per-record success events are DEBUG. At INFO you get two lines per run plus one per drop or failure. Switch to DEBUG when you need the full per-record path.\n- **Assumptions:**\n  - I assumed records have an `id` field (`RECORD_ID_FIELD`). If they don't, it logs `None`, and `line` plus `run_id` still uniquely identify the record.\n  - Record contents are not logged, to avoid leaking PII. Only keys, region values and positions are logged.\n- **Compatibility:**\n  - `enrich_record`'s new `trace` argument is optional, so existing callers still work.\n  - `run()` now accepts an optional `run_id` (e.g., a scheduler job ID) and returns the stats dict.\n  - I also replaced the bare `open(path)` with a `with` block so the input file handle gets closed.\n- **Configuration:** the modules don't configure logging themselves. Set it up in your entrypoint, for example:\n  ```python\n  logging.basicConfig(level=logging.INFO, format=\"%(asctime)s %(levelname)s %(name)s %(message)s\")\n  ```"
+}

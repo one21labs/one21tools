@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 48841.7,
+  "duration_ms": 47878,
+  "duration_api_ms": 47652,
+  "cost_usd": 0.11146279999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 700,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 5272,
+   "output_tokens_details": {
+    "thinking_tokens": 2822
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 700,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5272,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 700,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 700
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:28:17.982610+00:00",
+   "end": "2026-10-12T19:29:06.824348+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.11146279999999999
+ },
+ "response": "Both files are below. Record tracing works through a `run_id` plus the line number, which are passed into `enrich_record` as a context dict. Every log line is a single JSON object on stderr, so you can grep or filter by `run_id`/`line_no` in your log system.\n\n## ingest.py\n\n```python\nimport json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\n\nfrom enrich import enrich_record\n\nlogger = logging.getLogger(\"pipeline.ingest\")\n\nOUT_PATH = \"out.jsonl\"\nPROGRESS_EVERY = 1000\n\n# Attributes every LogRecord has; anything else was passed via `extra=`.\n_STANDARD_ATTRS = set(\n    logging.LogRecord(\"\", 0, \"\", 0, \"\", (), None).__dict__\n) | {\"message\", \"asctime\"}\n\n\nclass JsonFormatter(logging.Formatter):\n    \"\"\"One JSON object per line, including any `extra=` fields.\"\"\"\n\n    converter = time.gmtime\n\n    def format(self, record):\n        entry = {\n            \"ts\": self.formatTime(record, \"%Y-%m-%dT%H:%M:%S\")\n            + f\".{int(record.msecs):03d}Z\",\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"msg\": record.getMessage(),\n        }\n        for key, value in record.__dict__.items():\n            if key not in _STANDARD_ATTRS:\n                entry[key] = value\n        if record.exc_info:\n            entry[\"exc\"] = self.formatException(record.exc_info)\n        return json.dumps(entry, default=repr)\n\n\ndef configure_logging(level=None):\n    handler = logging.StreamHandler(sys.stderr)\n    handler.setFormatter(JsonFormatter())\n    root = logging.getLogger()\n    root.handlers[:] = [handler]\n    root.setLevel(level or os.environ.get(\"LOG_LEVEL\", \"INFO\").upper())\n\n\ndef run(path, run_id=None):\n    run_id = run_id or uuid.uuid4().hex[:12]\n    base = {\"run_id\": run_id, \"source\": path}\n    counts = {\"read\": 0, \"saved\": 0, \"dropped\": 0}\n    status = \"failed\"\n    started = time.monotonic()\n\n    logger.info(\"run started\", extra={**base, \"event\": \"run_started\", \"out_path\": OUT_PATH})\n    try:\n        with open(path, encoding=\"utf-8\") as f:\n            for line_no, line in enumerate(f, start=1):\n                counts[\"read\"] += 1\n                ctx = {**base, \"line_no\": line_no, \"record_id\": None}\n\n                try:\n                    rec = json.loads(line)\n                except json.JSONDecodeError as e:\n                    logger.error(\n                        \"malformed JSON\",\n                        extra={\n                            **ctx,\n                            \"event\": \"record_failed\",\n                            \"stage\": \"parse\",\n                            \"error\": str(e),\n                            \"line_len\": len(line),\n                            \"line_preview\": line[:120],\n                        },\n                    )\n                    raise\n\n                if isinstance(rec, dict):\n                    ctx[\"record_id\"] = rec.get(\"id\")\n\n                try:\n                    out = enrich_record(rec, ctx=ctx)\n                except Exception:\n                    logger.exception(\n                        \"enrichment raised\",\n                        extra={**ctx, \"event\": \"record_failed\", \"stage\": \"enrich\"},\n                    )\n                    raise\n\n                if out:\n                    save(out, ctx)\n                    counts[\"saved\"] += 1\n                else:\n                    counts[\"dropped\"] += 1\n\n                if line_no % PROGRESS_EVERY == 0:\n                    logger.info(\"progress\", extra={**base, \"event\": \"run_progress\", **counts})\n        status = \"succeeded\"\n    finally:\n        logger.log(\n            logging.INFO if status == \"succeeded\" else logging.ERROR,\n            \"run finished\",\n            extra={\n                **base,\n                \"event\": \"run_finished\",\n                \"status\": status,\n                \"duration_ms\": int((time.monotonic() - started) * 1000),\n                **counts,\n            },\n        )\n\n\ndef save(rec, ctx=None):\n    ctx = ctx or {}\n    try:\n        with open(OUT_PATH, \"a\", encoding=\"utf-8\") as f:\n            f.write(json.dumps(rec) + \"\\n\")\n    except Exception:\n        logger.exception(\n            \"failed to write record\",\n            extra={**ctx, \"event\": \"record_failed\", \"stage\": \"save\", \"out_path\": OUT_PATH},\n        )\n        raise\n    logger.debug(\"record saved\", extra={**ctx, \"event\": \"record_saved\", \"zone\": rec.get(\"zone\")})\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    run(sys.argv[1])\n```\n\n## enrich.py\n\n```python\nimport logging\n\nlogger = logging.getLogger(\"pipeline.enrich\")\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec, ctx=None):\n    ctx = ctx or {}\n    region = GEO.get(rec[\"region\"])\n    if region is None:\n        logger.warning(\n            \"unknown region; record dropped\",\n            extra={\n                **ctx,\n                \"event\": \"record_dropped\",\n                \"reason\": \"unknown_region\",\n                \"region\": repr(rec[\"region\"])[:64],\n            },\n        )\n        return None\n    rec[\"zone\"] = region\n    logger.debug(\n        \"record enriched\",\n        extra={**ctx, \"event\": \"record_enriched\", \"region\": rec[\"region\"], \"zone\": region},\n    )\n    return rec\n```\n\n## Notes\n\n**Tracing a record.** Filter on `run_id` together with `line_no` (or `record_id`, when records have an `id` field). With `LOG_LEVEL=DEBUG`, each record leaves a full trail: `record_enriched` \u2192 `record_saved`, or `record_dropped`, or `record_failed` with a `stage` (`parse` / `enrich` / `save`) and a traceback. At the default INFO level you get run start and finish, progress every 1000 records, every drop, and every failure. Per-record success lines are kept at DEBUG so thousands of records don't flood the logs.\n\n**Previously silent drops are now logged.** Before, an unknown region made a record disappear without a trace. It now emits a WARNING with the offending value, and the drop is counted in the `run_finished` summary.\n\n**Behavior I preserved on purpose.**\n- A malformed line, a missing `region`, or a write error still aborts the run, as it did before. The difference is that the failure is now logged once with full context, and a `run_finished status=failed` summary is always emitted.\n- If you'd rather skip bad records and keep going, swap each `raise` in `run` for `counts[\"failed\"] += 1; continue`. That changes the pipeline's semantics, though, so I didn't make it the default.\n\n**Other changes.**\n- The input file is now opened with `with` and explicit UTF-8, so the handle is no longer leaked.\n- `enrich_record` gained an optional `ctx` argument, so existing callers still work.\n- Logging is configured only under `__main__`, so importing these modules won't touch your app's logging setup.\n\n**PII caution.** `line_preview` logs the first 120 characters of an unparseable line, and drop events log the region value. If records can contain sensitive data, remove `line_preview` (`line_len` plus `line_no` is enough to find the line in the source file)."
+}

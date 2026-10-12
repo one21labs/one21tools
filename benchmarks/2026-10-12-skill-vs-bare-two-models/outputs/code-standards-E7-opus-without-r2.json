@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E7-opus-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12629.2,
+  "duration_ms": 11747,
+  "duration_api_ms": 11508,
+  "cost_usd": 0.0270588,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 717,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 1045,
+   "output_tokens_details": {
+    "thinking_tokens": 191
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 717,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1045,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 717,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 717
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:29:54.984484+00:00",
+   "end": "2026-10-12T19:30:07.613748+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0270588
+ },
+ "response": "Here's the rename-only version. I kept the function name `f` because callers reference it. Parameter renames are safe for positional calls like `f(svc_user, svc_pass)`, but check that no caller passes `u=`, `p=`, `h=`, or `t=` by keyword.\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef f(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        token_data = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_data)\n        return token_data['access_token']\n    except Exception:\n        return None\n```\n\n**The names aren't the only problem, though. Two issues are worth raising today:**\n\n1. **The service password and access token are being logged to a company-wide Datadog index.** That `log.info` line writes the plaintext password (`p`) and the full token response (`d`) about once a minute. If this has run for a year, anyone who can search that index can likely see the credentials. I'd treat them as compromised: rotate `svc_pass`, and ask whoever owns Datadog about purging or restricting those log entries. The fix is a one-line change:\n   ```python\n   log.info('auth ok for %s', username)\n   ```\n\n2. **The mutable default `h=[]` grows forever.** The same list is reused across calls, so every call appends another `'X-Client: billing-sync'`. In a long-running worker at roughly one call a minute, that's about half a million entries per year. The resulting header dict still comes out correct because duplicate keys collapse, which is probably why nobody noticed. But memory grows steadily and each call rebuilds the dict from the whole list. The fix:\n   ```python\n   def f(username, password, header_lines=None, timeout_seconds=10):\n       header_lines = list(header_lines or []) + ['X-Client: billing-sync']\n   ```\n\nA smaller point: `except Exception: return None` hides why auth failed (a bad password, the network, a non-JSON response, or a missing key). Your retry logic still works, but adding `log.exception('auth failed for %s', username)` would help debugging. Make sure it doesn't log the password.\n\nYou asked for names only, so the code block above changes nothing else. I'd strongly recommend at least the logging fix and a credential rotation, though."
+}

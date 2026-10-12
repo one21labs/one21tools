@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E1-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35390.2,
+  "duration_ms": 34608,
+  "duration_api_ms": 34341,
+  "cost_usd": 0.1154328,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4287,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 4051,
+   "output_tokens_details": {
+    "thinking_tokens": 2103
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4287,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4051,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4287,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4287
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:27:53.585913+00:00",
+   "end": "2026-10-12T19:28:28.976185+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1154328
+ },
+ "response": "```python\n\"\"\"\nnotifier.py - HTTP notification delivery with retry and backoff\n\nARCHITECTURE ROLE:\n    Loads delivery settings from a JSON config file and sends payloads to a\n    notification endpoint. Does not own payload construction; callers pass bytes.\n\nDESIGN CONSTRAINTS:\n    - Missing or invalid config values fall back to defaults with a WARN.\n      Config problems never abort delivery.\n    - snd() returns None after all attempts fail rather than raising.\n      Callers must check the result.\n    - Backoff sleeps only between attempts, never after the final one.\n\"\"\"\nimport http.client\nimport json\nimport logging\nimport math\nimport time\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\n\n\ndef _is_number(value):\n    # bool subclasses int; reject it so JSON `true` isn't read as 1.\n    # json.load accepts NaN/Infinity; reject them so sleep/timeout stay bounded.\n    return (\n        isinstance(value, (int, float))\n        and not isinstance(value, bool)\n        and math.isfinite(value)\n    )\n\n\ndef _is_valid_retries(value):\n    return _is_number(value) and isinstance(value, int) and value >= 1\n\n\ndef _is_valid_timeout(value):\n    return _is_number(value) and value > 0\n\n\ndef _is_valid_backoff(value):\n    return _is_number(value) and value >= 0\n\n\ndef _read_config(path):\n    try:\n        with open(path) as config_file:\n            config = json.load(config_file)\n    except FileNotFoundError:\n        logger.warning(\"Config file %s not found; using defaults\", path)\n        return {}\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Config file %s unreadable (%s); using defaults\", path, err)\n        return {}\n\n    if not isinstance(config, dict):\n        logger.warning(\n            \"Config file %s top level is %s, not an object; using defaults\",\n            path, type(config).__name__,\n        )\n        return {}\n    return config\n\n\ndef _get_setting(config, key, default, is_valid, requirement):\n    value = config.get(key, default)\n    if not is_valid(value):\n        logger.warning(\n            \"Config %s=%r invalid (must be %s); using default %r\",\n            key, value, requirement, default,\n        )\n        return default\n    return value\n\n\ndef ld(p):\n    config = _read_config(p)\n    retries = _get_setting(\n        config, \"retries\", DEFAULT_RETRIES, _is_valid_retries, \"an integer >= 1\"\n    )\n    timeout_seconds = _get_setting(\n        config, \"timeout\", DEFAULT_TIMEOUT_SECONDS, _is_valid_timeout, \"a number > 0\"\n    )\n    backoff_seconds = _get_setting(\n        config, \"backoff_seconds\", DEFAULT_BACKOFF_SECONDS, _is_valid_backoff, \"a number >= 0\"\n    )\n    return retries, timeout_seconds, backoff_seconds\n\n\ndef snd(u, pl, r, to, backoff=DEFAULT_BACKOFF_SECONDS):\n    if not _is_valid_retries(r):\n        raise ValueError(f\"retries must be an integer >= 1, got {r!r}\")\n    if not _is_valid_timeout(to):\n        raise ValueError(f\"timeout must be a number > 0, got {to!r}\")\n    if not _is_valid_backoff(backoff):\n        raise ValueError(f\"backoff must be a number >= 0, got {backoff!r}\")\n\n    for attempt in range(1, r + 1):\n        try:\n            req = urllib.request.Request(u, data=pl)\n            with urllib.request.urlopen(req, timeout=to) as response:\n                return response.read()\n        # OSError covers URLError, HTTPError, timeouts, and connection resets.\n        # Malformed URLs raise ValueError and propagate: retrying can't fix them.\n        except (OSError, http.client.HTTPException) as err:\n            logger.warning(\n                \"Notify attempt %d/%d to %s failed: %s\", attempt, r, u, err\n            )\n        if attempt < r:\n            time.sleep(backoff)\n\n    logger.error(\"Notify to %s failed after %d attempts\", u, r)\n    return None\n```\n\n**What changed beyond backoff:**\n\n- **Backoff:** `backoff_seconds` is read from config (default `0`, so behavior is unchanged when it's absent). It is passed to `snd` as an optional `backoff` argument, and `snd` sleeps only between attempts.\n- **Breaking change:** `ld()` now returns a 3-tuple `(retries, timeout, backoff_seconds)`. Any caller doing `r, to = ld(path)` must be updated to unpack three values.\n- **Error handling:** I replaced the bare `except:` clauses, which also swallowed `KeyboardInterrupt` and programming errors, with specific exceptions. Every failed attempt and every final failure is now logged, where before they were silently discarded.\n- **Config validation:** Bad values such as a negative retry count, a string timeout, or `NaN` fall back to defaults with a warning. Before, they were passed straight through. `snd` raises `ValueError` on invalid arguments because those come from the caller, not the config.\n- **Resource handling:** The config file and HTTP response are now closed via `with`.\n- **Cleanup:** I removed the commented-out old loader and added named constants for the defaults.\n\nI kept the public names `ld` and `snd` so existing callers keep working. If you control all call sites, renaming them to something like `config_load` / `notify_send` would be a worthwhile follow-up."
+}
