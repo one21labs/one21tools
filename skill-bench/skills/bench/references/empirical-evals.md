@@ -99,9 +99,9 @@ Grading disciplines:
 - One blind pool per unit (session/run) — a cross-unit pool lets a grader dedup across units.
 - Grade from the produced output/transcript, never from intent.
 
-### Grading reliability under the Claude-only constraint (ADR 0019)
+### Grading reliability with a same-family judge (ADR 0019)
 
-Only Claude can grade here — a fixed constraint, not a choice. The paired design already
+When the judge is Claude (judging.md routes the choice), the paired design already
 cancels raw self-preference (both arms are Claude output); what survives is style-alignment
 bias, family blind spots, and judge noise. Mitigation stack, in priority order:
 

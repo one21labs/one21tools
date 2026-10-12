@@ -7,8 +7,9 @@ the whole-skill verdict of empirical-evals.md.
 For a skill that is always-in-context or near its char cap, measure WHICH content earns its
 place, not just whether the whole does. Treat sections (or each references/*.md) as factors:
 benchmark variants with one section removed per variant (one-factor-at-a-time), same eval
-set, same replicates, and compare verdicts. A section whose removal moves the delta less
-than the CI width is a cut candidate — the empirical form of "every char earns its place."
+set, same replicates, and compare verdicts. A section is a cut candidate when the (full −
+ablated) delta is CUT at a pre-registered practical bar (cost-and-verdict.md); an INCONCLUSIVE
+removal is not evidence the section is inert — the empirical form of "every char earns its place."
 Full factorial designs over many sections multiply run cost fast; ablate the few sections
 you actually doubt, and only for skills whose cost makes the answer worth buying.
 
@@ -19,6 +20,6 @@ ablation matters more; vary the prose per variant over a small task set the sect
 framing swamps the treatment (one section measured +0.17/0.00/+0.375 across
 tool-denied/implement-biased/neutral framings; ADR 0024). This is the VERIFY step of retrospect ->
 PDCA: `/retrospect` proposes an always-loaded line, `/decide`'s verify runs the ablation, the same
-bar decides — removal moving the delta less than the CI width means the line does not earn its cost
-(cut or relocate to a gate/script); a line whose absence measurably drops the delta stays.
+bar decides — CUT means the line does not earn its cost (cut or relocate to a gate/script); a line
+whose absence measurably drops the delta stays; INCONCLUSIVE decides nothing.
 Add-what-recurs, cut-what-does-not: keep the always-loaded surface minimal.

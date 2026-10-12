@@ -37,8 +37,8 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 - `/decide` runs a PM-led panel and records the call as a linted ADR; `/verify` and `/red-team`
   gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
   (structure, cites, char budgets) — not convention.
-- `/bench` measures any skill with paired with/without runs, blind grading, an adversarial
-  prosecutor pass, and pre-registered cost ceilings.
+- `/bench` measures any skill with paired with/without runs and spend gates; its verdict path
+  adds blind grading and an adversarial prosecutor pass.
 
 ## Measured state (the honest block)
 

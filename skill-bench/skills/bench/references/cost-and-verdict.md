@@ -46,8 +46,11 @@ skill-eval rubrics both work.
 
 ## The verdict
 
-Arm means are the mean fraction-met per arm. The headline contrast is clustered by scenario: the
-mean of the per-scenario deltas, with a 95% CI over those clusters. **The interval decides the
+The headline contrast is clustered by scenario: the mean of the per-scenario deltas, with a 95%
+CI over those clusters. Arm means are scenario-weighted over the scenarios both arms reached, so
+with − without equals the delta; a scenario only one arm reached is named in `dropped_scenarios`.
+Identical cluster deltas give a zero-width interval: the verdict stands, `spread` says so, and
+`mde80` is null. **The interval decides the
 verdict; the point estimate never does.**
 
 | Verdict | Condition | What you may claim |
