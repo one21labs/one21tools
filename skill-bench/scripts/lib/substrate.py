@@ -131,10 +131,10 @@ class NativeSubstrate:
     def _one(self, pid, prompt, arm, cwd, env):
         # prompt passed as final argv element (universal for grok -p / claude -p), unless the arm
         # opts into stdin. Keeps long prompts off the shell (argv, not a shell string). cwd is a
-        # neutral dir outside the caller's project, so neither arm auto-loads its CLAUDE.md or
-        # .claude/skills (the bare arm picking up the skill under test pulls the delta to 0), so
-        # an arm's paths must be absolute (bench_skill refuses relative ones). env drops the
-        # parent session (arm_env).
+        # neutral dir outside the caller's project, which blocks PROJECT-scope loading only (its
+        # CLAUDE.md, .claude/skills); user-scope plugins and skills still load unless the arm
+        # commands disable them. An arm's paths must be absolute (bench_skill refuses relative
+        # ones). env drops the parent session (arm_env).
         row = {"prompt_id": pid, "arm": arm["name"]}
         argv, stdin = (arm["cmd"], prompt) if arm.get("stdin") else (arm["cmd"] + [prompt], None)
         try:
