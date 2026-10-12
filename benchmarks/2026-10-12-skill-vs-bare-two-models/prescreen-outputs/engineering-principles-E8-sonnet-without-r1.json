@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22680.0,
+  "duration_ms": 21929,
+  "duration_api_ms": 21655,
+  "cost_usd": 0.028150099999999997,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 827,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2463,
+   "output_tokens_details": {
+    "thinking_tokens": 699
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 827,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2463,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 827,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 827
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:05:19.137355+00:00",
+   "end": "2026-10-12T19:05:41.817355+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.028150099999999997
+ },
+ "response": "# Don't use \"strictest everywhere\"\n\nThese three functions don't implement the same rule. They answer two different questions:\n\n- **Billing and support:** is this string safe to send to the payment provider? That needs canonical E.164.\n- **Signup:** is this something a person could plausibly have typed? That has to accept `(415) 555-0134` and `415.555.0134`.\n\nIf you apply billing's regex to signup, every user who types a number the normal way gets rejected. With about 4,000 submissions a day, mostly from mobile, that would hurt conversion immediately. The fix is to **normalize first, then validate strictly**. Signup converts what people type into E.164, and everything downstream only ever sees E.164.\n\n## Bugs in the current code\n\n- **Billing:** `$` matches before a trailing newline, so `\"+14155550134\\n\"` passes and goes to the provider. Use `fullmatch` or `\\Z`. A non-string input also raises `TypeError` instead of returning False.\n- **Signup:** `LOOSE` has no anchors and uses `match`, so `\"5551234 hello\"` passes because only a prefix has to match. It also accepts junk like `\"(((((((\"`, `\"-------\"`, or `\"+++++++\"`.\n- **Support:** it strips whitespace and billing doesn't, so the two already disagree on the same input.\n\n## Shared library API\n\n```python\n# phone_validation/__init__.py\nimport re\nimport phonenumbers  # libphonenumber port\n\n_E164 = re.compile(r'\\+[1-9]\\d{7,14}')\n\ndef is_e164(s) -> bool:\n    \"\"\"Strict: exact canonical form, no stripping. Use at trust boundaries (billing).\"\"\"\n    return isinstance(s, str) and _E164.fullmatch(s) is not None\n\ndef normalize_phone(raw, default_region: str = \"US\") -> str | None:\n    \"\"\"Lenient input -> canonical E.164, or None if not a plausible number.\"\"\"\n    if not isinstance(raw, str) or len(raw) > 40:\n        return None\n    try:\n        n = phonenumbers.parse(raw.strip(), default_region)\n    except phonenumbers.NumberParseException:\n        return None\n    if not phonenumbers.is_possible_number(n):\n        return None\n    e164 = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)\n    return e164 if is_e164(e164) else None\n```\n\nDesign points:\n\n- `is_e164` is the only thing billing should ever gate on. It has no stripping and no leniency.\n- `normalize_phone` is for human input. It returns the canonical value, so callers store and forward the normalized value rather than the raw string. That is what makes the services consistent.\n- Use `is_possible_number` rather than `is_valid_number` at signup. The stricter check rejects real new number ranges whenever the metadata lags.\n- `default_region` is a product decision. `\"415.555.0134\"` only becomes `+14155550134` if you assume US. Decide whether signup should take the region from a country selector, the locale, or the IP, rather than hard-coding it.\n- Keep `valid_phone` out of the shared API. The name hides which rule you're getting.\n\n## Rollout\n\nEach repo deploys independently, so treat this as three separate migrations against a versioned package.\n\n1. **Build and publish v1.0 to private PyPI.** Include a test corpus drawn from real inputs: the formats above, trailing newline, empty string, `None`, unicode digits, and 16+ digit strings. Also include the old functions' outputs as characterization tests, so every behavior change is deliberate.\n2. **Shadow mode in each service.** Keep the old `valid_phone` as the decision-maker, and call the new function alongside it. Log disagreements with a hashed or masked input. Run this for a few days to a week, then review the disagreements. Expect these:\n   - Billing: newline and whitespace cases that now fail.\n   - Signup: junk that now fails, plus formats that now normalize.\n3. **Support first.** It's the lowest risk. Switch it to `normalize_phone` because agents paste messy numbers.\n4. **Billing second.** This is a tightening change that should only reject inputs that were already questionable. Switch the validation to `is_e164`. Check where billing gets its numbers. If it reads numbers that signup stored in loose form, those will now fail, so you need step 5 first or alongside it.\n5. **Signup and data backfill.** Call `normalize_phone` on submit, store the E.164 value, and show the user the normalized number or a friendly error on failure. Backfill existing stored numbers by normalizing them, and report the ones that fail so someone can follow up. Ship this before, or together with, billing's cutover.\n6. **Pin the dependency** with `~=1.0` in each repo. Bump the major version for any behavior change, so the services can upgrade on their own schedules. Delete the old `validate.py` files once shadow logs are clean.\n\n## Risks to check\n\n- Look at how many users hit the failure path after the signup change. Track the rejection rate before and after, and roll back if it jumps.\n- Confirm which numbers billing receives from signup today, since that determines the ordering in steps 4 and 5.\n- `phonenumbers` metadata is updated regularly. Pinning gives you stability, but schedule periodic bumps."
+}

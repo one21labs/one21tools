@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E8-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 52001.2,
+  "duration_ms": 51365,
+  "duration_api_ms": 51147,
+  "cost_usd": 0.1145722,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 711,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 5423,
+   "output_tokens_details": {
+    "thinking_tokens": 2876
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 711,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5423,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 711,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 711
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:06:49.512814+00:00",
+   "end": "2026-10-12T19:07:41.514048+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1145722
+ },
+ "response": "**No, a skill isn't the right tool here.** A skill is instructions Claude loads when it judges them relevant. It's still guidance, just like your CLAUDE.md line, and Claude can still miss or misjudge it. You want a hard rule that holds every time, so use a **PreToolUse hook**. It runs before every edit or shell command, and it can block the action and tell Claude why. If you check it into `.claude/settings.json`, all 15 engineers get it automatically.\n\nYour definition of \"applied\" (merged to main) is easy to check mechanically. If `db/migrations/<file>` exists on `origin/main`, Claude must not touch it. Files that exist only on the current branch are still fair game.\n\n## 1. The hook script\n\n`.claude/hooks/protect-applied-migrations.sh` (run `chmod +x` on it):\n\n```bash\n#!/usr/bin/env bash\n# PreToolUse hook: block Claude from modifying migrations that are already merged to main.\n# Exit 2 = block the tool call and show stderr to Claude.\nset -euo pipefail\n\ninput=$(cat)\ntool=$(jq -r '.tool_name' <<<\"$input\")\nrepo=$(realpath \"${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}\")\ncd \"$repo\"\n\n# \"Applied\" = present on main. Prefer the remote ref; fall back to local main.\nref=origin/main\ngit rev-parse --verify -q \"$ref\" >/dev/null || ref=main\n\nis_applied() { git cat-file -e \"$ref:db/migrations/$1\" 2>/dev/null; }\n\nblock() {\n  cat >&2 <<EOF\nBLOCKED: db/migrations/$1 is already merged to main, which means it has been applied\nin deployed environments. Editing it would break those environments.\nDo not modify, move, or delete it. Make the change in a NEW migration file with the\nnext unused number instead.\nEOF\n  exit 2\n}\n\ncase \"$tool\" in\n  Edit|Write|MultiEdit)\n    path=$(jq -r '.tool_input.file_path // empty' <<<\"$input\")\n    [ -n \"$path\" ] || exit 0\n    abs=$(realpath -m \"$path\")\n    case \"$abs\" in\n      \"$repo\"/db/migrations/*)\n        name=${abs#\"$repo\"/db/migrations/}\n        is_applied \"$name\" && block \"$name\"\n        ;;\n    esac\n    ;;\n  Bash)\n    cmd=$(jq -r '.tool_input.command // empty' <<<\"$input\")\n    # Only inspect commands that look like they write, move, or delete files.\n    if grep -Eq '(sed|perl)[^|;&]*[[:space:]]-[a-zA-Z]*i|>|\\btee\\b|\\bmv\\b|\\brm\\b|\\bcp\\b|\\btruncate\\b|\\bdd\\b|\\bpatch\\b|git[[:space:]]+(mv|rm|checkout|restore|apply)' <<<\"$cmd\"; then\n      for name in $(grep -Eo '[0-9]{4}_[A-Za-z0-9_.-]+\\.sql' <<<\"$cmd\" | sort -u); do\n        is_applied \"$name\" && block \"$name\"\n      done\n    fi\n    ;;\nesac\nexit 0\n```\n\n## 2. Register it in the shared settings\n\n`.claude/settings.json` (the checked-in file, not `settings.local.json`):\n\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit|Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/protect-applied-migrations.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n```\n\nIf you already have a `.claude/settings.json`, merge this into its `hooks` block.\n\n## 3. Keep a CLAUDE.md line, but give the reason\n\nThe hook enforces the rule. The CLAUDE.md line helps Claude get it right on the first try instead of hitting the block and retrying:\n\n```markdown\n## Migrations\n- Any file in db/migrations/ that exists on main has been applied in production\n  (main deploys continuously). Never edit, rename, or delete those files. Editing\n  them breaks every environment that already ran them.\n- To change schema, always add a NEW migration with the next number.\n- Migrations that exist only on your current branch may be edited freely.\n```\n\n## Quick test before committing\n\n```bash\n# Should print the BLOCKED message and exit 2 (use a migration that's on main):\necho '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"'\"$PWD\"'/db/migrations/0042_add_index.sql\"}}' \\\n  | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/protect-applied-migrations.sh; echo \"exit=$?\"\n\necho '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -i s/foo/bar/ db/migrations/0042_add_index.sql\"}}' \\\n  | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/protect-applied-migrations.sh; echo \"exit=$?\"\n\n# Should exit 0 (new file / read-only command):\necho '{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"'\"$PWD\"'/db/migrations/9999_new.sql\"}}' \\\n  | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/protect-applied-migrations.sh; echo \"exit=$?\"\necho '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"cat db/migrations/0042_add_index.sql\"}}' \\\n  | CLAUDE_PROJECT_DIR=$PWD .claude/hooks/protect-applied-migrations.sh; echo \"exit=$?\"\n```\n\n## Limitations\n\n- **Edit/Write coverage is solid.** Bash coverage is a heuristic. It catches `sed -i`, redirects, `tee`, `mv`, `rm`, `git checkout`/`restore`, and similar commands when the command names the migration file. It will miss globs (`sed -i ... 00*.sql`) and indirect forms (a script that writes the file, `xargs`, variables).\n- **Some false positives.** `cp 0042_x.sql 0051_y.sql` (using an old migration as a template) and `cat 0042_x.sql > /tmp/out` get blocked because they name an applied file next to a write operation. Claude will see the message and can switch to Read and Write instead. I judged that cheaper than missing a real edit.\n- **Freshness depends on `git fetch`.** \"On main\" means whatever the local `origin/main` ref says. If a teammate merged `0050` and you haven't fetched, the hook won't know it's applied yet. I didn't put `git fetch` in the hook because it would add network latency to every edit and shell command.\n- **It fails open.** If `jq` or `git` errors out, or no `main` ref exists, the call is allowed instead of blocked.\n- **It only constrains Claude.** Humans editing by hand during an incident are unaffected, which matches your workflow. To also catch edits that slip past the hook, add a CI check that fails any PR modifying a `db/migrations/` file that already exists on main. Give it an explicit override (a PR label, for example) for the incident case. That's the true backstop. The hook just stops Claude from making the mistake in the first place."
+}

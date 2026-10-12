@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E8-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12424.2,
+  "duration_ms": 11573,
+  "duration_api_ms": 11311,
+  "cost_usd": 0.0174261,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 761,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1417,
+   "output_tokens_details": {
+    "thinking_tokens": 631
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 761,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1417,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 761,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 761
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:03:39.033643+00:00",
+   "end": "2026-10-12T19:03:51.457866+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0174261
+ },
+ "response": "Here's the refactor. Every function is under 10 lines.\n\n```ts\nexport interface Item { sku: string; price: number; qty: number; category: string }\n\nconst lineTotal = (i: Item): number => i.price * i.qty;\nconst sum = (xs: number[]): number => xs.reduce((s, x) => s + x, 0);\n\nfunction assertValidCoupon(couponPct: number): void {\n  if (couponPct > 100) throw new Error('bad coupon');\n}\n\nfunction subtotalOf(items: Item[]): number {\n  return sum(items.map(lineTotal));\n}\n\n// most expensive item gets an extra 5% off\nfunction topItemDiscount(items: Item[]): number {\n  return Math.max(0, ...items.map(i => i.price)) * 0.05;\n}\n\nfunction taxableAmount(items: Item[]): number {\n  return sum(items.filter(i => i.category !== 'grocery').map(lineTotal));\n}\n\nexport function checkoutTotal(items: Item[], couponPct: number, taxRate: number): number {\n  assertValidCoupon(couponPct);\n  const subtotal = subtotalOf(items) - topItemDiscount(items);\n  const discounted = subtotal * (1 - couponPct / 100);\n  const tax = taxableAmount(items) * taxRate;\n  return Math.round((discounted + tax) * 100) / 100;\n}\n```\n\nBehavior changes to be aware of:\n\n1. **No more mutation of the caller's array.** The original `items.sort(...)` reordered the cart UI's array in place, so the cart would re-render sorted by price as a side effect. I replaced the sort with a max-price lookup, so the UI's order is now untouched. If anything relied on that accidental ordering, sort a copy (`[...items].sort(...)`) in the UI instead.\n2. **Empty cart:** the original threw a `TypeError` on `items[0].price`. This version returns `0`. If you want the throw preserved, add an explicit guard.\n3. The discount is still `top.price * 0.05` (not multiplied by qty), as in the original. That looks like it might be a bug, but I kept it as is.\n4. Items are now summed in their original order rather than price-sorted. This can differ in floating-point noise, but the final rounding to cents should hide it.\n\nI haven't run this or any tests, so it's worth running your existing checkout tests before shipping."
+}

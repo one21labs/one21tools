@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E8-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 29723.9,
+  "duration_ms": 29052,
+  "duration_api_ms": 28832,
+  "cost_usd": 0.0439921,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 715,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 4092,
+   "output_tokens_details": {
+    "thinking_tokens": 2015
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 715,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4092,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 715,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 715
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:06:50.929833+00:00",
+   "end": "2026-10-12T19:07:20.653805+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0439921
+ },
+ "response": "**Short answer:** don't make it a skill. A hook is the right tool.\n\nA skill is loaded when Claude judges it relevant, so it adds more text to follow, not enforcement. Claude's misses are probably lapses in attention, especially mid-task or through `sed`, and a skill would fail the same way. A `PreToolUse` hook runs on every tool call and can block it, so the rule stops depending on Claude remembering it. Hooks in `.claude/settings.json` are checked into the repo, so all 15 engineers get it.\n\nThe hook below treats a migration as applied if the file exists on `main`. A brand-new migration, or one still only on your branch, stays freely editable. A human fixing something during an incident edits by hand outside Claude, so the hook doesn't affect them.\n\nI haven't run this, so test it first (commands at the bottom).\n\n**`.claude/settings.json`**\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit|NotebookEdit|Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/protect-migrations.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n```\n\n**`.claude/hooks/protect-migrations.sh`** (run `chmod +x` on it before committing)\n```bash\n#!/usr/bin/env bash\n# Blocks edits to db/migrations/ files that already exist on main (i.e. applied).\nset -u\n\ninput=$(cat)\ntool=$(jq -r '.tool_name // empty' <<<\"$input\")\nroot=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0\n\nbase=origin/main\ngit rev-parse --verify -q \"$base\" >/dev/null || base=main\ngit rev-parse --verify -q \"$base\" >/dev/null || exit 0\n\napplied() { git cat-file -e \"$base:$1\" 2>/dev/null; }\n\ndeny() {\n  echo \"Blocked: $1 is an applied migration (it exists on main) and must not be modified. Create a NEW migration file in db/migrations/ with the next number instead. If this truly needs amending, ask the user to do it by hand.\" >&2\n  exit 2\n}\n\nif [ \"$tool\" != \"Bash\" ]; then\n  path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<\"$input\")\n  rel=${path#\"$root\"/}\n  case \"$rel\" in\n    db/migrations/*) applied \"$rel\" && deny \"$rel\" ;;\n  esac\n  exit 0\nfi\n\n# Bash: best-effort detection of write commands touching migrations.\ncmd=$(jq -r '.tool_input.command // empty' <<<\"$input\")\ncleaned=$(sed -E 's/[0-9]*>&[0-9]+//g; s#[0-9]*>>?[[:space:]]*/dev/null##g' <<<\"$cmd\")\n\nwrite_re='((sed|perl|ruby)[^|;&]*[[:space:]]-[a-zA-Z]*i)|>|(^|[^[:alnum:]_-])(tee|mv|rm|cp|truncate|dd|install|patch|ed)[[:space:]]'\ngrep -Eq \"$write_re\" <<<\"$cleaned\" || exit 0\n\nwhile IFS= read -r ref; do\n  [ -z \"$ref\" ] && continue\n  case \"$ref\" in\n    *.sql)\n      case \"$ref\" in *'*'*|*'?'*|*'['*) deny \"$ref (glob)\" ;; esac\n      applied \"$ref\" && deny \"$ref\"\n      ;;\n    *) deny \"$ref (directory or glob)\" ;;\n  esac\ndone < <(grep -oE 'db/migrations[^][:space:]\"'\"'\"';|&<>()`]*' <<<\"$cleaned\")\n\nexit 0\n```\n\n**Notes**\n- **Exit code 2** blocks the call and feeds the stderr message back to Claude. The message tells it to create a new migration, so it recovers instead of getting stuck.\n- **Bash coverage is best-effort.** It catches `sed -i`, redirects, `tee`, `mv`, `rm`, `cp` and similar when they name an applied file, a glob, or the directory. Indirect routes (a script that writes the file, `cd db/migrations && ...`) can slip through. Occasionally it will block a harmless command that mentions `db/migrations` alongside a redirect. Creating `db/migrations/0050_new.sql` via `cat >` works, since that file isn't on main.\n- **Staleness:** it compares against your local `origin/main`. If someone merged a migration very recently and hasn't fetched, it's treated as unapplied. Add `git fetch -q origin main` to the script if you want certainty, at the cost of some latency.\n- **Keep the CLAUDE.md line.** It helps Claude avoid the attempt in the first place. The hook is the backstop.\n- **Add a CI check as the real guarantee.** Hooks only cover Claude. Something like this in CI catches edits from anyone: `git diff --name-only --diff-filter=MD origin/main...HEAD -- db/migrations/ | grep . && exit 1`.\n\n**Test it** (from the repo root):\n```bash\necho '{\"tool_name\":\"Edit\",\"tool_input\":{\"file_path\":\"'$PWD'/db/migrations/0042_add_index.sql\"}}' \\\n  | .claude/hooks/protect-migrations.sh; echo \"exit=$?\"   # expect 2\necho '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -i s/a/b/ db/migrations/0042_add_index.sql\"}}' \\\n  | .claude/hooks/protect-migrations.sh; echo \"exit=$?\"   # expect 2\necho '{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"'$PWD'/db/migrations/9999_new.sql\"}}' \\\n  | .claude/hooks/protect-migrations.sh; echo \"exit=$?\"   # expect 0\n```"
+}

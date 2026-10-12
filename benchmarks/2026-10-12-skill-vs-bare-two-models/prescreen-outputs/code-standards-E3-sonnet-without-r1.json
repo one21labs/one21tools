@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 28750.2,
+  "duration_ms": 28140,
+  "duration_api_ms": 27915,
+  "cost_usd": 0.0408061,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 711,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3775,
+   "output_tokens_details": {
+    "thinking_tokens": 1483
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 711,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3775,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 711,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 711
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:02:59.541453+00:00",
+   "end": "2026-10-12T19:03:28.291704+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0408061
+ },
+ "response": "I haven't run either file, since you asked for an answer from the request text only.\n\n## ingest.py\n\n```python\nimport contextvars\nimport json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\n\nfrom enrich import enrich_record\n\nlog = logging.getLogger(\"pipeline.ingest\")\n\nrun_id_var = contextvars.ContextVar(\"run_id\", default=\"-\")\n\n\nclass RunIdFilter(logging.Filter):\n    \"\"\"Stamp every log line (including enrich.py's) with the current run id.\"\"\"\n\n    def filter(self, record):\n        record.run_id = run_id_var.get()\n        return True\n\n\ndef configure_logging(level=None):\n    level = level or os.environ.get(\"LOG_LEVEL\", \"INFO\")\n    handler = logging.StreamHandler(sys.stderr)\n    handler.addFilter(RunIdFilter())\n    handler.setFormatter(logging.Formatter(\n        \"%(asctime)s %(levelname)s run=%(run_id)s %(name)s %(message)s\"\n    ))\n    root = logging.getLogger()\n    root.handlers[:] = [handler]\n    root.setLevel(level)\n\n\ndef run(path):\n    run_id = uuid.uuid4().hex[:12]\n    run_id_var.set(run_id)\n    source = os.path.basename(path)\n    stats = {\"read\": 0, \"saved\": 0, \"dropped\": 0, \"failed\": 0}\n    started = time.monotonic()\n    log.info(\"run started path=%s\", path)\n\n    try:\n        with open(path) as f:\n            for lineno, line in enumerate(f, 1):\n                line = line.strip()\n                if not line:\n                    log.debug(\"skipping blank line=%d\", lineno)\n                    continue\n                stats[\"read\"] += 1\n                fallback_id = f\"{source}:{lineno}\"\n\n                try:\n                    rec = json.loads(line)\n                    if not isinstance(rec, dict):\n                        raise ValueError(f\"expected object, got {type(rec).__name__}\")\n                except ValueError as e:  # includes JSONDecodeError\n                    # Log position/length only, not content, to avoid leaking record data.\n                    log.error(\"parse failed record=%s line=%d len=%d error=%s\",\n                              fallback_id, lineno, len(line), e)\n                    stats[\"failed\"] += 1\n                    continue\n\n                record_id = str(rec.get(\"id\", fallback_id))\n                log.debug(\"record read record=%s line=%d keys=%s\",\n                          record_id, lineno, sorted(rec))\n\n                try:\n                    out = enrich_record(rec, record_id=record_id)\n                except Exception:\n                    log.exception(\"enrich failed record=%s line=%d\", record_id, lineno)\n                    stats[\"failed\"] += 1\n                    continue\n\n                if not out:\n                    log.info(\"record dropped record=%s line=%d\", record_id, lineno)\n                    stats[\"dropped\"] += 1\n                    continue\n\n                try:\n                    save(out)\n                except OSError:\n                    # Output problems are systemic; fail the run rather than\n                    # log the same error for every remaining record.\n                    log.exception(\"save failed, aborting run record=%s line=%d\",\n                                  record_id, lineno)\n                    stats[\"failed\"] += 1\n                    raise\n                log.debug(\"record saved record=%s\", record_id)\n                stats[\"saved\"] += 1\n\n                if stats[\"read\"] % 1000 == 0:\n                    log.info(\"progress %s\", stats)\n    except Exception:\n        log.exception(\"run aborted %s\", stats)\n        raise\n    finally:\n        log.info(\"run finished duration=%.2fs %s\",\n                 time.monotonic() - started, stats)\n    return stats\n\n\ndef save(rec):\n    with open(\"out.jsonl\", \"a\") as f:\n        f.write(json.dumps(rec) + \"\\n\")\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    run(sys.argv[1])\n```\n\n## enrich.py\n\n```python\nimport logging\n\nlog = logging.getLogger(\"pipeline.enrich\")\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec, record_id=None):\n    record_id = record_id or rec.get(\"id\", \"?\")\n\n    if \"region\" not in rec:\n        log.warning(\"dropping record=%s reason=missing_region keys=%s\",\n                    record_id, sorted(rec))\n        return None\n\n    region = GEO.get(rec[\"region\"])\n    if region is None:\n        log.warning(\"dropping record=%s reason=unknown_region region=%r\",\n                    record_id, rec[\"region\"])\n        return None\n\n    rec[\"zone\"] = region\n    log.debug(\"enriched record=%s region=%r zone=%s\",\n              record_id, rec[\"region\"], region)\n    return rec\n```\n\n## How this helps on-call\n\n- **Tracing one record:** `grep record=<id>` shows its whole path: read, enriched or dropped (with reason), saved or failed. The ID is `rec[\"id\"]` if present, otherwise `file:lineno`, so records without IDs are still traceable. Both modules log the same `record=` key.\n- **Tracing one run:** every line carries `run=<id>`, including enrich's, via a handler filter and a contextvar. The run emits start and finish lines plus a progress line every 1000 records, and the finish line has duration and counts (`read/saved/dropped/failed`). These counts should reconcile: read = saved + dropped + failed.\n- **Failures:** parse errors log line number, length and error position. Enrich exceptions and save errors log full tracebacks via `log.exception`. Drops are logged at WARNING with a reason (`missing_region` or `unknown_region`).\n- **Volume:** per-record success events are DEBUG, so production at INFO logs only drops, failures and progress. Set `LOG_LEVEL=DEBUG` to trace a specific run. Library modules only call `getLogger`, and handlers are configured once in `configure_logging()` from the entrypoint.\n\n## Behavior changes to review\n\n1. **Per-record failures no longer crash the run.** A malformed line or an enrich exception is logged and counted, and processing continues. Previously one bad line killed the run. If you prefer fail-fast, replace the `continue` with `raise`.\n2. **A missing `region` now drops the record** with a warning instead of raising `KeyError`. That fits the existing treatment of unknown regions.\n3. **`save` errors (`OSError`) abort the run** after logging, since they're likely systemic.\n4. **`enrich_record` takes an optional `record_id`** keyword, so existing callers still work.\n5. **Record contents are not logged**, only keys and the region value, to avoid leaking sensitive data into logs.\n6. **The input file is now closed** via `with`, and blank lines are skipped instead of raising a parse error.\n\nIf you ship logs to something like Datadog or ELK, swap the formatter for a JSON one. The `key=value` fields are already shaped for that."
+}

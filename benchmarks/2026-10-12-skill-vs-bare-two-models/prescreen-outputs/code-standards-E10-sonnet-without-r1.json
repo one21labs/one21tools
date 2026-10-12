@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E10-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12497.5,
+  "duration_ms": 11743,
+  "duration_api_ms": 11555,
+  "cost_usd": 0.018692100000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 755,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1546,
+   "output_tokens_details": {
+    "thinking_tokens": 274
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 755,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1546,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 755,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 755
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:03:57.689103+00:00",
+   "end": "2026-10-12T19:04:10.186585+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.018692100000000003
+ },
+ "response": "Here's the script with docs only; no logic is touched.\n\n```bash\n#!/usr/bin/env bash\n#\n# deploy.sh - build the web app and publish it to S3.\n#\n# Steps: clean $BUILD_DIR, build (npm ci + npm run build, then copy dist/ into\n# $BUILD_DIR), then sync dist/ to s3://$BUCKET/$RELEASE.\n#\n# Usage (run from the repository root, since dist/ and npm paths are relative):\n#   BUCKET=<bucket> RELEASE=<release-id> BUILD_DIR=<dir> ./deploy.sh\n#\n# Required environment variables:\n#   BUCKET     Target S3 bucket name (e.g. web-prod).\n#   RELEASE    Key prefix for this release (CI uses $GITHUB_SHA).\n#   BUILD_DIR  Directory used as the build output/cache location. Its contents\n#              are DELETED at the start of every run. CI sets this for you;\n#              if running locally (e.g. a hotfix), set it explicitly to a\n#              dedicated directory.\n#\n# Requirements: bash, npm, and the AWS CLI with credentials that can write to\n# the bucket.\n#\n# CI example:\n#   BUCKET=web-prod RELEASE=$GITHUB_SHA ./deploy.sh\n#\n# Notes:\n#   - CI runs this as root in a container that mounts the shared build cache,\n#     so BUILD_DIR may point at shared storage. Double-check its value.\n#   - The script does not use `set -e`, so a failed step does not stop later steps.\n\n# Deletes everything inside $BUILD_DIR (the directory itself is kept).\nclean() {\n  rm -rf \"$BUILD_DIR\"/*\n}\n\n# Syncs dist/ to s3://$BUCKET/$RELEASE, making up to 5 attempts with a linear\n# backoff (sleeps 2s, 4s, 6s, 8s, 10s after each failed attempt).\n# Returns 0 on the first success, 1 if all attempts fail.\nupload() {\n  for i in 1 2 3 4 5; do\n    aws s3 sync dist/ \"s3://$BUCKET/$RELEASE\" && return 0\n    sleep $((i * 2))\n  done\n  return 1\n}\n\n# Installs dependencies from the lockfile (npm ci), builds the app into dist/,\n# and copies dist/ into $BUILD_DIR.\nbuild() {\n  npm ci\n  npm run build\n  cp -r dist \"$BUILD_DIR\"\n}\n\nclean\nbuild\nupload\necho \"deployed $RELEASE\"\n```\n\nThings I noticed and deliberately left alone, since you asked for no logic changes:\n\n1. **The old comment was wrong.** It said \"3 times,\" but the loop runs 5 attempts. I updated the comment to match the code.\n2. **`rm -rf \"$BUILD_DIR\"/*` is dangerous if `BUILD_DIR` is unset or empty.** It expands to `rm -rf /*`, which is especially bad as root in CI, or on a laptop where someone forgot to set it. A guard like `: \"${BUILD_DIR:?}\"` at the top would prevent that, so it's worth a follow-up even if not before this ship.\n3. **There's no `set -e`.** If `build` fails, `upload` still runs and could push a stale `dist/` to the release path. `set -euo pipefail` would fix both this and the unset-variable issue.\n4. **The final `upload` failure isn't surfaced.** Because `echo \"deployed $RELEASE\"` runs unconditionally, it prints \"deployed\" even when `upload` returned 1. The script's exit code will also be 0.\n\nI'd consider points 2 to 4 for a quick fix if you have the time."
+}

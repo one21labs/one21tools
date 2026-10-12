@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13474.4,
+  "duration_ms": 12601,
+  "duration_api_ms": 12337,
+  "cost_usd": 0.0182641,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 833,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1472,
+   "output_tokens_details": {
+    "thinking_tokens": 180
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 833,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1472,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 833,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 833
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:05:15.794046+00:00",
+   "end": "2026-10-12T19:05:29.268480+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0182641
+ },
+ "response": "# Postmortem: Production `order_events` table dropped (OPS-881)\n\n**Impact:** Checkout errors from 22:15 until the table was restored at ~01:55 (about 3h40m). Two days of order events were only partially recovered.\n\n**Summary:** During a staging cleanup, a DROP TABLE ran against production because the shell still had `PGHOST=db-prod-1` exported. The nightly backup had been failing for 9 days without anyone knowing, so recovery took hours and was incomplete.\n\n## Timeline (all times local)\n| Time | Event |\n|---|---|\n| 18:30 | Prod query run in a terminal; `PGHOST=db-prod-1` left exported |\n| 22:04 | Staging cleanup begins per OPS-881 |\n| 22:07 | `DROP TABLE order_events_archive, order_events;` runs against prod. The ticket's script listed both tables on one line, and only the archive was intended. |\n| 22:15 | Checkout errors spike; on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails: latest usable backup is 9 days old |\n| 01:55 | Data rebuilt from Kafka (7-day retention) plus the old backup; 2 days of events partially lost |\n\n## Root causes\nThe command was the trigger, but several independent gaps had to line up for it to become an outage:\n\n1. **Prod and staging were indistinguishable.** The prompt looked identical, and stale `PGHOST` carried over between sessions.\n2. **Excess privilege.** The ops role can DROP on prod, and nothing asked for confirmation.\n3. **Risky ticket instructions.** OPS-881's script listed a prod-critical table next to the one to be removed.\n4. **Silent backup failure.** The backup job had exited non-zero since the 3rd. Its alerts went to a Slack channel archived during a cleanup, so nobody saw them.\n5. **Retention gap.** Kafka retention (7 days) is shorter than the backup gap (9 days), so full reconstruction was impossible.\n\n## What went well\n- On-call responded within minutes and the cause was found in about 25 minutes.\n- Kafka retention allowed partial recovery.\n\n## Action items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Fix the backup job, then verify with a test restore | TBD | TBD |\n| 2 | Route backup alerts to a monitored paging destination; audit other alerts that point to archived channels | TBD | TBD |\n| 3 | Add a scheduled restore test that alerts on failure | TBD | TBD |\n| 4 | Color-code the prompt by environment and show the DB host; clear `PG*` variables on shell start | TBD | TBD |\n| 5 | Remove routine DROP from the ops role on prod; use a break-glass role with approval | TBD | TBD |\n| 6 | Review OPS-881-style cleanup tickets: one resource per line, explicit environment, dry-run first | TBD | TBD |\n| 7 | Review Kafka retention against the backup recovery objective | TBD | TBD |\n\n---\n\n**Note on the framing:** I did not record \"Dev ran the wrong command\" as the root cause or retraining as the action item. The timeline shows that a careful person could have done the same thing. The environment was ambiguous, prod allowed an unconfirmed DROP, and the ticket bundled both tables. The 9-day backup failure is what turned a quick fix into a 3.5-hour outage with data loss, and retraining Dev would not address it. A postmortem that blames an individual also tends to discourage people from reporting their own mistakes. If management wants a human-factors item, \"improve guardrails on prod access\" (items 4 to 6) covers it. I left owners and dates as TBD for you to fill in."
+}

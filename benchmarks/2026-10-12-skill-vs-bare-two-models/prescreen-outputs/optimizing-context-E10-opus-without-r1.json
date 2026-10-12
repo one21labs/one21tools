@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E10-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 29703.6,
+  "duration_ms": 29093,
+  "duration_api_ms": 28898,
+  "cost_usd": 0.0625802,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 637,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2853,
+   "output_tokens_details": {
+    "thinking_tokens": 1070
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 637,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2853,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 637,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 637
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:07:11.230726+00:00",
+   "end": "2026-10-12T19:07:40.934360+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0625802
+ },
+ "response": "Before the tool list, there's a problem with the design that's worth fixing first, because it changes what you build.\n\n## The service-account design is the main risk\n\nRunning the MCP server as a platform service account with prod admin means:\n\n- **Every engineer gets prod admin through Claude.** Whatever RBAC deployctl enforces via SSO today stops applying. Someone who can't run `db drop` or `user grant` on prod themselves could do it through the MCP server.\n- **You lose attribution.** Audit logs will show the service account, not the engineer who asked for the action.\n- **Prompt injection has admin reach.** Claude reads logs, config values and error output. Text in any of those that steers it toward `secrets get` or `db drop` would run with full admin rights.\n- **It gives you nothing you don't already have.** Engineers already have deployctl authenticated as themselves, in the same terminal where Claude Code runs.\n\n## You may not need an MCP server\n\nClaude Code can call `deployctl` directly through Bash, using each engineer's own SSO identity and permissions. To make that good, you need two things:\n\n1. **Docs.** Add a `CLAUDE.md` section or a skill listing the subcommands, their flags, and conventions such as \"always pass `--env` explicitly\" and \"use `--dry-run` first.\"\n2. **Permission rules** in a shared `.claude/settings.json`:\n   ```json\n   {\n     \"permissions\": {\n       \"allow\": [\"Bash(deployctl status:*)\", \"Bash(deployctl logs:*)\", \"Bash(deployctl config get:*)\"],\n       \"ask\":   [\"Bash(deployctl deploy:*)\", \"Bash(deployctl rollback:*)\", \"Bash(deployctl scale:*)\",\n                 \"Bash(deployctl config set:*)\", \"Bash(deployctl db migrate:*)\", \"Bash(deployctl db snapshot:*)\"],\n       \"deny\":  [\"Bash(deployctl db drop:*)\", \"Bash(deployctl secrets get:*)\",\n                 \"Bash(deployctl user grant:*)\", \"Bash(deployctl user revoke:*)\"]\n     }\n   }\n   ```\n\nThat's roughly a day of work, not a sprint, and it keeps your existing auth model intact.\n\n## If you still want MCP\n\nMCP is worth it if you want structured JSON output, validated parameters, or a curated tool surface. In that case:\n\n- Build it as a **local stdio server** that shells out to the engineer's own `deployctl`. No shared credentials.\n- **Make `env` required on every tool, with no default.**\n- **Add `dry_run` to every mutating tool.**\n- **Set MCP tool annotations** (`readOnlyHint`, `destructiveHint`) so clients can gate the risky tools.\n- **Don't expose everything.** Forty tools also cost context on every turn, so curating is useful anyway.\n\n## Tool list\n\nYou named 14 of the 40 subcommands, so the list below covers those. The parameters are my guesses, so adjust them to match deployctl's actual flags. If you send the other 26, I'll fill them in the same way.\n\n**Read-only** (safe to auto-allow)\n\n| Tool | Description | Params |\n|---|---|---|\n| `deployctl_status` | Show deployment status, version and health for a service | `service`, `env` |\n| `deployctl_logs` | Fetch recent logs for a service | `service`, `env`, `since?`, `lines?` (capped, e.g. 500), `filter?`, `instance?` |\n| `deployctl_config_get` | Read config for a service; all keys if `key` omitted | `service`, `env`, `key?` |\n\n**Mutating** (require confirmation)\n\n| Tool | Description | Params |\n|---|---|---|\n| `deployctl_deploy` | Deploy a version/ref of a service to an environment | `service`, `env`, `version`, `dry_run` (default true) |\n| `deployctl_rollback` | Roll a service back to the previous or a specified version | `service`, `env`, `to_version?`, `dry_run` |\n| `deployctl_scale` | Set replica count for a service | `service`, `env`, `replicas`, `dry_run` |\n| `deployctl_config_set` | Set a config key for a service | `service`, `env`, `key`, `value`, `dry_run` |\n| `deployctl_db_migrate` | Run schema migrations up to a target version | `database`, `env`, `target_version?`, `dry_run` |\n| `deployctl_db_snapshot` | Take a snapshot of a database | `database`, `env`, `label?` |\n\n**Recommend not exposing** (keep these human-only in the terminal)\n\n| Subcommand | Why |\n|---|---|\n| `secrets get` | Secret values end up in model context and session transcripts. If you need something, expose a `secrets_list` that returns names and last-rotated dates only. |\n| `secrets set` | The value passes through the transcript. Rotation should be a human action. |\n| `db drop` | Irreversible, and it gains almost nothing from automation. |\n| `user grant` / `user revoke` | Access control changes made by an agent are a privilege-escalation path and an audit headache. |\n\nThe short version: let Claude act as the engineer, not as the platform. With that change, either approach works. The Bash plus permissions route is much less work, and you can add an MCP layer later if you find you want structured output."
+}

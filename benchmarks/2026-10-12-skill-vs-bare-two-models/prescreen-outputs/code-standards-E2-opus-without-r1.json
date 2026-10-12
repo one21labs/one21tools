@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E2-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 33706.7,
+  "duration_ms": 32986,
+  "duration_api_ms": 32715,
+  "cost_usd": 0.07240819999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 628,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3348,
+   "output_tokens_details": {
+    "thinking_tokens": 435
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 628,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3348,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 628,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 628
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:02:32.208529+00:00",
+   "end": "2026-10-12T19:03:05.915268+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.07240819999999999
+ },
+ "response": "I didn't create `review.md` because you asked me not to use any tools, and writing a file requires one. The full review is below, ready to save as `review.md`. I can write the file if you allow tool use.\n\n---\n\n```markdown\n# Code Review: `process_refund`\n\n**Verdict: Do not merge.** The handler can mark orders refunded when no money moved, report failed refunds as successful, and issue duplicate or unbounded refunds.\n\n---\n\n## Critical\n\n### 1. Order is marked refunded before the refund happens\n`order.status = \"refunded\"` and `order.refunded_amount = amount` are set before\n`payments_api.refund(...)` is called. If the API raises, the function returns\n`False`, but the order already says `refunded`. The customer gets no money and the\nrecords say they did.\n\n**Fix:** Call the payment API first. Change order state only after a confirmed\nsuccess. On failure, leave the order unchanged or set an explicit `refund_failed`\nor `refund_pending` status.\n\n### 2. A non-`ok` refund response is treated as success\nWhen `result[\"status\"] != \"ok\"`, the code logs a warning and continues. It then\nsets the fee and returns `True`. The caller cannot tell that the provider rejected\nthe refund.\n\n**Fix:**\n```python\nif result.get(\"status\") != \"ok\":\n    log.warning(\"refund rejected order_id=%s status=%r\", order_id, result.get(\"status\"))\n    return False   # or raise RefundRejected(...)\n```\nMutate state only on the success path.\n\n### 3. Amount is not validated (negative, zero, over-refund, repeat refund)\nNothing checks that:\n- `amount > 0`. A negative \"refund\" could become a charge, depending on the provider.\n- `amount` \u2264 the refundable balance (`order.total - order.refunded_amount`).\n- The order is in a refundable state. An order already marked `refunded` can be refunded again.\n\n**Fix:**\n```python\nif amount <= 0:\n    raise ValueError(\"refund amount must be positive\")\nif order.status not in REFUNDABLE_STATUSES:\n    raise InvalidOrderState(order_id, order.status)\nremaining = order.total - (order.refunded_amount or 0)\nif amount > remaining:\n    raise ValueError(f\"amount {amount} exceeds refundable {remaining}\")\n```\n\n### 4. No idempotency, so retries and timeouts can refund twice\nIf `refund()` times out after the provider has already processed it, the code\nreturns `False` and the caller will likely retry. That produces a second real\nrefund. Concurrent calls for the same order can also both pass any checks and\nboth refund.\n\n**Fix:** Pass an idempotency key, such as a stable refund-request ID derived from\n`order_id` plus a refund sequence, to `payments_api.refund`. Take a row-level lock\nor use optimistic concurrency (a version column) on the order for the whole\noperation. Treat ambiguous errors such as timeouts as `pending` and reconcile\nthem later. Do not treat them as a definite failure.\n\n---\n\n## High\n\n### 5. Money is computed with floats\n`FEE_RATE = 0.02` and `amount * FEE_RATE` use binary floating point, which gives\nrounding errors on currency (for example, `0.1 * 0.02`).\n\n**Fix:** Use `decimal.Decimal` with explicit quantization, or integer minor units\n(cents):\n```python\nfrom decimal import Decimal, ROUND_HALF_UP\nFEE_RATE = Decimal(\"0.02\")\nfee = (amount * FEE_RATE).quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP)\n```\n\n### 6. Partial refunds overwrite earlier ones\n`order.refunded_amount = amount` replaces the previous value instead of adding to\nit. After two partial refunds, the record shows only the last one. The same\napplies to `order.fee`. The status also becomes `refunded` even for a partial\nrefund.\n\n**Fix:** Use `order.refunded_amount += amount` and `order.fee += fee`, or better,\nstore individual refund records. Set the status to `partially_refunded` or\n`refunded` based on the remaining balance.\n\n### 7. State changes are never persisted or made atomic\nThe function changes attributes on an in-memory object and never commits them.\nIf the caller does not persist the order, or persistence fails after the external\nrefund succeeds, the provider and the database disagree.\n\n**Fix:** Wrap the update in a transaction. Write a `refund_pending` record before\ncalling the provider and finalize it afterwards, so a crash in between can be\nreconciled.\n\n---\n\n## Medium\n\n### 8. The bare `except Exception` swallows the error and its context\n`log.error(\"refund error\")` drops the exception, the stack trace, the order ID,\nand the amount. Programming errors such as `AttributeError` are also hidden and\nturned into `False`.\n\n**Fix:** Catch the payment client's specific exception types. Log with context\nand the traceback:\n```python\nexcept PaymentsTimeout:\n    log.warning(\"refund timeout order_id=%s amount=%s; marking pending\", order_id, amount)\n    ...\nexcept PaymentsError:\n    log.exception(\"refund failed order_id=%s amount=%s\", order_id, amount)\n    return False\n```\nLet unexpected exceptions propagate.\n\n### 9. An unknown `order_id` raises an unhandled `KeyError`\n`orders[order_id]` raises an unclear `KeyError` that is never handled, so the\nfailure is inconsistent with the `False` path.\n\n**Fix:** Use `order = orders.get(order_id)`. If it is `None`, raise a domain error\nsuch as `OrderNotFound(order_id)` or return a clear failure.\n\n### 10. The response shape is assumed\n`result.get(...)` assumes `result` is a dict. If the client returns `None` or an\nobject, the code raises `AttributeError` outside the `try`.\n\n**Fix:** Validate the response, or use a typed client response\n(`if not result or result.get(\"status\") != \"ok\"`).\n\n### 11. The fee logic is questionable\nA fee is charged on a refund and computed from the refund amount. Confirm this is\nintended. If it is, the fee should probably be recorded per refund and possibly\ndeducted from the refunded amount. Right now it is a side value that is\noverwritten each time (see #6).\n\n**Fix:** Confirm the business rule and document it in a docstring. Store the fee\nalongside each refund record.\n\n---\n\n## Low\n\n### 12. A `True`/`False` return loses information\nThe caller cannot tell \"not found\", \"rejected\", \"pending\", and \"invalid amount\"\napart.\n\n**Fix:** Return a result object or enum (`RefundResult.SUCCESS / REJECTED /\nPENDING`), or raise typed exceptions.\n\n### 13. Missing audit logging on success\nSuccessful refunds, which move money, are not logged.\n\n**Fix:** Log `order_id`, `amount`, the provider refund ID, and the fee at INFO\nlevel on success.\n\n### 14. Readability\nThe `# look up the order` comment restates the code. There are no type hints or\ndocstring.\n\n**Fix:** Remove the comment. Add type hints (`amount: Decimal`) and a docstring\ndescribing the success and failure semantics.\n\n---\n\n## Suggested shape\n\n```python\ndef process_refund(orders, payments_api, order_id, amount: Decimal) -> RefundResult:\n    order = orders.get(order_id)\n    if order is None:\n        raise OrderNotFound(order_id)\n    validate_refund(order, amount)                       # #3\n\n    with order_lock(order_id):                           # #4\n        refund_key = new_refund_key(order_id)\n        try:\n            result = payments_api.refund(order.payment_ref, amount,\n                                         idempotency_key=refund_key)\n        except PaymentsTimeout:\n            record_pending_refund(order, amount, refund_key)\n            return RefundResult.PENDING\n        except PaymentsError:\n            log.exception(\"refund failed order_id=%s amount=%s\", order_id, amount)\n            return RefundResult.FAILED\n\n        if not result or result.get(\"status\") != \"ok\":   # #2, #10\n            log.warning(\"refund rejected order_id=%s resp=%r\", order_id, result)\n            return RefundResult.REJECTED\n\n        fee = (amount * FEE_RATE).quantize(CENT, ROUND_HALF_UP)   # #5\n        order.refunded_amount += amount                           # #6\n        order.fee += fee\n        order.status = (\"refunded\" if order.refunded_amount >= order.total\n                        else \"partially_refunded\")\n        save(order)                                               # #7\n        log.info(\"refund ok order_id=%s amount=%s fee=%s\", order_id, amount, fee)\n        return RefundResult.SUCCESS\n```\n```"
+}

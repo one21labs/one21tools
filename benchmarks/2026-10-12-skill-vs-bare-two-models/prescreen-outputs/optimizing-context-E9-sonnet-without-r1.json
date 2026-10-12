@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E9-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16091.9,
+  "duration_ms": 15435,
+  "duration_api_ms": 15180,
+  "cost_usd": 0.0199821,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 680,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1705,
+   "output_tokens_details": {
+    "thinking_tokens": 359
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 680,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1705,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 680,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 680
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:06:55.138427+00:00",
+   "end": "2026-10-12T19:07:11.230374+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0199821
+ },
+ "response": "The plan is over-built for 1-3 file bugs, and the success metric won't tell you whether it works.\n\n## Main problems\n\n**1. Dumping the whole repo into every system prompt**\n- 20k lines of TypeScript is roughly 200-300k tokens. Times 7 agents, that's a huge cost and latency hit per ticket, and it may not fit in the context window at all.\n- Accuracy tends to drop when the relevant 100 lines are buried in 20k irrelevant ones.\n- It makes the Researcher redundant. If everything is in context, why does an agent need to find code?\n- Better: give agents search and read tools (grep, glob, file read, `tsc`, test runner) and let them pull what they need. Add a short `CLAUDE.md`-style file covering architecture, conventions, and how to run tests and lint.\n\n**2. One-paragraph summaries as the only handoff**\n- This is a game of telephone. Exact file paths, line numbers, error messages, and repro steps get lost.\n- Pass structured artifacts instead: the ticket, a repro/failing test, the relevant file list, and the actual diff. Downstream agents should see the real diff, not a description of it.\n\n**3. Too many roles**\n- PM, Planner, and Researcher are mostly one job for a small bug: understand it, find the code, decide on a fix. Separate agents add handoff loss and cost without much benefit.\n- Docs usually doesn't apply to a small bug fix, so run it conditionally.\n- Suggested shape:\n  1. **Triage/Investigator**: reads the ticket, locates code, and reproduces the bug. It outputs a failing test or exact repro steps. If the ticket is ambiguous, it stops and asks a human.\n  2. **Coder**: makes the fix with tools, and runs typecheck, lint, and tests in a loop until green.\n  3. **Reviewer**: has fresh context and sees only the ticket, diff, and test results. Independence is the point of this role.\n  4. **Docs**: runs only if the diff touches public APIs or documented behavior.\n\n**4. The success metric is wrong**\n\"Pipeline completes without errors\" measures whether the plumbing works, not whether the bugs get fixed. A pipeline can complete cleanly and ship a wrong patch. Measure instead:\n- Does the failing test fail before the patch and pass after it?\n- Does the existing suite, typecheck, and lint stay green?\n- Would a human accept the PR, and how much did they edit it?\n- Diff size and scope: did it touch only what it needed to?\n- Cost and time per ticket.\n- Fix rate on a held-out set of 20-50 historical bugs with known fixes. This is the most valuable thing to build, and you should build it before tuning the pipeline.\n\n## Gaps to fill\n\n- **Test-first ordering.** Write the failing repro before the fix, not after. Tester at step 5 means the tests tend to be fitted to the patch.\n- **Feedback loops.** Define what happens when tests fail or the reviewer rejects the patch: retry limits, who gets the failure output, and when to escalate.\n- **Human gate.** The agent should open a PR, not merge. Add an explicit \"I can't do this\" exit for unclear tickets, flaky tests, or bugs that need a larger refactor.\n- **Scope guardrails.** Cap the diff size or file count, and flag the ticket if the fix needs more than that.\n- **Environment.** Agents need a sandbox with dependencies installed and a fast way to run a single test file, not just the full suite.\n- **Observability.** Log each agent's inputs, outputs, and tool calls so you can see where failures originate.\n- **Model choice per role.** Use a cheaper model for triage and docs, and a stronger one for the Coder and Reviewer.\n\n## Suggested path\n\nStart with a single agent that has tools and a good repo guide, run it on your historical bug set, and record the baseline. Add a separate Reviewer next, then add roles only when the evals show a specific failure that a new role fixes. That way each added agent has to earn its place."
+}

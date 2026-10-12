@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E10-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 28097.3,
+  "duration_ms": 27475,
+  "duration_api_ms": 27213,
+  "cost_usd": 0.0336781,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 719,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3059,
+   "output_tokens_details": {
+    "thinking_tokens": 928
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 719,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3059,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 719,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 719
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:05:42.184350+00:00",
+   "end": "2026-10-12T19:06:10.281648+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0336781
+ },
+ "response": "# Python 3.8 \u2192 3.12 Migration: Two-Week Sprint Plan\n\n## A change to the director's plan\n\nI've kept the two-week timeline and the feature freeze. I changed the deploy: instead of one big-bang on the last Friday, deploy in waves during week 2, with Friday as buffer. Reasons:\n\n- The chart pins one base image in `values.yaml`, so a single edit would move all 40 services at once. Rollback would then be all-or-nothing.\n- A Friday deploy that includes the payments webhook receiver, which has no tests, leaves the weekend on-call with the least margin.\n- Each wave gives us a cheap way to catch problems that tests can't.\n\nThe code work is still done by everyone in parallel. Only the rollout order changes.\n\n## Prep (Day 1, before anyone starts upgrading)\n\n1. **Make the image per-service in Helm.** Add `image.pythonVersion` or a per-service tag override, defaulting to 3.8. Rollback for any service becomes a one-line revert plus `helm rollback`.\n2. **Build and publish `python:3.12-slim`-based images** and a shared CI template that runs pytest on both 3.8 and 3.12.\n3. **Publish a migration checklist** (below) and assign a captain per group.\n4. **Freeze feature work.** Hotfixes must land on both versions until the service cuts over.\n\n## Workstreams\n\n| Group | Services | Work | Risk |\n|---|---|---|---|\n| A | 31 Flask/FastAPI | Regenerate lockfiles, run tests on 3.12, fix breakages | Low |\n| B | 4 with asynctest | Replace with `unittest.IsolatedAsyncioTestCase` or `pytest-asyncio` (`AsyncMock` is in stdlib) | Medium |\n| C | 2 with libgeo-py | Build cp312 wheels (cibuildwheel), fix C-API breakage, republish internally | **High, critical path** |\n| D | 2 with no tests | Write characterization tests first, then upgrade | **High** (payments) |\n| E | 1 with distutils | Move to setuptools and `pyproject.toml` | Low |\n\n**Common 3.12 breakages to grep for in Group A:**\n- Removed modules: `distutils`, `imp`, `asyncore`, `asynchat`, `smtpd`.\n- Removed `unittest` aliases such as `assertEquals`.\n- `pkg_resources` and `setup.py install` usage.\n- Deprecated `datetime.utcnow()`.\n- Older pinned versions of pydantic, SQLAlchemy, numpy, and similar libraries that lack 3.12 wheels.\n- Pickled data or caches shared between 3.8 and 3.12 processes. This matters during a mixed-version rollout.\n\n## Day-by-day\n\n**Days 1\u20132**\n- Prep complete.\n- Group C starts immediately: libgeo-py wheel build.\n- Group D starts writing tests. For payments, capture real webhook payloads (signature verification, idempotency, and error paths) and replay them as a contract suite against the 3.8 build first.\n- Group A: bump deps and get CI green on 3.12.\n\n**Days 3\u20135**\n- Group A continues. Aim for 20+ services green by Day 5.\n- Group B migrates test suites.\n- Group E fixes packaging.\n- **Day 5 gate (decision point):** if libgeo-py wheels aren't passing on 3.12, those 2 services are descoped and stay on 3.8. Don't let them block the other 38.\n\n**Days 6\u20137**\n- Finish stragglers. All upgraded services must be green on both 3.8 and 3.12 CI.\n- Deploy all 3.12 builds to staging and run smoke tests.\n\n**Days 8\u20139: rollout waves**\n- **Wave 1 (Mon):** 3\u20134 low-traffic, well-tested Group A services. Watch for 24h: error rate, latency, memory.\n- **Wave 2 (Tue\u2013Wed):** the remaining Group A, plus B and E. Roll in batches of ~8\u201310.\n- **Wave 3 (Thu):** the libgeo-py services, if they passed the gate. Canary first.\n- **Payments webhook receiver:** run 3.12 alongside 3.8 in staging with replayed traffic. Canary to a small share of production traffic, then promote mid-week with the owner and on-call present. Never on Friday.\n\n**Day 10 (Friday)**\n- No new deploys.\n- Mop up: fix issues from the waves, clean up CI matrices, update docs.\n- Retrospective, and ticket anything deferred.\n\n## Rollback (required for every deploy)\n\n- Per-service image override means rollback is `helm rollback <service>` or reverting the one tag. It never touches the other 39.\n- Keep 3.8 images and lockfiles in the registry and repo until at least 2 weeks after the last cutover.\n- No schema migrations or data-format changes in this sprint.\n- Each wave has a named on-call owner, a rollback trigger (for example error rate above baseline + X% for 10 min), and a tested rollback in staging beforehand.\n- Rollback is only a safe plan if the 3.8 path still builds, so keep dual-version CI until the sprint ends.\n\n## Risks to raise with the director\n\n1. **libgeo-py** is the biggest schedule risk. Without a rebuilt cp312 wheel, those 2 services can't move. If it slips, they'll finish after the sprint.\n2. **Payments with zero tests.** Characterization tests give us some confidence but not full coverage. Treat it as a canary-only deploy.\n3. **Coverage of 60\u201385%** means some 3.12 breakage will only show in production. That's the main reason for waves and watch windows.\n4. **Capacity.** 40 services across the team in 8 working days is tight. Group A is mostly mechanical, so assign it as small batches per engineer.\n\n## Definition of done\n\n- 38 or more services run on 3.12 in production, and the rest have a dated follow-up plan.\n- Helm chart default flipped to 3.12 only after all services are migrated.\n- 3.8 images retained for rollback for 2 weeks.\n- Tests exist for the payments webhook receiver.\n\nIf you tell me team size and who owns the payments service and libgeo-py, I can turn this into per-person assignments."
+}

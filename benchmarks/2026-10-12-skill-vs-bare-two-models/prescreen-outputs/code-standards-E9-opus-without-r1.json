@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E9-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17331.3,
+  "duration_ms": 16666,
+  "duration_api_ms": 16442,
+  "cost_usd": 0.0413922,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 801,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1728,
+   "output_tokens_details": {
+    "thinking_tokens": 176
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 801,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1728,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 801,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 801
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:03:43.165646+00:00",
+   "end": "2026-10-12T19:04:00.497017+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0413922
+ },
+ "response": "The biggest problem isn't missing logs. **The code throws away the real error.** `return nil, errors.New(\"db error\")` discards whatever `row.Scan` returned (connection refused, context canceled, type mismatch, etc.), so no amount of logging downstream can recover it. Logging on every line would add noise without the one piece of information you need.\n\nHere's a targeted fix: preserve the error, log it once at the handler boundary with request context, and return correct status codes.\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    id := r.URL.Query().Get(\"id\")\n    if id == \"\" {\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        if errors.Is(err, ErrNotFound) {\n            http.Error(w, \"not found\", http.StatusNotFound)\n            return\n        }\n        h.logger.ErrorContext(r.Context(), \"get order failed\",\n            \"order_id\", id,\n            \"method\", r.Method,\n            \"path\", r.URL.Path,\n            \"err\", err,\n        )\n        http.Error(w, \"internal error\", http.StatusInternalServerError)\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        h.logger.ErrorContext(r.Context(), \"encode order response failed\",\n            \"order_id\", id, \"err\", err)\n    }\n}\n```\n\nThis assumes `h.logger` is a `*slog.Logger`. Add that field, or use `slog.Default()`.\n\n## What changed and why\n\n1. **Wrapped the underlying error** with `%w` instead of replacing it. Your logs will now show the actual cause, e.g. `get order \"abc\": pq: connection refused` or `context deadline exceeded`.\n2. **Log once, at the boundary.** The store returns rich errors, and the handler logs them with request context. Logging at every layer gives you duplicated, disconnected log lines.\n3. **Fixed the not-found bug.** Both branches returned 500, so a mistyped or missing ID showed up as a server error. Some of your \"vague 500s\" are probably just 404s. An empty `id` is now a 400.\n4. **Sentinel error + `errors.Is`** instead of comparing `err.Error()` strings, which breaks as soon as anything wraps the error.\n5. **Checked the `Encode` error.** Failures there were silently ignored.\n\n## \u26a0\ufe0f Card numbers\n\nSince you asked for logging \"everywhere,\" be careful: **never log the `Order` struct or `card_number`.** Logging full PANs is a PCI DSS violation and puts card data into your log pipeline, retention, and every tool that reads it. The code above deliberately logs only the order ID.\n\nSeparately, `json.NewEncoder(w).Encode(o)` **returns the card number to the client** unless your `Order` struct has `json:\"-\"` on that field (I can't see the struct). If it doesn't, fix that now:\n\n```go\ntype Order struct {\n    ID         string  `json:\"id\"`\n    UserID     string  `json:\"user_id\"`\n    CardNumber string  `json:\"-\"`\n    Total      float64 `json:\"total\"`\n}\n```\n\nIf clients need it, expose a masked `last4` field instead. And if the endpoint doesn't need the card number at all, drop it from the `SELECT`.\n\n## Worth adding next\n\n- **Request IDs:** middleware that generates or propagates an `X-Request-ID` and attaches it to the logger via context, so you can correlate a user's 500 with a log line.\n- **Panic recovery middleware** that logs the stack trace. Unrecovered panics in handlers are another common source of mystery 500s.\n- **Authorization check:** nothing here verifies that the requester owns the order. If that isn't handled in middleware, any user can fetch any order by ID."
+}
