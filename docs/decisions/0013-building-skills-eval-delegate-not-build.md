@@ -10,9 +10,9 @@ summary: "Empirical skill evals are hybrid: execution stays delegated to skill-c
 
 - Decision: delegate execution to skill-creator's benchmark harness (paired baseline + graded
   assertions + aggregate stats); protocol home is
-  `skill-bench/skills/bench/references/empirical-evals.md`. Own two things only: (1) the schema
+  `skill-measure/skills/bench/references/empirical-evals.md`. Own two things only: (1) the schema
   gate — validate.py R7 gates eval artifact shape; (2) the verdict layer —
-  `skill-bench/scripts/eval_verdict.py` + test (shim at the old path, ADR 0089),
+  `skill-measure/scripts/eval_verdict.py` + test (shim at the old path, ADR 0089),
   post-processing upstream
   `benchmark.json` only: Wilson 95% CI win rate, mean pass-rate delta, and delta per 1k chars of
   SKILL.md body. Not a CI gate (non-deterministic; only decision logic runs in gates).

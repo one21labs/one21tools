@@ -1,5 +1,5 @@
 /*
- * consumer-layout.test.mjs — proves skill-bench runs AS AN INSTALLED PLUGIN would (#170 M2/M6):
+ * consumer-layout.test.mjs — proves skill-measure runs AS AN INSTALLED PLUGIN would (#170 M2/M6):
  * copy scripts/ into a temp dir shaped like the plugin cache, build a synthetic graded benchmark,
  * and run bench_verdict.py from an UNRELATED working directory with NO model CLI on PATH (the offline
  * --cache path). Pins cwd-independence + self-containment (lib imports resolve via the script's own
@@ -13,7 +13,7 @@ import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-const SCRIPTS_DIR = fileURLToPath(new URL(".", import.meta.url)); // skill-bench/scripts/
+const SCRIPTS_DIR = fileURLToPath(new URL(".", import.meta.url)); // skill-measure/scripts/
 
 // 6 cells: arms A/B/C across scenarios S1/S2 so clustered stats are finite (>=2 clusters).
 const ARM_MAP = [
@@ -30,8 +30,8 @@ function expsFrom(mets) {
 }
 
 test("bench_verdict reproduces a verdict from an installed-plugin layout, offline, cwd-independent", () => {
-  const root = mkdtempSync(join(tmpdir(), "skillbench-consumer-"));
-  const otherCwd = mkdtempSync(join(tmpdir(), "skillbench-cwd-"));
+  const root = mkdtempSync(join(tmpdir(), "skillmeasure-consumer-"));
+  const otherCwd = mkdtempSync(join(tmpdir(), "skillmeasure-cwd-"));
   try {
     // 1. "Install" the plugin scripts (self-contained: bench_*.py + lib/) into the consumer root.
     cpSync(SCRIPTS_DIR, join(root, "scripts"), { recursive: true });

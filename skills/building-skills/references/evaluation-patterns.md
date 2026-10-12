@@ -17,7 +17,7 @@ Read this when designing tests for your skill.
 
 Author test cases as `evals/evals.json` in the skill folder; `validate.py` gates the shape.
 Schema SSoT, live example, and authorship discipline (fresh Claude B writes the `expectations`,
-not the skill's author): empirical-evals.md's "Authoring evals" section — **skill-bench
+not the skill's author): empirical-evals.md's "Authoring evals" section — **skill-measure
 plugin**, `bench` skill (a separate plugin; no relative link survives an install).
 
 ---
@@ -86,13 +86,13 @@ Skill is effective only if it measurably improves baseline.
 ## Empirical Evaluation
 
 The full protocol — paired benchmark on skill-creator's harness, pressure cases, and the
-skill-bench plugin's cost-per-benefit verdict (`scripts/eval_verdict.py`) — lives in the
-skill-bench plugin's empirical-evals.md (ADR 0013). No skill-creator installed = the manual
+skill-measure plugin's cost-per-benefit verdict (`scripts/eval_verdict.py`) — lives in the
+skill-measure plugin's empirical-evals.md (ADR 0013). No skill-creator installed = the manual
 baseline steps above suffice. Method writeup:
 https://agentskills.io/skill-creation/evaluating-skills
 
 Caveats when crossing over:
 - validate.py stays authoritative for skills in this repo: its description-trigger rule is
   stricter than skill-creator's own conventions (skill-creator's own description would fail it).
-- Grading disciplines (fresh grader, blind the arm, mechanize first) live in the skill-bench
+- Grading disciplines (fresh grader, blind the arm, mechanize first) live in the skill-measure
   plugin's empirical-evals.md, "Running the benchmark" section.

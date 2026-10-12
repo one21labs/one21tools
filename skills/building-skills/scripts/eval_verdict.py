@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Moved: the real script is skill-bench/scripts/eval_verdict.py (skill-bench extraction, 535b996).
+"""Moved: the real script is skill-measure/scripts/eval_verdict.py (skill-measure extraction, 535b996).
 
 Two frozen dated dirs cite this path in their reproduce steps
 (benchmarks/2026-07-08-claude-md-template-ablation-hermetic/README.md:47,
@@ -10,4 +10,4 @@ carries no forwarding logic — executing it redirects instead of silently succe
 import sys
 
 if __name__ == "__main__":
-    sys.exit("moved: run skill-bench/scripts/eval_verdict.py " + " ".join(sys.argv[1:]))
+    sys.exit("moved: run skill-measure/scripts/eval_verdict.py " + " ".join(sys.argv[1:]))

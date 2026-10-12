@@ -23,7 +23,7 @@
  * Usage: node scripts/check-restatement.mjs [root] [--window=N]
  * Exit 1 on any non-allowlisted span.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, lstatSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,7 +44,7 @@ export const ALLOW_PAIRS = [
   // ONE plugin and never sees the repo README that would otherwise be its home (ADR 0085 as
   // amended). Here the duplication is the delivery mechanism, not copy-paste debt: removing it
   // from either file removes the fact from that plugin's audience.
-  [/^pdca-workflow\/README\.md$/, /^skill-bench\/README\.md$/],
+  [/^pdca-workflow\/README\.md$/, /^skill-measure\/README\.md$/],
 ];
 
 const SKIP = /(^|[\\/])(\.git|node_modules|benchmarks[\\/]20\d\d-)/;
@@ -130,14 +130,17 @@ export function detect(files, { window = WINDOW, allowPairs = ALLOW_PAIRS } = {}
 // Walk tolerates entries that vanish between discovery and stat/descent (#282: sibling test
 // fixtures come and go in the repo root under the concurrent `node --test` run) — ONLY ENOENT,
 // and never for the root itself (the top-level readdir throws), so the gate cannot go silently
-// vacuous. Exported so the tolerance is testable.
+// vacuous. A symlink is an alias, not a second home for a fact, so it is never followed (the
+// old-name path shim keeps frozen benchmark dirs resolving, ADR 0097). Exported so the
+// tolerance is testable.
 export function mdFiles(dir, out = []) {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (SKIP.test(p)) continue;
     let st;
-    try { st = statSync(p); }
+    try { st = lstatSync(p); }
     catch (err) { if (err.code === "ENOENT") continue; throw err; }
+    if (st.isSymbolicLink()) continue;
     if (st.isDirectory()) {
       try { mdFiles(p, out); }
       catch (err) { if (err.code !== "ENOENT") throw err; }

@@ -48,7 +48,7 @@ export function makerFamily(env = process.env) {
 
 export const MAKER_FAMILY = makerFamily();
 
-// TWIN: skill-bench/scripts/lib/judge.py carries this table and parseCopilot's logic in Python.
+// TWIN: skill-measure/scripts/lib/judge.py carries this table and parseCopilot's logic in Python.
 // Neither may import the other (ADR 0050: plugins ship standalone, no content dependencies), so
 // the copies are structural — change one, change both. scripts/check-family-parity.test.mjs fails
 // the build if they drift.
@@ -86,7 +86,7 @@ export const LANES = [
     name: "grok",
     envBin: "GROK_BIN",
     fallbacks: ["~/.grok/bin/grok"],
-    // READ stays allowed on purpose. skill-bench's judge denies it because grading must be
+    // READ stays allowed on purpose. skill-measure's judge denies it because grading must be
     // hermetic; a cross-lineage CHECK is the opposite job — a foreign model that cannot open the
     // files is reduced to rhetoric about a claim blob, which is the appearance of a check rather
     // than one. Writes and shell stay denied: it inspects, it does not act.

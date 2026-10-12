@@ -17,7 +17,7 @@ cost makes triggering moot. Measure separately.
 
 ## The instrument
 
-The skill-bench plugin's `scripts/run_eval.py` (`/bench trigger`) — vendored from
+The skill-measure plugin's `scripts/run_eval.py` (`/bench trigger`) — vendored from
 anthropics/skills' skill-creator with 4 correctness fixes (3 stream patches + timeout-as-null)
 plus a testability extraction (ADR 0033); `run_eval_test.py` guards the fixed detection and
 aggregation logic. Linux/WSL-only (`select.select()` on a subprocess pipe fd).

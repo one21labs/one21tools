@@ -9,19 +9,19 @@ import assert from "node:assert/strict";
 import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, shippedSkillDirs, movedMarkers } from "./check-relocated-paths.mjs";
 import { readFileSync } from "node:fs";
 
-const TOP = new Set(["benchmarks", "skills", "skill-bench", "docs", "scripts", "pdca-workflow"]);
+const TOP = new Set(["benchmarks", "skills", "skill-measure", "docs", "scripts", "pdca-workflow"]);
 const run = (files, existing = [], ever = []) => checkRelocatedPaths({
   candidates: extractPathTokens(files, TOP),
   existingPaths: new Set(existing),
   everExisted: new Set(ever),
 });
 
-// Real scar: 851d1cb renamed benchmarks/lib/mechanized_checks.py -> skill-bench/scripts/lib/.
+// Real scar: 851d1cb renamed benchmarks/lib/mechanized_checks.py -> skill-measure/scripts/lib/.
 const SCAR_851 = {
   path: "benchmarks/2026-07-10-tiered-execution-fullgrid/README.md",
   text: "`outputs/cells/` via `benchmarks/lib/mechanized_checks.py` (tested: `mechanized_checks_test.py`).",
 };
-// Real scar: 6206630 renamed this reference -> skill-bench/skills/bench/references/.
+// Real scar: 6206630 renamed this reference -> skill-measure/skills/bench/references/.
 const SCAR_620 = {
   path: "benchmarks/2026-07-09-description-ablation/README.md",
   text: "protocol + validity rules: `skills/building-skills/references/description-ablation.md`, ADR 0033;",
@@ -121,7 +121,7 @@ test("walk tolerates a subdir vanishing mid-walk, never the benchmarks root", ()
 // skills[] dir may delete behind a structured marker in the citing file; everything else FAILs.
 const SHIPPED = new Set(["skills/building-skills"]);
 const OLD_MD = "skills/building-skills/references/description-ablation.md";
-const NEW_MD = "skill-bench/skills/bench/references/description-ablation.md";
+const NEW_MD = "skill-measure/skills/bench/references/description-ablation.md";
 const CITE = { path: "benchmarks/2026-07-09-description-ablation/README.md",
   text: "protocol + validity rules: `" + OLD_MD + "`, ADR 0033;\n\nMOVED: " + OLD_MD + " -> `" + NEW_MD + "`" };
 const runX = (files, ever, extra = {}) => checkRelocatedPaths({
@@ -145,8 +145,8 @@ test("marker whose new path does not resolve still FAILs", () => {
 test("executables never qualify: .py under a shipped dir FAILs despite a marker", () => {
   const oldPy = "skills/building-skills/scripts/eval_verdict.py";
   const f = { path: CITE.path,
-    text: "run `" + oldPy + "`\nMOVED: " + oldPy + " -> `skill-bench/scripts/eval_verdict.py`" };
-  assert.equal(runX([f], [oldPy], { resolvableNewPaths: new Set(["skill-bench/scripts/eval_verdict.py"]) }).problems.length, 1);
+    text: "run `" + oldPy + "`\nMOVED: " + oldPy + " -> `skill-measure/scripts/eval_verdict.py`" };
+  assert.equal(runX([f], [oldPy], { resolvableNewPaths: new Set(["skill-measure/scripts/eval_verdict.py"]) }).problems.length, 1);
 });
 
 test("a MOVED line with trailing prose is not a marker", () => {
@@ -164,7 +164,7 @@ test("unshipped path is untouched by the exemption machinery", () => {
 test("shippedSkillDirs derives skills[] entries only, never bare source roots", () => {
   const manifest = { plugins: [
     { name: "dev-skills", source: "./skills", skills: ["./code-standards", "./building-skills"] },
-    { name: "skill-bench", source: "./skill-bench" },
+    { name: "skill-measure", source: "./skill-measure" },
   ] };
   assert.deepEqual([...shippedSkillDirs(manifest)].sort(),
     ["skills/building-skills", "skills/code-standards"]);

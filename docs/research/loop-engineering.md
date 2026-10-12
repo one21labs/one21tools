@@ -1,7 +1,7 @@
 # Loop-engineering research corpus
 
 The versioned knowledge home for research on self-improving AI loops / "AI operating systems" /
-harness engineering — the field this repo's pdca-workflow and skill-bench live in. Work-state
+harness engineering — the field this repo's pdca-workflow and skill-measure live in. Work-state
 (which improvement directions are being executed) tracks in issue #236 per ADR 0021; THIS file
 owns the knowledge: verified sources, the SOTA map, tracking keywords, and the refresh method.
 Raw per-lane sweep outputs are committed under `sources/` (auditable, ADR 0023 ethos).
@@ -13,7 +13,7 @@ signal:
 1. A Claude web agent on PRIMARY SOURCES: fetch-verify every load-bearing quote/claim; maintain
    the unverified-meme ledger below (this lane caught two viral misquotes).
 2. A Claude web agent on SOTA SYSTEMS: name specific repos/products, verify-or-refute OUR
-   differentiation claims against them (this lane deflated two skill-bench novelty claims).
+   differentiation claims against them (this lane deflated two skill-measure novelty claims).
 3. A grok lane (`~/.grok/bin/grok --prompt-file <brief>`) for cross-family diversity + live X
    search, where this discourse appears first.
 
@@ -127,7 +127,7 @@ GUI/computer-use agents (different sense).
 
 Ranked list (Dreaming layer; evidence-gated lifecycle transitions; bounded autonomous
 promotion; panel-vs-single measurement; decay lifecycle; Pareto-frontier ADRs; and the five
-skill-bench items incl. train/test-split description tuning and the immutable post-run log)
+skill-measure items incl. train/test-split description tuning and the immutable post-run log)
 lives as the actionable checklist in **#236** — one home for work-state (ADR 0021). When one
 is executed, its outcome links back from that issue; when all are resolved, the next snapshot
 here records what the field looked like at that point.

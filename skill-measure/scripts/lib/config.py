@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Config defaults for skill-bench (ADR 0055 / #170 M2 genericization).
+"""Config defaults for skill-measure (ADR 0055 / #170 M2 genericization).
 
 Keeps consumer-tunable defaults out of the code so the plugin isn't one21tools-shaped. Precedence:
 explicit CLI arg > $SKILL_BENCH_* env var > $SKILL_BENCH_CONFIG JSON file > built-in default.

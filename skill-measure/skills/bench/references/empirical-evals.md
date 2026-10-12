@@ -26,7 +26,7 @@ Complementary, not alternatives:
 |-------|-------|---------|
 | Pressure testing | eval authoring (below; method from obra/superpowers) | Can the agent rationalize its way around the skill under pressure? |
 | Paired benchmark | Anthropic skill-creator harness (delegated — ADR 0013) | Does the skill measurably beat the no-skill baseline? |
-| Cost verdict | the skill-bench plugin's `scripts/eval_verdict.py` | Does the delta justify the skill's chars? |
+| Cost verdict | the skill-measure plugin's `scripts/eval_verdict.py` | Does the delta justify the skill's chars? |
 
 Execution is DELEGATED: skill-creator's benchmark mode already runs paired
 with_skill/without_skill configurations with graded assertions and token/time stats. This repo
@@ -46,7 +46,7 @@ Pre-run discipline (pre-reg cites methodology; cost-pilot; prior-art): [pre-regi
 
 Write `evals/evals.json` in the skill folder, in **skill-creator's schema** — its
 `references/schemas.md` is the schema SSoT; `skills/code-standards/evals/evals.json`
-(dev-skills plugin, not shipped with skill-bench) is a live example. `validate.py` owns and
+(dev-skills plugin, not shipped with skill-measure) is a live example. `validate.py` owns and
 gates the shape.
 
 Disciplines:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Notional (shadow) cost accounting for skill-bench (ADR 0055).
+"""Notional (shadow) cost accounting for skill-measure (ADR 0055).
 
 Grok (grok.com subscription) AND Claude (Claude Max) are both MARGINALLY free here — a run adds no
 per-call API charge. But every run consumes real usage (quota, rate limits, underlying compute), so

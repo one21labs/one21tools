@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Pluggable judge backends for skill-bench — the cross-family judge substrate (ADR 0055).
+"""Pluggable judge backends for skill-measure — the cross-family judge substrate (ADR 0055).
 
 A Judge takes a text prompt + JSON schema and returns a validated object. Swapping the grader
 measures self-preference bias directly (the #172 prototype changed the verdict — findings table in
-skill-bench/README.md, "The cross-family judge"). Stdlib only; each backend shells its CLI headless
+skill-measure/README.md, "The cross-family judge"). Stdlib only; each backend shells its CLI headless
 with tools denied so grading is pure-text and hermetic.
 
 DESIGN DIRECTION — repo owner, 26-Jul-2026: "the skill should guide the user to customize to the
@@ -131,7 +131,7 @@ class GrokJudge(_CostTracking):
 
     def __init__(self, bin=None, timeout=300):
         # Portable resolution: explicit arg, then $GROK_BIN, then PATH, then the default installer
-        # location. Works when skill-bench is installed as a plugin on any machine.
+        # location. Works when skill-measure is installed as a plugin on any machine.
         self.bin = (bin or os.environ.get("GROK_BIN") or shutil.which("grok")
                     or os.path.expanduser("~/.grok/bin/grok"))
         self.timeout = timeout

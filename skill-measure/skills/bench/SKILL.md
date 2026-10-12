@@ -91,4 +91,4 @@ Method foundations ship WITH this skill (ADR 0063):
 [empirical-evals.md](references/empirical-evals.md),
 [description-ablation.md](references/description-ablation.md),
 [evaluating-your-own-work.md](references/evaluating-your-own-work.md) — read before you design a
-run against a skill you wrote. skill-bench installs standalone.
+run against a skill you wrote. skill-measure installs standalone.

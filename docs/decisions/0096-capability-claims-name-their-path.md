@@ -2,7 +2,7 @@
 id: 0096
 title: "Truth-in-labeling round 2: every capability claim names the path that implements it"
 status: accepted
-summary: "The refuted skill-bench claims are one class, not six errors: the README describes the VERDICT path's properties and the #172 study's arm design as properties of the whole harness. Fix is subtractive — delete the uniqueness claims (two beyond the audit's surface list), scope arm and prosecutor claims to the implementing path, correct ADR 0055 in place, land in PR #321."
+summary: "The refuted skill-measure claims are one class, not six errors: the README describes the VERDICT path's properties and the #172 study's arm design as properties of the whole harness. Fix is subtractive — delete the uniqueness claims (two beyond the audit's surface list), scope arm and prosecutor claims to the implementing path, correct ADR 0055 in place, land in PR #321."
 ---
 
 # 0096 — capability claims name their path
@@ -11,7 +11,7 @@ summary: "The refuted skill-bench claims are one class, not six errors: the READ
 - Owner: PM
 - Panel: none spawned (ADR 0062) — two prior adversarial evaluations (grok-4.5 cross-family;
   sonnet in-family), both partial-negative, both tree-verified; surviving findings folded in.
-- Context: `skill-bench/README.md:17` claims "arm design (bare / cost-matched / structured)" but
+- Context: `skill-measure/README.md:17` claims "arm design (bare / cost-matched / structured)" but
   `bench_skill.py:71-72` builds exactly with/without; the three-arm design is the #172 study's,
   fed to `bench_verdict.py` as data. `judging.md:73-77` and `cost-and-verdict.md:36-38` teach
   grade-then-prosecute for "each cell"; only `bench_verdict.py:52` prosecutes. One root cause:
@@ -27,7 +27,7 @@ summary: "The refuted skill-bench claims are one class, not six errors: the READ
    Replace with named prior art + an honest-limits paragraph. Also delete `README.md:3` "The
    repo's unique asset" and `README.md:30` "no vendor sells this" (missed by the audit).
 3. The manifest pair moves in ONE commit: `.claude-plugin/marketplace.json` and
-   `skill-bench/.claude-plugin/plugin.json` hold a byte-identical description whose tail claims
+   `skill-measure/.claude-plugin/plugin.json` hold a byte-identical description whose tail claims
    a layer "no commercial eval tool provides"; the clause goes. manifestDrift already guards
    divergence; no new gate.
 4. ADR 0055 corrected IN PLACE (rationalize): its summary's "no vendor sells" and its Why's

@@ -1,5 +1,5 @@
 // Cross-copy parity: pdca-workflow/scripts/crosscheck.mjs (JS) and
-// skill-bench/scripts/lib/judge.py (Python) each carry a vendor-family table and a copilot JSONL
+// skill-measure/scripts/lib/judge.py (Python) each carry a vendor-family table and a copilot JSONL
 // parser. That duplication is STRUCTURAL, not debt — ADR 0050 forbids content dependencies between
 // plugins, so neither may import the other, and the two are written in different languages. What
 // the duplication does risk is silent divergence: a vendor pattern added on one side only, or a
@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { familyOf, parseCopilot, makerFamily } from "../pdca-workflow/scripts/crosscheck.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const LIB = join(ROOT, "skill-bench", "scripts", "lib");
+const LIB = join(ROOT, "skill-measure", "scripts", "lib");
 
 // Spans every family both tables claim, plus the cases that must NOT resolve to a vendor. EVERY
 // alternative in either table needs its own id here: the first cut of this list exercised only the

@@ -2,7 +2,7 @@
 id: 0023
 title: "Benchmark verdict validity: hermetic executor + auditable raw sample"
 status: accepted
-summary: "Two conditions make a paired-benchmark verdict trustworthy: HERMETIC EXECUTOR (control arm must be treatment-free) and AUDITABLE RAW SAMPLE (a bounded, deterministic sample kept on main). Full protocol: skill-bench/skills/bench/references/empirical-evals.md. Extends ADR 0019; keep-raw-only-if-used."
+summary: "Two conditions make a paired-benchmark verdict trustworthy: HERMETIC EXECUTOR (control arm must be treatment-free) and AUDITABLE RAW SAMPLE (a bounded, deterministic sample kept on main). Full protocol: skill-measure/skills/bench/references/empirical-evals.md. Extends ADR 0019; keep-raw-only-if-used."
 ---
 
 # 0023 — benchmark verdict validity: hermetic executor + auditable raw sample
@@ -18,7 +18,7 @@ summary: "Two conditions make a paired-benchmark verdict trustworthy: HERMETIC E
 1. **Hermetic executor is required for a verdict.** A non-hermetic run is recorded
    (`hermetic: false`) as a confounded null, never a verdict; `metadata.json` carries
    `hermetic (y/n)`. Full gating protocol:
-   `skill-bench/skills/bench/references/empirical-evals.md` ("Hermetic executor gates a verdict").
+   `skill-measure/skills/bench/references/empirical-evals.md` ("Hermetic executor gates a verdict").
 2. **Auditable raw sample, on main, gated on a consumer.** Retention turns ON only when
    `eval_verdict.py`'s completeness check ships (poka-yoke: no unused accumulation); until then,
    verdict lines + metadata only. ADR 0026 amends the raw-retention half (everything outside the
@@ -33,7 +33,7 @@ reproducible, at bounded git-scale, only if a consumer actually uses it.
 ## Assumptions
 - [checkable] the completeness check's decision logic is covered by `eval_verdict_test.py` —
   owner: gates; result: shipped — `load_sample_rule`/`AuditSampleError`,
-  `skill-bench/scripts/eval_verdict.py` (#31).
+  `skill-measure/scripts/eval_verdict.py` (#31).
 - [unverifiable] a planted-defect + boundary sample is enough to catch evidence-selection.
   REOPEN-IF a silent-dropped cell is ever found outside the sample -> widen `sample_rule`.
 

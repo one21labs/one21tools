@@ -32,14 +32,14 @@ summary: "The measurement promise is owed to the CLAIM, not to the edit: a verdi
 2. Out-of-loop edits (owner findings, retrospect adoptions, doc fixes) ship without a re-measure.
    Their accumulation is READ, not tracked: `git log --since=<baseline-date> -- <source>/<name>`
    IS the ledger — the WHOLE skill dir under its plugin source (`skills/`, `pdca-workflow/`,
-   `skill-bench/`); scripts and evals count, they are the gate and the instrument. No ledger
+   `skill-measure/`); scripts and evals count, they are the gate and the instrument. No ledger
    file, no standing issue — nothing that can rot. Git is the audit surface, not an immutable
    one (this history was rewritten 27-Jul): the rewrite-proof anchor is CONTENT — a paired run
    commits `treatments/<skill>*.txt`, and a byte-compare against the live body survives any
    rewrite.
 3. Debt is paid by a BATCHED hermetic re-measure at G>=8 evals. Forcing function: a PR that
    adds, upgrades, or restates-after-drift a measured claim for skill S — on ANY shipped claim
-   surface: the README block, pdca-workflow/README.md Measured, skill-bench/README.md — must
+   surface: the README block, pdca-workflow/README.md Measured, skill-measure/README.md — must
    cite a benchmark dir that measured the CONTENT the PR ships (committed treatment
    byte-matches the live body; a dir DATE is not provenance and misfires on same-PR
    revise-and-re-measure, e.g. da76cbc). The PR body pastes that check's output — evidence in

@@ -24,9 +24,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# ADAPT: path to skill-bench/scripts/lib — repo checkout shown; installed plugin:
+# ADAPT: path to skill-measure/scripts/lib — repo checkout shown; installed plugin:
 # Path(os.environ["CLAUDE_PLUGIN_ROOT"]) / "scripts" / "lib"
-sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
+sys.path.insert(0, str(HERE.parents[1] / "skill-measure" / "scripts" / "lib"))
 from cost_gate import (DEFAULT_FAILED_CALL_CHARGE_USD, admit, cell_spend, charged_usd,  # noqa: E402
                        gate, spent_so_far)
 from hermetic_driver import (build_env, capture_artifacts, do_call,  # noqa: E402

@@ -1,9 +1,9 @@
 ---
 id: 0099
-title: "skill-bench pauses every paid call at 80% of a subscription window and resumes after the reset"
+title: "skill-measure pauses every paid call at 80% of a subscription window and resumes after the reset"
 status: accepted
 tier: lite
-summary: "Owner policy 12-Oct-2026 for every skill-bench user: detect 80% of a usage window, pause, restart after it resets. Enforced in the shared call path (usage_guard via hermetic_driver.do_call and the Claude judge), default on, threshold overridable; a limit-rejected call waits and re-issues instead of becoming an ERROR cell."
+summary: "Owner policy 12-Oct-2026 for every skill-measure user: detect 80% of a usage window, pause, restart after it resets. Enforced in the shared call path (usage_guard via hermetic_driver.do_call and the Claude judge), default on, threshold overridable; a limit-rejected call waits and re-issues instead of becoming an ERROR cell."
 ---
 
 # 0099 — usage-limit pause
@@ -23,5 +23,5 @@ summary: "Owner policy 12-Oct-2026 for every skill-bench user: detect 80% of a u
   Polling a usage endpoint — none exposed; the event rides every call.
 - Reopen-if: the CLI stops emitting `rate_limit_event`, or a pause outlives a window reset
   (decide() reads a stale `resetsAt`).
-- Enforced: `skill-bench/scripts/lib/usage_guard.py` + `usage_guard_test.py`;
+- Enforced: `skill-measure/scripts/lib/usage_guard.py` + `usage_guard_test.py`;
   `hermetic_driver.do_call`; `judge.ClaudeJudge.grade`.

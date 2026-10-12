@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verdict math + judge-divergence diagnostics for skill-bench (ADR 0019/0025 shape). Stdlib only.
+"""Verdict math + judge-divergence diagnostics for skill-measure (ADR 0019/0025 shape). Stdlib only.
 
 Pure functions, fully unit-testable offline. `cells` everywhere is a list of dicts:
   {"bid","arm","scenario","met":{<expectation id>: bool}}

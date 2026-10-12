@@ -8,7 +8,7 @@ summary: "Owner-direct: every pre-registration, experiment issue, and eval title
 
 # 0059 — neutral hypothesis framing for experiments
 
-- Decision: the rule above, homed where it executes: `skill-bench/skills/bench/SKILL.md`
+- Decision: the rule above, homed where it executes: `skill-measure/skills/bench/SKILL.md`
   Guardrails (full statement) and `pdca-workflow/skills/decide/SKILL.md` step 7 (pointer).
   #185/#186 rewritten 2026-07-13 as the template (operationalized by ADR 0061). Owner-direct.
 - Why: two channels. (1) Human: an outcome-titled issue invites proving-at-any-cost, the

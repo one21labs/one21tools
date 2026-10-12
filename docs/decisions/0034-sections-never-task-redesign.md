@@ -14,4 +14,4 @@ summary: "De-confound the never-task cells (issue #72) under pre-registered read
 - Result: re-run floored 0.0/0.0 on all five cells, both arms, incl. n4b. The harness forbids execution; honest models refuse to claim verification they didn't run, shipping artifacts + walkthroughs instead. The floor is ENVIRONMENTAL — a measurement limit, not a section verdict.
 - Rejected: retire the n4 pressure cell — 0/0 is signal, not survivorship bias. n1 mechanics-forgiveness — grades intent. Rewrite n3 harder — noise is a reps problem.
 - Reopen-if: a harness variant that can EXECUTE model-produced checks becomes available -> re-run the never cells.
-- Enforced: `skill-bench/skills/bench/references/empirical-evals.md`.
+- Enforced: `skill-measure/skills/bench/references/empirical-evals.md`.

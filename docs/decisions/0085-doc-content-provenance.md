@@ -24,5 +24,5 @@ summary: "Provenance: a standing default per standalone-consumed unit — the re
 - Reopen-if: markers proliferate/rot -> a structural field or lint gate. Owner still can't tell
   provenance where it matters -> escalate to a frontmatter field.
 - Enforced: Provenance sections in `README.md`, `pdca-workflow/README.md`,
-  `skill-bench/README.md`; the inline line atop
+  `skill-measure/README.md`; the inline line atop
   `skills/engineering-principles/references/ENGINEERING_PRINCIPLES.md`.
