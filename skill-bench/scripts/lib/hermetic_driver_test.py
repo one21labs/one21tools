@@ -30,11 +30,42 @@ class BuildEnv(unittest.TestCase):
         self.assertEqual(env["CLAUDE_EFFORT"], "medium")
         self.assertTrue(env["PATH"].startswith(os.path.join(os.path.expanduser("~"), ".local", "bin")))
 
+    def test_detaches_from_parent_session_keeps_auth(self):
+        parent = {"PATH": "/usr/bin", "HOME": "/root", "CLAUDECODE": "1",
+                  "CLAUDE_CODE_SESSION_ID": "s", "CLAUDE_CODE_SYNC_SKILLS": "1",
+                  "CLAUDE_SESSION_INGRESS_TOKEN_FILE": "/t", "CCR_SESSION_PROFILE": "p",
+                  "SESSION_INGRESS_URL": "u", "CLAUDE_CODE_OAUTH_TOKEN": "tok",
+                  "ANTHROPIC_API_KEY": "k", "HTTPS_PROXY": "http://proxy",
+                  "CLAUDE_ENABLE_STREAM_WATCHDOG": "1"}
+        with unittest.mock.patch.dict(os.environ, parent, clear=True):
+            env = build_env()
+        for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SYNC_SKILLS",
+                     "CLAUDE_SESSION_INGRESS_TOKEN_FILE", "CCR_SESSION_PROFILE", "SESSION_INGRESS_URL"):
+            self.assertNotIn(gone, env)
+        for kept in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "HTTPS_PROXY",
+                     "CLAUDE_ENABLE_STREAM_WATCHDOG"):
+            self.assertIn(kept, env)
+
     def test_effort_override(self):
         self.assertEqual(build_env(effort="high")["CLAUDE_EFFORT"], "high")
 
 
 class DoCall(unittest.TestCase):
+    def test_limit_rejection_waits_and_reissues_without_spending_the_retry(self):
+        import usage_guard
+        clock = {"t": 1_000_000}
+        gate = usage_guard.UsageGate(threshold=0.8, now=lambda: clock["t"], log=lambda m: None,
+                                     sleep=lambda s: clock.__setitem__("t", clock["t"] + s))
+        rejected = json.dumps({"type": "rate_limit_event", "rate_limit_info": {
+            "status": "rejected", "resetsAt": clock["t"] + 600, "rateLimitType": "five_hour",
+            "unifiedWindows": {"five_hour": {"utilization": 1.0, "resetsAt": clock["t"] + 600}}}})
+        outs = iter([SimpleNamespace(returncode=1, stdout=rejected, stderr=""),
+                     SimpleNamespace(returncode=0, stdout=json.dumps(ENVELOPE), stderr="")])
+        call = do_call("p", "sonnet", {}, ".", run=lambda cmd, **kw: next(outs), gate=gate)
+        self.assertIsNone(call["error"])
+        self.assertFalse(call["retried"])
+        self.assertGreaterEqual(clock["t"], 1_000_600)
+
     def test_success_no_retry(self):
         call = do_call("p", "sonnet", {}, ".", run=fake_run())
         self.assertIsNone(call["error"])
@@ -130,12 +161,23 @@ class SummarizeCall(unittest.TestCase):
 
 
 class NeutralCwd(unittest.TestCase):
-    def test_creates_scratch_dir(self):
+    def test_creates_empty_scratch_dir(self):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             cwd = neutral_cwd(td)
             self.assertTrue(os.path.isdir(cwd))
-            self.assertEqual(os.path.basename(cwd), "cwd")
+            self.assertEqual(os.listdir(cwd), [])
+            os.rmdir(cwd)
+
+    def test_outside_checkout_even_when_outdir_is_inside(self):
+        # The defect this pins: callers pass an outputs dir INSIDE the repo; a cwd nested under
+        # it auto-discovers the repo's CLAUDE.md into every arm.
+        repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        cwd = os.path.realpath(neutral_cwd(os.path.join(repo, "benchmarks", "x", "outputs")))
+        try:
+            self.assertFalse(cwd.startswith(repo + os.sep), cwd)
+        finally:
+            os.rmdir(cwd)
 
 
 class CarveOut(unittest.TestCase):

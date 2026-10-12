@@ -1,0 +1,62 @@
+{
+ "cell": "code-standards-E7-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13885.4,
+  "duration_ms": 12093,
+  "duration_api_ms": 11253,
+  "cost_usd": 0.017926900000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1567,
+   "cache_read_input_tokens": 1382,
+   "output_tokens": 1123,
+   "output_tokens_details": {
+    "thinking_tokens": 404
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1567,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1123,
+     "cache_read_input_tokens": 1382,
+     "cache_creation_input_tokens": 1567,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1567
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:16:10.733132+00:00",
+   "end": "2026-10-12T05:16:24.618581+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.017926900000000003
+ },
+ "response": "Here's the rename only, with behavior unchanged. I left the function name `f` alone so existing callers don't break, and the callers pass positionally, so the parameter renames are safe.\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef f(username, password, extra_headers=[], timeout_seconds=10):\n    extra_headers.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(header.split(': ') for header in extra_headers),\n                                 timeout=timeout_seconds)\n        token_response = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_response)\n        return token_response['access_token']\n    except Exception:\n        return None\n```\n\nI left two problems alone, as you asked, but you should look at them. The first is urgent.\n\n1. **The log line writes the password and the token to your logs.** `log.info(... username, password, token_response)` emits the service password and the full auth response, including `access_token`, once a minute. Since those logs go to a shared Datadog index the whole company can search, anyone there can find those credentials. I'd treat them as exposed: rotate the service password, and consider purging or restricting the affected log history. The fix is a one-line change that doesn't affect the return value:\n   ```python\n   log.info('auth ok for %s', username)\n   ```\n\n2. **The mutable default `extra_headers=[]` grows on every call.** Callers use the default, so the same list is shared across calls and `'X-Client: billing-sync'` is appended each minute. The `dict(...)` collapses the duplicates, so requests look correct, but the list grows without bound in a long-running worker. It's a slow memory leak. The usual fix is `extra_headers=None` plus `extra_headers = list(extra_headers or [])` inside.\n\nThe bare `except Exception: return None` also hides auth failures completely, which makes the \"retry later\" path hard to debug. That one is optional.\n\nThe names weren't the only problem, so whoever said that was missing the logging issue. I can make the changes for 1 and 2 if you want."
+}

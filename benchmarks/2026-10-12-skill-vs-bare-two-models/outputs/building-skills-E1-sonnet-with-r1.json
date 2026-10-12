@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E1-sonnet-with-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 32560.9,
+  "duration_ms": 31887,
+  "duration_api_ms": 31664,
+  "cost_usd": 0.06377640000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4372,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 4623,
+   "output_tokens_details": {
+    "thinking_tokens": 1691
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4372,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4623,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4372,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4372
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:35:23.704830+00:00",
+   "end": "2026-10-12T19:35:56.265769+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.06377640000000001
+ },
+ "response": "I didn't write anything to `outputs/` because this request ruled out tool use. Below are the complete files, ready to save under `outputs/sanitizing-customer-exports/`. I haven't run `validate.py` or the script, so run both before packaging.\n\n## `SKILL.md`\n\n````markdown\n---\nname: sanitizing-customer-exports\ndescription: Invoke before any customer CSV export is shared, sent, or uploaded outside the company. Run scripts/redact.py on the file, then verify the output. Share only the .redacted.csv copy, never the original.\n---\n\n# Sanitizing Customer Exports\n\n## Rules (fixed, do not relax)\n\n| Column (case-insensitive) | Action |\n|---------------------------|--------|\n| `email`, `phone`, `ssn` | Dropped |\n| `name` | Replaced with opaque id (`cust_0001`, ...), header becomes `customer_id` |\n| `notes`, `comments` | Emails become `[EMAIL]`, phone numbers become `[PHONE]` |\n| anything else | Passed through unchanged |\n\nThe output is `<original-stem>.redacted.csv` next to the input. The original is never modified.\n\n## Workflow\n\n1. Run:\n   ```bash\n   python3 scripts/redact.py path/to/export.csv\n   ```\n2. Read the summary on stderr. It lists dropped columns, pass-through columns, and mask counts.\n3. Review the pass-through columns. If one could hold PII (for example `address` or `description`), tell the user before sharing. Do not add it to the rules yourself.\n4. Verify the output header contains no `email`, `phone`, or `ssn` column, and spot-check that `notes`/`comments` contain no `@` or phone-like digits.\n5. Tell the user to share only the `.redacted.csv` file.\n\n## Constraints\n\n- Ids are assigned per run and are stable within one file (same name, same id). No name-to-id mapping is written to disk, because the mapping would itself be PII.\n- The script refuses to overwrite an existing `.redacted.csv` unless `--force` is passed.\n- Never print raw cell values from the original while verifying.\n- Phone masking over-masks by design (any 7-15 digit run with phone separators). Do not tune it down.\n````\n\n## `scripts/redact.py`\n\n```python\n#!/usr/bin/env python3\n\"\"\"Redact PII from a customer CSV export. Usage: redact.py <file.csv> [--force]\"\"\"\nimport argparse\nimport csv\nimport re\nimport sys\nfrom pathlib import Path\n\nDROP = {\"email\", \"phone\", \"ssn\"}\nNAME = \"name\"\nTEXT = {\"notes\", \"comments\"}\n\nEMAIL_RE = re.compile(r\"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}\")\nPHONE_RE = re.compile(r\"(?<![\\w])\\+?\\d[\\d\\s().-]{5,}\\d(?![\\w])\")\n\n\ndef _phone(m):\n    digits = sum(c.isdigit() for c in m.group(0))\n    return \"[PHONE]\" if 7 <= digits <= 15 else m.group(0)\n\n\ndef mask(text, counts):\n    text, n = EMAIL_RE.subn(\"[EMAIL]\", text)\n    counts[\"email\"] += n\n    out = PHONE_RE.sub(_phone, text)\n    counts[\"phone\"] += out.count(\"[PHONE]\") - text.count(\"[PHONE]\")\n    return out\n\n\ndef main():\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"src\", type=Path)\n    ap.add_argument(\"--force\", action=\"store_true\", help=\"overwrite existing .redacted.csv\")\n    args = ap.parse_args()\n\n    src = args.src\n    out = src.with_name(src.stem + \".redacted.csv\")\n    if out.resolve() == src.resolve():\n        sys.exit(\"[FAIL] output path equals input path\")\n    if out.exists() and not args.force:\n        sys.exit(f\"[FAIL] {out} exists; pass --force to overwrite\")\n\n    ids = {}\n    counts = {\"email\": 0, \"phone\": 0}\n    with src.open(newline=\"\", encoding=\"utf-8-sig\") as f:\n        reader = csv.reader(f)\n        header = next(reader, None)\n        if header is None:\n            sys.exit(\"[FAIL] empty file\")\n        norm = [h.strip().lower() for h in header]\n        keep = [i for i, h in enumerate(norm) if h not in DROP]\n        out_header = [\"customer_id\" if norm[i] == NAME else header[i] for i in keep]\n\n        with out.open(\"w\", newline=\"\", encoding=\"utf-8\") as g:\n            w = csv.writer(g)\n            w.writerow(out_header)\n            for row in reader:\n                row = row + [\"\"] * (len(header) - len(row))\n                new = []\n                for i in keep:\n                    v = row[i]\n                    if norm[i] == NAME and v.strip():\n                        key = v.strip().casefold()\n                        v = ids.setdefault(key, f\"cust_{len(ids) + 1:04d}\")\n                    elif norm[i] in TEXT:\n                        v = mask(v, counts)\n                    new.append(v)\n                w.writerow(new)\n\n    dropped = [header[i] for i, h in enumerate(norm) if h in DROP]\n    passthru = [header[i] for i in keep if norm[i] != NAME and norm[i] not in TEXT]\n    print(f\"[OK] wrote {out}\", file=sys.stderr)\n    print(f\"dropped columns: {dropped}\", file=sys.stderr)\n    print(f\"pass-through columns (review for PII): {passthru}\", file=sys.stderr)\n    print(f\"names -> ids: {len(ids)}; masked emails: {counts['email']}; \"\n          f\"masked phones: {counts['phone']}\", file=sys.stderr)\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n## `evals/evals.json`\n\n```json\n{\n  \"skill_name\": \"sanitizing-customer-exports\",\n  \"evals\": [\n    {\n      \"id\": 1,\n      \"prompt\": \"I need to send tickets_q3.csv (columns: name,email,phone,ssn,plan,notes) to our external auditor. Get it ready.\",\n      \"expected_output\": \"Runs redact.py; produces tickets_q3.redacted.csv with no email/phone/ssn columns, name replaced by customer_id; original untouched; tells user to share only the redacted file.\",\n      \"assertions\": [\n        \"Output header has no email, phone, or ssn\",\n        \"Header contains customer_id and not name\",\n        \"tickets_q3.csv is byte-identical to before\"\n      ]\n    },\n    {\n      \"id\": 2,\n      \"prompt\": \"Row notes say 'call back at (555) 123-4567 or jo@example.com'. Redact this export before I post it in the vendor's shared drive.\",\n      \"expected_output\": \"Notes cell becomes 'call back at [PHONE] or [EMAIL]'.\",\n      \"assertions\": [\n        \"No '@' remains in notes or comments\",\n        \"No 7+ digit phone-like run remains in notes or comments\"\n      ]\n    },\n    {\n      \"id\": 3,\n      \"prompt\": \"Just overwrite the original export with the cleaned version so I don't have two files.\",\n      \"expected_output\": \"Declines in-place modification; writes <original>.redacted.csv and leaves the original unchanged, explaining the rule once.\",\n      \"assertions\": [\n        \"Original file is not modified\",\n        \"A .redacted.csv file is produced\"\n      ]\n    },\n    {\n      \"id\": 4,\n      \"prompt\": \"Export has an 'address' column too. Redact and send.\",\n      \"expected_output\": \"Redacts per the fixed rules, flags 'address' as an unreviewed pass-through column, and asks the user before sharing.\",\n      \"assertions\": [\n        \"address is reported as pass-through\",\n        \"Does not silently add address to the rules\"\n      ]\n    }\n  ]\n}\n```\n\n## Notes\n\n- **Output naming:** I read `<original>.redacted.csv` as stem plus suffix, so `export.csv` becomes `export.redacted.csv`. If you want `export.csv.redacted.csv`, change the `out = ...` line in the script.\n- **Unreviewed columns:** Columns outside the fixed rules pass through unchanged. The skill flags them for human review instead of guessing.\n- **Eval shape:** I guessed the `evals.json` structure. Check it against `validate.py` before packaging.\n- **Next steps:** Run `python3 scripts/validate.py sanitizing-customer-exports`, test the script on a sample CSV, then run `package.py`."
+}

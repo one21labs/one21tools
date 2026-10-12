@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E9-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14821.0,
+  "duration_ms": 14188,
+  "duration_api_ms": 13965,
+  "cost_usd": 0.0216045,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 798,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1799,
+   "output_tokens_details": {
+    "thinking_tokens": 537
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 798,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1799,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 798,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 798
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:52.197225+00:00",
+   "end": "2026-10-12T19:39:07.018281+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0216045
+ },
+ "response": "The vague 500s come from the error handling, not from missing log lines. Sprinkling logs everywhere would add noise without fixing that.\n\n- `errors.New(\"db error\")` discards the real cause (timeout, connection refused, scan type mismatch, and so on), so there's nothing to log downstream.\n- The handler's `not found` branch returns 500, so every missing order looks like a server fault. It should be 404.\n- The `Encode` error is ignored.\n- An empty `id` goes straight to the database.\n\nThe fix is to preserve and wrap errors, then log once at the handler, where the request context is known. Logging at every layer produces duplicate lines for one failure.\n\n```go\nvar ErrOrderNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrOrderNotFound\n        }\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    ctx := r.Context()\n    id := r.URL.Query().Get(\"id\")\n    if id == \"\" {\n        slog.WarnContext(ctx, \"order request missing id\", \"path\", r.URL.Path)\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(ctx, id)\n    switch {\n    case errors.Is(err, ErrOrderNotFound):\n        slog.InfoContext(ctx, \"order not found\", \"order_id\", id)\n        http.Error(w, \"not found\", http.StatusNotFound)\n        return\n    case errors.Is(err, context.Canceled):\n        slog.WarnContext(ctx, \"order lookup canceled by client\", \"order_id\", id)\n        return\n    case err != nil:\n        slog.ErrorContext(ctx, \"order lookup failed\", \"order_id\", id, \"err\", err)\n        http.Error(w, \"internal error\", http.StatusInternalServerError)\n        return\n    }\n\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        slog.ErrorContext(ctx, \"order response encode failed\", \"order_id\", id, \"err\", err)\n    }\n}\n```\n\nNotes:\n\n1. **Correlation.** Add request-ID middleware that puts an ID into the context and a `slog.Handler` wrapper that attaches it to every record. That lets you match a client's 500 to a log line. Without it, the logs above will be hard to connect to specific failures.\n2. **Log format.** Use `slog.NewJSONHandler` in prod so the fields (`order_id`, `err`) are queryable.\n3. **Sensitive data.** I deliberately don't log the `Order` struct. It contains `CardNumber`, and logging it would put card data in your logs. Also, the handler currently serializes the full card number to the client. Unless `Order` has `json:\"-\"` on that field, that's a serious problem. Select only the columns the response needs, or mask the number to the last four digits.\n4. **Next steps.** After deploying, the `err` field on the \"order lookup failed\" lines should show the real cause. If you see `context deadline exceeded` or pool exhaustion errors, add `db.Stats()` metrics next. If you see scan errors, check for NULL columns, since scanning NULL into a non-pointer string fails."
+}

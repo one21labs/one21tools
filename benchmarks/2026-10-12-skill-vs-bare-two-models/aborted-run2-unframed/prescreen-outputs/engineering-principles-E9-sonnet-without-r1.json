@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E9-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 19700.3,
+  "duration_ms": 18744,
+  "duration_api_ms": 18393,
+  "cost_usd": 0.023780100000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 687,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2082,
+   "output_tokens_details": {
+    "thinking_tokens": 504
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 687,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2082,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 687,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 687
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:42:09.068250+00:00",
+   "end": "2026-10-12T05:42:28.768582+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.023780100000000002
+ },
+ "response": "**Not yet.** One design flaw conflicts directly with the finance requirement, and the rest of the scope is much bigger than the problem.\n\n## Blocker: the timeout/retry logic will send duplicate invoices\n\n\"No response within 5s, mark failed, re-enqueue\" is the textbook way to double-send. A timeout means you don't know the outcome. The provider may well have accepted the email and just responded slowly. The same happens if a worker crashes after the provider accepts but before you mark the job done. With retries and 5 attempts, this will happen eventually.\n\nWhat the design needs:\n- **Idempotency at the provider**: pass a stable idempotency key (e.g. `invoice:{invoice_id}`) if the provider supports it. Check this first, since it shapes everything else. If it doesn't, you can't get exactly-once and need the next two items.\n- **Idempotency at enqueue**: a unique constraint on a dedupe key, so the same invoice can't be enqueued twice.\n- **An explicit \"unknown outcome\" path for invoices**: on timeout, don't blindly retry. Mark the job `uncertain`, then reconcile by querying the provider (by message ID or your own metadata tag) or alerting a human. For password resets, retrying is fine, since a duplicate is harmless. So retry policy should be per job type.\n- **Persist intent before the call**: write `sending` with a lease/timeout and the attempt ID, so a crashed worker's job gets reconciled rather than re-run.\n- Distinguish retryable failures (network error, 5xx, 429) from permanent ones (4xx, bad address). Permanent failures should not retry.\n\nAlso clarify that the `FOR UPDATE SKIP LOCKED` transaction isn't held open across the HTTP call. Claim the job (set status and lease) in a short transaction, then call out.\n\n## Scope is far too large for the load\n\n500 emails/day is about one every three minutes. A single worker with no tuning handles it with enormous headroom. Several items solve problems you don't have:\n- **Plugin system with YAML manifests**: there are no other teams asking yet. Cut it, and add job types as code with a handler registry.\n- **5 priority levels with weighted fair scheduling**: at this volume nothing starves. If needed, use a simple `priority` column with `ORDER BY priority, run_at`, or two levels (password resets ahead of the rest).\n- **React dashboard with throughput charts**: replace with a few SQL queries or a minimal read-only page. Manual retry can be a CLI command or script, with a guard for invoice jobs.\n- **500ms polling**: harmless but wasteful. `LISTEN/NOTIFY` or a 2-5s poll is fine.\n\n## Consider not building it\n\nMature Postgres-backed queues exist (Graphile Worker, pg-boss, River, Oban, depending on your stack). They already handle `SKIP LOCKED`, retries, backoff, scheduling, and unique jobs. Two engineers spending 6 weeks on this is hard to justify unless there's a reason those won't work. You'd still need to design the idempotency handling above, but on top of a library it's days, not weeks.\n\n## Gaps to fill\n\n- **Terminal states**: dead-letter/`failed_permanent`, `uncertain`, `cancelled`. Alerts when jobs land there or when queue age grows.\n- **Sensitive payloads**: password reset tokens in a jobs table are secrets. Store a reference rather than the token, or encrypt it, and purge completed jobs on a schedule.\n- **Staleness**: a reset email retried after its token expired is wasted or confusing. Add an expiry (`not_after`) per job.\n- **Transactional enqueue**: a main advantage of Postgres is inserting the job in the same transaction as the business event (invoice created). Make that explicit.\n- **Bounces/delivery status**: decide whether provider webhooks are in scope. They're also useful for reconciling uncertain sends.\n- **Tests**: a failure-injection test for \"provider accepts, response lost\" and \"worker killed mid-send,\" since that's the requirement that matters.\n\n## Suggested v1 (about 1-2 weeks)\n\n1. Evaluate an existing library, and confirm provider idempotency support.\n2. Jobs table with dedupe key, lease, states including `uncertain`, and per-type retry policy.\n3. Single worker, handler registry in code, two priority levels.\n4. Alerting on dead-letter/uncertain/queue age, plus a CLI for inspection and retry.\n5. Defer the plugin system, dashboard, and weighted scheduling until a real need appears.\n\nIf you tell me which provider and stack you're using, I can check whether it supports idempotency keys and suggest a specific library."
+}

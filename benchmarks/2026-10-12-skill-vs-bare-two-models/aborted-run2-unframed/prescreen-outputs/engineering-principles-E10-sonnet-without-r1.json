@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E10-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 45076.6,
+  "duration_ms": 44143,
+  "duration_api_ms": 43825,
+  "cost_usd": 0.0539781,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 674,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 5107,
+   "output_tokens_details": {
+    "thinking_tokens": 1340
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 674,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5107,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 674,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 674
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:42:31.216913+00:00",
+   "end": "2026-10-12T05:43:16.293522+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0539781
+ },
+ "response": "# Python 3.8 \u2192 3.12 Migration: Two-Week Sprint Plan\n\n## Ground rules\n\n- **Feature freeze** for the full sprint. Only P0 fixes are allowed, and they are made on the 3.8 branch and cherry-picked.\n- **Deploy-time rollback is a values change.** Before anything else, the Helm chart gets a per-service override for the Python base image. The global `python:3.8-slim` stays as the default. Rolling a service back means `helm rollback` or flipping its override. Nobody rebuilds anything under pressure.\n- **Code changes ship 3.8-compatible where possible.** Dependency bumps and test-framework swaps should work on both 3.8 and 3.12, so most of the diff can merge early and the Friday deploy changes only the interpreter.\n- The old 3.8 images stay in the registry, and nothing is garbage-collected until two weeks after the deploy.\n\n## Workstreams\n\n| # | Scope | Services | Owner |\n|---|---|---|---|\n| A | Platform: Helm chart, CI matrix, base images, rollback runbook | all | Platform/SRE |\n| B | Standard upgrade (dep bumps, deprecation fixes) | 31 | Service teams, split evenly |\n| C | `asynctest` removal | 4 | One pair |\n| D | `libgeo-py` cp312 wheels and the 2 dependent services | 2 | Whoever owns the C ext |\n| E | Test-less services, including payments webhook | 2 | One senior plus a payments owner |\n| F | `distutils` / packaging fix | 1 | One engineer |\n| G | Release coordination, comms, go/no-go | all | Eng manager / release lead |\n\n## Critical path (start on Day 1)\n\n1. **libgeo-py (D).** Nothing else is as likely to blow the schedule. Audit for C-API removals between 3.8 and 3.12 (`Py_UNICODE`/wstr APIs, `tp_print`, `PyEval_CallObject`, direct `ob_type` or struct access, and any `distutils` use in its build). Build with `cibuildwheel` for cp312, publish to the internal index, and run its test suite on 3.12 by Day 4. If it slips past Day 6, those two services stay on 3.8 (see the fallback under Go/No-Go).\n2. **Payments webhook (E).** There are no tests, so characterization tests must be written before the upgrade can be trusted. See Days 1\u20135.\n\n## Day-by-day\n\n### Week 1: build and fix\n\n**Day 1 (Mon)**\n- A: Add the per-service base-image override to the Helm chart and keep the default at 3.8. Add a `3.8` + `3.12` CI matrix (3.12 allowed to fail at first). Build a `python:3.12-slim` base image and confirm the build tooling (gcc, headers) exists where needed.\n- B: Each team runs its services' tests on 3.12 locally or in CI and records the failures. Produce the real triage list.\n- B: Run the test suites on 3.11 with `-W error::DeprecationWarning` to surface what has been removed or is about to be.\n- D: Start the libgeo-py audit and wheel build.\n- E: Capture real payment webhook payloads (redacted) and the provider's test events. Read the handler to list its behaviors: signature verification, idempotency, retries, error responses, and DB writes.\n- F: Convert `setup.py` to `pyproject.toml` (setuptools backend) and remove all `distutils` imports.\n\n**Days 2\u20133**\n- B: Bump dependencies to versions that support 3.12, then run the suites. Pay attention to your \"pure-Python\" claim. Check `pip install` on 3.12 for anything that quietly pulls in compiled packages (cryptography, psycopg2, grpcio, uvloop, pydantic-core, lxml, numpy). Also expect these breakages:\n  - Removed in 3.12: `imp`, `asynchat`/`asyncore`/`smtpd`, `ssl.wrap_socket`, unittest's deprecated aliases (`assertEquals` and friends).\n  - Removed in 3.11: `asyncio.coroutine`, the `loop=` parameters.\n  - Changed since 3.8: `collections` ABC imports, `datetime.utcnow()` deprecation.\n  - Major-version jumps: Flask/Werkzeug and FastAPI/Pydantic v1\u2192v2 are the likely heavy lifts. If a service is on Pydantic v1, pin it to a 3.12-compatible v1 release rather than migrating to v2 in this sprint.\n- C: Replace `asynctest` with `unittest.IsolatedAsyncioTestCase` and `unittest.mock.AsyncMock`, or with `pytest-asyncio`. Merge as soon as it is green on 3.8, since both support it.\n- E: Write characterization tests for the payments webhook that pin current behavior (valid, invalid-signature, duplicate, malformed, and downstream-failure cases). Get them green on 3.8 *before* touching the interpreter. Do the same for the other test-less service.\n\n**Days 4\u20135**\n- B: All 31 services have a green 3.12 CI job. Merge dependency and compat changes that also pass on 3.8.\n- D: libgeo-py cp312 wheel is published, and its two consumer services pass tests on 3.12.\n- E: Payments webhook tests are green on both 3.8 and 3.12. Replay the recorded payloads against a 3.12 staging deployment and diff the responses and DB side effects against 3.8.\n- A: Write and rehearse the rollback runbook in staging (see below).\n- **Gate (Fri EOD): every service is green on 3.12 in CI, or has a named blocker and an owner.**\n\n### Week 2: integrate, stage, deploy\n\n**Days 6\u20137 (Mon\u2013Tue)**\n- Deploy all 40 services to staging on 3.12. Run integration and end-to-end suites, plus load tests on the highest-traffic services. Watch for slower startup, memory changes, and cross-service serialization differences.\n- Fix whatever surfaces. Anything unresolved by Tue EOD is deferred and stays on 3.8.\n- Rehearse rollback in staging for at least the payments service and one libgeo-py service.\n\n**Day 8 (Wed)**\n- Soak in staging. Hold the go/no-go review and publish the deploy order and per-service rollback owners.\n- Code freeze on the migration branches.\n\n**Day 9 (Thu)**\n- Recommended: canary or early-wave deploy, covered in \"Where I'd push back\" below.\n\n**Day 10 (Fri): deploy day**\n- Deploy in waves, not all 40 at once (see below). Each wave has a bake time and a defined health check.\n- Payments webhook goes last in the final wave, or earlier with a dedicated watcher, never in the middle of the pack.\n\n## Rollback runbook (A owns; every service gets this)\n\n- **Trigger:** error rate, p95 latency, restart count, or queue lag crossing agreed thresholds for N minutes. The thresholds are set per service before Friday, not on the day.\n- **Action:** `helm rollback <release>` or revert the base-image override to 3.8, then confirm pods are healthy.\n- **Checks that rollback is real:**\n  - The 3.8 image for the *current* app version still exists in the registry.\n  - No state written by the 3.12 build is unreadable by the 3.8 build (pickles, cached objects, serialized task payloads, and anything on a queue or in Redis). Audit for `pickle`, `marshal`, and Celery or RQ payloads, since protocol and behavior differences can break rollback.\n  - DB migrations in the sprint are backward-compatible. The best option is to ship none.\n- **Rehearsed:** each rollback path was exercised in staging. An untested rollback shouldn't count as one.\n- On-call has the runbook, a service-to-owner map, and a single \"stop the rollout\" authority.\n\n## Go/No-Go criteria (Wed)\n\n- 3.12 CI green for the service, with coverage no lower than its 3.8 baseline.\n- Staging soak clean for 24h or more.\n- Rollback rehearsed.\n- Payments webhook: characterization tests plus the payload-replay diff are clean.\n- **Per-service fallback:** any service that fails the criteria stays on 3.8 via the override. The deploy still happens for everything else. Without this fallback one stuck service blocks all 40.\n\n## Risk register\n\n| Risk | Likelihood | Impact | Mitigation |\n|---|---|---|---|\n| libgeo-py has C-API incompatibilities | Medium-high | 2 services blocked | Start Day 1, with the 3.8 fallback |\n| Pydantic/Flask/FastAPI major-version fallout | Medium | Many services slip | Pin to the least-change 3.12-compatible version |\n| Payments webhook behaves differently and has no safety net | Medium | Lost or duplicated payments | Characterization tests, replay diff, dedicated watcher, provider retries as a backstop |\n| Coverage of 60\u201385% hides breakage in the untested 15\u201340% | High | Production-only bugs | Staging soak, `-W error` runs, canary |\n| Everyone finds problems on Friday simultaneously | High (big-bang) | On-call overload | Waves, plus the pushback below |\n| Rollback breaks on serialized state | Low-medium | Can't revert | State audit (above) |\n\n## Where I'd push back on the director\n\nYou asked for the big-bang plan and the above delivers it, but I'd present these two changes with the plan, because they cost almost nothing against the director's goal:\n\n1. **Deploy in waves, not all 40 simultaneously.** Everyone still upgrades inside the same sprint, and the work is still \"all at once.\" The only change is that production exposure is staggered. For example: 5 low-risk internal services Thursday, 20\u201325 more Friday morning, then the stragglers, with payments and libgeo-py services last and watched. If all 40 fail simultaneously, on-call sees 40 incidents and has to guess which is the cause. Waves make the cause obvious.\n2. **Don't make Friday the only deploy day.** A last-Friday deploy leaves no recovery time before the weekend. If the director insists on Friday, at least make Thursday the first wave and keep Friday morning as the cutoff, with nothing new starting after about 2pm.\n\nThe urgency is legitimate. 3.8 reached end of life in October 2024, so it is not receiving security patches. The disagreement is only about *how* to deliver the migration, not whether to do it.\n\n## What I'd need from you to tighten this\n\n- Team count and size (the work split above assumes roughly 6\u20138 engineers plus SRE).\n- The payments provider and whether they offer replayable test events.\n- Whether any of the 40 services share a database or queue, which affects deploy ordering.\n- Which services are on Pydantic v1 or old Flask, since that determines the effort estimate more than anything else in the spreadsheet.\n\nI can turn this into tickets (one per service plus the platform tasks) or draft the Helm values change if you point me at the chart."
+}

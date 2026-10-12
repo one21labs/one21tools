@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E1-sonnet-without-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E1",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 23545.4,
+  "duration_ms": 22659,
+  "duration_api_ms": 22455,
+  "cost_usd": 0.027276000000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2720,
+   "output_tokens": 2700,
+   "output_tokens_details": {
+    "thinking_tokens": 181
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2700,
+     "cache_read_input_tokens": 2720,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:39:08.390237+00:00",
+   "end": "2026-10-12T19:39:31.935634+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.027276000000000005
+ },
+ "response": "I wasn't able to write `rca.md` because you asked me not to use tools, so the full document is below. Say the word and I'll save it as-is.\n\n---\n\n# Post-Incident Analysis: Empty Customer Export Delivered to Client\n\n**Date of analysis:** 2026-10-12\n**Owner:** Data Platform Team\n**Severity:** High (third client-facing occurrence in two months)\n**Format:** Blameless\n\n## 1. Summary\n\nThe nightly customer-export job produced an empty output file, which was delivered to a client. The job exited 0, monitoring saw a success, and the client noticed the problem before we did. This is the third occurrence in two months with the same outcome and three different triggers. The recurring factor is not the triggers but that the system treats \"job ran and exited 0\" as \"job produced a correct export.\"\n\n## 2. Impact\n\n- A client received an empty file in place of their customer export.\n- The client detected the failure, not us, which damages trust.\n- The two earlier occurrences had the same outcome, so this is a pattern and not a one-off.\n- *To fill in:* the client's name or tier, how long the data was missing, remediation effort, and any SLA or contractual exposure.\n\n## 3. Timeline\n\nFill in exact times. Known sequence:\n\n1. Priya modified the export SQL query.\n2. The wiki's manual check (\"run it once by hand and eyeball the row count\") was not performed.\n3. The nightly job ran, wrote zero rows, and exited 0.\n4. The empty file was delivered to the client automatically.\n5. Monitoring, which checks only the exit code, reported success.\n6. The client noticed the empty file and reported it.\n\n## 4. Incident History\n\n| # | Trigger | Outcome |\n|---|---------|---------|\n| 1 | Schema rename | Empty file, exit 0, no alert, client noticed |\n| 2 | Expired credential, swallowed by the job | Empty file, exit 0, no alert, client noticed |\n| 3 | Query change, manual verification skipped | Empty file, exit 0, no alert, client noticed |\n\n## 5. Root Cause Analysis\n\n### Root cause: no automated check that the output is valid\n\nEvery layer of the pipeline accepts an empty result as success:\n\n- **The job** exits 0 when it writes zero rows. A zero-row export is almost certainly an error for a customer export, yet the job doesn't treat it as one.\n- **Error handling** swallowed an authentication failure (incident 2), turning a hard failure into an empty result.\n- **Monitoring** checks only the exit code, so it cannot see a bad outcome from a \"successful\" run.\n- **Delivery** has no gate. Output goes to the client without validation.\n\nBecause of this, any upstream fault (schema change, credential problem, bad query, and future ones we haven't seen) ends in the same silent failure.\n\n### Contributing factor: the safeguard was a manual wiki step\n\nThe only protection against bad query changes was a documented manual step, which is easy to miss, especially for someone six weeks into the team. Relying on memory and discipline for a client-facing control is a process weakness. It is not an individual failing. Further points:\n\n- The step was a convention, not enforced by review, CI, or tooling.\n- \"Eyeball the row count\" is subjective and has no threshold.\n- Onboarding evidently did not make this step prominent, and nothing prompted it at the point of change.\n\n### What was not the root cause\n\nPriya's skipped step was the trigger, not the cause. If the control had been automated, the same change would have been caught. Had the first two incidents led to a systemic fix, this one would not have reached the client.\n\n### Why the first two incidents didn't prevent this one\n\nEach earlier incident was likely treated as its own problem (fix the rename, fix the credential handling) without addressing the shared failure mode of empty output passing as success. This analysis should break that pattern.\n\n## 6. What Went Well\n\n- The client reported the issue promptly.\n- *Add anything else relevant, such as fast re-run or communication.*\n\n## 7. Corrective Actions\n\nOrdered by priority. Assign owners and due dates in the blank columns.\n\n| # | Action | Type | Owner | Due |\n|---|--------|------|-------|-----|\n| 1 | **Fail the job on empty output.** Exit non-zero if rows written is 0 (or below a configured minimum). | Prevent | | |\n| 2 | **Gate delivery on validation.** Do not send the file to the client unless post-export checks pass: row count > 0, row count within an expected band of the recent average (e.g. \u00b1X% of the trailing 7-day median), expected columns present, and file size above a floor. Failed runs are quarantined, not delivered. | Prevent | | |\n| 3 | **Stop swallowing errors.** Audit the job for catch-and-continue behavior, especially around authentication and DB connections. Failures must propagate. | Prevent | | |\n| 4 | **Monitor outcomes, not exit codes.** Emit row count and file size as metrics and alert on zero or anomalous values. Alert on a missing run too, not only a failed one. | Detect | | |\n| 5 | **Automate query-change verification.** Replace the wiki step with a CI check that runs the changed query against a staging or sample dataset and asserts a non-empty, schema-conformant result. Block merge on failure. | Prevent | | |\n| 6 | **Add schema-drift detection.** Fail early with a clear message if expected tables or columns are missing (covers incident 1). | Detect | | |\n| 7 | **Credential expiry handling.** Alert ahead of expiry and fail loudly on auth errors (covers incident 2). | Prevent / Detect | | |\n| 8 | **Review all other client-facing jobs** for the same pattern (exit 0 on empty output, exit-code-only monitoring). | Prevent | | |\n| 9 | **Fix the onboarding gap.** Move critical procedures out of the wiki and into enforced tooling. Where a manual step must remain, put it in a PR template checklist. | Process | | |\n| 10 | **Define a client-communication playbook** for data-quality incidents, so we notify clients proactively. | Respond | | |\n\n### Suggested sequencing\n\n- **This week:** items 1, 3, and 4 are small and remove the silent-failure property directly.\n- **Next sprint:** items 2, 5, and 8.\n- **Following:** items 6, 7, 9, and 10.\n\n## 8. Success Criteria\n\n- A zero-row or anomalous export can no longer reach a client without a human override.\n- An empty export triggers an alert to the team within minutes, before the delivery window.\n- Replaying each of the three incident scenarios in staging (schema rename, expired credential, bad query) results in a failed job and an alert, not a delivered file.\n\n## 9. Open Questions\n\n- What is the expected minimum or typical row count for this export, and how variable is it day to day?\n- Are there legitimate cases where the export is empty? If so, they need an explicit opt-in and not a silent default.\n- Which other jobs deliver to clients or downstream systems with the same exit-code-only monitoring?\n- Who owns client communication when a data-quality failure occurs?\n\n## 10. Lessons Learned\n\n1. A success exit code says the process finished, not that the result is correct.\n2. A recurring outcome with changing triggers points to a missing control, not to the triggers.\n3. Safeguards that depend on someone remembering a wiki step will eventually fail. Controls for client-facing output should be automated and enforced.\n\n---\n\nFill in the timeline, impact details, owners, and due dates, which I don't have, before circulating."
+}

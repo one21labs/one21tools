@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E4-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E4",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 40695.2,
+  "duration_ms": 39795,
+  "duration_api_ms": 39527,
+  "cost_usd": 0.088672,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 736,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 4118,
+   "output_tokens_details": {
+    "thinking_tokens": 1327
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 736,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4118,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 736,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 736
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T12:05:51.069661+00:00",
+   "end": "2026-10-12T12:06:31.764889+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.088672
+ },
+ "response": "I'll put the details in the files. The main decisions:\n\n- **Root CLAUDE.md** holds only what applies everywhere.\n- **Service quirks** go in per-directory CLAUDE.md files.\n- **The api/gen/ rule** is also enforced by a hook.\n- **The runbook** is a company-wide skill rather than CLAUDE.md text.\n- **The warehouse** is an MCP server.\n\n\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-fhik6sjv/layout.md</parameter>\n<parameter name=\"content\"># Claude Code context layout \u2014 atlas monorepo\n\nGuiding rule: CLAUDE.md is loaded into context every session, so it holds only short facts that are always true and always relevant. Anything long, procedural, occasional, or that must be *guaranteed* goes into a mechanism built for that.\n\n## Layout\n\n| What | Where | Mechanism | Rationale |\n|---|---|---|---|\n| Org conventions (conventional commits, `make check` before PR, trunk-based) | `atlas/CLAUDE.md` | Root project memory, checked in | Applies to every change in every service, so it belongs in the one file that always loads. |\n| Monorepo map + one-line gotcha per service | `atlas/CLAUDE.md` | Root project memory | Claude may run a command from the root before it has read any file in a service; a single line each prevents that failure for very little context cost. |\n| api/ details (generated code, `make proto`) | `atlas/api/CLAUDE.md` | Subdirectory memory (loads when Claude works in `api/`) | Service-specific detail stays out of web/pipeline sessions. |\n| **Enforcement**: no edits under `api/gen/` | `atlas/.claude/settings.json` \u2192 `PreToolUse` hook on `Edit\\|Write\\|MultiEdit` running `.claude/hooks/block-generated.sh` (exit 2 with \"edit the .proto and run `make proto`\") | Hook, checked in | Hand-edits are *silently* overwritten. A hook blocks the edit every time, while an instruction is only usually followed. |\n| web/ details (`npm run test:unit` vs Playwright `npm test`) | `atlas/web/CLAUDE.md` | Subdirectory memory | Only relevant when working in web/. |\n| pipeline/ details (`AIRFLOW_HOME`) | `atlas/pipeline/CLAUDE.md` | Subdirectory memory | Only relevant when working in pipeline/. Not set via `settings.json` `env` because that applies repo-wide and needs an absolute path. |\n| 20-step incident-response runbook | Company plugin (org plugin marketplace) containing `skills/incident-response/SKILL.md` | Skill, distributed as a company-wide plugin | Every team uses it identically, so it belongs in one place outside atlas. A skill loads only when an incident comes up, so the 20 steps don't take up context in every session. |\n| Analytics warehouse SQL | `atlas/.mcp.json`: a warehouse MCP server, credentials via `${WAREHOUSE_DSN}` env expansion, read-only role | Project-scope MCP server | MCP is how Claude gets live tool access. Env expansion keeps secrets out of git. Project servers need per-user approval, so non-analysts can decline it. If analysts work outside atlas, move it to user scope or the company plugin. |\n| Warehouse guardrails | `atlas/.claude/settings.json` `permissions` (e.g., `ask` for the warehouse query tool) plus a read-only DB role on the server side | Permissions + DB grants | Safety should come from the credential, not from asking nicely in a prompt. |\n| Personal preferences | `atlas/CLAUDE.local.md` (gitignored) or `~/.claude/CLAUDE.md` | Local / user memory | Keeps individual taste out of the shared file. |\n\n## Deliberately *not* done\n\n- **Runbook pasted into CLAUDE.md**: it would load ~20 steps into every session and get copied into every repo.\n- **Runbook as a repo-local `.claude/skills/`**: other teams' repos wouldn't have it, and the copies would drift apart.\n- **Relying on CLAUDE.md alone for `api/gen/`**: the failure is silent, so it needs a hard block.\n- **Org conventions in a managed-policy CLAUDE.md**: worth considering if conventional commits and trunk-based development are enforced across *all* company repos. `make check` is atlas-specific, so it stays in the repo regardless.\n\n## Files to create\n\n```\natlas/\n\u251c\u2500\u2500 CLAUDE.md\n\u251c\u2500\u2500 CLAUDE.local.md            # gitignored, optional\n\u251c\u2500\u2500 .mcp.json                  # warehouse MCP server\n\u251c\u2500\u2500 .claude/\n\u2502   \u251c\u2500\u2500 settings.json          # hook + permissions\n\u2502   \u2514\u2500\u2500 hooks/block-generated.sh\n\u251c\u2500\u2500 api/CLAUDE.md\n\u251c\u2500\u2500 web/CLAUDE.md\n\u2514\u2500\u2500 pipeline/CLAUDE.md\n\ncompany-claude-plugin/          # separate repo, org marketplace\n\u2514\u2500\u2500 skills/incident-response/SKILL.md\n```\n</parameter>\n</invoke>\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-fhik6sjv/CLAUDE.md</parameter>\n<parameter name=\"content\"># atlas\n\nMonorepo with three services. Each has its own CLAUDE.md with details.\n\n- `api/` \u2014 Go, gRPC. **Never edit `api/gen/`**: it is generated by `make proto`. Edit the `.proto` files and regenerate.\n- `web/` \u2014 React/TypeScript. Unit tests: `npm run test:unit`. `npm test` launches real Playwright browsers; don't run it unless asked.\n- `pipeline/` \u2014 Python, Airflow. Set `AIRFLOW_HOME` to `pipeline/.airflow` (absolute path) before importing or testing DAGs.\n\n## Conventions (apply everywhere)\n\n- Commits use Conventional Commits: `type(scope): summary`, e.g. `fix(api): handle empty cursor`. Use the service name as the scope.\n- `make check` (from the repo root) must pass before opening a PR. Run it and fix the failures; don't skip it.\n- Trunk-based development: short-lived branches off `main`, merged quickly. Don't create long-lived or stacked feature branches.\n\n## Tools\n\n- Product-metrics questions: query the analytics warehouse through the `warehouse` MCP server. Show the SQL you ran alongside the results.\n- Incidents: use the `incident-response` skill and walk through it step by step.\n</parameter>\n</invoke>\n\n\nBoth files are written in the current directory:\n\n- **`layout.md`** maps every piece of context to its location and mechanism, with a rationale for each. It also lists the alternatives I rejected and a file tree.\n- **`CLAUDE.md`** is the proposed root file. It's about 20 lines and holds only always-relevant content.\n\nThe main tradeoffs:\n\n1. **Runbook**: I made it a skill shipped in a company-wide plugin, not CLAUDE.md text. Every team shares one copy, and its 20 steps load only during an incident.\n2. **`api/gen/`**: I put it in CLAUDE.md *and* added a `PreToolUse` hook that blocks the edit. Because overwrites are silent, an instruction alone isn't enough.\n3. **Service quirks**: the full details go in each service's own CLAUDE.md, but I kept one line per quirk in the root file. That way Claude still catches them if it runs a command from the root before reading anything in that service. It's a little duplication, chosen on purpose.\n4. **Warehouse**: it's a project `.mcp.json` server with env-expanded credentials and a read-only DB role. If analysts don't usually work inside atlas, it should move to user scope or the company plugin instead.\n\nI didn't create the supporting files: the subdirectory CLAUDE.md files, `settings.json`, the hook script, `.mcp.json`, and the skill. I can draft those next if you want."
+}

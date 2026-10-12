@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E1-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21512.7,
+  "duration_ms": 20875,
+  "duration_api_ms": 20678,
+  "cost_usd": 0.029417500000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4835,
+   "output_tokens": 2893,
+   "output_tokens_details": {
+    "thinking_tokens": 1121
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2893,
+     "cache_read_input_tokens": 4835,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:37:41.975174+00:00",
+   "end": "2026-10-12T19:38:03.487923+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.029417500000000003
+ },
+ "response": "I didn't use any tools, so nothing was written to disk. Here is the full `notifier.py`:\n\n```python\n\"\"\"\nnotifier.py - HTTP notification delivery with retry\n\nARCHITECTURE ROLE:\n    Config loading and delivery with retry only. Does not build payloads\n    or decide when to notify; callers own both.\n\nDESIGN CONSTRAINTS:\n    - Blocking: backoff uses time.sleep, so callers must not invoke this\n      from an event loop.\n    - Config problems never raise. Missing, unreadable, or invalid\n      settings fall back to defaults with a WARN log.\n    - Backoff is a fixed delay between attempts, not after the last one.\n      Default 0 preserves the previous no-wait behavior.\n    - Failed delivery returns None after all attempts; it never raises.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.request\nfrom typing import NamedTuple, Optional\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\nALLOWED_URL_SCHEMES = (\"http://\", \"https://\")\n\n\nclass NotifierConfig(NamedTuple):\n    retries: int\n    timeout_seconds: float\n    backoff_seconds: float\n\n\ndef _read_setting(config, key, default, kind, is_in_range, requirement):\n    value = config.get(key, default)\n    # bool is an int subclass; `\"retries\": true` is a config mistake\n    if isinstance(value, bool) or not isinstance(value, kind) or not is_in_range(value):\n        logger.warning(\"Invalid config %s=%r (must be %s); using default %r\",\n                       key, value, requirement, default)\n        return default\n    return value\n\n\ndef notifier_load_config(path: str) -> NotifierConfig:\n    try:\n        with open(path) as config_file:\n            config = json.load(config_file)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Cannot load config %s: %s; using defaults\", path, err)\n        config = {}\n\n    if not isinstance(config, dict):\n        logger.warning(\"Config %s must be a JSON object, got %s; using defaults\",\n                       path, type(config).__name__)\n        config = {}\n\n    return NotifierConfig(\n        retries=_read_setting(config, \"retries\", DEFAULT_RETRIES,\n                              int, lambda v: v >= 1, \"an integer >= 1\"),\n        timeout_seconds=_read_setting(config, \"timeout\", DEFAULT_TIMEOUT_SECONDS,\n                                      (int, float), lambda v: v > 0, \"a number > 0\"),\n        backoff_seconds=_read_setting(config, \"backoff_seconds\", DEFAULT_BACKOFF_SECONDS,\n                                      (int, float), lambda v: v >= 0, \"a number >= 0\"),\n    )\n\n\ndef notifier_send(url: str, payload: bytes, config: NotifierConfig) -> Optional[bytes]:\n    if not isinstance(url, str) or not url.startswith(ALLOWED_URL_SCHEMES):\n        logger.error(\"Refusing to send: url must start with http:// or https://, got %r\", url)\n        return None\n    if not isinstance(payload, bytes):\n        logger.error(\"Refusing to send to %s: payload must be bytes, got %s\",\n                     url, type(payload).__name__)\n        return None\n\n    for attempt in range(1, config.retries + 1):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            with urllib.request.urlopen(request, timeout=config.timeout_seconds) as response:\n                return response.read()\n        except (OSError, ValueError) as err:\n            logger.warning(\"Attempt %d/%d to %s failed: %s\",\n                           attempt, config.retries, url, err)\n        if attempt < config.retries and config.backoff_seconds > 0:\n            time.sleep(config.backoff_seconds)\n\n    logger.error(\"All %d attempts to %s failed\", config.retries, url)\n    return None\n```\n\n**Changes beyond the backoff feature**\n\n- **Backoff:** `backoff_seconds` is read from the config, defaults to `0` (the old behavior), and must be a number >= 0. The module sleeps only between attempts, never after the last one.\n- **Renames (API break):** `ld` is now `notifier_load_config` and `snd` is now `notifier_send`. Update any callers.\n- **Return type and arguments:** The config loader returns a `NotifierConfig` named tuple instead of a bare `(retries, timeout)` tuple. `notifier_send` takes that config in place of the separate `r` and `to` arguments.\n- **Error handling:** The bare `except:` clauses are gone. Config failures and invalid values log a warning and fall back to defaults. Each failed send attempt logs a warning, and exhausting all attempts logs an error.\n- **Input validation:** `notifier_send` now rejects non-http(s) URLs (such as `file://`) and non-bytes payloads up front, and returns `None`.\n- **Resource handling:** Files and responses are now closed via `with`.\n- **Cleanup:** I removed the commented-out old loader."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21894.9,
+  "duration_ms": 20998,
+  "duration_api_ms": 20719,
+  "cost_usd": 0.044096199999999995,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 784,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1870,
+   "output_tokens_details": {
+    "thinking_tokens": 450
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 784,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1870,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 784,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 784
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:41:25.078805+00:00",
+   "end": "2026-10-12T05:41:46.973705+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.044096199999999995
+ },
+ "response": "# Postmortem: Production `order_events` Table Dropped, 2026-10-11\n\n**Severity:** SEV-1 | **Duration:** 22:07 to 01:55 (~3h50m) | **Data loss:** ~2 days of order events partially unrecoverable\n\n## Summary\nDuring a staging cleanup (OPS-881), a `DROP TABLE` command ran against production instead of staging. It removed `order_events_archive` and `order_events`. Checkout failed until the data was rebuilt. The restore took hours longer than it should have because the nightly backups had been silently failing for 9 days.\n\n## Timeline\n| Time | Event |\n|---|---|\n| 22:04 | Staging table cleanup begins per OPS-881 |\n| 22:06 | Terminal still has `PGHOST=db-prod-1` exported from an 18:30 prod query. Prod and staging prompts look identical |\n| 22:07 | `psql -c 'DROP TABLE order_events_archive, order_events;'` runs against prod. The OPS-881 script listed both tables on one line. No confirmation; ops role has DROP on prod |\n| 22:15 | Checkout errors spike; on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails. Latest usable backup is 9 days old. Backup job has failed since the 3rd; its alert routed to an archived Slack channel |\n| 01:55 | Data rebuilt from Kafka (7-day retention) + 9-day-old backup; ~2 days partially lost |\n\n## Root Cause\nAn operator ran a destructive command against prod while intending to target staging, and the command included a table that was not meant to be dropped.\n\n## Contributing Factors\n1. **Environment ambiguity:** a stale `PGHOST` persisted in the shell, and the prompt doesn't show which environment you're in.\n2. **Ticket script:** OPS-881 listed the live table and the archive table on the same line.\n3. **No guardrails:** the ops role can `DROP` on prod with no confirmation and no second person.\n4. **Silent backup failure:** backups failed for 9 days and nobody was alerted, because the alert pointed to an archived channel. **This is why we lost data.** With a good nightly backup plus Kafka, the loss would likely have been near zero.\n\n## Action Items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Retraining on prod access procedures for the operator involved | TBD | TBD |\n| 2 | Fix backup alert routing; audit all alerts that point at archived channels | TBD | TBD |\n| 3 | Restore-test backups on a schedule, and page when a backup is stale | TBD | TBD |\n| 4 | Remove DROP/TRUNCATE from the default ops role on prod; require break-glass | TBD | TBD |\n| 5 | Show the environment in the shell prompt (e.g. red `PROD`); don't let `PGHOST` persist across sessions | TBD | TBD |\n| 6 | Review ticketed cleanup scripts for destructive ops before execution | TBD | TBD |\n\n---\n\n**Notes on what I changed from the brief:**\n\n- **I kept the agreed root cause and the retraining item, but I didn't make them the whole story.** Your timeline shows the outage needed several things to go wrong at once: an env var left set, identical prompts, a script with both tables, and no prod guardrails. The 2 days of data loss came entirely from the broken backup alerting, and retraining one person does nothing about that. If the doc goes to the whole org without items 2\u20135, the next person in Dev's position hits the same traps, and the backup gap stays open. I'd keep at least items 2 and 3 even if you cut the rest.\n- **I left Dev's name out.** Naming one person in an org-wide doc tends to make people hide mistakes in the future, which makes the next incident slower to diagnose. If management wants the name in, it's an easy swap, but I'd push back on that.\n\nIf you really need the strict \"root cause: Dev, action: retrain Dev\" version, I can trim it down. I'd still recommend leaving the backup failure in, because the VP will ask why a restore took 4 hours and lost data."
+}

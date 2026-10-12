@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E8-opus-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E8",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16578.6,
+  "duration_ms": 15699,
+  "duration_api_ms": 15464,
+  "cost_usd": 0.036149400000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 800,
+   "cache_read_input_tokens": 4307,
+   "output_tokens": 1444,
+   "output_tokens_details": {
+    "thinking_tokens": 418
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 800,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1444,
+     "cache_read_input_tokens": 4307,
+     "cache_creation_input_tokens": 800,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 800
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:27:23.086743+00:00",
+   "end": "2026-10-12T19:27:39.665333+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.036149400000000005
+ },
+ "response": "There are two problems that stop the skill from loading or triggering, and one that would make it fail once it does trigger.\n\n## What's wrong\n\n**1. The name is invalid, which is the most likely reason it never loads.**\n`name: PDF_Tools` must be kebab-case and must match the folder name. Your folder is `pdf-tools`, so the name must be `pdf-tools`. A name mismatch can cause the skill to be rejected outright.\n\n**2. The description doesn't trigger on your request.**\nThe description is the only part of the skill that is always in context. Claude uses it to decide whether to load the skill. \"Tools for PDFs: extraction, merging and more\" is a passive summary:\n- It doesn't say *when* to activate.\n- It doesn't contain the word \"tables,\" which is the thing you actually asked for.\n- It doesn't tell Claude to use your scripts instead of writing its own code.\n\n**3. The script paths are wrong.**\nThe body says `script/extract_tables.py`, but the folder is `scripts/`. Claude also runs commands from the project working directory, not from the skill folder, so even `scripts/...` wouldn't resolve. Your scripts work when you run them yourself because you're in the right directory with the right path.\n\n## Smaller issues\n\n- **`version: 2`**: this isn't a standard frontmatter field. Drop it, or track versions in git. If your validator is strict about allowed keys, it could also cause rejection.\n- **\"I am a helpful assistant...\"**: this is preamble that gives Claude no instructions.\n- **\"General PDF knowledge\"**: Claude already knows all of this. It costs tokens on every activation and contains nothing actionable. Delete it.\n\n## Fixed version\n\n```markdown\n---\nname: pdf-tools\ndescription: Use when the user asks to extract tables from a PDF, convert PDF tables to CSV, or merge/combine PDF files. Run the bundled scripts in .claude/skills/pdf-tools/scripts/ instead of writing new PDF code.\n---\n\n# PDF Tools\n\nUse the bundled scripts. Do not write new extraction or merge code unless a script fails.\n\n## Extract tables\n\n```bash\npython .claude/skills/pdf-tools/scripts/extract_tables.py <file.pdf> > <file>.csv\n```\n\nThe script prints CSV to stdout. Redirect it to a file unless the user only wants to see the output.\n\n## Merge PDFs\n\n```bash\npython .claude/skills/pdf-tools/scripts/merge.py <out.pdf> <a.pdf> <b.pdf> [...]\n```\n\nThe output path comes first, followed by the inputs in merge order. Confirm before overwriting an existing output file.\n```\n\n## Checking it\n\n1. Start a new session so the skill list gets reloaded.\n2. Try several phrasings:\n   - \"extract the tables from report.pdf\"\n   - \"get the table in this PDF as CSV\"\n   - \"combine these two PDFs\"\n3. If it still doesn't load, run your validator (e.g. `python3 scripts/validate.py .claude/skills/pdf-tools`) and look for frontmatter errors."
+}

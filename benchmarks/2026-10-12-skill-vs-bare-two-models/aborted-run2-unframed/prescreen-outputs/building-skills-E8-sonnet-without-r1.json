@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E8-sonnet-without-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14277.1,
+  "duration_ms": 13339,
+  "duration_api_ms": 12999,
+  "cost_usd": 0.019996100000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 766,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1672,
+   "output_tokens_details": {
+    "thinking_tokens": 621
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 766,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1672,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 766,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 766
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:28:19.828546+00:00",
+   "end": "2026-10-12T05:28:34.105633+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.019996100000000003
+ },
+ "response": "There are a few problems. Two of them probably explain why the skill never loads.\n\n## What's wrong\n\n1. **The description doesn't say when to use the skill.** Claude decides whether to load a skill almost entirely from `name` and `description`. \"Tools for PDFs: extraction, merging and more\" has no trigger terms like \"tables\" or \"CSV\", and \"and more\" says nothing. This is the most likely reason \"extract the tables from this PDF\" doesn't match. A good description covers what the skill does and when to use it.\n\n2. **The `name` is invalid and doesn't match the folder.** `PDF_Tools` has uppercase letters and an underscore, while the folder is `pdf-tools`. Names should be lowercase letters, numbers, and hyphens, and should match the directory. An invalid name can stop the skill from registering at all.\n\n3. **The paths are wrong.** The doc says `script/` but the folder is `scripts/`. Your scripts work when you run them by hand because you use the real path, but the instructions Claude follows would fail. Relative paths also resolve against the project's working directory, not the skill folder, so it's safer to anchor them with `${CLAUDE_SKILL_DIR}`.\n\n4. **`version: 2` isn't a recognized frontmatter field.** It's probably ignored, so I'd drop it.\n\n5. **The body wastes context.** \"I am a helpful assistant\u2026\" and the \"General PDF knowledge\" section (history, PDF/A, xref tables) are things Claude already knows. They cost tokens whenever the skill loads and don't help the task. The body should only contain what Claude wouldn't otherwise know, such as your scripts and how to call them.\n\n## Fixed version\n\n```markdown\n---\nname: pdf-tools\ndescription: Extracts tables from PDF files as CSV and merges multiple PDFs into one. Use when the user asks to pull, extract, or convert tables from a PDF, or to combine, merge, or concatenate PDF files.\n---\n\n# PDF Tools\n\n## Extracting tables\nPrints each table as CSV to stdout:\n\n    python ${CLAUDE_SKILL_DIR}/scripts/extract_tables.py <file.pdf>\n\nRedirect to a file if the user wants to keep the output (`> tables.csv`).\n\n## Merging\nMerges the input PDFs, in order, into the first argument:\n\n    python ${CLAUDE_SKILL_DIR}/scripts/merge.py <out.pdf> <a.pdf> <b.pdf> [...]\n```\n\n## If it still doesn't load\n\n- Start a new session, since skills are discovered at startup.\n- Confirm the path is `.claude/skills/pdf-tools/SKILL.md` at the project root (or `~/.claude/skills/` for a personal skill), and that the file is named exactly `SKILL.md`.\n- Check that the skill shows up in the skills list (`/skills` or similar in your version). If it's absent there, the problem is the frontmatter or location, not the description.\n\nI can't tell from the text alone whether the name or the description was the blocker, but fixing both covers it. If your scripts have requirements like pdfplumber, add a line saying so, so Claude can install them instead of failing."
+}

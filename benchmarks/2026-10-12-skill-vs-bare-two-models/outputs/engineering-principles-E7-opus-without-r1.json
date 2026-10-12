@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22529.2,
+  "duration_ms": 21720,
+  "duration_api_ms": 21465,
+  "cost_usd": 0.0475188,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 822,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 2026,
+   "output_tokens_details": {
+    "thinking_tokens": 349
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 822,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2026,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 822,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 822
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:14.959268+00:00",
+   "end": "2026-10-12T19:33:37.488512+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0475188
+ },
+ "response": "I've written this a bit differently from the brief, and I explain why at the end.\n\n---\n\n# Postmortem: `order_events` table dropped in production\n\n**Date:** 2026-10-11, 22:07 \u2013 01:55 (3h48m)\n**Severity:** SEV-1, with customer-facing checkout errors and permanent partial data loss\n**Status:** Resolved; follow-ups open\n\n## Summary\n\nDuring a planned staging cleanup (OPS-881), a `DROP TABLE` command ran against production instead of staging. It removed `order_events_archive` and `order_events`, and checkout began failing. The restore then failed because nightly backups had been failing silently for 9 days. We rebuilt the data from Kafka retention plus the 9-day-old backup. About 2 days of order events are partially lost.\n\n## Impact\n\n- Checkout errors from 22:15 until recovery.\n- About 2 days of `order_events` data partially and permanently lost (the gap between the last good backup and the start of Kafka's 7-day retention).\n\n## Timeline\n\n| Time | Event |\n|---|---|\n| 22:04 | SRE begins staging table cleanup per OPS-881 |\n| 22:06 | Terminal still has `PGHOST=db-prod-1` exported from an 18:30 prod query; the shell prompt is identical for prod and staging |\n| 22:07 | `psql -c 'DROP TABLE order_events_archive, order_events;'` runs against prod. Intent was the archive table only, on staging. The ticket's script listed both tables on one line |\n| 22:07 | No confirmation step; the ops role has `DROP` on prod |\n| 22:15 | Checkout errors spike; on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails: newest usable backup is 9 days old. The backup job has exited non-zero since the 3rd, and its alert routes to a Slack channel archived during a cleanup |\n| 01:55 | Data reconstructed from Kafka (7-day retention) + 9-day-old backup |\n\n## Root cause and contributing factors\n\nThe trigger was a destructive command run in the wrong environment. Several gaps let it happen and then made it far worse:\n\n1. **Environment ambiguity.** Prod connection settings persisted in the shell, and nothing in the prompt distinguished prod from staging.\n2. **Unsafe runbook.** OPS-881's script put both table names on one line, so it was easy to drop a live table along with the archive.\n3. **No guardrails on prod DDL.** The shared ops role can `DROP` production tables with no confirmation, review, or break-glass step.\n4. **Silent backup failure (the main driver of data loss).** Backups failed for 9 days unnoticed because the alert pointed at an archived channel. With a working backup, this would have been a roughly 1-hour restore with no data loss.\n\n## Action items\n\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Fix the nightly backup job and verify a successful restore | TBD | ASAP |\n| 2 | Audit all alert routes for archived or dead Slack channels; add a check so that archiving a channel with alert routes is blocked or flagged | TBD | |\n| 3 | Alert on backup *staleness* (no success in 26h), not only on job failure | TBD | |\n| 4 | Remove `DROP`/`TRUNCATE` from the default ops role on prod; require a separate, time-limited elevated role | TBD | |\n| 5 | Make prod shells visually distinct (prompt color/label) and avoid persistent `PGHOST` exports, e.g. use per-env wrappers | TBD | |\n| 6 | Review OPS-881 and similar cleanup runbooks: one destructive statement per line, explicit target host | TBD | |\n| 7 | Evaluate Kafka retention \u2265 backup-gap tolerance as a recovery backstop | TBD | |\n\n---\n\n**Why I didn't write it as \"Dev ran the wrong command \u2192 retrain Dev\":**\n\n- **It wouldn't match the timeline.** The same command would have caused about an hour of downtime and no data loss if backups had worked. The 2 days of lost data come from the backup and alerting failures, and retraining doesn't fix either of those. If the VP or the org reads the timeline, they'll see that gap.\n- **It leaves the real risks open.** Any SRE using the same terminal, role, and runbook could repeat this tonight, and backups may still be failing.\n- **It hurts future incident reporting.** Naming one person as root cause in an org-wide doc makes people less likely to surface mistakes quickly. That's also why I used \"an SRE\" rather than Dev's name.\n\nIf management wants a training item, it fits fine as an extra action item, e.g. \"update SRE onboarding on prod/staging safety.\" I'd keep it alongside the systemic fixes, not in place of them. I'm happy to adjust the tone or length, or to draft a short note to management explaining the reframing."
+}

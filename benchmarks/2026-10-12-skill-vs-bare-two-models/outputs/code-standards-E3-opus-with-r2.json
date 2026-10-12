@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-opus-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 65482.5,
+  "duration_ms": 64846,
+  "duration_api_ms": 64598,
+  "cost_usd": 0.162065,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 700,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 7781,
+   "output_tokens_details": {
+    "thinking_tokens": 3826
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 700,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7781,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 700,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 700
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:28:05.757849+00:00",
+   "end": "2026-10-12T19:29:11.240352+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.162065
+ },
+ "response": "## ingest.py\n\n```python\n\"\"\"\ningest.py - JSONL ingest entry point\n\nARCHITECTURE ROLE:\n    Owns input reading, per-record orchestration, output persistence, and\n    logging configuration for the pipeline. Does NOT own enrichment rules\n    (enrich.py).\n\nDESIGN CONSTRAINTS:\n    - Logging is configured only here. enrich.py logs through the standard\n      logging hierarchy and must never install handlers.\n    - Every record gets correlation_id \"<run_id>:<line_no>\", passed to\n      enrich.py. Grepping one id shows that record's full path; grepping\n      the run_id prefix shows the whole run.\n    - Per-record failures are logged and skipped, and the run continues.\n      Failure to open input or output aborts the run.\n    - Per-record success logs at DEBUG to avoid flooding production.\n      Set LOG_LEVEL=DEBUG to trace successful records.\n    - Output is flushed per record so a \"Record saved\" log means the write\n      reached the OS, not just a buffer.\n\nSEE ALSO:\n    enrich.py - region-to-zone enrichment\n\"\"\"\nimport json\nimport logging\nimport os\nimport sys\nimport uuid\nfrom datetime import datetime, timezone\n\nfrom enrich import enrich_record\n\nOUTPUT_PATH = \"out.jsonl\"\nINPUT_ENCODING = \"utf-8\"\nOUTPUT_ENCODING = \"utf-8\"\nLOG_LEVEL_ENV_VAR = \"LOG_LEVEL\"\nDEFAULT_LOG_LEVEL = \"INFO\"\nMAX_LOGGED_LINE_CHARS = 200\n\nOUTCOME_SAVED = \"saved\"\nOUTCOME_BLANK = \"blank\"\nOUTCOME_INVALID = \"invalid\"\nOUTCOME_NOT_ENRICHED = \"not_enriched\"\nOUTCOME_ENRICH_ERROR = \"enrich_error\"\nOUTCOME_SAVE_FAILED = \"save_failed\"\nALL_OUTCOMES = (\n    OUTCOME_SAVED,\n    OUTCOME_BLANK,\n    OUTCOME_INVALID,\n    OUTCOME_NOT_ENRICHED,\n    OUTCOME_ENRICH_ERROR,\n    OUTCOME_SAVE_FAILED,\n)\n\nlogger = logging.getLogger(__name__)\n\n\nclass JsonLogFormatter(logging.Formatter):\n    def format(self, record):\n        entry = {\n            \"timestamp\": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"correlation_id\": getattr(record, \"correlation_id\", None),\n            \"message\": record.getMessage(),\n            \"context\": getattr(record, \"context\", {}),\n        }\n        if record.exc_info:\n            entry[\"exception\"] = self.formatException(record.exc_info)\n        return json.dumps(entry, default=str)\n\n\ndef configure_logging():\n    level_name = os.environ.get(LOG_LEVEL_ENV_VAR, DEFAULT_LOG_LEVEL).upper()\n    level = logging.getLevelName(level_name)\n    is_valid_level = isinstance(level, int)\n\n    handler = logging.StreamHandler(sys.stderr)\n    handler.setFormatter(JsonLogFormatter())\n    root = logging.getLogger()\n    root.handlers[:] = [handler]\n    root.setLevel(level if is_valid_level else DEFAULT_LOG_LEVEL)\n\n    if not is_valid_level:\n        logger.warning(\n            \"Unrecognized log level; using default\",\n            extra=_log_extra(None, {\n                \"env_var\": LOG_LEVEL_ENV_VAR,\n                \"value\": level_name,\n                \"default\": DEFAULT_LOG_LEVEL,\n            }),\n        )\n\n\ndef run(path, output_path=OUTPUT_PATH):\n    run_id = uuid.uuid4().hex\n    counts = dict.fromkeys(ALL_OUTCOMES, 0)\n    run_context = {\"input_path\": path, \"output_path\": output_path}\n    logger.info(\"Run started\", extra=_log_extra(run_id, run_context))\n\n    try:\n        with open(path, \"rb\") as source, \\\n                open(output_path, \"a\", encoding=OUTPUT_ENCODING) as sink:\n            for line_no, raw_line in enumerate(source, start=1):\n                correlation_id = f\"{run_id}:{line_no}\"\n                outcome = _process_line(raw_line, line_no, correlation_id, sink)\n                counts[outcome] += 1\n    except OSError:\n        logger.exception(\n            \"Run aborted: I/O failure on input or output file\",\n            extra=_log_extra(run_id, {**run_context, \"counts\": counts}),\n        )\n        raise\n\n    logger.info(\"Run finished\", extra=_log_extra(run_id, {**run_context, \"counts\": counts}))\n    return counts\n\n\ndef _process_line(raw_line, line_no, correlation_id, sink):\n    context = {\"line_no\": line_no}\n\n    if not raw_line.strip():\n        logger.debug(\"Skipping blank line\", extra=_log_extra(correlation_id, context))\n        return OUTCOME_BLANK\n\n    try:\n        rec = json.loads(raw_line.decode(INPUT_ENCODING))\n    except (UnicodeDecodeError, json.JSONDecodeError) as err:\n        logger.warning(\n            \"Skipping unparseable line\",\n            extra=_log_extra(correlation_id, {\n                **context,\n                \"error\": str(err),\n                \"line_preview\": _preview(raw_line),\n            }),\n        )\n        return OUTCOME_INVALID\n\n    if not isinstance(rec, dict):\n        logger.warning(\n            \"Skipping line: expected JSON object\",\n            extra=_log_extra(correlation_id, {**context, \"json_type\": type(rec).__name__}),\n        )\n        return OUTCOME_INVALID\n\n    context[\"record_id\"] = rec.get(\"id\")\n\n    # Catch-all is deliberate: an enrichment bug must not abort a run of\n    # thousands of records, and the traceback is logged with the record's id.\n    try:\n        enriched = enrich_record(rec, correlation_id)\n    except Exception:\n        logger.exception(\"Enrichment raised unexpectedly\", extra=_log_extra(correlation_id, context))\n        return OUTCOME_ENRICH_ERROR\n\n    # enrich_record logs its own reason for declining a record.\n    if enriched is None:\n        return OUTCOME_NOT_ENRICHED\n\n    if not save(enriched, sink, correlation_id, context):\n        return OUTCOME_SAVE_FAILED\n\n    logger.debug(\"Record saved\", extra=_log_extra(correlation_id, context))\n    return OUTCOME_SAVED\n\n\ndef save(rec, sink, correlation_id, context):\n    try:\n        sink.write(json.dumps(rec) + \"\\n\")\n        sink.flush()\n    except OSError as err:\n        logger.error(\n            \"Failed to write record to output\",\n            extra=_log_extra(correlation_id, {\n                **context,\n                \"output_path\": sink.name,\n                \"error\": str(err),\n                \"errno\": err.errno,\n            }),\n        )\n        return False\n    return True\n\n\ndef _preview(raw_line):\n    return repr(raw_line[:MAX_LOGGED_LINE_CHARS])\n\n\ndef _log_extra(correlation_id, context):\n    return {\"correlation_id\": correlation_id, \"context\": context}\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    if len(sys.argv) != 2:\n        logger.error(\"Usage: python ingest.py <input.jsonl>\", extra=_log_extra(None, {\"argv\": sys.argv}))\n        sys.exit(2)\n    run(sys.argv[1])\n```\n\n## enrich.py\n\n```python\n\"\"\"\nenrich.py - region-to-zone enrichment\n\nARCHITECTURE ROLE:\n    Enrichment rules only. Does NOT own I/O, persistence, or logging\n    configuration (ingest.py configures handlers).\n\nDESIGN CONSTRAINTS:\n    - Caller supplies correlation_id. Every log line carries it so a\n      record's path can be traced across modules.\n    - Returns None when a record cannot be enriched. The reason is logged\n      here, at the point of decision, so callers must not re-log it.\n    - Mutates and returns the input dict.\n\nUSED BY:\n    ingest.py\n\"\"\"\nimport logging\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\nREGION_FIELD = \"region\"\nZONE_FIELD = \"zone\"\nRECORD_ID_FIELD = \"id\"\n\nlogger = logging.getLogger(__name__)\n\n\ndef enrich_record(rec, correlation_id):\n    if not isinstance(rec, dict):\n        logger.warning(\n            \"Record not enriched: expected dict\",\n            extra=_log_extra(correlation_id, {\"record_type\": type(rec).__name__}),\n        )\n        return None\n\n    context = {\"record_id\": rec.get(RECORD_ID_FIELD)}\n\n    if REGION_FIELD not in rec:\n        logger.warning(\n            \"Record not enriched: missing region field\",\n            extra=_log_extra(correlation_id, {**context, \"fields_present\": sorted(rec)}),\n        )\n        return None\n\n    region = rec[REGION_FIELD]\n    # isinstance guard: an unhashable region (list/dict) would raise in GEO.get.\n    zone = GEO.get(region) if isinstance(region, str) else None\n    if zone is None:\n        logger.warning(\n            \"Record not enriched: unknown region\",\n            extra=_log_extra(correlation_id, {\n                **context,\n                \"region\": region,\n                \"known_regions\": sorted(GEO),\n            }),\n        )\n        return None\n\n    rec[ZONE_FIELD] = zone\n    logger.debug(\n        \"Record enriched\",\n        extra=_log_extra(correlation_id, {**context, \"region\": region, \"zone\": zone}),\n    )\n    return rec\n\n\ndef _log_extra(correlation_id, context):\n    return {\"correlation_id\": correlation_id, \"context\": context}\n```\n\n## Notes\n\n**How to trace a record.** Each log line is a JSON object with `timestamp`, `level`, `logger`, `correlation_id`, `message`, and `context`. The `correlation_id` is `<run_id>:<line_no>`, so it points straight back to the source line. `context.record_id` carries the record's own `id` if it has one. Run with `LOG_LEVEL=DEBUG` to also see records that succeeded.\n\n**Changes in behavior beyond logging:**\n- **Output file handling.** The output file is opened once per run instead of once per record, and flushed after each write so the \"Record saved\" log is accurate. If the output can't be opened, the run aborts with an error log. Before, it would have failed on the first record.\n- **Bad input no longer crashes the run.** Malformed JSON, invalid UTF-8, non-object lines, a missing or non-string `region`, and unexpected exceptions in enrichment are now logged and skipped. Before, any of these crashed the whole run.\n- **New signature.** `enrich_record` now takes a `correlation_id` argument, so any other caller needs updating.\n- **Return value.** `run()` returns a dict of counts per outcome, and the \"Run finished\" summary line logs the same counts.\n\n**Data exposure.** Unparseable lines are logged as a truncated preview, capped at 200 characters. If records can contain PII, remove `line_preview` or redact it. Unknown `region` values are also logged as-is."
+}

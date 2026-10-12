@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E6-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E6",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 20713.4,
+  "duration_ms": 20028,
+  "duration_api_ms": 19776,
+  "cost_usd": 0.050093,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 691,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 2186,
+   "output_tokens_details": {
+    "thinking_tokens": 1047
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 691,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2186,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 691,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 691
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:29:33.892400+00:00",
+   "end": "2026-10-12T19:29:54.605783+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.050093
+ },
+ "response": "```python\nimport logging\nimport sqlite3\n\nlogger = logging.getLogger(__name__)\n\nPAGE_SIZE = 50\nLIKE_ESCAPE_CHAR = \"\\\\\"\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []\n\ndef find_users_by_domain(db, domain):\n    if not isinstance(domain, str) or not domain or \"@\" in domain or any(c.isspace() for c in domain):\n        raise ValueError(f\"invalid email domain: {domain!r}\")\n    # Escape LIKE wildcards so a domain containing % or _ matches literally,\n    # not as a pattern (e.g. \"a_b.com\" must not match \"axb.com\").\n    escaped_domain = (\n        domain.replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)\n        .replace(\"%\", LIKE_ESCAPE_CHAR + \"%\")\n        .replace(\"_\", LIKE_ESCAPE_CHAR + \"_\")\n    )\n    try:\n        return db.execute(\n            \"select * from users where email like ? escape ? limit ?\",\n            (\"%@\" + escaped_domain, LIKE_ESCAPE_CHAR, PAGE_SIZE),\n        ).fetchall()\n    except sqlite3.Error as err:\n        logger.error(\"find_users_by_domain failed: domain=%r error=%s\", domain, err)\n        return []\n```\n\nI left the existing three functions exactly as they were. The new function follows the module's conventions: the `(db, ...)` signature, a 50-row cap, and returning `[]` when the query fails. It differs in a few places where copying the old pattern would introduce bugs:\n\n- **Input validation.** A domain that is empty, not a string, or contains `@` or whitespace raises `ValueError`. Without this check, an empty domain would match every user whose email ends in `@`.\n- **LIKE escaping.** `%` and `_` in the domain are escaped. Otherwise a value like `%` would return every user.\n- **Narrow `except` with logging.** It catches only `sqlite3.Error` and logs the domain and the error before returning `[]`. A bare `except:` would also swallow programming errors and `KeyboardInterrupt` without any trace.\n- **`PAGE_SIZE` constant.** The new query uses `PAGE_SIZE`. `recent_users` and `search_users` still hardcode `50`. Changing those two literals to `PAGE_SIZE` would make the constant the single source for the page size. I didn't do it because you asked me not to touch the existing code, but it's a two-character change in each place.\n\nDomain matching is case-insensitive for ASCII, because SQLite's `LIKE` behaves that way by default. Like `search_users`, the query has no `order by`, so which 50 rows come back when there are more than 50 matches isn't guaranteed. Add `order by created desc` if you need a stable page."
+}

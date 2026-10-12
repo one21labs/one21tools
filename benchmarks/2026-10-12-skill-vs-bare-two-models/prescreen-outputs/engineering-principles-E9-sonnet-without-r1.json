@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E9-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13696.6,
+  "duration_ms": 13031,
+  "duration_api_ms": 12823,
+  "cost_usd": 0.0160901,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 732,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1295,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 732,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1295,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 732,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 732
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:05:29.268949+00:00",
+   "end": "2026-10-12T19:05:42.965590+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0160901
+ },
+ "response": "**Not yet.** The core idea (Postgres queue with SKIP LOCKED) is fine at this volume, but there's a correctness bug against your hard requirement, and the scope is far larger than the problem.\n\n## Blocking issue: duplicate invoice emails\n\nThe timeout/retry flow can send an invoice twice. If the provider accepts the request but the response takes more than 5s (or the connection drops), you mark the job failed and re-enqueue, and the retry sends again. That is exactly the failure Finance prohibits.\n\nFixes, in rough order of importance:\n1. **Use a provider idempotency key**, if the provider supports one (derive it from the invoice ID plus the email type). If it doesn't, consider that a reason to reconsider the provider or add the guard below.\n2. **Record a send intent before calling**: a unique constraint on something like `(type, business_key)` (e.g. `invoice_id`) so the same invoice can't be enqueued twice.\n3. **Treat timeouts as \"unknown\", not \"failed\".** For invoices, a timeout should move the job to an `uncertain` state that checks the provider's status or message log, or goes to manual review, rather than blind retry. Retrying is only safe on definite failures (connection refused, 4xx/5xx with a clear non-delivery).\n4. **Handle crashed workers**: a job locked by a worker that dies after the send but before commit will be re-picked. You need a `locked_at`/lease and the same idempotency check on re-pickup.\n5. Raise the 5s timeout; slow provider responses are normal and it makes the ambiguity more frequent.\n\nBe honest in the spec that this gives at-least-once delivery plus dedup, not exactly-once.\n\n## Scope: overbuilt for the load\n\n200\u2013500 emails/day is roughly one every few minutes. For a two-person team, 6 weeks is mostly spent on things that don't serve the requirement:\n- **Plugin system with YAML manifests**: no stated consumer. Cut it; add job types in code.\n- **5 priority levels with weighted fair scheduling**: at this volume there's no contention to be fair about. Use a single queue, or at most two (urgent for password resets, normal for the rest) via `ORDER BY priority, run_at`.\n- **React dashboard with throughput charts**: replace with a few SQL queries or a Metabase/Grafana view, plus a small CLI or script for manual retry. Revisit if needed.\n- **500ms polling**: fine, but `LISTEN/NOTIFY` or a 2\u20135s poll is plenty and lighter.\n\n## Build vs. buy\n\nWorth a direct answer in the doc: why not an existing library (e.g. Graphile Worker, pg-boss, River, Oban, depending on your stack) or your provider's built-in scheduling/retries? Those already implement SKIP LOCKED, backoff, and leases. The idempotency logic is the part you'd write regardless, and it's the part that matters. If there's a reason for in-house (language, compliance, existing infra), state it.\n\n## Smaller gaps\n- Dead-letter state and alerting when a job exhausts attempts (especially for invoices and password resets).\n- Retention/cleanup of completed jobs.\n- Payload contents: avoid storing sensitive data (reset tokens) longer than needed.\n- Backoff with jitter; password-reset emails should probably expire rather than send 20 minutes late.\n- Tests for the failure modes: timeout-after-accept, worker crash mid-send, duplicate enqueue.\n\n## Suggested v1\nPostgres table with a unique business key, lease-based locking, idempotency key on every send, an `uncertain` state for ambiguous timeouts, dead-letter alerting, and SQL/CLI tooling for inspection. That is likely 1\u20132 weeks, or less with an off-the-shelf library. Add the plugin system and dashboard only when a real need appears."
+}

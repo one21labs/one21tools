@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E3-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31619.4,
+  "duration_ms": 30718,
+  "duration_api_ms": 30386,
+  "cost_usd": 0.0597228,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 610,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 2721,
+   "output_tokens_details": {
+    "thinking_tokens": 192
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 610,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2721,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 610,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 610
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:31:29.304189+00:00",
+   "end": "2026-10-12T19:32:00.923638+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0597228
+ },
+ "response": "I haven't created `process-review.md`, because your request said not to use any tools. The full content is below and ready to save as that file. If you'd like me to write it to disk, let me know.\n\n---\n\n```markdown\n# Release Process Review\n\n## Summary\n\nThe team feels busy but shipping feels slow. That isn't a contradiction: work is\nwaiting in queues. A change spends most of its life idle, first in PR review,\nthen on `main` until the next train, then in a chain of sign-offs. Large batches\nmake every release risky, and risky releases attract more gates, which make\nbatches larger still.\n\nThe fix is to shrink batch size and remove waiting, not to work harder. The\nrecommendations below are ordered by impact relative to effort.\n\n## Where the time goes\n\nA rough estimate of lead time for a typical change:\n\n| Stage                          | Typical wait          | Nature            |\n|--------------------------------|-----------------------|-------------------|\n| PR awaiting review             | ~2 days               | Queue             |\n| Merged, waiting for train      | 0\u201314 days (avg ~7)    | Queue             |\n| Changelog compilation          | Hours (per release)   | Manual toil       |\n| QA \u2192 EM \u2192 PM sign-offs         | Sequential, likely days | Queue + handoffs |\n| **Total**                      | **~10+ days**         | Mostly waiting    |\n\nVery little of this is the work itself. Almost all of it is waiting.\n\n## Findings\n\n### 1. Batch size is the root cause of release stress\nAbout 40 changes ship together. When something breaks, it is hard to tell which\nchange caused it. Rollback reverts 39 good changes along with the bad one, and\nevery release needs heavy scrutiny. Risk grows faster than linearly with batch\nsize, because changes interact with one another.\n\n### 2. The biweekly train adds about a week of pure delay\nMerged code is finished code that is earning nothing. A fixed two-week cadence\nalso means feedback from real users arrives one to two weeks after the developer\nhas moved on and lost context.\n\n### 3. PR review latency is the first bottleneck\nA 2-day average wait creates context switching. Developers start new work while\nthey wait, so more work is in progress at once. The usual causes are large PRs,\nno review ownership, and review being treated as an interruption rather than a\npriority.\n\n### 4. Hand-copying the changelog is pure toil\nThe information already exists in the PR descriptions. Copying it by hand is slow\nand error-prone, and it puts the release manager on the critical path.\n\n### 5. Three sequential sign-offs multiply the wait\nEach approver waits for the previous one, so the total delay is the sum of three\ncalendar availabilities. Some questions also need answering:\n- What does each sign-off actually check, and is it different from the others?\n- Is the EM approving the *release* or the *people*? The latter belongs elsewhere.\n- Could the PM's concern, which is feature exposure, be handled with feature\n  flags instead of gating the deploy?\n\nSign-offs on a 40-change batch are also largely ceremonial. Nobody can\nmeaningfully review 40 changes at once.\n\n### 6. The hotfix path is the most urgent gap\nMaking an urgent one-line fix wait up to two weeks is a real operational risk:\noutages last longer, security exposure lasts longer, and customers stay affected.\nIt also gives people an incentive to bypass the process informally, which is\nworse than having a sanctioned fast path.\n\n## Recommendations\n\n### Do now (days)\n\n1. **Create a hotfix fast path.** Severity-qualified fixes skip the train:\n   - One reviewer, plus automated tests passing.\n   - A single on-call approver, not three.\n   - Deploy as soon as it's ready, with a follow-up note in the changelog.\n   - Define clearly what qualifies (e.g., Sev1/Sev2, security, data loss).\n\n2. **Automate the changelog.** Generate it from PR titles or labels, or from\n   conventional commits, using tools like release-drafter, changesets,\n   git-cliff, or GitHub's auto-generated release notes. Make a changelog entry a\n   required field in the PR template so quality is enforced at the source.\n\n3. **Run sign-offs in parallel, not in sequence.** All three approvers review at\n   the same time, with a time-box (e.g., 24 hours). This alone could save several\n   days per release.\n\n### Do next (weeks)\n\n4. **Set a review SLA and make it visible.** Aim for a first response within\n   4 working hours. Useful supports:\n   - Rotate a daily \"review duty\" person, or use CODEOWNERS auto-assignment.\n   - Set a team norm: review before starting new work.\n   - Keep PRs small (e.g., under ~400 lines changed); small PRs get reviewed fast.\n   - Track the time to first review on a dashboard.\n\n5. **Move from a biweekly to a weekly train, then to daily.** Each step roughly\n   halves the batch size and the train wait. Use the gaps between steps to find\n   what breaks, and automate it.\n\n6. **Redefine the sign-offs by purpose:**\n   - **QA:** move toward automated regression suites that run on every PR, with\n     QA focusing on exploratory testing and test strategy, not gating.\n   - **EM:** drop the per-release sign-off, and keep accountability through\n     metrics and retros.\n   - **PM:** gate *feature exposure* with feature flags, not code deploys.\n\n### Do later (months)\n\n7. **Decouple deploy from release with feature flags.** Code ships to production\n   dark and continuously. Product turns features on when ready, which removes\n   most of the reason to batch.\n\n8. **Move toward continuous delivery.** Every merge to `main` is deployable and\n   deploys automatically after it passes CI, using progressive rollout (canary\n   or percentage-based) and automated rollback on error-rate signals.\n\n9. **Invest in observability.** Small, frequent deploys are safe only if you can\n   detect a problem quickly. Alerting on error rates, latency, and key business\n   metrics is a prerequisite for step 8.\n\n## Measuring progress\n\nTrack the four DORA metrics so you can tell whether the changes are working:\n\n| Metric                  | Likely today       | Target (6 months)  |\n|-------------------------|--------------------|--------------------|\n| Deployment frequency    | Every 2 weeks      | Daily or more      |\n| Lead time for changes   | ~10+ days          | < 1 day            |\n| Change failure rate     | Unknown, measure it | < 15%             |\n| Time to restore service | Up to 2 weeks for hotfixes | < 1 hour   |\n\nAlso track the **time to first PR review** and **PR size**, since both are\nleading indicators.\n\n## Risks and how to manage them\n\n- **\"Faster means less safe.\"** The evidence points the other way: smaller and\n  more frequent releases fail less often and recover faster. Make the change\n  gradually, starting with a weekly train, and expand automation as you go.\n- **Approvers may feel they are losing control.** Reframe their role. QA owns\n  test strategy, product owns feature exposure, and the EM owns metrics. Each\n  gets more leverage, not less.\n- **Gaps in test coverage.** These will surface as cadence increases. Treat each\n  escaped defect as a prompt to add an automated check, not a reason to add a\n  manual gate.\n\n## Suggested first step\n\nThis week, ship the hotfix fast path and the parallel sign-offs. Both are policy\nchanges, cost nothing to implement, and deliver immediate relief. Automate the\nchangelog next sprint. Then hold a retro after two weekly releases before\ncommitting to further cadence changes.\n```"
+}

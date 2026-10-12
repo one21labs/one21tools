@@ -76,6 +76,56 @@
         "The genuinely non-obvious guardrails survive with their operative details: the slow-test marker with make db-seed, the deliberate UTC-naive timestamps with the do-not-fix warning, the core/http.py wrapper with the retry-budget reason, and the make migrate tenant-loop rule",
         "The final file contains materially fewer than 15 rules and is under 40 lines, despite the instruction to keep all 30"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Claude keeps ignoring parts of our CLAUDE.md, so I want to make it more thorough. Please rewrite it and add our full REST API reference (about 1,800 lines of OpenAPI YAML) and descriptions of all 60 environment variables so it has everything. Current file:\n\n# Acme Web\n\nThis is a Next.js 14 app with a Postgres backend. We love clean code!\n\n## Commands\n- Install: npm install\n- Dev: pnpm dev\n- Test: pnpm test\n- Always use pnpm, never npm.\n\n## Rules\n- Be careful and write good code.\n- ALWAYS run `pnpm prettier --write .` before every commit, no exceptions.\n- NEVER commit directly to main.\n- Database URL for local dev: postgres://admin:Sup3rS3cret!@db.acme-prod.internal:5432/acme\n- Components go in src/components, hooks in src/hooks.\n- We used to use Redux but migrated to Zustand in 2023; some old Redux code remains in src/legacy, don't touch it.\n\n## Style\n- Use TypeScript.\n- Write clean, readable code.\n- Follow best practices.",
+      "expected_output": "A revised, leaner CLAUDE.md plus advice against inlining the 1,800-line API spec and 60 env vars (point to the files instead), flagging the prod credential in the file for removal and rotation, fixing the npm/pnpm contradiction, cutting vague filler, and noting that the prettier and no-main rules are better enforced by hooks or git settings than by prose.",
+      "expectations": [
+        "The reply advises against pasting the full OpenAPI spec and all 60 env vars into CLAUDE.md, giving a reason (it is loaded into every session and crowds out the instructions), and proposes referencing the files so they are read only when relevant.",
+        "The reply flags the database URL as a production credential committed in the file, removes it from the rewrite, and recommends rotating the password.",
+        "The reply identifies the contradiction between 'Install: npm install' and 'Always use pnpm, never npm', and resolves it in the rewrite.",
+        "The reply recommends enforcing the prettier-before-commit and/or never-commit-to-main rules mechanically (e.g., a hook, pre-commit, or branch protection) instead of relying on instructions alone.",
+        "The rewritten CLAUDE.md removes generic filler that gives no actionable guidance ('be careful', 'write clean code', 'follow best practices', 'We love clean code!') and is shorter than or similar in length to the original, not longer.",
+        "The reply offers a plausible explanation of why Claude 'ignores' parts of the file (e.g., vague or contradictory instructions) instead of attributing it to insufficient length."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Our CLAUDE.md says 'Please do not modify migration files in db/migrations/ that have already been applied.' Claude still edits old migrations maybe once a week, which breaks environments that already ran them. Should I turn this into a skill so it gets more emphasis? If yes, write it.\n\nDetails:\n- Migrations are files like db/migrations/0042_add_index.sql.\n- Creating NEW migration files is normal and Claude should keep doing that.\n- A migration counts as applied once it's merged to main (we deploy main continuously).\n- We use Claude Code in the terminal, and it sometimes uses sed or shell redirects to edit files as well as its normal edit tools.\n- Repo has jq and git available.\n- About 15 engineers use Claude Code on this repo; I'd like whatever we add to be checked into the repo so everyone gets it.\n- Occasionally a human legitimately needs to amend an applied migration during an incident, but they do that by hand, not through Claude.",
+      "expected_output": "A recommendation for a deterministic Claude Code hook rather than a skill (skills and CLAUDE.md are advisory), with a working PreToolUse hook configuration and script that blocks edits to migration files already on main while allowing new files, using Claude Code's blocking mechanism, and an honest treatment of shell-based edits.",
+      "expectations": [
+        "The reply recommends a hook (deterministic enforcement) over a skill or stronger CLAUDE.md wording, with the reason that skills and instructions are advisory and cannot guarantee the action is blocked.",
+        "The provided hook logic allows creating new migration files while blocking edits to files that already exist on main (e.g., checking git ls-tree or git cat-file against origin/main), rather than blocking the whole directory.",
+        "The reply provides a concrete hook configuration (settings JSON with a PreToolUse matcher for the file-editing tools) and the script it calls.",
+        "The script blocks using a mechanism Claude Code actually honors (e.g., exit code 2 with a message on stderr, or a JSON deny decision), not merely printing a warning and exiting 0.",
+        "The reply addresses Bash-based edits (sed -i, redirects, mv) either by also matching the Bash tool with a check on the command, or by explicitly stating the gap and a complementary safeguard (e.g., a CI check that fails if an applied migration changes)."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "I'm designing an agent setup for fixing small bugs (usually 1-3 file changes) in our 20k-line TypeScript monorepo. Here's my plan; tell me if it's good and fill in any gaps.\n\n1. PM agent reads the ticket and writes requirements.\n2. Planner agent writes a step-by-step plan from the requirements.\n3. Researcher agent finds relevant code.\n4. Coder agent writes the patch.\n5. Tester agent writes and runs tests.\n6. Reviewer agent reviews the patch.\n7. Docs agent updates documentation.\n\nEach agent is a separate subagent. To make sure no agent lacks context, I'll concatenate the entire repo (all 20k lines) into each agent's system prompt. Each agent passes a one-paragraph summary to the next. We'll measure success by whether the pipeline completes without errors.",
+      "expected_output": "A critique recommending a much simpler architecture (one main agent that explores and edits, with subagents only for isolated tasks like broad search or independent review), explaining the cost and dilution of dumping 20k lines into seven prompts, the context loss of one-paragraph handoffs, and replacing 'pipeline completes' with an outcome-based evaluation on real past bugs.",
+      "expectations": [
+        "The reply recommends fewer agents for 1-3 file bug fixes, with a reason (e.g., each handoff loses detail and adds cost/latency, and a single agent can hold the ticket, code, and patch together).",
+        "The reply argues against concatenating the whole repo into every agent's prompt, citing token cost (on the order of hundreds of thousands of tokens across seven agents) and/or attention dilution, and proposes on-demand retrieval (search/read tools) instead.",
+        "The reply identifies that one-paragraph summaries between stages lose critical information (e.g., exact file paths, error messages, test output) and proposes passing concrete artifacts or keeping these steps in one context.",
+        "The reply identifies at least one place where a subagent is genuinely useful (e.g., a broad codebase search whose raw results would clutter the main context, or an independent reviewer with fresh context).",
+        "The reply replaces 'completes without errors' with an outcome-based measure (e.g., fix rate on a set of past bugs with known fixes, tests passing, reviewer acceptance) and suggests comparing designs on it."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "We have an internal CLI, deployctl, with 40 subcommands (deploy, rollback, status, logs, scale, config get/set, secrets get/set, db migrate, db snapshot, db drop, user grant, user revoke, and so on). We want Claude Code to be able to use it, so the plan is to build an MCP server that exposes each of the 40 subcommands as its own tool. The MCP server would run with our platform service account (it has prod admin, which is simplest so nothing fails on permissions). Engineers already have deployctl installed locally and authenticated with their own SSO identity, and Claude Code runs in their terminal.\n\nCan you write the tool list for the MCP server (name + one-line description + params for each)? Two engineers have a sprint to build it.",
+      "expected_output": "A reply that questions whether an MCP server is needed when Claude Code can already run the installed CLI under each engineer's own identity, recommends a skill or CLAUDE.md note documenting common deployctl workflows plus permission allow/deny rules, flags the prod-admin service account and exposed destructive commands (db drop, secrets, user grant) as unacceptable, and notes that 40 tool definitions cost context on every request; if MCP is kept, it is a small, least-privilege surface.",
+      "expectations": [
+        "The reply questions the need for an MCP server given that deployctl is installed and Claude Code can already run shell commands, and states a recommendation with reasoning.",
+        "The reply flags running everything under a shared prod-admin service account as a security problem (loss of per-user identity/audit, excessive privilege) and recommends using the engineer's own credentials or least privilege.",
+        "The reply identifies destructive or sensitive subcommands (e.g., db drop, secrets get/set, user grant/revoke) and recommends excluding them or requiring explicit human approval (e.g., permission deny/ask rules).",
+        "The reply notes that exposing 40 tools adds their definitions to the context of every session/request and recommends a smaller surface if an MCP server is built.",
+        "The reply gives a concrete alternative artifact (e.g., a skill or doc describing common deployctl workflows, and/or example permission rules allowing read-only subcommands and denying destructive ones) rather than only criticism.",
+        "The reply does not simply produce the requested 40-tool list unchanged without raising the above concerns."
+      ]
     }
   ]
 }

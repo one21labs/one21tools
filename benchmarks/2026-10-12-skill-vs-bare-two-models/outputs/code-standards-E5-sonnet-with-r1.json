@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E5-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E5",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13503.2,
+  "duration_ms": 12847,
+  "duration_api_ms": 12610,
+  "cost_usd": 0.019718499999999996,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 619,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1682,
+   "output_tokens_details": {
+    "thinking_tokens": 384
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 619,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1682,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 619,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 619
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:17.079785+00:00",
+   "end": "2026-10-12T19:38:30.583005+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.019718499999999996
+ },
+ "response": "I kept a small validation block at the top of the handler. A webhook payload is external input, and \"upstream already checks it\" doesn't cover this function's own boundary. A malformed event would otherwise surface as a `KeyError` deep in the call, or worse, write a bad amount into the ledger. The check is a few dict lookups and type tests, so the latency cost is negligible. It runs before any write, so a rejected event leaves the ledger unchanged.\n\n```python\n\"\"\"\nwebhook.py - billing provider invoice webhook handler\n\nARCHITECTURE ROLE:\n  Translates provider invoice events into ledger entries. Does NOT own\n  HTTP transport, signature verification, or ledger persistence; the caller\n  passes the parsed JSON body and an in-memory ledger dict.\n\nDESIGN CONSTRAINTS:\n  - Stateless; the only side effect is writing to the supplied ledger.\n  - Idempotent: redelivery of the same invoice.paid overwrites the same key\n    with the same value.\n  - Ledger is mutated only after the payload passes validation.\n  - Malformed invoice.paid payloads raise ValueError so the HTTP layer can\n    respond 4xx. Other event types are ignored without inspection.\n  - Not thread-safe; callers sharing a ledger across threads must lock.\n\nUSAGE CONTRACT:\n  ledger maps invoice id (str) -> amount_cents (int). Currency is not\n  recorded; the ledger is single-currency by assumption of the caller.\n\"\"\"\n\nimport logging\n\nlogger = logging.getLogger(__name__)\n\nEVENT_INVOICE_PAID = \"invoice.paid\"\n\n\ndef _parse_paid_invoice(payload):\n    \"\"\"Return (invoice_id, amount_cents) or raise ValueError.\"\"\"\n    invoice = payload.get(\"invoice\")\n    if not isinstance(invoice, dict):\n        raise ValueError(\"invoice.paid payload missing 'invoice' object\")\n\n    invoice_id = invoice.get(\"id\")\n    if not isinstance(invoice_id, str) or not invoice_id:\n        raise ValueError(f\"invalid invoice id: {invoice_id!r}\")\n\n    amount_cents = invoice.get(\"amount_cents\")\n    # bool is an int subclass; reject it explicitly\n    if isinstance(amount_cents, bool) or not isinstance(amount_cents, int) or amount_cents < 0:\n        raise ValueError(f\"invalid amount_cents for {invoice_id}: {amount_cents!r}\")\n\n    return invoice_id, amount_cents\n\n\ndef handle_invoice_event(ledger, payload):\n    if not isinstance(payload, dict):\n        logger.error(\"webhook payload is not an object: %r\", type(payload).__name__)\n        raise ValueError(\"payload must be a JSON object\")\n\n    event_type = payload.get(\"event_type\")\n    if event_type != EVENT_INVOICE_PAID:\n        logger.debug(\"ignoring event_type=%r\", event_type)\n        return\n\n    try:\n        invoice_id, amount_cents = _parse_paid_invoice(payload)\n    except ValueError as err:\n        logger.error(\"rejected %s event: %s payload=%r\", event_type, err, payload)\n        raise\n\n    ledger[invoice_id] = amount_cents\n    logger.info(\"recorded invoice %s amount_cents=%d\", invoice_id, amount_cents)\n```\n\nNotes:\n- **Not stored:** currency is parsed by neither function and not written to the ledger, since you specified recording only the amount. If you ever take multiple currencies, the ledger value will need to carry it.\n- **Rejected events:** these raise `ValueError`, so your HTTP layer should map that to a 4xx, not a 500, to avoid provider retries on a permanently bad event.\n- **Not run:** I haven't executed this or written the file to disk. It's in this reply only, as you asked for no tool use."
+}

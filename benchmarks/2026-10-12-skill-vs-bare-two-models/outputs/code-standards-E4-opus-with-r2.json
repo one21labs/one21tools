@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E4-opus-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E4",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 9877.8,
+  "duration_ms": 9192,
+  "duration_api_ms": 8928,
+  "cost_usd": 0.018218800000000004,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4754,
+   "output_tokens": 863,
+   "output_tokens_details": {
+    "thinking_tokens": 259
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 863,
+     "cache_read_input_tokens": 4754,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:29:10.085821+00:00",
+   "end": "2026-10-12T19:29:19.963594+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.018218800000000004
+ },
+ "response": "Since you asked me not to use tools, here is the full contents for `price_feed.py` to drop in:\n\n```python\n\"\"\"\nprice_feed.py - applies vendor price feed lines to the price table\n\nDESIGN CONSTRAINTS:\n  - Malformed feed lines are skipped and logged at WARN; they never abort\n    the batch. Valid lines are still applied.\n\"\"\"\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef apply_updates(prices, feed_lines):\n    for line_number, line in enumerate(feed_lines, start=1):\n        try:\n            sku, price = line.split(\",\")\n            parsed_price = float(price)\n        except ValueError as err:\n            logger.warning(\n                \"Skipping malformed feed line %d: %r (%s)\", line_number, line, err\n            )\n            continue\n        prices[sku] = parsed_price\n    return prices\n```\n\n**What changed:**\n- **Per-line `try/except ValueError`.** A bad line is skipped and the rest of the batch still applies. `ValueError` covers both failure modes: the wrong number of comma-separated fields (unpacking) and a non-numeric price (`float`).\n- **Each skip is logged at WARN** with the line number, the raw line, and the error. The bad data stays visible instead of disappearing.\n- **`prices` is only written after both parsing steps succeed.** A bad line can't partially update the table.\n\n**For next sprint (not done here):**\n- `float()` accepts `\"nan\"`, `\"inf\"`, and negative values, so those still get through as prices.\n- Whitespace is not stripped from SKUs or prices, so `\" SKU1\"` and `\"SKU1\"` count as different SKUs.\n- A non-string item in `feed_lines` would raise `AttributeError`, which isn't caught. That's fine if the feed is always text lines."
+}

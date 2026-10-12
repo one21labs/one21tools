@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E7-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16977.9,
+  "duration_ms": 16410,
+  "duration_api_ms": 16205,
+  "cost_usd": 0.035480199999999996,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 772,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1444,
+   "output_tokens_details": {
+    "thinking_tokens": 217
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 772,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1444,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 772,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 772
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:06:38.160052+00:00",
+   "end": "2026-10-12T19:06:55.137964+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.035480199999999996
+ },
+ "response": "I'd recommend **not** adding the full API spec and all 60 env vars. A longer CLAUDE.md usually makes the \"ignoring instructions\" problem worse. The file is loaded into context every session, so 1,800 lines of YAML would bury your ~10 real rules. Point to those files instead; Claude can read them when a task needs them.\n\nI also found some problems in the current file that are probably causing the misses.\n\n## Problems in the current file\n\n1. **A credential that looks like production is committed in plain text.** `postgres://admin:Sup3rS3cret!@db.acme-prod.internal:5432/acme` is labeled \"local dev,\" but the host is `acme-prod`. If that's real, rotate the password now and remove it from git history. Either way, connection strings belong in `.env.local` (gitignored), not CLAUDE.md. This also means local dev may be pointing at prod.\n2. **The instructions contradict each other.** \"Install: npm install\" sits right above \"Always use pnpm, never npm.\" When Claude follows one, it breaks the other.\n3. **Several lines are too vague to act on.** \"Be careful,\" \"write good code,\" \"follow best practices,\" and \"we love clean code\" give Claude nothing specific to do. They just dilute the rules that matter.\n4. **Some rules should be enforced by tooling.** \"ALWAYS run prettier before every commit\" is better as a pre-commit hook (husky + lint-staged) or a Claude Code hook. A hook always runs, while an instruction can be missed.\n5. **\"Don't touch src/legacy\" is easy to violate by accident.** It's buried mid-list and doesn't say what to do instead.\n\n## Suggested rewrite\n\n```markdown\n# Acme Web\n\nNext.js 14 (App Router?) + TypeScript + Postgres. State management: Zustand.\n\n## Commands\n- Install: `pnpm install`\n- Dev: `pnpm dev`\n- Test: `pnpm test`\n- Format: `pnpm prettier --write .`\n- Use pnpm only. Never npm or yarn, and never commit a package-lock.json.\n\n## Workflow\n- Never commit to `main`. Work on a feature branch.\n- Before committing, run `pnpm prettier --write .` and `pnpm test`.\n\n## Code layout\n- Components: `src/components/`\n- Hooks: `src/hooks/`\n- `src/legacy/` holds old Redux code. Do not modify, import from, or \"clean up\" anything there. New state goes in Zustand stores (see `src/stores/`).\n\n## Reference (read when relevant; don't guess)\n- REST API spec: `openapi.yaml`. Check it before adding or changing endpoints or API clients.\n- Environment variables: `.env.example` (each var has a comment explaining it). Local secrets go in `.env.local`, which is gitignored. Never hardcode credentials.\n```\n\nAdjust the placeholder paths (`src/stores/`, `openapi.yaml`, `.env.example`) to match your repo. I couldn't verify them from here.\n\n## Where the other content should go\n\n- **API reference:** keep it in `openapi.yaml` and let the pointer above direct Claude to it. If you want, add one line listing the 3\u20135 API conventions people actually get wrong, such as error shape or pagination style.\n- **Env vars:** document them as comments in `.env.example`. That gives humans and Claude one place to look, and it stays current with the code.\n- **Rules that keep being ignored:** convert them to hooks or CI checks where you can, such as prettier, blocking pushes to main, or rejecting `package-lock.json`.\n\nIf you tell me which specific instructions Claude has been ignoring, I can help tighten those lines or turn them into hooks."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E6-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E6",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13829.4,
+  "duration_ms": 13175,
+  "duration_api_ms": 12914,
+  "cost_usd": 0.019332500000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 695,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1613,
+   "output_tokens_details": {
+    "thinking_tokens": 681
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 695,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1613,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 695,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 695
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:25.066309+00:00",
+   "end": "2026-10-12T19:38:38.895704+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.019332500000000002
+ },
+ "response": "Here is the full `user_store.py`. The existing functions are unchanged. I only added `import logging`, a module logger, a `PAGE_SIZE` constant, and the new function.\n\n```python\nimport logging\nimport sqlite3\n\nlogger = logging.getLogger(__name__)\n\nPAGE_SIZE = 50\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []\n\ndef find_users_by_domain(db, domain):\n    if not isinstance(domain, str) or not domain.strip():\n        logger.warning(\"find_users_by_domain: invalid domain %r\", domain)\n        return []\n    # Escape LIKE wildcards so the domain is matched literally.\n    escaped = domain.strip().replace(\"\\\\\", \"\\\\\\\\\").replace(\"%\", \"\\\\%\").replace(\"_\", \"\\\\_\")\n    try:\n        return db.execute(\n            \"select * from users where email like ? escape '\\\\' order by created desc limit ?\",\n            (\"%@\" + escaped, PAGE_SIZE),\n        ).fetchall()\n    except sqlite3.Error as err:\n        logger.error(\"find_users_by_domain failed: domain=%r error=%s\", domain, err)\n        return []\n```\n\nNotes:\n\n- **Existing code left alone, as requested.** The old functions still use bare `except:` and hardcode `50`, so they swallow all errors, including `KeyboardInterrupt`. That is a known weakness, not a pattern the new code copies.\n- **New function differs in a few ways:**\n  - It catches only `sqlite3.Error` and logs the failure with its inputs.\n  - It still returns `[]` on failure, so callers see the same contract as the other queries.\n  - It rejects non-string or empty domains at entry, with a warning.\n  - It uses `PAGE_SIZE` instead of a literal.\n- **Matching behavior:**\n  - `%`, `_` and `\\` in the domain are escaped, so `a_b.com` can't match `axb.com`.\n  - SQLite's `LIKE` is case-insensitive for ASCII, which suits email domains.\n  - Results are ordered by `created desc` so the 50-row cap is deterministic.\n- **Follow-up for you:** the old queries could switch to `PAGE_SIZE` later, which would give one source for the page size. I left that out to keep this change scoped to the new function."
+}

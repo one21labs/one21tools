@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-sonnet-with-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22858.5,
+  "duration_ms": 22194,
+  "duration_api_ms": 21961,
+  "cost_usd": 0.028512800000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 820,
+   "cache_read_input_tokens": 3188,
+   "output_tokens": 2491,
+   "output_tokens_details": {
+    "thinking_tokens": 837
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 820,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2491,
+     "cache_read_input_tokens": 3188,
+     "cache_creation_input_tokens": 820,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 820
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:41:45.272099+00:00",
+   "end": "2026-10-12T19:42:08.130627+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.028512800000000005
+ },
+ "response": "# Shared phone library: design and rollout\n\n## Don't use the strictest rule everywhere\n\nThe strictest validator is billing's E.164 regex. If signup adopts it, `(415) 555-0134` and `415.555.0134` both fail, since neither has a leading `+` or a country code. With about 4,000 mostly-mobile submissions a day, that would reject a large share of real signups.\n\nThe three copies are not duplicates of one rule. They implement two different concepts under the same name, `valid_phone`:\n\n1. **Is this a canonical E.164 number?** Billing and support need this, because the payment provider requires it.\n2. **Can we turn what the user typed into one?** Only signup needs this.\n\nConsistency should come from signup converting input into the canonical form that billing then validates, not from forcing the same input rule everywhere.\n\n## Bugs in the current code\n\n- **Billing and support:** `$` matches before a trailing newline, so `\"+14155550134\\n\"` passes and goes to the payment provider. Use `fullmatch` instead.\n- **Signup:** `match` with no anchor at the end means `\"1234567abc\"` passes. The character class also accepts `\"((((((((\"`, `\"-------\"`, and `\"+++++++\"`. It doesn't really validate anything.\n- **Support:** it strips whitespace and billing doesn't, so the two \"identical\" copies already behave differently.\n\n## Library API (`company-phone`, on the private PyPI)\n\n```python\nimport re\n\n_E164 = re.compile(r'[+][1-9][0-9]{7,14}')   # ASCII-only, matched with fullmatch\n\ndef is_e164(s: str) -> bool:\n    \"\"\"Strict canonical check. No stripping, no normalizing. Use at trust boundaries (billing).\"\"\"\n    return isinstance(s, str) and _E164.fullmatch(s) is not None\n\ndef normalize(raw: str, default_region: str | None = None) -> str | None:\n    \"\"\"Parse user-typed input into canonical E.164, or None if it can't be done.\n    Strips whitespace, removes ( ) . - and spaces, accepts leading 00 as +,\n    and applies default_region (e.g. 'US') when there is no country code.\n    Postcondition: the result is None or satisfies is_e164.\"\"\"\n```\n\nImplementation notes:\n\n- Implement `normalize` on top of the `phonenumbers` package rather than hand-rolling it. Region handling, such as whether `4155550134` is a US number, is where hand-written code goes wrong.\n- Keep the two functions named differently. Each service has to choose between them, which removes the ambiguity that caused the drift.\n- Add a shared table of test vectors to the library: valid, invalid, trailing newline, unicode digits, punctuation-only, `00` prefix, and the two signup examples. This table is the single definition of expected behavior.\n\n## How each service uses it\n\n| Service | Call | Behavior |\n|---|---|---|\n| billing | `is_e164(s)` | Strict. Rejects anything not already canonical. |\n| support | `is_e164(s.strip())` or `normalize(s, region)` | Choose one deliberately. It currently strips, so keep that at the call site. |\n| signup | `normalize(raw, default_region)`, then store the E.164 result | Accepts what users type and stores canonical numbers. |\n\nSignup needs a product decision on `default_region`. Is it fixed, or derived from locale or IP? If your users are international, a bare 10-digit number is ambiguous.\n\n## Rollout\n\nEach repo deploys independently, so the library must stay backward-compatible and each service adopts it on its own schedule.\n\n1. **Publish 1.0.0** with the test vectors, and have each repo depend on `company-phone~=1.0`.\n2. **Billing first.** It is the highest-stakes service and the only behavior change is rejecting the trailing-newline case. Before deploying, check logs or the payment provider's error history for that case.\n3. **Support next.** It is the same swap, with the strip kept at the call site.\n4. **Signup last, in shadow mode.**\n   - Run the old and new logic side by side for about a week.\n   - Log disagreements and keep the old result as authoritative.\n   - Review samples of what the old regex accepted and `normalize` rejects. Expect junk, but confirm that real numbers aren't being dropped.\n   - Then switch over and start storing E.164.\n5. **Backfill.** Signup's stored numbers are in loose formats. Run `normalize` over them and flag failures for review. Until that's done, billing's strict check will reject legacy records at charge time, and that is the right place for it to fail.\n6. **Delete the three local `validate.py` files** once each service has switched, so the old copies don't linger.\n\n## Ongoing\n\n- Follow semver. Any change to what `is_e164` accepts is a major version, because billing depends on it matching the provider's requirements.\n- Keep `normalize` improvements in minor versions, and make sure the postcondition (the result is None or passes `is_e164`) holds in every release."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E1-sonnet-with-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E1",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22719.3,
+  "duration_ms": 22004,
+  "duration_api_ms": 21753,
+  "cost_usd": 0.0385384,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 3290,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 2532,
+   "output_tokens_details": {
+    "thinking_tokens": 384
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 3290,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2532,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 3290,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3290
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:39:06.357129+00:00",
+   "end": "2026-10-12T19:39:29.076476+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0385384
+ },
+ "response": "I haven't created `rca.md`, because you asked me not to use tools. The full document is below, ready to save as `rca.md`.\n\n---\n\n# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)\n\n## Summary\n\nThe nightly customer-export job wrote an empty file, exited 0, and the file was delivered to a client. Monitoring checks only the exit code, so nobody was alerted and the client found the problem first. This is the third occurrence in two months. The triggers differed each time, but the outcome and the failure path were identical.\n\n## Impact\n\n- Client received an empty export (third time in two months).\n- Client detected the failure before we did, which damages trust and repeats a known failure.\n- Dates, client names and the time-to-detection should be filled in from the incident log: _TBD_.\n\n## Occurrences\n\n| # | Trigger | Outcome |\n|---|---------|---------|\n| 1 | Schema rename | Empty file, exit 0, no alert, client noticed |\n| 2 | Expired credential, swallowed by the job | Empty file, exit 0, no alert, client noticed |\n| 3 | Export SQL changed by Priya; manual wiki verification step not run | Empty file, exit 0, no alert, client noticed |\n\n## Root cause analysis\n\n**Why was an empty file delivered to the client?**\nNothing between the job and delivery checks that the output is valid.\n\n**Why did nothing check it?**\nThe job treats \"finished running\" as \"succeeded\". It exits 0 even when it writes zero rows, and monitoring trusts the exit code.\n\n**Why does the job exit 0 on zero rows?**\nSuccess was never defined in terms of output. Zero rows is treated as a legitimate result, and errors (such as the expired credential) can be swallowed instead of propagated.\n\n**Why did the triggers keep getting through?**\nEach trigger was handled as its own incident, not as one failure mode. The schema rename and the credential expiry presumably got point fixes, but the common path (silent empty output) stayed open.\n\n**Why did the third trigger depend on a person?**\nThe only guard for query changes is a manual wiki step (\"run it once by hand and eyeball the row count\"). It relies on memory, is not enforced, and is not visible to someone six weeks into the team.\n\n### Root cause\n\nThe system has no automated definition of a valid export, and no gate between production and delivery. Every trigger so far, past and future, leads to the same silent failure.\n\n### Contributing factors\n\n- **Monitoring measures the wrong thing.** Exit code reports \"the process ended\", not \"the client got good data\".\n- **Errors are swallowed.** The credential failure was hidden inside the job.\n- **A manual control stands in for an automated one.** The wiki step is easy to miss and is not enforced by tooling.\n- **Fixes targeted triggers, not the failure mode.** Recurrence was predictable.\n\n### What this was not\n\nThis was not primarily an individual's mistake. Priya skipped a documented manual step, but a control that depends on a newer engineer remembering a wiki page will eventually fail for anyone. The process should have made the mistake harmless. We should not treat this as a training problem alone.\n\n## What went well\n\n- The client reported the problem, so the issue was caught in the end.\n- The wiki step existed, which shows the team knew the risk. It just wasn't enforced.\n\n## Corrective actions\n\nOrdered by impact. Items 1 to 3 close the failure mode itself and should be done first.\n\n| # | Action | Addresses | Owner / Due |\n|---|--------|-----------|-------------|\n| 1 | **Fail loudly on empty output.** The job exits nonzero if it writes zero rows, unless an explicit, documented \"empty is valid\" flag is set for that export. | Exit 0 on zero rows | _TBD_ |\n| 2 | **Add a delivery gate.** Validate the file before it is sent: non-empty, row count within an expected range of recent runs, required columns present. Block delivery and page on-call if validation fails. | No check between production and delivery | _TBD_ |\n| 3 | **Stop swallowing errors.** Audit the job's exception handling; credential, connection and query errors must propagate and fail the run. | Credential incident | _TBD_ |\n| 4 | **Monitor outcomes, not exit codes.** Alert on rows written, file size, and deviation from the trailing average, and alert if the job did not complete by its expected time. | Monitoring blind spot | _TBD_ |\n| 5 | **Replace the manual wiki step with automation.** Add a CI check for query changes that runs the query against a test or staging dataset and asserts a non-zero, plausible row count. Then retire the wiki step. | Reliance on memory | _TBD_ |\n| 6 | **Add schema and credential early warnings.** Run a schema-contract check (expected tables and columns exist) and alert on credential expiry ahead of time. | Occurrences 1 and 2 | _TBD_ |\n| 7 | **Define thresholds in one place.** Keep expected-row ranges and the \"empty is valid\" setting in one config used by the job, the gate and the monitor, to avoid drift between copies. | Consistency | _TBD_ |\n| 8 | **Contact the client and re-deliver.** Send a corrected export and an explanation. Check whether the earlier two incidents had a downstream impact that was never closed out. | Customer impact | _TBD_ |\n\n### Expected results\n\nIf actions 1 to 3 work, a repeat of any of the three triggers should produce a failed job and a page, not a delivered empty file. We can test this before closing the incident by deliberately injecting each trigger (renamed column, bad credential, broken query) in staging and confirming that delivery is blocked and an alert fires.\n\n## Verification\n\n- Staging fault-injection test for all three triggers passes, with delivery blocked and an alert received.\n- For one month after rollout, review every gate failure and alert to check for false positives and tune thresholds.\n- Confirm no export has been delivered without passing the gate.\n\n## Follow-up\n\n- Review other scheduled jobs for the same pattern (exit 0 regardless of output, exit-code-only monitoring). This is likely not unique to this job.\n- Add the new validation behavior to onboarding docs so new engineers see the enforced process, not a wiki-only convention.\n\n---\n\nSay the word and I'll write this to `rca.md` in the working directory. If you can send me the dates, client and owners, I'll fill in the TBD fields too."
+}

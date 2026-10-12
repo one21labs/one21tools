@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E3-sonnet-without-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E3",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21840.8,
+  "duration_ms": 21227,
+  "duration_api_ms": 21038,
+  "cost_usd": 0.0265616,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 615,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 2389,
+   "output_tokens_details": {
+    "thinking_tokens": 257
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 615,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2389,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 615,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 615
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:43:45.559504+00:00",
+   "end": "2026-10-12T19:44:07.400336+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0265616
+ },
+ "response": "I didn't write `process-review.md`, because your instructions said not to use any tools and writing a file needs one. The full review is below. Say the word and I'll save it as-is.\n\n---\n\n# Release Process Review\n\n## Summary\n\nThe process optimizes for control but produces the opposite of safety. Large batches, manual steps, and serial approvals make releases slow and risky. The team feels busy but slow because most elapsed time is spent waiting in queues (review, the train, sign-offs), not working. Releases are stressful because ~40 changes ship at once, so any failure is hard to trace and hard to roll back.\n\n## Observations\n\n1. **PR review latency (~2 days average).** Each PR spends a large share of its life idle. Waiting also encourages bigger PRs, which are slower to review, and context-switching, which costs the author when feedback finally arrives.\n2. **Biweekly batch releases (~40 changes).** Merged work sits up to 14 days (about 7 on average) before reaching users. Feedback loops are long, and when something breaks, 40 suspects need triage.\n3. **Manual changelog assembly.** The release manager copies entries from PR descriptions by hand. This is slow, error-prone, and concentrated on one person, and it scales linearly with batch size.\n4. **Three sequential sign-offs for every release.** QA, then EM, then PM, in order. Latency is the sum of all three people's availability, and any one absence blocks the release. Approvals are likely to become rubber stamps when each approver sees a 40-change batch they can't meaningfully review.\n5. **Hotfixes use the normal path.** A one-line urgent fix waits for the train and all three sign-offs. This is the clearest defect: the process fails exactly when speed matters most. It also creates pressure to bypass the process informally.\n\n## Recommendations\n\n### 1. Add an expedited hotfix path (do first)\n- Define a hotfix as a small, scoped fix to a production issue.\n- Require one reviewer plus automated checks, then release immediately from a branch off the last release or from main.\n- Replace the three sign-offs with notification: tell QA, EM, and PM after the fact, with a short written follow-up.\n- Review hotfixes afterward in a weekly look-back to catch abuse of the path.\n\n### 2. Shrink batch size by releasing more often\n- Move from biweekly to weekly as an intermediate step, then toward on-demand releases from main (daily or per-merge) as confidence grows.\n- Expected effect: lower per-release risk, easier diagnosis (few suspects), smaller rollbacks, and a less stressful release.\n- Decouple deploy from release with feature flags so incomplete or risky work can merge and ship dark, then be turned on gradually.\n\n### 3. Automate the changelog\n- Require a structured changelog field in the PR template (category plus one-line user-facing summary), or derive it from conventional-commit titles or PR labels.\n- Generate the release notes with a tool or a small script run at release time. The release manager then edits for tone instead of copying.\n- Add a CI check that fails PRs missing the changelog field.\n\n### 4. Replace serial sign-offs with automated gates and parallel, risk-based approval\n- Move QA's checks into the pipeline where possible: automated tests, smoke tests on staging, and a post-deploy health check.\n- Make remaining approvals parallel, not sequential, and time-boxed (e.g., silence after 24h counts as approval).\n- Scale approval to risk. Routine releases need only automated gates and QA; PM sign-off is reserved for releases with notable user-facing changes, ideally decided at the feature-flag rollout, not at the release.\n- Name backup approvers so one absence doesn't block a release.\n\n### 5. Cut PR review wait time\n- Set a team norm or SLA, such as first response within 4 working hours and a target of under 1 day end-to-end.\n- Keep PRs small (a rough guide: under ~400 changed lines) and encourage stacked or incremental changes.\n- Use CODEOWNERS and auto-assignment/rotation so every PR has a named reviewer immediately.\n- Add a daily review slot, and surface aging PRs in a dashboard or chat reminder.\n- Let automation (linting, formatting, tests) handle style and mechanical feedback so human review focuses on design and correctness.\n\n### 6. Add safety nets that make frequent releases comfortable\n- Automated rollback or a one-step revert procedure.\n- Progressive rollout (canary or percentage-based) with monitoring and alert thresholds.\n- A short release runbook so any team member, not only the release manager, can ship.\n\n## Suggested Sequencing\n\n| Phase | Timeframe | Actions |\n|---|---|---|\n| 1 | Weeks 1\u20132 | Hotfix fast path; PR review SLA and reviewer assignment; PR template with changelog field |\n| 2 | Weeks 3\u20136 | Automated changelog generation; parallel, time-boxed approvals; move QA checks into CI |\n| 3 | Weeks 6\u201312 | Weekly releases, then on-demand; feature flags; canary rollout and rollback automation |\n\n## Metrics to Track\n\n- **PR cycle time:** open to first review, and open to merge.\n- **Lead time for changes:** merge to production (currently ~7 days average).\n- **Release size:** changes per release (currently ~40).\n- **Deployment frequency.**\n- **Change failure rate** and **time to restore service**, so you can confirm that shipping more often isn't hurting stability.\n- **Release manager hours** spent per release.\n\n## Risks and Mitigations\n\n- **Fear that faster means riskier.** Smaller, more frequent releases generally reduce risk. Back this with the safety nets in #6 and by tracking change failure rate.\n- **QA capacity.** Shifting to automated gates needs upfront investment. Start with a smoke suite for the most critical flows and expand it.\n- **Approver pushback.** Keep PM and EM informed and involved through flag rollouts and release notes, so they keep visibility without being a blocking step.\n\n## Expected Outcome\n\nMerge-to-production time drops from about a week to about a day or less, releases carry a handful of changes instead of ~40, urgent fixes ship within hours, and the release manager is freed from copy-paste work. Overall, less waiting means the team's effort turns into shipped value faster, which addresses the \"busy but slow\" feeling directly."
+}

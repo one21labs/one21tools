@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E10-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16841.6,
+  "duration_ms": 16200,
+  "duration_api_ms": 15952,
+  "cost_usd": 0.0210561,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 641,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1828,
+   "output_tokens_details": {
+    "thinking_tokens": 287
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 641,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1828,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 641,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 641
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:07:19.750269+00:00",
+   "end": "2026-10-12T19:07:36.591865+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0210561
+ },
+ "response": "# deployctl MCP server: proposed tool list\n\nOne design change first, because it affects every tool below.\n\n## Change: don't run it as the platform service account\n\nRun the MCP server locally, as a stdio server that shells out to the engineer's own `deployctl`. It would then use their existing SSO identity, and nothing needs a shared credential.\n\nWith prod admin on a shared service account:\n- Every engineer, and every prompt-injected instruction Claude reads in logs, config, or a repo, gets prod admin, including `db drop` and `user grant`.\n- Audit logs show the service account, not the human. You lose attribution and per-user RBAC.\n- Anyone who can reach the server can escalate privileges beyond what their SSO identity allows.\n\n\"Nothing fails on permissions\" is the feature to keep: if a call is denied, the engineer's own permissions are doing their job.\n\n## Tiers\n\nI only know the subcommands you named, so the rest are left as a pattern for you to fill in from `deployctl --help`. Params are my assumptions.\n\n**Tier 1: read-only (expose freely, mark `readOnlyHint: true`)**\n\n| Tool | Description | Params |\n|---|---|---|\n| `deployctl_status` | Show deployment status for a service/env | `service`, `env` |\n| `deployctl_logs` | Fetch recent logs (bounded) | `service`, `env`, `since?`, `lines? (max cap)`, `filter?` |\n| `deployctl_config_get` | Read a config value | `service`, `env`, `key` |\n| `deployctl_secrets_list` | List secret names only, never values | `service`, `env` |\n| `deployctl_db_snapshot_list` | List snapshots | `db`, `env` |\n\n**Tier 2: mutating, reversible (expose, rely on Claude Code's per-call approval)**\n\n| Tool | Description | Params |\n|---|---|---|\n| `deployctl_deploy` | Deploy a version | `service`, `env`, `version`, `dry_run?` |\n| `deployctl_rollback` | Roll back to a previous release | `service`, `env`, `to_version?` |\n| `deployctl_scale` | Change replica count | `service`, `env`, `replicas` |\n| `deployctl_config_set` | Set a config value | `service`, `env`, `key`, `value` |\n| `deployctl_db_snapshot_create` | Create a snapshot | `db`, `env` |\n| `deployctl_db_migrate` | Run migrations (default `dry_run=true`) | `db`, `env`, `target?`, `dry_run?` |\n\n**Tier 3: destructive, sensitive, or privilege-changing (leave out of v1, or require a confirmation token)**\n\n| Tool | Why it's special |\n|---|---|\n| `secrets get` / `secrets set` | `get` would put plaintext secrets into model context and transcripts. Omit it, or return masked output. `set` should take values via env or stdin, not tool args. |\n| `db drop` | Irreversible. Don't expose it. Engineers can run it in their own terminal. |\n| `user grant` / `user revoke` | Privilege changes. Don't expose them. They are also the main escalation path if the server is compromised. |\n| Anything prod-affecting you add later | Require `env != prod` or an explicit `confirm: \"<service>/<env>\"` param. |\n\n## Rethink the 40-tool plan\n\n- **Context cost:** 40 tool schemas load into every session and make tool selection worse. Consider ~10\u201315 tools, or grouped tools like `deployctl_config(action=get|set, ...)`.\n- **Alternative:** skip the MCP server and put `deployctl` in Claude Code's Bash allowlist. Allow read-only subcommands (`deployctl status *`, `deployctl logs *`) and leave the rest on prompt or deny. That is a day of work, not a sprint, and it uses SSO identity automatically. An MCP server is worth it mainly for structured output, output caps, and redaction.\n\n## Implementation notes for the sprint\n\n- Invoke `deployctl` with an argv array, never a shell string, and validate params against allowlists or regexes to prevent argument injection.\n- Cap and truncate log output, and redact tokens in all output.\n- Add `--dry-run` defaults where deployctl supports it.\n- Log every call locally with the tool name and params.\n- Set MCP annotations (`readOnlyHint`, `destructiveHint`) so Claude Code can apply the right prompting.\n\nIf you paste the `deployctl --help` output for all 40 subcommands, I can classify the rest into these tiers and draft the full schemas."
+}

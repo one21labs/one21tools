@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E2-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 33726.3,
+  "duration_ms": 32610,
+  "duration_api_ms": 32309,
+  "cost_usd": 0.07172819999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 713,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3280,
+   "output_tokens_details": {
+    "thinking_tokens": 773
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 713,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3280,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 713,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 713
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:35:16.007694+00:00",
+   "end": "2026-10-12T05:35:49.734058+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.07172819999999999
+ },
+ "response": "\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/docs-plan.md</parameter>\n<parameter name=\"content\"># Docs restructuring plan\n\nPrinciple: every fact has exactly one home. Every other place either links to that home or says nothing.\n\n## 1. Local setup steps (duplicated and drifted)\n\n| Copy | Content | Decision |\n|---|---|---|\n| README.md | clone, `npm install`, copy `.env.example`, `npm run dev` | **Canonical.** Keep this under a `## Local setup` heading. |\n| CONTRIBUTING.md | clone, `npm ci`, create `.env` by hand, `npm start` | **Delete the steps.** Replace them with one line: \"Set up your environment by following [Local setup](README.md#local-setup).\" |\n\nWhy README wins:\n- `npm run dev` is the current command. The project's own history says the team switched from `npm start` to `npm run dev` after a port clash, so CONTRIBUTING's `npm start` is stale.\n- Copying `.env.example` is reproducible. Creating `.env` by hand is not.\n\nSetup belongs in README because anyone running the tool needs it, not only contributors.\n\nBefore merging:\n- Confirm `package.json` still defines a `dev` script.\n- Decide whether to adopt `npm ci` (the one possibly-better detail in CONTRIBUTING's copy) in the README steps. If adopted, it goes in README only.\n\n## 2. API request timeout (contradictory: 30s vs 45s)\n\n| Copy | Decision |\n|---|---|\n| `src/http/client.js` (the timeout constant) | **Canonical.** The code is the source of truth. |\n| README.md (\"time out after 30 seconds\") | **Remove the number.** Replace with: \"API requests time out after a fixed limit. See the timeout constant in `src/http/client.js`.\" |\n| CONTRIBUTING.md (\"time out after 45 seconds\") | **Delete the sentence entirely.** Contributors can read the code, and README already points there. |\n\nAt least one of these docs is wrong today, and both will go stale on the next change. So no prose doc should restate the value.\n\nWhen making this edit:\n- Check the actual constant.\n- If anyone relied on the documented number, note which doc was wrong in the PR description, not in the docs.\n\n## 3. Support email (not duplicated)\n\n| Copy | Decision |\n|---|---|\n| README.md | **Canonical. Keep as is.** No other copies exist, and none should be added. CONTRIBUTING can link to README if it needs to. |\n\n## 4. Billing rule: \"always call `recalcTotals()` after any mutation to line items\" (misplaced)\n\n| Copy | Decision |\n|---|---|\n| Draft CLAUDE.md | **Remove.** CLAUDE.md is loaded for every task. This rule only matters in one file, so it is noise everywhere else. |\n| `src/billing.js` | **Canonical.** Add a short comment at the line-item mutation code (or at the top of the module) stating the invariant. Anyone editing that file, human or agent, will see it exactly when it applies. |\n\nPreferred follow-up: enforce the invariant in code so the comment becomes unnecessary. Either have the line-item mutators call `recalcTotals()` themselves, or route all mutations through one helper that does. If that is done, delete the comment.\n\n## 5. \"Lessons learned\" section in draft CLAUDE.md (misplaced history)\n\n| Item | Decision |\n|---|---|\n| \"2025-11: switched from `npm start` to `npm run dev` after port clash\" | **Delete.** The current fact (use `npm run dev`) already lives in README's setup steps (item 1). The story behind it belongs in git history and the original PR. |\n| \"2026-01: renamed the export module...\" | **Delete.** The rename is recorded in git history, and the code shows the current name. |\n| The section as a whole | **Delete.** Narrated history is not an instruction. It costs context on every task and invites agents to act on outdated states. If the team wants a human-readable record, put it in a `CHANGELOG.md`, not CLAUDE.md. |\n\nIf any lesson encodes a rule that still applies and isn't obvious from the code, keep only the rule. Put it in present tense, in the narrowest place it applies: a code comment if it's file-specific, CLAUDE.md only if it's genuinely repo-wide.\n\n## 6. Resulting CLAUDE.md\n\nAfter items 4 and 5, the draft CLAUDE.md has no content left. **Do not create it** until there is a genuinely repo-wide instruction an agent couldn't infer from the code (for example, \"run `npm test` before committing\"). Setup steps should not be copied into it either; at most it can link to README's Local setup.\n\n## Summary of edits\n\n- **README.md:** keep the setup steps (canonical), add a `## Local setup` anchor, replace the \"30 seconds\" sentence with a pointer to `src/http/client.js`, keep the support email.\n- **CONTRIBUTING.md:** delete the setup steps and replace them with a link to README#local-setup; delete the \"45 seconds\" sentence.\n- **src/billing.js:** add the `recalcTotals()` invariant comment, or better, enforce it in code.\n- **src/http/client.js:** unchanged. It remains the single source for the timeout.\n- **CLAUDE.md (draft):** remove the billing rule and the entire Lessons learned section, and don't ship the now-empty file.\n</parameter>\n</invoke>\n**docs-plan.md is written.** The source files aren't in this directory, so I couldn't check the real timeout value or `package.json`. The plan lists both as checks to do before merging.\n\n| Fact | Single home | Every other copy |\n|---|---|---|\n| Setup steps | `README.md` (`npm run dev`, copy `.env.example`) | `CONTRIBUTING.md`'s drifted copy is deleted and replaced with a link to README. |\n| API timeout | The constant in `src/http/client.js` | Both \"30s\" (README) and \"45s\" (CONTRIBUTING) are removed. README just points to the code, and CONTRIBUTING says nothing. |\n| Support email | `README.md` | It has no duplicates and stays as is. |\n| `recalcTotals()` rule | A comment in `src/billing.js` | It's removed from CLAUDE.md. Better still, enforce the rule in code and drop the comment too. |\n| Lessons learned | Git history (or a CHANGELOG if wanted) | The whole section is deleted from CLAUDE.md. The one live fact in it, `npm run dev`, is already covered by README's setup steps. |\n| CLAUDE.md itself | \u2014 | Nothing is left in it, so don't ship it until there's a real repo-wide instruction. |\n\n**Why README's setup steps win:** the lessons-learned section says the team switched from `npm start` to `npm run dev`, so CONTRIBUTING's `npm start` is out of date.\n\n**Open question:** the team should decide whether to adopt CONTRIBUTING's `npm ci` in the canonical README steps."
+}

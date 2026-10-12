@@ -26,6 +26,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+import usage_guard
+
 DEFAULT_TIMEOUT_S = 600
 
 # One language-neutral deny-list home (ADR 0041): newline-delimited deny_tools.txt, read here
@@ -40,24 +42,44 @@ NEUTRAL_FRAME = (
 )
 
 
+# Variables that make a child `claude -p` part of the PARENT Claude Code session, when the harness
+# itself runs inside one. Measured 2026-10-12 in a cloud session: inherited, they gave the child the
+# parent's session id (concurrent cells then hung or exited 1 with empty stderr), synced the
+# account's skills, and injected the parent's attribution + user-email reminders into a "bare" arm.
+# Auth variables survive (a credential is not session state), and so does the CLI's stream
+# watchdog: without it a stalled response hung a cell for the full timeout (measured 2026-10-12).
+PARENT_SESSION_PREFIXES = ("CLAUDE_CODE_", "CLAUDE_", "CCR_")
+PARENT_SESSION_NAMES = ("CLAUDECODE", "SESSION_INGRESS_URL", "AI_AGENT")
+KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+        "CLAUDE_CODE_SKIP_VERTEX_AUTH", "CLAUDE_CODE_SKIP_FOUNDRY_AUTH",
+        "CLAUDE_ENABLE_STREAM_WATCHDOG")
+
+
 def build_env(effort="medium"):
-    """Per-call environment, identical across arms (protocol symmetry)."""
-    env = dict(os.environ)
+    """Per-call environment, identical across arms (protocol symmetry), detached from any parent
+    Claude Code session (PARENT_SESSION_* above)."""
+    env = {k: v for k, v in os.environ.items()
+           if k in KEEP or not (k in PARENT_SESSION_NAMES
+                                     or k.startswith(PARENT_SESSION_PREFIXES))}
     home = os.path.expanduser("~")
     env["PATH"] = os.path.join(home, ".local", "bin") + os.pathsep + env.get("PATH", "")
     # Clean auth-only config dir. Override with $SKILL_BENCH_CONFIG_DIR when installed elsewhere;
     # the default is this repo's fallback (a consumer must create their own credentials-only dir).
     env["CLAUDE_CONFIG_DIR"] = os.environ.get(
         "SKILL_BENCH_CONFIG_DIR", os.path.join(home, "issue30", "claude-config"))
-    env.pop("CLAUDECODE", None)
     env["CLAUDE_EFFORT"] = effort
     return env
 
 
 def neutral_cwd(outdir):
-    """An empty scratch cwd outside the repo checkout (see module docstring)."""
-    cwd = os.path.join(outdir, "cwd")
-    os.makedirs(cwd, exist_ok=True)
+    """An empty scratch cwd OUTSIDE the repo checkout (see module docstring), named after outdir.
+
+    Built under the system temp dir, never under outdir: every caller passes its outputs dir,
+    which lives inside the checkout, so the old `<outdir>/cwd` auto-discovered this repo's
+    CLAUDE.md into every arm (measured 2026-10-12: a bare call under benchmarks/ quoted its
+    heading). The precondition is enforced here rather than trusted to each caller."""
+    cwd = tempfile.mkdtemp(prefix=f"neutral-cwd-{Path(outdir).name}-")
     return cwd
 
 
@@ -93,7 +115,8 @@ def safe_get(d, *keys, default=None):
     return cur
 
 
-def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(), extra_args=()):
+def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(), extra_args=(),
+                   gate=None):
     """One `claude -p` subprocess call. `run` is injectable for tests.
 
     `allow` is the ADR 0052 carve-out: tools REMOVED from the deny list for a skill/agent arm
@@ -119,30 +142,45 @@ def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(
         }
 
     try:
-        proc = run(cmd, input=prompt, capture_output=True, text=True, encoding="utf-8",
-                   env=env, cwd=cwd, timeout=timeout)
+        proc = run(usage_guard.streaming(cmd), input=prompt, capture_output=True, text=True,
+                   encoding="utf-8", env=env, cwd=cwd, timeout=timeout)
     except subprocess.TimeoutExpired:
         return result("", None, f"timeout after {timeout}s")
-    if proc.returncode != 0:
-        return result("", None, f"nonzero exit {proc.returncode}: {(proc.stderr or '')[-2000:]}")
-    try:
-        envelope = json.loads(proc.stdout)
-    except json.JSONDecodeError as e:
-        return result("", None, f"json parse failure: {e}; stdout_tail={proc.stdout[-500:]!r}")
+    envelope, info = usage_guard.parse_stream(proc.stdout)
+    verdict = (gate or usage_guard.GATE).observe(info)
+    if proc.returncode != 0 or envelope is None:
+        out = result("", None, f"nonzero exit {proc.returncode}: {(proc.stderr or '')[-2000:]}"
+                     if proc.returncode != 0 else
+                     f"json parse failure: no result event; stdout_tail={(proc.stdout or '')[-500:]!r}")
+        out["usage_limited"] = bool(verdict and verdict["pause"] and "REJECTED" in verdict["why"])
+        return out
     text = envelope.get("result") if isinstance(envelope, dict) else None
     return result(text or "", envelope, None)
 
 
 def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.run,
-            allow=(), extra_args=()):
-    """One claude -p call; retries ONCE on timeout or nonzero exit, then gives up."""
-    attempt = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
-                             extra_args=extra_args)
-    attempt["retried"] = False
-    if attempt["error"] is None:
-        return attempt
-    retry = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
-                           extra_args=extra_args)
+            allow=(), extra_args=(), gate=None):
+    """One claude -p call; retries ONCE on timeout or nonzero exit, then gives up.
+
+    Usage-limit policy (usage_guard, ADR 0099): every attempt first waits out any pause the gate
+    holds (a window at >= 80%), and an attempt the limit REJECTED waits for the reset and is
+    re-issued without spending the one retry — a closed window is not a cell failure."""
+    gate = gate or usage_guard.GATE
+
+    def attempt():
+        for _ in range(usage_guard.MAX_LIMIT_WAITS + 1):
+            gate.wait()
+            a = _invoke_claude(prompt, model, env, cwd, timeout, run=run, allow=allow,
+                               extra_args=extra_args, gate=gate)
+            if not a.get("usage_limited"):
+                return a
+        return a
+
+    first = attempt()
+    first["retried"] = False
+    if first["error"] is None:
+        return first
+    retry = attempt()
     retry["retried"] = True
     return retry
 

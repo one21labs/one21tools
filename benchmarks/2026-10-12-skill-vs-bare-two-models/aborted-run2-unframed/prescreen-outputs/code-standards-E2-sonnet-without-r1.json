@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E2-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22150.8,
+  "duration_ms": 21218,
+  "duration_api_ms": 20972,
+  "cost_usd": 0.0338901,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 587,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3133,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 587,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3133,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 587,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 587
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:28:45.381813+00:00",
+   "end": "2026-10-12T05:29:07.532631+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0338901
+ },
+ "response": "<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/review.md</parameter>\n<parameter name=\"content\"># Code Review: `process_refund`\n\nDefects ordered by severity, each with a concrete fix.\n\n## Critical\n\n### 1. Order is marked refunded before the API call succeeds\n`order.status = \"refunded\"` and `order.refunded_amount = amount` are set *before* `payments_api.refund(...)`. If the API raises, the function returns `False` but the order stays \"refunded\" with a refunded amount. The system now claims money was returned when it was not.\n\n**Fix:** Call the API first; mutate the order only after confirmed success.\n\n### 2. A non-\"ok\" API result is treated as success\nWhen `result.get(\"status\") != \"ok\"`, the code logs a warning and then continues, sets the fee, and returns `True`. A declined or failed refund is reported as successful, and the order (already mutated, see #1) stays \"refunded\".\n\n**Fix:** Treat non-ok as failure: log with context, return `False` (or raise), and do not mutate the order.\n\n### 3. No validation of `amount`\nNothing checks that `amount` is positive, numeric, or `<= order total - already refunded`. Negative, zero, or excessive amounts go straight to the payments API. This allows over-refunds and effectively issuing charges or free money.\n\n**Fix:**\n```python\nif amount <= 0:\n    raise ValueError(\"amount must be positive\")\nif amount > order.total - order.refunded_amount:\n    raise ValueError(\"refund exceeds refundable balance\")\n```\n\n### 4. No idempotency / double-refund protection\nThere is no check on the existing order status, and no idempotency key is passed to the API. A retry, double-click, or duplicate webhook issues a second refund. Also, if the API call times out after the provider processed it, a retry refunds again.\n\n**Fix:** Reject orders already fully refunded (or not in a refundable state, e.g. not \"paid\"), and pass a deterministic idempotency key (e.g. `f\"refund-{order_id}-{n}\"`) to `payments_api.refund`. Serialize concurrent calls per order (row lock / `SELECT ... FOR UPDATE` or a compare-and-set on status).\n\n## High\n\n### 5. `refunded_amount` is overwritten, not accumulated\n`order.refunded_amount = amount` discards earlier partial refunds, so the ledger understates what was refunded, which also breaks the cap check in #3.\n\n**Fix:** `order.refunded_amount += amount` (after success), and set status to `\"refunded\"` only when fully refunded, otherwise `\"partially_refunded\"`.\n\n### 6. Persistence is never performed\nMutations are made on an in-memory object and nothing saves them or wraps the API call and DB write in a transaction. Changes may be lost, or the DB and provider can diverge.\n\n**Fix:** Persist in a transaction after the API success (or use an outbox / \"pending\" state: write `refund_pending`, call API, then finalize or roll back).\n\n### 7. Floating-point money\n`FEE_RATE = 0.02` and `amount * FEE_RATE` use binary floats; amounts will accumulate rounding errors (e.g. 0.1 + 0.2 issues, fractions of a cent).\n\n**Fix:** Use `decimal.Decimal` (or integer minor units) with explicit rounding:\n```python\nFEE_RATE = Decimal(\"0.02\")\nfee = (amount * FEE_RATE).quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP)\n```\n\n## Medium\n\n### 8. Unhandled lookup failure\n`orders[order_id]` raises a bare `KeyError` for an unknown ID, inconsistent with the function's `True/False` return contract elsewhere.\n\n**Fix:** Use `orders.get(order_id)`, log, and return `False` / raise a domain error (`OrderNotFound`).\n\n### 9. Overly broad `except Exception` with useless logging\nThe handler swallows every exception, including programming errors, and logs `\"refund error\"` with no order ID, amount, or traceback, which makes incidents undiagnosable. Callers also can't distinguish failure causes.\n\n**Fix:** Catch the API's specific exceptions, and use `log.exception(\"refund failed\", extra={\"order_id\": order_id, \"amount\": amount})` (or include them in the message). Re-raise unexpected errors.\n\n### 10. Unclear fee semantics\nThe fee is computed on the refund amount and stored by overwrite (`=`), so repeated partial refunds lose prior fees. It is unclear whether the fee is charged to the merchant or the customer, and whether it should apply on a refund at all (processors often don't return their fee).\n\n**Fix:** Confirm the business rule; if kept, accumulate (`order.fee += fee`) and document who bears it.\n\n### 11. Authorization / audit trail missing\nThere is no caller identity, reason, or audit record. Refunds are a sensitive financial operation.\n\n**Fix:** Accept an actor and reason, check permission, and write an audit log entry on both success and failure.\n\n## Low\n\n### 12. Weak logging\n`log.warning(\"refund not ok\")` omits the API's response, order ID, and amount. Logs should be structured and avoid leaking sensitive payment data.\n\n**Fix:** Log `order_id`, amount, and the provider's status/error code (not full card data).\n\n### 13. Misleading / missing documentation and types\nThe comment `# look up the order` adds nothing; there is no docstring, no type hints, and the `True/False` contract is undocumented.\n\n**Fix:** Add type hints (`amount: Decimal`), a docstring describing return/raise behavior, and remove the noise comment.\n\n### 14. Missing tests\nNo tests are included for failure paths, over-refund, duplicates, or partial refunds.\n\n**Fix:** Add tests for API exception, non-ok status, invalid amounts, repeated refunds, and unknown order.\n\n## Suggested corrected version\n\n```python\nimport logging\nfrom decimal import Decimal, ROUND_HALF_UP\n\nlog = logging.getLogger(\"payments\")\n\nFEE_RATE = Decimal(\"0.02\")\n\n\ndef process_refund(orders, payments_api, order_id, amount: Decimal) -> bool:\n    \"\"\"Refund `amount` on an order. Returns True only if the provider confirmed it.\"\"\"\n    order = orders.get(order_id)\n    if order is None:\n        log.error(\"refund: unknown order %s\", order_id)\n        return False\n    if amount <= 0 or amount > order.total - order.refunded_amount:\n        raise ValueError(\"invalid refund amount\")\n\n    key = f\"refund-{order_id}-{order.refunded_amount}\"\n    try:\n        result = payments_api.refund(order.payment_ref, amount, idempotency_key=key)\n    except PaymentsAPIError:\n        log.exception(\"refund failed order=%s amount=%s\", order_id, amount)\n        return False\n\n    if result.get(\"status\") != \"ok\":\n        log.warning(\"refund rejected order=%s amount=%s result=%s\", order_id, amount, result)\n        return False\n\n    order.refunded_amount += amount\n    order.status = \"refunded\" if order.refunded_amount == order.total else \"partially_refunded\"\n    order.fee += (amount * FEE_RATE).quantize(Decimal(\"0.01\"), rounding=ROUND_HALF_UP)\n    # persist inside a transaction here\n    return True\n```\n\n(`PaymentsAPIError` stands in for the client library's real exception type; the persistence and per-order locking from #4 and #6 still need to be wired into your data layer.)\n</parameter>\n</invoke>\n\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/empty-config-zyxpym7r/projects/-tmp-neutral-cwd-prescreen-outputs-k6lkoe-r/memory/MEMORY.md</parameter>\n<parameter name=\"content\"></parameter>\n</invoke>\n\n<invoke name=\"Read\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/review.md</parameter>\n<parameter name=\"limit\">5</parameter>\n</invoke>\n\n<invoke name=\"Bash\">\n<parameter name=\"command\">ls -la /tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/</parameter>\n</invoke>\n\n\n\n\n\n\n\n<invoke name=\"Bash\">\n<parameter name=\"command\">ls -la /tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/ && head -5 /tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/review.md</parameter>\n</invoke>\n\n\n\n\n\n\n\n<invoke name=\"Bash\">\n<parameter name=\"command\">ls -la /tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/</parameter>\n</invoke>"
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E9-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22982.0,
+  "duration_ms": 21849,
+  "duration_api_ms": 21511,
+  "cost_usd": 0.0440682,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 683,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1909,
+   "output_tokens_details": {
+    "thinking_tokens": 334
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 683,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1909,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 683,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 683
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:42:08.234345+00:00",
+   "end": "2026-10-12T05:42:31.216379+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0440682
+ },
+ "response": "# Not ready to build: one correctness bug, and a lot of scope the problem doesn't need\n\n## 1. The retry logic breaks the one hard requirement\n\n> \"if no response within 5s, mark job failed and re-enqueue\"\n\nA timeout doesn't mean the email wasn't sent. It means you don't know. The provider may have accepted and delivered the message, and the response was slow or got lost. Re-enqueuing then sends the invoice a second time, which is exactly the chargeback case Finance flagged. Exponential backoff with 5 attempts makes it worse: one slow provider incident could send up to 5 copies.\n\n**Fix (needed before v1):**\n- **Provider idempotency keys.** Most email APIs (Postmark, SendGrid, SES via your own wrapper, Resend, etc.) accept an idempotency key or message ID. Derive it deterministically from the job, e.g. `invoice:{invoice_id}`, so the provider dedupes retries. Confirm your provider supports this and how long it remembers keys. If it doesn't, that's a reason to switch providers.\n- **A DB-level guard.** Add a `sent_emails(dedupe_key UNIQUE, provider_message_id, sent_at)` table, or a unique constraint on the job's dedupe key, so you can't even enqueue a duplicate invoice job.\n- **Classify failures.** Retry on timeouts and 5xx only if idempotency is in place. Don't retry 4xx. Treat an \"unknown outcome\" separately from \"definitely failed.\"\n- **Define the actual guarantee.** \"Never twice\" and \"always delivered\" can't both be guaranteed. Pick at-most-once for invoices, or at-least-once plus provider dedupe, and write down which one you chose.\n\n## 2. Locking and crash recovery aren't specified\n\n`FOR UPDATE SKIP LOCKED` is the right primitive, but the doc doesn't say whether the row lock is held during the HTTP call.\n- **If it is**, every send holds an open transaction for up to 5s. That's tolerable at this volume, but crash semantics get murky.\n- **If it isn't** (you claim with `status='running'` and commit), you need a lease or heartbeat (`locked_until`) and a reaper for jobs orphaned by a crashed worker. That reaper is also a duplicate-send path, so it relies on the idempotency key too.\n\nYou also need a dead-letter state after max attempts, plus an alert on it.\n\n## 3. Scope is far larger than ~200\u2013500 emails/day\n\nThat's roughly one job every 3 minutes. Cutting these items makes the design simpler and safer:\n\n| Proposed | Recommendation |\n|---|---|\n| Plugin system + YAML manifests for other teams | Cut. No other team is asking for this yet, and it turns a 2-person internal tool into a platform you'll support. |\n| 5 priorities + weighted fair scheduling | Cut. At this volume the queue is almost always empty. If you want password resets to never wait behind a batch of invoices, use two queues or a single `priority` ORDER BY. |\n| React dashboard with throughput charts | Defer. Start with a SQL view or a few saved queries, a \"retry job\" script, and an alert on dead-lettered and stuck jobs. |\n| 500ms polling | Fine. `LISTEN/NOTIFY` is optional. |\n\n## 4. Consider not building the queue at all\n\nMature Postgres-backed queues already solve locking, leases, retries, backoff, and dead-lettering:\n- **Node:** graphile-worker, pg-boss\n- **Go:** River\n- **Elixir:** Oban\n- **Ruby:** GoodJob, or Solid Queue in Rails 8\n- **Python:** Procrastinate\n\nThey'd fit in your existing Postgres, and several ship an admin UI. Your real engineering effort then goes where the risk is: idempotent sending and the invoice dedupe guarantee.\n\n## Suggested v1 (~1\u20132 weeks rather than 6)\n\n1. Adopt an existing PG-backed queue library.\n2. Give each email job a deterministic dedupe key, enforce it with a unique constraint, and pass it to the provider as the idempotency key.\n3. Retry only on timeout/5xx with backoff, then dead-letter and alert.\n4. Use a separate queue or higher priority for password resets.\n5. Add basic observability: queue depth, oldest pending job age, dead-letter count.\n6. Test the duplicate scenario explicitly: provider accepts the request, then the response times out. Assert only one email goes out.\n\nBefore committing, it's worth asking which provider you're on and whether it supports idempotency keys. The answer determines how much of the dedupe logic you have to own."
+}

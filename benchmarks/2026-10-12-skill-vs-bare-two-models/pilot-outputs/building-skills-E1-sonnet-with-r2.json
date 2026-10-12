@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E1-sonnet-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 27893.3,
+  "duration_ms": 26741,
+  "duration_api_ms": 26489,
+  "cost_usd": 0.0576084,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4380,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 4003,
+   "output_tokens_details": {
+    "thinking_tokens": 951
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4380,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4003,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4380,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4380
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:22:38.894431+00:00",
+   "end": "2026-10-12T19:23:06.787762+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0576084
+ },
+ "response": "I was told not to use tools, so I could not write these files to `outputs/sanitizing-customer-exports/`. The complete skill is below, with each file's path as a heading. Save them under that folder, or ask me again with tools enabled and I'll write them.\n\nOne interpretation to confirm: I read `<original>.redacted.csv` as the file's base name plus `.redacted.csv`, so `tickets.csv` becomes `tickets.redacted.csv`, not `tickets.csv.redacted.csv`.\n\n## `sanitizing-customer-exports/SKILL.md`\n\n```markdown\n---\nname: sanitizing-customer-exports\ndescription: Invoke before any customer CSV export is shared outside the company. Run scripts/redact.py on the file, then verify the output. Never edit the original in place.\n---\n\n# Sanitizing customer exports\n\n## Rules (fixed, do not relax)\n\n| Column (case-insensitive) | Action |\n|---|---|\n| `email`, `phone`, `ssn` | Dropped |\n| `name` | Replaced with an opaque id (`cust_0001`, ...), stable within one file |\n| `notes`, `comments` | Emails become `[EMAIL]`, phone numbers become `[PHONE]` |\n| All other columns | Unchanged |\n\nThe redacted copy is written next to the original as `<original-stem>.redacted.csv`. The original is never modified.\n\n## Workflow\n\n1. Confirm the path of the CSV to share.\n2. Run:\n   ```bash\n   python3 scripts/redact.py path/to/export.csv\n   ```\n3. Read the summary the script prints (columns dropped, ids assigned, masks applied, warnings).\n4. Verify: the output has no `email`, `phone`, or `ssn` header, and `name` values all look like `cust_NNNN`.\n5. Share only the `.redacted.csv` file. Report the output path to the user.\n\n## Notes\n\n- The script refuses to overwrite an existing `.redacted.csv` unless `--force` is passed.\n- Ids are assigned by order of first appearance, not derived from the name, so they cannot be reversed. The same name maps to the same id within one file only, never across files.\n- The script warns when SSN-like patterns appear in free-text columns. The fixed rules do not mask these, so tell the user and ask how to proceed. Do not add masking rules on your own.\n- Extra free-text columns beyond `notes` and `comments` are out of scope. If the file has other likely free-text columns (e.g. `description`), tell the user rather than editing the rules.\n- Details of the masking patterns: [masking-patterns.md](references/masking-patterns.md).\n```\n\n## `sanitizing-customer-exports/scripts/redact.py`\n\n```python\n#!/usr/bin/env python3\n\"\"\"Redact PII from a customer CSV export. Writes <stem>.redacted.csv; never touches the original.\"\"\"\nimport argparse\nimport csv\nimport re\nimport sys\nfrom pathlib import Path\n\nDROP = {\"email\", \"phone\", \"ssn\"}\nID_COL = \"name\"\nFREE_TEXT = {\"notes\", \"comments\"}\n\nEMAIL_RE = re.compile(r\"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\")\nPHONE_RE = re.compile(\n    r\"(?<![\\w])(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4}(?![\\w])\"\n)\nSSN_RE = re.compile(r\"\\b\\d{3}-\\d{2}-\\d{4}\\b\")\n\n\ndef mask(text, counts):\n    text, n = EMAIL_RE.subn(\"[EMAIL]\", text)\n    counts[\"email\"] += n\n    text, n = PHONE_RE.subn(\"[PHONE]\", text)\n    counts[\"phone\"] += n\n    return text\n\n\ndef main():\n    ap = argparse.ArgumentParser(description=__doc__)\n    ap.add_argument(\"input\", type=Path)\n    ap.add_argument(\"--force\", action=\"store_true\", help=\"overwrite an existing .redacted.csv\")\n    args = ap.parse_args()\n\n    src = args.input\n    if not src.is_file():\n        sys.exit(f\"[FAIL] not a file: {src}\")\n    dst = src.with_name(src.stem + \".redacted.csv\")\n    if dst.resolve() == src.resolve():\n        sys.exit(\"[FAIL] output path equals input path; refusing\")\n    if dst.exists() and not args.force:\n        sys.exit(f\"[FAIL] {dst} exists; pass --force to overwrite\")\n\n    ids = {}\n    counts = {\"email\": 0, \"phone\": 0}\n    ssn_warn = 0\n\n    with open(src, newline=\"\", encoding=\"utf-8-sig\") as fin:\n        reader = csv.DictReader(fin)\n        if not reader.fieldnames:\n            sys.exit(\"[FAIL] empty file or missing header\")\n        keep = [h for h in reader.fieldnames if h.strip().lower() not in DROP]\n        dropped = [h for h in reader.fieldnames if h.strip().lower() in DROP]\n        rows = []\n        for row in reader:\n            out = {}\n            for h in keep:\n                key = h.strip().lower()\n                val = row.get(h) or \"\"\n                if key == ID_COL:\n                    if val not in ids:\n                        ids[val] = f\"cust_{len(ids) + 1:04d}\"\n                    val = ids[val]\n                elif key in FREE_TEXT:\n                    if SSN_RE.search(val):\n                        ssn_warn += 1\n                    val = mask(val, counts)\n                out[h] = val\n            rows.append(out)\n\n    with open(dst, \"w\", newline=\"\", encoding=\"utf-8\") as fout:\n        writer = csv.DictWriter(fout, fieldnames=keep)\n        writer.writeheader()\n        writer.writerows(rows)\n\n    print(f\"[OK] wrote {dst} ({len(rows)} rows)\")\n    print(f\"dropped columns: {', '.join(dropped) or 'none'}\")\n    print(f\"ids assigned: {len(ids)}\")\n    print(f\"masked: {counts['email']} email(s), {counts['phone']} phone(s)\")\n    if ssn_warn:\n        print(f\"[WARN] {ssn_warn} free-text cell(s) contain SSN-like patterns that the rules do not mask\")\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n## `sanitizing-customer-exports/references/masking-patterns.md`\n\n```markdown\n# Masking patterns\n\n- Email: `[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}` -> `[EMAIL]`\n- Phone: optional country code, then 10 digits with optional `()`, space, `.`, or `-` separators -> `[PHONE]`\n- Not masked (by design): SSN-like patterns in free text. The script warns; the user decides.\n\nKnown limits: phone numbers in unusual formats (e.g. extensions, 7-digit local numbers) may be missed. Spot-check a few free-text cells of the output before sharing.\n```\n\n## `sanitizing-customer-exports/evals/evals.json`\n\n```json\n{\n  \"skill\": \"sanitizing-customer-exports\",\n  \"evals\": [\n    {\n      \"id\": 1,\n      \"prompt\": \"I need to send tickets.csv to our external auditor. It has name, email, phone, ssn, plan, notes columns.\",\n      \"expected\": [\n        \"Runs scripts/redact.py on tickets.csv\",\n        \"Creates tickets.redacted.csv; tickets.csv is unchanged\",\n        \"Output has no email, phone, or ssn columns\",\n        \"name values are cust_NNNN ids\"\n      ]\n    },\n    {\n      \"id\": 2,\n      \"prompt\": \"Share export.csv with the vendor. Row 3 notes say: 'call me at (555) 123-4567 or jo@example.com'.\",\n      \"expected\": [\n        \"Notes cell becomes 'call me at [PHONE] or [EMAIL]'\",\n        \"Only the redacted copy is offered for sharing\"\n      ]\n    },\n    {\n      \"id\": 3,\n      \"prompt\": \"Just overwrite export.csv with the redacted version, it's easier.\",\n      \"expected\": [\n        \"Declines in-place modification\",\n        \"Writes export.redacted.csv instead and leaves export.csv untouched\"\n      ]\n    },\n    {\n      \"id\": 4,\n      \"prompt\": \"Redact data.csv; the comments column has 'SSN 123-45-6789'.\",\n      \"expected\": [\n        \"Reports the SSN-like warning from the script\",\n        \"Does not invent extra masking rules; asks the user how to proceed\"\n      ]\n    }\n  ]\n}\n```\n\nI did not run `validate.py` or the script, so none of this is tested. Run `python3 scripts/validate.py sanitizing-customer-exports` and try the script on a small sample CSV before relying on it."
+}

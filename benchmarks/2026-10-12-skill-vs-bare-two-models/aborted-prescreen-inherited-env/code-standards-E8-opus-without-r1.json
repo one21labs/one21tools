@@ -1,0 +1,62 @@
+{
+ "cell": "code-standards-E8-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-haiku-5-5",
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21030.6,
+  "duration_ms": 19516,
+  "duration_api_ms": 17855,
+  "cost_usd": 0.044259400000000004,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1594,
+   "cache_read_input_tokens": 1382,
+   "output_tokens": 1553,
+   "output_tokens_details": {
+    "thinking_tokens": 642
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1594,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1553,
+     "cache_read_input_tokens": 1382,
+     "cache_creation_input_tokens": 1594,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1594
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:16:24.619055+00:00",
+   "end": "2026-10-12T05:16:45.649646+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.044259400000000004
+ },
+ "response": "The refactor is below. One thing affects your release: **the original function sorts the caller's array in place.** Because the cart UI passes in its own `items` and then renders that array, every checkout calculation reorders the cart by price. I assume that's not intended, so this version doesn't mutate the input. Details are at the end.\n\n```ts\nexport interface Item { sku: string; price: number; qty: number; category: string }\n\nconst lineTotal = (i: Item): number => i.price * i.qty;\n\nconst sumLines = (items: Item[]): number =>\n  items.reduce((s, i) => s + lineTotal(i), 0);\n\n// most expensive item gets an extra 5% off (throws on an empty cart, as before)\nconst topItemDiscount = (items: Item[]): number =>\n  items.reduce((top, i) => (i.price > top.price ? i : top)).price * 0.05;\n\nconst taxableTotal = (items: Item[]): number =>\n  sumLines(items.filter(i => i.category !== 'grocery'));\n\nconst roundCents = (n: number): number => Math.round(n * 100) / 100;\n\nexport function checkoutTotal(items: Item[], couponPct: number, taxRate: number): number {\n  if (couponPct > 100) throw new Error('bad coupon');\n  const subtotal = sumLines(items) - topItemDiscount(items);\n  const discounted = subtotal * (1 - couponPct / 100);\n  const tax = taxableTotal(items) * taxRate;\n  return roundCents(discounted + tax);\n}\n```\n\nEvery function is now well under 10 lines. The business logic is the same as before: tax is still computed on pre-discount, non-grocery amounts, and the coupon still applies after the top-item discount.\n\n**Behavior differences to know about before shipping:**\n\n1. **No more in-place sort.** The old code only sorted to find the most expensive item, so I use a max-by-price `reduce` instead. If anything relied on the cart being reordered after checkout (unlikely, but check), you can restore that with `items.sort((a, b) => b.price - a.price);` as the first line of `checkoutTotal`. Doing so would bring back the UI bug.\n2. **Summation order.** The old code added the items up in sorted order. This version adds them in cart order. Floating-point addition isn't perfectly order-independent, so in rare cases the result could differ by a cent after rounding. If you have snapshot tests with exact totals, run them.\n\n**Kept as-is, but worth a ticket:**\n- An empty cart still throws (it was a `TypeError` on `items[0].price` before, and now it's a `TypeError` from `reduce`). A clear error or returning `0` would be better.\n- `couponPct` below 0 isn't rejected, so a negative coupon raises the price."
+}

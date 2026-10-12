@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E10-sonnet-without-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E10",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35335.5,
+  "duration_ms": 34587,
+  "duration_api_ms": 34336,
+  "cost_usd": 0.04188940000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 712,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 3883,
+   "output_tokens_details": {
+    "thinking_tokens": 1076
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 712,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3883,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 712,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 712
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:39:34.600860+00:00",
+   "end": "2026-10-12T19:40:09.936334+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04188940000000001
+ },
+ "response": "# 40-Service Python 3.8 \u2192 3.12 Sprint Plan\n\n## Recommendation on the big-bang deploy\n\nI've kept the two-week freeze and the all-hands push, but I changed the deploy shape. A single Friday big-bang across 40 services, including payments, with on-call needing rollback, is the riskiest option. If it goes wrong, 40 services fail at once going into a weekend, and you can't tell which upgrade caused what.\n\nThe plan therefore **decouples code changes from the runtime flip**:\n\n1. Every service first merges changes that run on both 3.8 and 3.12, verified by a CI matrix. These are low-risk and ship on 3.8 as normal.\n2. The runtime flip is then just an image tag change per service. Rollback is `helm rollback` or reverting that tag.\n3. The flip happens in waves during week 2, with Friday kept as buffer. If the director insists on Friday, Wave 1 and 2 still happen earlier as a rehearsal, and Friday becomes \"flip the remainder\", which is a much smaller blast radius.\n\n## Prerequisite: make rollback real (Day 1\u20132)\n\nThe shared `values.yaml` pins `python:3.8-slim` for everything, so flipping it moves all 40 services together and reverting it rolls all 40 back. Fix that first:\n\n- Add a per-service override (e.g. `image.baseTag`) that defaults to the current 3.8 value. Services flip independently.\n- Pin base images by digest, not just tag, so a rollback gets the exact old image.\n- Rehearse in staging: deploy one service on 3.12, run `helm rollback`, and confirm it returns to a healthy 3.8 pod. On-call signs off on this runbook before any production flip.\n- Check that DB migrations or serialized data (pickle, cached objects) written by 3.12 pods can still be read by 3.8 pods.\n\n## Workstreams and owners\n\n| Stream | Services | Notes |\n|---|---|---|\n| A. Standard | 31 Flask/FastAPI | Split among all teams, roughly 3\u20134 each |\n| B. asynctest | 4 | Migrate tests off asynctest |\n| C. libgeo-py | 2 | Critical path, start Day 1 |\n| D. No tests | 2 (incl. payments webhook) | Needs test-writing before upgrade |\n| E. distutils | 1 | Small, but assign someone to it |\n| F. Platform | Helm chart, CI, base image | 1\u20132 people, unblocks everyone |\n\n## Day-by-day\n\n**Week 1: make code dual-compatible and merge on 3.8 runtime**\n\n- **Day 1**\n  - Freeze feature work (agree on a hotfix exception path).\n  - Stream F adds the Helm per-service override and a shared CI template that runs pytest on both 3.8 and 3.12 with warnings visible.\n  - Stream C starts building cp312 wheels for libgeo-py, using cibuildwheel and checking the C code for removed or changed CPython APIs.\n  - Stream D starts writing tests.\n  - Each team takes inventory of its services: dependency versions, `python_requires`, and deprecated stdlib usage.\n- **Day 2**\n  - Stream A: bump dependencies to versions that support 3.12, and pin them. For FastAPI services, check Pydantic v1 \u2192 v2 early because it's the likeliest big change.\n  - Fix known stdlib breakages: `imp`, `asyncio.coroutine`, `collections` ABC aliases, `ssl.wrap_socket`, `unittest` alias removals, and `datetime.utcnow` deprecation noise.\n  - Stream B: replace asynctest with `unittest.IsolatedAsyncioTestCase` or `pytest-asyncio`/`anyio`. This works on 3.8 too, so it merges immediately.\n  - Stream E: move `setup.py` to setuptools or `pyproject.toml`, dropping the distutils import.\n  - Stream F rehearses the staging rollback.\n- **Day 3\u20134**\n  - Stream A: get the 3.12 CI job green for each service and merge. Where coverage is thin (60\u201370%), add tests around the riskiest paths: serialization, async code, and anything touching removed APIs.\n  - Stream C: wheels built and published to the internal index. Run libgeo-py's own test suite on 3.12, then each dependent service's suite.\n  - Stream D: write characterization tests for both untested services.\n    - For the payments webhook receiver: replay recorded real payloads (sanitized), cover signature verification, idempotency, and error paths, and record expected responses on 3.8 first.\n    - The other untested service gets at least smoke and contract tests.\n- **Day 5**\n  - Checkpoint. Every service has a dual-compatible build merged, or a named blocker.\n  - Anything not green gets triaged: fix, or defer from this sprint's flip. A service on 3.8 for another sprint is far better than a bad flip.\n\n**Week 2: flip in waves, with soak time between them**\n\n- **Day 6 (Mon)**\n  - **Wave 1 in staging:** all services on 3.12. Run integration tests and load smoke tests.\n  - Compare error rates and latency against a 3.8 baseline.\n- **Day 7 (Tue)**\n  - **Wave 1 in production:** about 5 low-criticality services, with on-call watching dashboards. This includes one rollback drill in production if policy allows, or a staged one otherwise.\n- **Day 8 (Wed)**\n  - **Wave 2:** about 15 standard services, if Wave 1 has been clean for 24 hours.\n  - The 4 asynctest services and the distutils service go here, since their code changes are already proven.\n- **Day 9 (Thu)**\n  - **Wave 3:** remaining standard services.\n  - The 2 libgeo-py services also go here, only if cp312 wheels are validated in staging.\n  - The payments webhook receiver goes last, as a canary (for example 10% \u2192 50% \u2192 100% over several hours) with webhook failure and retry metrics watched. Don't flip it in the same window as other services.\n- **Day 10 (Fri)**\n  - Buffer, cleanup, and mop-up of any deferred services.\n  - Update the default base image in `values.yaml` to 3.12 only when all services have flipped.\n  - Retro, and unfreeze feature work.\n  - Don't start new production flips after midday.\n\n## Go/no-go gates\n\nEach service flips only if:\n- the 3.12 CI job is green and the dual-compat build has run in production on 3.8\n- staging on 3.12 shows no new errors\n- the rollback tag is recorded and confirmed to exist in the registry\n- on-call has been told the flip window\n\nStop the wave and roll back if error rate, p95 latency, or restart count exceeds the agreed threshold. Set the thresholds in advance, for example error rate more than 2\u00d7 baseline for 10 minutes.\n\n## Risks and fallbacks\n\n| Risk | Fallback |\n|---|---|\n| libgeo-py wheels slip or the C code needs real porting | The 2 dependent services stay on 3.8 via the per-service override. Everything else proceeds. |\n| Pydantic v1 \u2192 v2 or other major dependency jumps in FastAPI services | Pin to the latest release that supports both; defer the major upgrade. |\n| Payments receiver has hidden behavior no test captures | Canary rollout plus replayed production traffic; keep the 3.8 deployment ready for instant rollback. |\n| Deploy of 40 services overloads the cluster or registry | The wave structure handles it; stagger within waves. |\n| A hotfix is needed during the freeze | Hotfixes go through the dual-compat CI matrix so they don't break the upgrade. |\n| Python 3.8 is already past end of life | This upgrade is overdue, so don't extend the deadline just for comfort. Deferring individual services beats a rushed flip. |\n\n## What to tell the director\n\n- Two weeks is feasible for the code work.\n- The risk lives in the deploy, not the code, so the plan flips in waves within the same sprint and keeps Friday as buffer.\n- Realistic outcome: about 36\u201338 services on 3.12 by Friday. The libgeo-py services and possibly the payments receiver are the ones most likely to land in a follow-up, and that's the safer choice."
+}

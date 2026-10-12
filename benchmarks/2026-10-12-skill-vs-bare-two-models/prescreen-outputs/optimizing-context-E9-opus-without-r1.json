@@ -1,0 +1,61 @@
+{
+ "cell": "optimizing-context-E9-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 25850.4,
+  "duration_ms": 25171,
+  "duration_api_ms": 24923,
+  "cost_usd": 0.05109219999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 676,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2263,
+   "output_tokens_details": {
+    "thinking_tokens": 745
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 676,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2263,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 676,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 676
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:06:53.899375+00:00",
+   "end": "2026-10-12T19:07:19.749800+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.05109219999999999
+ },
+ "response": "The plan has the right instinct (separate concerns, verify the work), but three choices will hurt you: the full-repo prompts, the one-paragraph handoffs, and the success metric. For 1\u20133 file bugs, I'd use a much leaner design.\n\n## Main problems\n\n**1. Concatenating the whole repo into every system prompt**\n- **Cost and latency:** 20k lines of TypeScript is very roughly 150k\u2013250k tokens. Across 7 agents, that's over 1M input tokens per small bug fix. Prompt caching softens the cost but not the other issues.\n- **Attention dilution:** Models do worse at finding the relevant 50 lines when they're buried in 20k irrelevant ones. More context isn't the same as better context.\n- **Staleness:** The snapshot is taken before the coder edits anything. The tester and reviewer would see the *old* code in their prompt, not the patched code.\n- **Better:** Give agents tools (grep/search, read file, list directory) and let them pull what they need. Optionally add a short static orientation: a repo map, package layout, conventions, and how to run tests.\n\n**2. One-paragraph summaries between agents**\nThis is a game of telephone. Exact details are what bug fixes depend on: file paths, line numbers, error messages, and edge cases in the ticket. Those are the first things a summary drops. The reviewer especially must see the **actual diff** and **actual test output**, not a description of them. Pass artifacts, not summaries: the verbatim ticket, file paths, the diff, and test logs.\n\n**3. \"Completes without errors\" as the success metric**\nThis measures whether the plumbing works, not whether bugs get fixed. A pipeline that confidently produces a wrong patch \"succeeds.\" Measure instead:\n- A test reproducing the bug fails before the patch and passes after\n- The full existing test suite, `tsc`, and lint all pass\n- Human acceptance or merge rate of the patches\n- Regression or revert rate after merge\n- Cost and time per fix\n\nBuild an **eval set from ~20\u201350 historical bugs** with known fixes, so you can compare pipeline variants objectively.\n\n## Structural issues\n\n- **Wrong order:** The planner runs before the researcher, so it plans without seeing the code. Research must come first.\n- **No feedback loops:** The pipeline is strictly linear. What happens when tests fail or the reviewer rejects the patch? You need a loop back to the coder, with an iteration cap.\n- **Testing comes too late:** Write a failing reproduction test *before* the fix. It proves you understand the bug and gives the coder a concrete target.\n- **Too many agents for the task size:** Each handoff loses information and adds failure points. The PM agent mostly restates the ticket. The docs agent is rarely needed for small bug fixes, so make it conditional (\"did a public API or documented behavior change?\").\n\n## Suggested design\n\n**Main agent** (one agent, with tools for search, read, edit, and running tests/tsc/lint):\n1. Read the ticket. If it's ambiguous or can't be reproduced, **stop and escalate to a human**.\n2. Locate the relevant code.\n3. Write a failing test that reproduces the bug.\n4. Fix it.\n5. Run the targeted test, then the full suite, `tsc`, and lint. Iterate up to N times.\n\n**Reviewer subagent** (fresh context, which is the one place separation really pays off):\n- Inputs: the verbatim ticket, the diff, and the test output.\n- Checks whether the fix addresses the root cause and catches scope creep, missing edge cases, and tests that don't actually exercise the bug.\n- Rejections go back to the main agent with specific comments.\n\n**Optional:** Use parallel search subagents only if locating code turns out to be a bottleneck. They should return file paths and snippets, not prose summaries.\n\n## Gaps to fill\n\n- **Sandboxed environment:** An isolated checkout per run with dependencies installed and tests runnable.\n- **Permissions:** Agents work on a branch and open a PR. No pushing to main, and a human approves merges.\n- **Stopping conditions:** Iteration and token budgets, plus explicit \"give up and report\" behavior instead of forcing a patch.\n- **Observability:** Log full traces for each run so you can diagnose failures.\n- **Repo conventions file:** Test commands, monorepo package boundaries, and style rules, so agents don't rediscover them each run.\n\nStart with the single agent plus reviewer, measure it on your historical-bug eval set, and add agents only where the traces show a specific weakness."
+}

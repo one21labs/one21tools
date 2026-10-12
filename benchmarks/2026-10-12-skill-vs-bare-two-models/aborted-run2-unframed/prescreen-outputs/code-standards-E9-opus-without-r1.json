@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E9-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17711.9,
+  "duration_ms": 16862,
+  "duration_api_ms": 16581,
+  "cost_usd": 0.0404922,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 756,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1701,
+   "output_tokens_details": {
+    "thinking_tokens": 116
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 756,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1701,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 756,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 756
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:31:16.935320+00:00",
+   "end": "2026-10-12T05:31:34.647286+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0404922
+ },
+ "response": "Before adding logging, two things in this code are likely causing or hiding your 500s:\n\n1. **\"Not found\" returns 500.** Both branches in the handler call `http.Error(w, \"internal error\", 500)`, so a missing or mistyped order ID shows up as a server error. That alone could explain many of your \"vague 500s.\"\n2. **The real DB error is thrown away.** `return nil, errors.New(\"db error\")` discards `err`, so even with logging in the handler you'd only ever see \"db error.\" The store needs to wrap the original error.\n\nAlso, **don't log the `Order` struct or the row.** It contains `card_number`, and writing PANs to logs is a PCI-DSS violation. Logs usually end up in far more places than the database does. The logging below records the order ID and the error only.\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        // Keep the underlying error (timeouts, conn refused, scan type mismatch, etc.)\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    ctx := r.Context()\n    id := r.URL.Query().Get(\"id\")\n    log := h.logger.With(\"handler\", \"Order\", \"order_id\", id)\n\n    if id == \"\" {\n        log.InfoContext(ctx, \"missing order id\")\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(ctx, id)\n    if err != nil {\n        switch {\n        case errors.Is(err, ErrNotFound):\n            log.InfoContext(ctx, \"order not found\")\n            http.Error(w, \"not found\", http.StatusNotFound)\n        case errors.Is(err, context.Canceled):\n            // Client disconnected; not a server fault.\n            log.InfoContext(ctx, \"request canceled\", \"err\", err)\n        case errors.Is(err, context.DeadlineExceeded):\n            log.ErrorContext(ctx, \"get order timed out\", \"err\", err)\n            http.Error(w, \"timeout\", http.StatusGatewayTimeout)\n        default:\n            log.ErrorContext(ctx, \"get order failed\", \"err\", err)\n            http.Error(w, \"internal error\", http.StatusInternalServerError)\n        }\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        // Headers are already sent at this point; just log.\n        log.ErrorContext(ctx, \"encode response failed\", \"err\", err)\n    }\n}\n```\n\nThis assumes `h.logger` is a `*slog.Logger` (stdlib `log/slog`, Go 1.21+). For example, `slog.New(slog.NewJSONHandler(os.Stdout, nil))`, set on the Handler at startup.\n\n**What changed and why**\n- A sentinel `ErrNotFound` checked with `errors.Is` replaces matching on the string `\"not found\"`, which was fragile.\n- The store wraps errors with `%w`, so the handler log shows the actual cause, e.g. `pq: relation \"orders\" does not exist` or `sql: Scan error on column \"total\": converting NULL to float64`. A NULL in `total` or `user_id` is a common hidden source of 500s.\n- Each case gets the right status code: 400 for a missing ID, 404 for not found, 504 for a timeout, and 500 only for genuine failures.\n- The JSON encode error is now checked instead of ignored.\n\n**Further suggestions**\n- Add a request ID middleware and attach it to the logger with `With(\"request_id\", ...)` so you can trace one request across log lines.\n- If you don't already have one, a recover middleware that logs panics with a stack trace will catch 500s that come from panics rather than returned errors.\n- If you ever need to log order details, add a `LogValue()` method on `Order` (`slog.LogValuer`) that masks the card to the last 4 digits. Longer term, consider whether you need to store full card numbers at all, rather than a processor token.\n\nIf you share the rest of the service (router, `main`, other handlers), I can apply the same pattern there."
+}

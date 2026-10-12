@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 25009.0,
+  "duration_ms": 24088,
+  "duration_api_ms": 23832,
+  "cost_usd": 0.0520508,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 816,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 2255,
+   "output_tokens_details": {
+    "thinking_tokens": 371
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 816,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2255,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 816,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 816
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:38.686084+00:00",
+   "end": "2026-10-12T19:34:03.695082+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0520508
+ },
+ "response": "# Don't use the strictest rule everywhere: it would break signup\n\nIf you apply billing's E.164 regex to signup, `(415) 555-0134` and `415.555.0134` both fail. They have no `+`, no country code, and contain punctuation. Those are exactly the formats you said most of your 4,000 daily mobile users type. You'd get consistency by rejecting a large share of real signups.\n\nThe three services are doing two different jobs:\n\n- **Billing** needs a canonical E.164 string to send to the provider.\n- **Signup** needs to accept human-formatted input.\n\nThe shared library should cover both by **normalizing** input to E.164, not just accepting or rejecting it.\n\n## Problems in the current code\n\n- **signup:** `LOOSE.match` only anchors at the start, so `\"5551234 call me after 5\"` passes. It also accepts `\"+++++++\"` and `\"-------\"`. So it's loose, and it's also wrong.\n- **billing:** It doesn't `.strip()`, so `\"+14155550134 \"` fails in billing but passes in support. They have already drifted apart.\n- **billing:** It sends \"whatever valid_phone accepted\", meaning the raw input. Once validation accepts more formats, billing must send the normalized value. Otherwise you'd forward `(415) 555-0134` to the provider.\n\n## Shared function design\n\n```python\n# phoneutil/__init__.py\nimport phonenumbers\n\nclass InvalidPhone(ValueError):\n    pass\n\ndef normalize_phone(raw: str, default_region: str | None = None) -> str:\n    \"\"\"Parse user- or system-supplied input and return E.164 (e.g. '+14155550134').\n\n    default_region: ISO country code used when input lacks a '+' prefix\n    (e.g. 'US'). If None, input must already include a country code.\n    Raises InvalidPhone if the number can't be parsed or isn't a valid number.\n    \"\"\"\n    if not isinstance(raw, str):\n        raise InvalidPhone(\"not a string\")\n    try:\n        num = phonenumbers.parse(raw.strip(), default_region)\n    except phonenumbers.NumberParseException as e:\n        raise InvalidPhone(str(e)) from e\n    if not phonenumbers.is_valid_number(num):\n        raise InvalidPhone(\"not a valid number\")\n    return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)\n\ndef is_valid_phone(raw: str, default_region: str | None = None) -> bool:\n    try:\n        normalize_phone(raw, default_region)\n        return True\n    except InvalidPhone:\n        return False\n```\n\nDesign choices:\n\n- **One function, policy set by a parameter.** Billing and support call it with `default_region=None`, so input must be explicit E.164-style. Signup calls it with `default_region=\"US\"` (or whatever your market is), so local formats are accepted. Every service runs the same parsing code, which is the consistency you actually want.\n- **Return the normalized value; don't just return a bool.** Callers store and forward the returned E.164 string, never the raw input. This fixes the billing hazard.\n- **Use `phonenumbers` (the libphonenumber port), not a regex.** It knows real per-country lengths and number ranges. Your `\\d{7,14}` regex accepts many numbers that can't exist. Pin the version, because its metadata updates can change results.\n- **Keep `is_valid_phone`** as a drop-in for existing `valid_phone` call sites during migration.\n\n## Rollout\n\nEach repo deploys independently, so migrate one service at a time, lowest risk first.\n\n1. **Publish `phoneutil` 1.0.0 to your private PyPI.** Include tests that cover each service's current accept/reject cases: the examples above, whitespace, `+` handling, and garbage strings. Have each repo pin it with `phoneutil==1.0.*`.\n\n2. **Support first.** It's lowest risk and closest to the new behavior. Replace `valid_phone` with `is_valid_phone(s)` (no default region). Before switching, ask what support uses the number for. It was copied from billing, which may be habit rather than a real E.164 requirement.\n\n3. **Billing second, in two steps:**\n   - Swap in `normalize_phone(s)` with no default region and **pass its return value to the provider**. Behavior is effectively unchanged for well-formed E.164. Numbers with stray whitespace now succeed, and impossible numbers that the old regex accepted now fail.\n   - Before deploying, run the new function over a sample of phone numbers already on file. Any stored number that now fails needs a decision before billing starts rejecting it at charge time.\n\n4. **Signup last, in shadow mode first.**\n   - Deploy code that runs both the old and new validators. Keep the old result as the decision, but log disagreements: inputs one accepts and the other rejects. Run it for a week or so. At 4,000 submissions a day, that gives you a solid sample.\n   - Review the log. Expect the new validator to reject garbage the old one let through. Check that it isn't rejecting real numbers, such as international users without `+`. That would tell you whether `\"US\"` is the right default or whether you need a country picker.\n   - Cut over and start storing the normalized E.164 value. Then signup data feeds cleanly into billing and support later.\n\n5. **Delete the three local `validate.py` copies** once each service is on the library, so they can't drift again.\n\n**Going forward:** treat `phoneutil` changes, including `phonenumbers` metadata bumps, as behavior changes. Bump the minor version and roll it out with the same per-service order. Because each service pins its own version, one upgrade can't silently change validation in all three at once."
+}

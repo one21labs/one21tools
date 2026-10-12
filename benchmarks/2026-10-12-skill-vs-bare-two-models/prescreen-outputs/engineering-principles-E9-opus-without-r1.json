@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E9-opus-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 23308.1,
+  "duration_ms": 22542,
+  "duration_api_ms": 22272,
+  "cost_usd": 0.04428820000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 728,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1902,
+   "output_tokens_details": {
+    "thinking_tokens": 224
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 728,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1902,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 728,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 728
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:05:28.798687+00:00",
+   "end": "2026-10-12T19:05:52.106815+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04428820000000001
+ },
+ "response": "# Not yet: the retry design violates your one hard requirement, and the scope is too big for the problem\n\n## 1. Blocker: the design will send duplicate invoices\n\n> \"if no response within 5s, mark job failed and re-enqueue\"\n\nA timeout doesn't mean the send failed. It means you don't know. The provider may have accepted the request and sent the email, and the response was just slow or lost. Re-enqueueing then sends a second invoice. With 5 attempts, a bad provider day could send the same invoice up to 5 times. That is exactly the chargeback scenario Finance is worried about.\n\nThere's a second path to the same bug. If a worker crashes after the provider accepts the request but before your status update commits, the job gets picked up again and sent again.\n\nYou can't fully solve this on your side. Exactly-once delivery across a network boundary isn't achievable with retries alone. You need:\n\n- **Provider-side idempotency keys.** Most email APIs (Postmark, SendGrid, SES via message dedup, Resend, etc.) accept an idempotency key or a deduplication ID. Use something stable like `invoice:{invoice_id}`, never the job ID or attempt number. Confirm your provider honors it, and check the dedup window, before committing to the design. **This is the single most important item in the review.**\n- **A sent-ledger with a unique constraint.** For example, `invoice_emails_sent(invoice_id UNIQUE, provider_message_id, sent_at)`. Check it before sending and write to it after. This guards against your own bugs, such as someone manually retrying from the dashboard or a duplicate enqueue.\n- **Three outcomes instead of two.** Use *succeeded*, *failed definitively* (4xx, safe to retry or drop), and *unknown* (timeout, 5xx, connection reset). For invoices, *unknown* should either retry only with the idempotency key, or park the job for human review or reconciliation against the provider's message log. It should not blindly re-enqueue.\n- **No retries of invoice jobs without the key.** Password resets can tolerate duplicates. Invoices can't. Retry policy should be per job type.\n\nAlso check the locking. If the `FOR UPDATE` transaction stays open across the 5s HTTP call, that's workable at your volume, but you need a lease or visibility timeout so crashed workers' jobs get reclaimed deliberately rather than by accident. Write that recovery path down explicitly.\n\n## 2. Scope: about 80% of this isn't needed at 500/day\n\n500 jobs/day is roughly one job every 3 minutes. For that volume:\n\n| Component | Verdict |\n|---|---|\n| Postgres table + SKIP LOCKED | Fine, a good choice |\n| 500ms polling | Fine (or 5s, it doesn't matter) |\n| Retries + backoff | Keep, but per-type and idempotency-aware (see above) |\n| **Plugin system / YAML manifests** | Cut. No other team has asked for it yet, and it's the most expensive part to design well. Add job types in code until there's real demand. |\n| **5 priorities + weighted fair scheduling** | Cut. The queue will almost always be empty. At most, add a single \"password resets first\" ordering via `ORDER BY priority, run_at`. |\n| **React dashboard + throughput charts** | Cut for v1. A couple of saved SQL queries plus an alert on failed or stuck jobs covers inspection. Manual retry is a one-line UPDATE, and an easy UI retry button is a duplicate-invoice risk anyway. |\n\n## 3. Consider not building it\n\nMature Postgres-backed queues already exist with retries, backoff, scheduling, and dashboards: Oban (Elixir), River (Go), pg-boss / Graphile Worker (Node), good_job / Solid Queue (Rails), Procrastinate (Python). Pick the one for your stack. Your actual engineering work then becomes the part no library does for you: **idempotency keys, the sent-ledger, and the unknown-outcome handling.**\n\n## Suggested v1 (about 1\u20132 weeks for two engineers)\n\n1. Adopt an existing Postgres queue library, or keep your minimal table without plugins or the priority scheduler.\n2. Add per-type retry policies, with invoices retried only via the provider idempotency key.\n3. Add an `invoice_emails_sent` ledger with a unique constraint.\n4. Route timeouts and 5xx responses to \"unknown\" handling, and write a reconciliation step against the provider's API or webhooks.\n5. Alert on jobs stuck or failed for more than N minutes.\n6. Write tests that simulate a timeout-then-success and a crash-after-send, and assert exactly one invoice email.\n\nRevisit plugins, priorities, and a dashboard when another team actually asks, or when volume grows by about 100x.\n\n**Bottom line:** fix the duplicate-send design before building anything, and cut the scope roughly in half. Doing both brings the 6 weeks down to about 2 and actually meets Finance's requirement."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E2-opus-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E2",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31894.1,
+  "duration_ms": 31011,
+  "duration_api_ms": 30790,
+  "cost_usd": 0.07130539999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 832,
+   "cache_read_input_tokens": 4307,
+   "output_tokens": 3189,
+   "output_tokens_details": {
+    "thinking_tokens": 1032
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 832,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3189,
+     "cache_read_input_tokens": 4307,
+     "cache_creation_input_tokens": 832,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 832
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:25:22.785699+00:00",
+   "end": "2026-10-12T19:25:54.679807+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.07130539999999999
+ },
+ "response": "I didn't write the two files because you asked me not to use tools. Their full contents are below. Copy them to `outputs/review.md` and `outputs/json-config-check/SKILL.md`.\n\n---\n\n### `outputs/review.md`\n\n```markdown\n# Review: json-config-check (draft)\n\nVerdict: **Do not merge.** The skill would fail validation. Even with that fixed,\nit gives Claude almost nothing it doesn't already know.\n\n## Validation errors (blocking)\n\n1. **Frontmatter order is wrong.** `description:` comes before `name:`.\n   `name:` must be first and `description:` second.\n2. **The description doesn't start with a trigger.** \"This skill is really helpful...\"\n   only summarizes the skill. It never says when to activate or what to do.\n\n## Description defects\n\n3. **It's too vague to trigger reliably.** \"working with JSON configuration files and stuff\",\n   \"lots of things\", and \"Use when needed\" all fail to separate this skill from any other\n   JSON task. It will either never fire or fire on everything.\n4. **It doesn't match the body.** The body is only about schema validation. The\n   description promises general JSON help.\n5. **It has no immediate instructions.** The description is the only text that is always\n   in context. It should say what to do: parse, find a schema, validate, report.\n6. **The tone is marketing.** \"really helpful\" and \"!\" cost tokens and guide nothing.\n\n## Body defects\n\n7. **\"Introduction\" explains what JSON is.** Claude already knows. The whole section\n   is wasted tokens.\n8. **\"About This Amazing Skill\" is all promotion.** \"incredibly powerful\", \"fantastic\",\n   and \"your whole team will love\" contain no instructions.\n9. **Most of the body isn't actionable.** About 85% is preamble or promotion, far past\n   the 60% non-actionable waste threshold. Only \"How It Works\" has any content.\n10. **\"How It Works\" is passive and hedged.** \"the file gets parsed\", \"might be validated\",\n    \"could be reported\", \"might want to consider possibly using\" don't tell Claude what\n    to do. Instructions should be imperative: \"Parse\", \"Validate\", \"Report\".\n11. **Schema discovery is undefined.** \"a schema file ... in the same directory\" gives no\n    filename and no precedence. It ignores a `$schema` key in the config and a schema path\n    the user supplies.\n12. **The output is left optional and unspecified.** \"Errors could be reported\" should be\n    a requirement. There is no output format and no JSON path or line/column, so the user\n    can't find the error.\n13. **The degree of freedom is wrong.** Validation is a deterministic, easy-to-break\n    operation, so it needs an exact snippet, not \"might be a good choice\". The draft also\n    misses details that matter:\n    - `validator_for` to respect the schema's draft\n    - checking the schema itself\n    - reporting all errors, not just the first\n14. **Failure paths are missing.** There's no guidance for:\n    - invalid JSON syntax (needs line/column)\n    - no schema found\n    - `jsonschema` not installed\n    - a remote `$schema` URL (that's a network fetch, so ask the user first)\n    - whether to auto-fix\n\n## Process gaps\n\n15. **There are no evals.** Draft 3 or more cases in `evals/evals.json` before merging.\n    Suggested cases:\n    - (a) valid config plus a sibling `config.schema.json` reports a pass\n    - (b) a trailing comma reports a syntax error with line/column\n    - (c) a type mismatch and a missing required key report both errors with JSON paths\n    - (d) no schema found reports \"syntax only\" without claiming full validation\n16. **It hasn't been run through `validate.py`.** That would have caught defects 1 and 2.\n```\n\n---\n\n### `outputs/json-config-check/SKILL.md`\n\n````markdown\n---\nname: json-config-check\ndescription: Invoke when the user asks to validate, check, or lint a JSON config file, or before committing or deploying an edited JSON config. Parse the file, resolve its schema, validate with jsonschema, and report every error with its JSON path.\n---\n\n# JSON Config Check\n\n## 1. Resolve the schema\n\nUse the first match:\n\n1. A schema path the user gave.\n2. The config's `$schema` key, if it points to a local file. If it is a URL, ask before fetching it.\n3. `<config-stem>.schema.json` next to the config.\n4. `schema.json` next to the config.\n\nIf nothing matches, run a syntax-only check and say plainly that no schema validation was done.\n\n## 2. Validate\n\nRun this script. It needs `jsonschema` 4.0 or later. If the package is missing, tell the user to run `pip install jsonschema`. Do not quietly fall back to a syntax-only check.\n\n```python\nimport json, sys\nfrom jsonschema import validators\n\ndef load(path):\n    try:\n        with open(path) as f:\n            return json.load(f)\n    except json.JSONDecodeError as e:\n        sys.exit(f\"{path}:{e.lineno}:{e.colno}: invalid JSON: {e.msg}\")\n\nconfig = load(sys.argv[1])\nif len(sys.argv) < 3:\n    sys.exit(print(\"[OK] syntax valid (no schema)\"))\nschema = load(sys.argv[2])\ncls = validators.validator_for(schema)\ncls.check_schema(schema)\nerrors = sorted(cls(schema).iter_errors(config), key=lambda e: e.json_path)\nfor e in errors:\n    print(f\"[FAIL] {e.json_path}: {e.message}\")\nsys.exit(1 if errors else print(\"[OK] valid against schema\"))\n```\n\n## 3. Report\n\n- State the config path, the schema path (or \"none\"), and pass or fail.\n- List every error with its JSON path or line:column. Do not stop at the first one.\n- If the schema itself is invalid (`SchemaError`), report that separately. It is not a config error.\n- Suggest fixes, but only edit the config if the user asks.\n````\n\n---\n\n**Summary:** The draft had two blocking validation errors: the frontmatter order and a description with no trigger phrase. About 85% of its body was preamble and promotion, and its one useful section was hedged and passive. The rewrite has a trigger-first description that matches the body. Every line of the body is an instruction. It uses an exact script, because validation needs a fixed sequence of steps. It also defines schema precedence and handles the failure cases. Evals still need to be written; suggested cases are listed in the review."
+}

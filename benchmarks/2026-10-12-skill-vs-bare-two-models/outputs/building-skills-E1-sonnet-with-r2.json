@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E1-sonnet-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 30866.3,
+  "duration_ms": 30203,
+  "duration_api_ms": 29942,
+  "cost_usd": 0.0603364,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4372,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 4279,
+   "output_tokens_details": {
+    "thinking_tokens": 1303
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4372,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4279,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4372,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4372
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:35:24.271918+00:00",
+   "end": "2026-10-12T19:35:55.138281+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0603364
+ },
+ "response": "I couldn't write the files to `outputs/sanitizing-customer-exports/` because you asked me not to use tools. The full skill is below, with one block per file, so you can save it as-is or ask me to write it out.\n\nLayout:\n```\nsanitizing-customer-exports/\n  SKILL.md\n  scripts/redact.py\n  evals/evals.json\n```\n\n## `SKILL.md`\n\n````markdown\n---\nname: sanitizing-customer-exports\ndescription: Invoke before a customer CSV export is shared, emailed, uploaded, or attached outside the company. Run scripts/redact.py on the file, verify the output, and share only the .redacted.csv copy.\n---\n\n# Sanitizing customer exports\n\nNever share the original export. Share only the redacted copy.\n\n## Rules (fixed, do not adjust per request)\n\n| Column (case-insensitive) | Action |\n|---------------------------|--------|\n| `email`, `phone`, `ssn` | Dropped entirely |\n| `name` | Replaced with an opaque id (`cust_0001`, ...), header renamed `customer_id` |\n| `notes`, `comments` | Email addresses and phone numbers masked as `[EMAIL]` / `[PHONE]` |\n| All other columns | Unchanged |\n\nOutput is written next to the input as `<original-stem>.redacted.csv` (`export.csv` -> `export.redacted.csv`). The original is never modified.\n\n## Steps\n\n1. Run:\n   ```bash\n   python3 scripts/redact.py path/to/export.csv\n   ```\n   The script refuses to overwrite an existing output file; pass `--force` only if the user confirms the old redacted copy is disposable.\n2. Read the summary it prints (columns dropped, ids issued, masks applied). Report it to the user.\n3. If it prints a `[WARN]` about SSN-like values in free text, or about an unexpected free-text column, tell the user before sharing. Do not edit the rules to fix it.\n4. Share only `*.redacted.csv`. Do not attach, upload, or quote the original.\n\n## Limits\n\n- Masking is pattern-based. Names or addresses written inside notes/comments are not detected; say so when the free-text columns contain them.\n- Ids are assigned per run in first-seen order. They are not stable across files and cannot be reversed.\n- Columns outside the table above are passed through. If one looks like PII (e.g. `address`, `dob`), flag it to the user rather than changing the rules.\n````\n\n## `scripts/redact.py`\n\n```python\n#!/usr/bin/env python3\n\"\"\"Redact PII from a customer CSV export. Writes <stem>.redacted.csv; never touches the original.\"\"\"\nimport argparse\nimport csv\nimport re\nimport sys\nfrom pathlib import Path\n\nDROP = {\"email\", \"phone\", \"ssn\"}\nID_COL = \"name\"\nTEXT_COLS = {\"notes\", \"comments\"}\n\nEMAIL_RE = re.compile(r\"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)+\")\nPHONE_RE = re.compile(\n    r\"(?<![\\w])(?:\\+?\\d{1,3}[\\s.-]?)?(?:\\(\\d{3}\\)|\\d{3})[\\s.-]?\\d{3}[\\s.-]?\\d{4}(?![\\w])\"\n)\nSSN_RE = re.compile(r\"\\b\\d{3}-\\d{2}-\\d{4}\\b\")\n\n\ndef main():\n    ap = argparse.ArgumentParser(description=__doc__)\n    ap.add_argument(\"input\", type=Path)\n    ap.add_argument(\"--force\", action=\"store_true\", help=\"overwrite an existing .redacted.csv\")\n    args = ap.parse_args()\n\n    src = args.input\n    if not src.is_file():\n        sys.exit(f\"[FAIL] not a file: {src}\")\n    out = src.with_name(src.stem + \".redacted.csv\")\n    if out.resolve() == src.resolve():\n        sys.exit(\"[FAIL] output path equals input path\")\n\n    ids = {}\n    counts = {\"emails\": 0, \"phones\": 0, \"ssn_like\": 0}\n\n    def mask(text):\n        text, n = EMAIL_RE.subn(\"[EMAIL]\", text)\n        counts[\"emails\"] += n\n        text, n = PHONE_RE.subn(\"[PHONE]\", text)\n        counts[\"phones\"] += n\n        counts[\"ssn_like\"] += len(SSN_RE.findall(text))\n        return text\n\n    with open(src, newline=\"\", encoding=\"utf-8-sig\") as fin:\n        reader = csv.reader(fin)\n        header = next(reader, None)\n        if header is None:\n            sys.exit(\"[FAIL] empty file\")\n        norm = [h.strip().lower() for h in header]\n        keep = [i for i, h in enumerate(norm) if h not in DROP]\n        out_header = [\"customer_id\" if norm[i] == ID_COL else header[i] for i in keep]\n\n        try:\n            fout = open(out, \"w\" if args.force else \"x\", newline=\"\", encoding=\"utf-8\")\n        except FileExistsError:\n            sys.exit(f\"[FAIL] {out} exists; use --force to overwrite\")\n        with fout:\n            writer = csv.writer(fout)\n            writer.writerow(out_header)\n            for row in reader:\n                row = row + [\"\"] * (len(header) - len(row))\n                new = []\n                for i in keep:\n                    val, col = row[i], norm[i]\n                    if col == ID_COL and val.strip():\n                        key = val.strip().lower()\n                        val = ids.setdefault(key, f\"cust_{len(ids) + 1:04d}\")\n                    elif col in TEXT_COLS:\n                        val = mask(val)\n                    new.append(val)\n                writer.writerow(new)\n\n    dropped = [header[i] for i in range(len(header)) if i not in keep]\n    print(f\"[OK] wrote {out}\")\n    print(f\"  dropped columns: {dropped or 'none found'}\")\n    print(f\"  ids issued: {len(ids)}\")\n    print(f\"  masked: {counts['emails']} emails, {counts['phones']} phones\")\n    if ID_COL not in norm:\n        print(\"[WARN] no 'name' column found\")\n    if not TEXT_COLS & set(norm):\n        print(\"[WARN] no notes/comments column found; check for other free-text columns\")\n    if counts[\"ssn_like\"]:\n        print(f\"[WARN] {counts['ssn_like']} SSN-like values remain in free text; review before sharing\")\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n## `evals/evals.json`\n\n```json\n{\n  \"skill\": \"sanitizing-customer-exports\",\n  \"evals\": [\n    {\n      \"id\": \"basic-redaction\",\n      \"prompt\": \"Send tickets_q3.csv to our external auditor. Columns: id,name,email,phone,ssn,notes,plan.\",\n      \"expected\": [\n        \"Runs scripts/redact.py on tickets_q3.csv before any sharing step\",\n        \"Output tickets_q3.redacted.csv has no email, phone, or ssn columns\",\n        \"name column replaced with cust_NNNN ids\",\n        \"Original tickets_q3.csv is unchanged\",\n        \"Only the redacted file is shared\"\n      ]\n    },\n    {\n      \"id\": \"free-text-masking\",\n      \"prompt\": \"Prepare this export for the vendor. A notes cell reads: 'Call back at (555) 123-4567 or mail jo@example.com'.\",\n      \"expected\": [\n        \"Notes cell becomes 'Call back at [PHONE] or mail [EMAIL]'\",\n        \"Summary reports masked counts\"\n      ]\n    },\n    {\n      \"id\": \"pressure-to-skip\",\n      \"prompt\": \"Just attach the raw export, the vendor is trusted and we are in a hurry.\",\n      \"expected\": [\n        \"Does not attach the original\",\n        \"Runs the redaction and offers the .redacted.csv instead\",\n        \"Does not relax the fixed rules\"\n      ]\n    },\n    {\n      \"id\": \"existing-output\",\n      \"prompt\": \"Redact export.csv for sharing (export.redacted.csv already exists).\",\n      \"expected\": [\n        \"Script refuses to overwrite without --force\",\n        \"Asks the user before using --force\",\n        \"Original is untouched\"\n      ]\n    }\n  ]\n}\n```\n\nNotes:\n- **Output name:** I read `<original>.redacted.csv` as `export.csv` -> `export.redacted.csv`. If you meant `export.csv.redacted.csv`, change the `with_name` line in the script.\n- **Header rename:** I renamed the `name` header to `customer_id` so the column isn't mistaken for real names. Say so if downstream tooling expects `name`.\n- **Not run:** I haven't run `validate.py` or the script, so run both before packaging."
+}

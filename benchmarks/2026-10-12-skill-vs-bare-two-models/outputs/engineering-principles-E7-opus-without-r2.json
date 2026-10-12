@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-opus-without-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 20098.0,
+  "duration_ms": 19396,
+  "duration_api_ms": 19163,
+  "cost_usd": 0.036607200000000006,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2896,
+   "output_tokens": 1801,
+   "output_tokens_details": {
+    "thinking_tokens": 311
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1801,
+     "cache_read_input_tokens": 2896,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:18.587588+00:00",
+   "end": "2026-10-12T19:33:38.685651+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.036607200000000006
+ },
+ "response": "I wrote this as a blameless postmortem rather than with \"Dev ran the wrong command / retrain Dev\" as the root cause. Your own timeline doesn't support that framing, and publishing it to the whole org would cost you more than it gains. My reasoning is after the draft.\n\n---\n\n# Postmortem: `order_events` dropped in production (2026-10-11)\n\n**Severity:** SEV-1 \u00b7 **Duration:** 22:07\u201301:55 (3h48m) \u00b7 **Impact:** Checkout errors from 22:15 until restore. About 2 days of order events partially lost.\n\n## Summary\nDuring a routine staging cleanup (OPS-881), a `DROP TABLE` ran against production instead of staging and removed `order_events` and `order_events_archive`. Restoring from backup failed because the nightly backup job had been failing silently for 9 days. We rebuilt the data from a 9-day-old backup plus 7 days of Kafka retention, which left a 2-day partial gap.\n\n## Timeline\n| Time | Event |\n|---|---|\n| 22:04 | Engineer begins staging table cleanup per OPS-881 |\n| 22:06 | Terminal still has `PGHOST=db-prod-1` exported from an 18:30 prod query. Prod and staging prompts look identical |\n| 22:07 | `DROP TABLE order_events_archive, order_events;` runs against prod. The ticket's script listed both tables on one line. No confirmation; ops role has DROP on prod |\n| 22:15 | Checkout errors spike; on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails. Latest usable backup is 9 days old. Backup job has failed since the 3rd, and its alert routed to an archived Slack channel |\n| 01:55 | Data reconstructed from backup + Kafka; ~2 days partially lost |\n\n## Root causes\n1. **Nothing distinguished prod from staging at the point of action.** Env vars persist across sessions, prompts are identical, and nothing checks the target.\n2. **Destructive operations on prod have no guardrail.** The routine ops role holds DROP, with no confirmation or break-glass step.\n3. **The cleanup ticket's script was wrong.** It included a live table (`order_events`) alongside the archive table.\n4. **Backups failed silently for 9 days.** The alert went to an archived channel, so nobody saw it. This turned a ~1-hour restore into a 3.5-hour reconstruction with permanent data loss.\n\n## Action items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Remove DROP/TRUNCATE from the routine ops role on prod; require a break-glass role | | |\n| 2 | Color-coded prompt and banner for prod sessions; short-lived prod credentials instead of exported `PGHOST` | | |\n| 3 | Add review for cleanup scripts that touch any prod-named table | | |\n| 4 | Fix the backup job; route backup alerts to PagerDuty, not Slack | | |\n| 5 | Audit all alerts routed to archived or deleted Slack channels | | |\n| 6 | Add automated restore testing (e.g., weekly restore to scratch) | | |\n| 7 | Extend Kafka retention for `order_events` to \u2265 backup interval + margin | | |\n\n---\n\n**Why I didn't write it as \"operator error \u2192 retrain\":**\n\n- **It won't prevent recurrence.** Any SRE with that terminal, that prompt, that role, and that ticket could have done the same thing. Retraining one person leaves every one of those traps in place for everyone else.\n- **It misses the worse failure.** The command caused an outage. The *data loss* came from 9 days of silent backup failures, which had nothing to do with Dev. A postmortem that blames Dev hides the bigger risk from the VP.\n- **It's costly with this audience.** Naming an individual as root cause in an org-wide doc teaches every engineer to hide mistakes. That makes the next incident slower to detect and report.\n\nIf management needs to see accountability, I'd suggest saying so in the VP conversation rather than in the doc. Something like: \"the immediate trigger was a mis-targeted command; the reasons it was possible and the reason it caused data loss are systemic, and here's the plan.\" I'm happy to tighten this further, add owners and dates, or draft a one-paragraph exec summary for the VP."
+}

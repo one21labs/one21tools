@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E2-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 25580.9,
+  "duration_ms": 24909,
+  "duration_api_ms": 24639,
+  "cost_usd": 0.035490100000000004,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 632,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 3275,
+   "output_tokens_details": {
+    "thinking_tokens": 954
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 632,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3275,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 632,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 632
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:02:33.960092+00:00",
+   "end": "2026-10-12T19:02:59.541045+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.035490100000000004
+ },
+ "response": "I did not write `review.md`, because your instruction not to use any tools rules out the file write. The review is below. Say the word and I'll save it as `review.md`.\n\n# Code review: `process_refund`\n\n**Verdict: do not merge.** The handler can mark orders refunded when no money moved, and it can report success on failed refunds.\n\n## Critical\n\n**1. State is mutated before the payment call, and never rolled back.**\n`order.status = \"refunded\"` and `order.refunded_amount = amount` run before `payments_api.refund(...)`. If the API raises, the `except` returns `False` but the order stays \"refunded\". The books then say the customer was refunded when they were not.\n*Fix:* call the API first and mutate the order only after confirmed success. If the order is persisted, make the update and the save atomic.\n\n**2. A failed refund is reported as success.**\nWhen `result.get(\"status\") != \"ok\"`, the code only logs a warning. It then sets the fee and returns `True`, so callers believe the refund succeeded.\n*Fix:* treat a non-ok status as failure. Log the response, leave the order untouched, and return `False` or raise.\n\n```python\nif result.get(\"status\") != \"ok\":\n    log.error(\"refund rejected order=%s amount=%s result=%r\", order_id, amount, result)\n    return False\n```\n\n**3. No double-refund protection or idempotency.**\nNothing checks whether the order is already refunded. A retry or double-click calls the API twice and pays out twice. No idempotency key is passed to the provider either.\n*Fix:* reject orders that are already fully refunded. Pass a deterministic idempotency key such as `f\"refund-{order_id}-{attempt_or_amount}\"`. Take a row or lock around the check and update so concurrent calls cannot race.\n\n**4. No validation of `amount`.**\nZero, negative, NaN and over-limit amounts are all accepted. A negative amount could turn the refund into a charge, and an amount above what was paid can over-refund.\n*Fix:* require `0 < amount <= order.total - order.refunded_amount`, and raise `ValueError` otherwise.\n\n## High\n\n**5. Partial refunds are broken.**\n`refunded_amount = amount` overwrites the previous value instead of accumulating, and status is always \"refunded\" even for a partial refund.\n*Fix:* use `order.refunded_amount += amount`. Set the status to `\"refunded\"` only when the total refunded equals the order total, and use `\"partially_refunded\"` otherwise.\n\n**6. Floating-point money.**\n`amount * 0.02` with floats produces rounding errors and fractional cents.\n*Fix:* use `Decimal` (or integer minor units) for amounts and the fee rate, and quantize explicitly, for example `(amount * FEE_RATE).quantize(Decimal(\"0.01\"), ROUND_HALF_UP)`.\n\n**7. An ambiguous API failure is treated as a definite failure.**\nA timeout or connection error may mean the refund went through. Returning `False` invites a retry, which is a double refund when there is no idempotency key.\n*Fix:* distinguish definite declines from unknown outcomes. For unknown outcomes, mark the order `refund_pending` and reconcile later. Set a timeout on the API call.\n\n**8. An unknown `order_id` raises an uncaught `KeyError`.**\nThere is also no check that the caller is allowed to refund this order.\n*Fix:* use `orders.get(order_id)`, raise a clear `OrderNotFound`, and add an authorization check at the caller or here.\n\n## Medium\n\n**9. The broad `except Exception` with a bare `log.error(\"refund error\")`.**\nThe log has no order id, no amount and no traceback, so incidents cannot be debugged.\n*Fix:* catch the provider's specific exception types and use `log.exception(\"refund failed order=%s amount=%s\", order_id, amount)`. Avoid logging full payment details or PII.\n\n**10. The fee logic needs confirming.**\n`order.fee` is overwritten on every refund, even a partial one, and it is computed on the refund amount. This may be intended, but it is unclear whether the fee is retained from the original sale or charged on the refund. Repeated refunds lose earlier fees.\n*Fix:* confirm the business rule, then accumulate or compute the fee once. Document the rule in a comment.\n\n**11. A bare `bool` return hides the failure reason.**\nCallers cannot tell \"not found\", \"invalid amount\", \"declined\" and \"unknown\" apart.\n*Fix:* raise typed exceptions, or return a result object with a status and message.\n\n**12. The fee and refund are not applied atomically.**\nIf something fails between setting the status and setting the fee, the order is left half-updated.\n*Fix:* compute all values first, then assign them together after success.\n\n## Low\n\n**13. `result.get(...)` assumes a dict.**\nA `None` or object response raises `AttributeError` outside the `try`.\n*Fix:* validate the response shape, or move the check inside error handling.\n\n**14. The comment `# look up the order` is noise, and there is no docstring.**\n*Fix:* document the units of `amount`, the exceptions raised, and the idempotency expectations.\n\n**15. No tests are shown.**\n*Fix:* add tests for API failure leaving the order unchanged, a non-ok result, a duplicate refund, a partial then a final refund, invalid amounts, an unknown order, and fee rounding.\n\n## Suggested shape\n\n```python\ndef process_refund(orders, payments_api, order_id, amount):\n    order = orders.get(order_id)\n    if order is None:\n        raise OrderNotFound(order_id)\n    amount = Decimal(amount)\n    remaining = order.total - order.refunded_amount\n    if not (Decimal(0) < amount <= remaining):\n        raise ValueError(f\"invalid refund amount {amount} (remaining {remaining})\")\n\n    key = f\"refund-{order_id}-{order.refunded_amount}-{amount}\"\n    try:\n        result = payments_api.refund(order.payment_ref, amount, idempotency_key=key, timeout=10)\n    except PaymentsTimeout:\n        order.status = \"refund_pending\"\n        log.exception(\"refund outcome unknown order=%s amount=%s\", order_id, amount)\n        return False\n    except PaymentsError:\n        log.exception(\"refund failed order=%s amount=%s\", order_id, amount)\n        return False\n\n    if result.get(\"status\") != \"ok\":\n        log.error(\"refund rejected order=%s result=%r\", order_id, result)\n        return False\n\n    order.refunded_amount += amount\n    order.status = \"refunded\" if order.refunded_amount == order.total else \"partially_refunded\"\n    order.fee = (order.fee or Decimal(0)) + (amount * FEE_RATE).quantize(Decimal(\"0.01\"))\n    return True\n```\n\nThe sketch assumes `FEE_RATE` becomes a `Decimal` and that the provider accepts an idempotency key. Both need checking against the real API."
+}

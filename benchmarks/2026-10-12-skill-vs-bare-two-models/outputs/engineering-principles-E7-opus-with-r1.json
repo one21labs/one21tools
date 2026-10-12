@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-opus-with-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18968.1,
+  "duration_ms": 18227,
+  "duration_api_ms": 18000,
+  "cost_usd": 0.0413016,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 822,
+   "cache_read_input_tokens": 3188,
+   "output_tokens": 1704,
+   "output_tokens_details": {
+    "thinking_tokens": 345
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 822,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1704,
+     "cache_read_input_tokens": 3188,
+     "cache_creation_input_tokens": 822,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 822
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:06.809543+00:00",
+   "end": "2026-10-12T19:33:25.777666+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0413016
+ },
+ "response": "I've written this differently from the framing you gave. **The timeline doesn't support \"Dev ran the wrong command\" as the root cause, and an org-wide doc that says it does will hurt you.**\n\nYour own timeline shows at least five independent safeguards failing. Any one of them working would have prevented the incident or capped it at minutes of data loss. Retraining one person fixes none of them. The next SRE with a stale `PGHOST` hits the same trap. Publishing a single-person root cause to the whole org also signals that reporting mistakes is risky, which makes the next incident harder to investigate.\n\nThe draft below keeps Dev's action factual and unnamed. If management still wants the original framing, I'd raise this with the VP before it goes out rather than after.\n\n---\n\n# Postmortem: Production `order_events` table dropped\n\n**Date:** [date] \u00b7 **Duration:** 22:07\u201301:55 (~3h50m) \u00b7 **Severity:** [SEV-x]\n**Impact:** Checkout errors from 22:15 until restore. ~2 days of order events partially lost.\n\n## Summary\nDuring a staging cleanup (OPS-881), a `DROP TABLE` ran against production instead of staging and removed `order_events` and `order_events_archive`. We tried to restore from the nightly backup and found it had been failing silently for 9 days. We rebuilt the data from the 9-day-old backup plus 7 days of Kafka retention, which left a ~2-day gap.\n\n## Timeline\n| Time | Event |\n|---|---|\n| 22:04 | SRE begins staging table cleanup per OPS-881 |\n| 22:06 | Terminal still has `PGHOST=db-prod-1` exported from an 18:30 prod query. Prompt is identical for prod and staging. |\n| 22:07 | `DROP TABLE order_events_archive, order_events;` runs on prod. The ticket's script listed both tables on one line. No confirmation step. |\n| 22:15 | Checkout errors spike. On-call paged. |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails. Latest usable backup is 9 days old. |\n| 01:55 | Data reconstructed from backup + Kafka. ~2 days partially lost. |\n\n## Contributing factors\n1. **No environment distinction.** Prod and staging shells look identical, and connection targets persist silently through env vars.\n2. **Excessive privilege.** The ops role can `DROP` on prod with no guardrail or second approval.\n3. **Ticket content.** The OPS-881 script put a prod-critical table on the same line as the cleanup target.\n4. **Backups failing silently.** The backup job has exited non-zero since the 3rd.\n5. **Dead alert route.** The backup failure alert pointed at a Slack channel archived during cleanup, and nothing checks that alert destinations still exist.\n\nFactors 1\u20133 caused the outage. Factors 4\u20135 turned a ~15-minute restore into permanent data loss. **Factors 4\u20135 are the most severe finding.** Every table in that backup set has been unprotected for 9 days.\n\n## Action items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Fix the backup job, verify a successful restore, and add automated restore tests | | |\n| 2 | Re-route the backup alert, and audit all alert destinations for archived or missing channels | | |\n| 3 | Make Slack channel archival check for alert integrations first | | |\n| 4 | Remove `DROP`/`TRUNCATE` from the ops role on prod, or require break-glass access | | |\n| 5 | Color-code or label the prod shell prompt, and don't persist `PGHOST` across sessions | | |\n| 6 | Review the OPS-881 script, and require destructive scripts to state the target environment explicitly | | |\n| 7 | Add a confirmation wrapper for destructive SQL against prod | | |\n\n---\n\nFill in owners and dates. If you'd like, I can also write a short note for management explaining the change from the agreed framing."
+}

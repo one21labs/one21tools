@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E1-opus-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 7905.1,
+  "duration_ms": 7227,
+  "duration_api_ms": 7003,
+  "cost_usd": 0.0193108,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 646,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 686,
+   "output_tokens_details": {
+    "thinking_tokens": 104
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 646,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 686,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 646,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 646
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:27:57.852306+00:00",
+   "end": "2026-10-12T19:28:05.757403+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0193108
+ },
+ "response": "```python\nimport json\nimport time\nimport urllib.request\n\n# old loader, kept for reference\n# def load(f):\n#     return json.loads(open(f).read())\n\ndef ld(p):\n    try:\n        d = json.load(open(p))\n    except:\n        d = {}\n    # get the retries\n    r = d.get(\"retries\", 5)\n    to = d.get(\"timeout\", 30)\n    bo = d.get(\"backoff_seconds\", 0)\n    return r, to, bo\n\ndef snd(u, pl, r, to, bo=0):\n    for i in range(r):\n        try:\n            req = urllib.request.Request(u, data=pl)\n            return urllib.request.urlopen(req, timeout=to).read()\n        except:\n            # wait before the next attempt, but not after the last one\n            if bo and i < r - 1:\n                time.sleep(bo)\n    return None\n```\n\n- **`ld`** now reads `backoff_seconds` from the config and returns it as a third value. It defaults to `0`, so configs without the key behave as before.\n- **`snd`** takes `bo` as an optional parameter, also defaulting to `0`. Existing calls of the form `snd(u, pl, r, to)` still work. It sleeps between failed attempts but not after the final one, so a call that fails every time doesn't wait for nothing at the end.\n- **Caller change needed:** `ld` now returns three values. Any code that unpacks it as `r, to = ld(p)` must change to `r, to, bo = ld(p)`.\n\nI kept the existing bare `except:` clauses to match the module. They also catch `KeyboardInterrupt`, though, so Ctrl-C during a backoff sleep or a request will be swallowed and the retry loop will keep going. Switching both to `except Exception:` would fix that if you want it."
+}
