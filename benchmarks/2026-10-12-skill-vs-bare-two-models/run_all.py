@@ -84,9 +84,13 @@ def main():
     jc = judge_cost("prescreen-outputs")
     judge_per = jc["billed_usd"] / jc["calls"] if jc["calls"] else 0.0
     per = {m: round(sum(v) / len(v) + judge_per, 4) for m, v in gen.items()}
+    # Every dollar counts against the ceiling, aborted runs included (metadata.json aborted_runs).
     spent = sum(c["summary"]["cell_cost_usd"] or 0 for d in
-                ("aborted-prescreen-inherited-env", "prescreen-outputs", "pilot-outputs")
-                for c in cells(d)) + jc["billed_usd"]
+                ("aborted-prescreen-inherited-env", "aborted-run2-unframed/prescreen-outputs",
+                 "aborted-run2-unframed/pilot-outputs", "prescreen-outputs", "pilot-outputs")
+                for c in cells(d)) + jc["billed_usd"] + sum(
+        json.loads(Path(p).read_text())["billed_usd"]
+        for p in glob.glob(str(HERE / "aborted-run2-unframed" / "graded" / "judge-cost-*.json")))
     meta["pilot"]["result"] = {"generation_mean_usd": {m: round(sum(v) / len(v), 4) for m, v in gen.items()},
                                "judge_per_cell_usd": round(judge_per, 4)}
     meta["cost"]["per_cell_estimate_usd"] = per

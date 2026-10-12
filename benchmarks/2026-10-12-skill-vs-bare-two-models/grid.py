@@ -26,13 +26,15 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO / "skill-bench" / "scripts" / "lib"))
 from cost_gate import gate, spent_so_far  # noqa: E402
-from hermetic_driver import build_env, do_call, neutral_cwd, summarize_call  # noqa: E402
+from hermetic_driver import NEUTRAL_FRAME, build_env, do_call, neutral_cwd, summarize_call  # noqa: E402
 
 SKILLS = ("building-skills", "code-standards", "engineering-principles", "optimizing-context")
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 EFFORT = "medium"
 REPS = 2
 TIMEOUT_S = 600
+MAX_OUTPUT_TOKENS = "32000"  # unframed, 4 of 80 prescreen replies ran to the 128k cap
+FAKE_TOOL_MARKUP = ("<invoke", "<function_calls", "</invoke>")
 ISOLATION = ("--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--effort", EFFORT)
 
 
@@ -64,7 +66,8 @@ def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap):
         return
     if state["halt"]:
         return
-    call = do_call(EVALS[key]["task"], MODELS[model_key], env, cwd, timeout=TIMEOUT_S,
+    call = do_call(NEUTRAL_FRAME + "\n\n" + EVALS[key]["task"], MODELS[model_key], env, cwd,
+                   timeout=TIMEOUT_S,
                    allow=(), extra_args=extra_args(skill, arm))
     summary = summarize_call(call)
     summary["cell_cost_usd"] = summary.get("cost_usd") or 0.0
@@ -74,6 +77,10 @@ def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap):
               "summary": summary, "response": call["response"]}
     if not summary["error"] and MODELS[model_key] not in served:
         record["summary"]["error"] = f"requested {MODELS[model_key]}, envelope served {served}"
+    elif not summary["error"] and any(t in call["response"] for t in FAKE_TOOL_MARKUP):
+        # A no-tools cell that writes tool-call markup is acting out an agent loop, not answering:
+        # infrastructure, never quality (#191). Recorded as ERROR so the next pass regenerates it.
+        record["summary"]["error"] = "fake tool-call markup in a no-tools reply"
     path.write_text(json.dumps(record, indent=1), encoding="utf-8")
     with lock:
         state["spent"] += summary["cell_cost_usd"]
@@ -116,6 +123,7 @@ def main():
 
     out.mkdir(exist_ok=True)
     env = build_env(EFFORT)
+    env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = MAX_OUTPUT_TOKENS
     env["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="empty-config-")  # outside the checkout
     cwd = neutral_cwd(str(out))
     state = {"spent": spent_so_far(out), "halt": False, "done": 0, "n": len(tasks)}
