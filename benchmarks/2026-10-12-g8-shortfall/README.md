@@ -37,8 +37,9 @@ HARMFUL. Per-eval deltas, win rates and dropped evals: `results-claude-opus-5-5.
   | blind, 12-Oct (ids 7-10, made the post-hoc lead) | 8 | 0.700 | +0.106 [+0.014, +0.198] |
   | blind, new (ids 11+, confirmatory) | 5 | 0.820 | +0.040 [−0.028, +0.108] |
 
-  The new-blind interval excludes the original point estimate, so ADR 0101 reopens: the KEEPs
-  above rest mostly on original evals and are suspect as measures of task value. Two readings
+  The new-blind interval excludes the original point estimate, so the reopen-if pre-registered
+  in ADR 0101 fired (ADR 0101 now records the follow-on decision): the KEEPs above rest mostly
+  on original evals and are suspect as measures of task value. Two readings
   remain open and this design cannot separate them: expectations written with the skill in view
   reward the skill's own doctrine (#317), or blind tasks are simply easier (bare 0.82 vs 0.45),
   leaving less room to gain. Only 5 new-blind clusters survived the prescreen.

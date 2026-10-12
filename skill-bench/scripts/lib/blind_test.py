@@ -102,8 +102,10 @@ class BlindCellsTemplateRerun(unittest.TestCase):
                      "response": "a response long enough to pass the artifact check " * 2}))
             first = self.run_template(d)
             Path(d, "graded", "items", "stale.json").write_text("{}")
+            Path(d, "graded", "error_cells.json").write_text('[{"cell": "T1-C-r1"}]')  # pre-regen
             second = self.run_template(d)
             self.assertEqual(first, second)
+            self.assertEqual(json.loads(Path(d, "graded", "error_cells.json").read_text()), [])
             self.assertTrue(Path(d, "blind_salt.txt").exists())
             self.assertNotIn("blind_salt.txt", os.listdir(Path(d, "graded")))
 

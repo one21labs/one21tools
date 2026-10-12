@@ -44,13 +44,13 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
-below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
-validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's own
+below: the harness audit is unconverged (#310) and expectation-authorship coupling is a confirmed,
+unresolved validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's own
 expectations". Each verdict measured the skill AS OF its dated dir — the text may have changed
 since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
 - `code-standards`: KEEP, judge-robust (2026-07-17 re-measure); a 12-Oct re-measure is not
-  promoted (`benchmarks/2026-10-12-g8-shortfall/`).
+  promoted, and its Opus 5.5 pair is unmeasured (`benchmarks/2026-10-12-g8-shortfall/`).
 - `building-skills`: unsettled — the 2026-07-18 baseline measured +0.153 [-0.016, +0.321]
   (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
   iter-3 revision missed its pre-registered bar and was reverted

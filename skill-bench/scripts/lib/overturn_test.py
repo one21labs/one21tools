@@ -25,6 +25,12 @@ class DecisionSignature(unittest.TestCase):
         self.assertIsNone(decision_signature("cap at three hundred daily", PATTERN))
         self.assertIsNone(decision_signature(None, PATTERN))
 
+    def test_a_dict_norm_is_searched_not_a_crash(self):
+        # Round 4: the template and every committed dict-norm dir store an object; re.search
+        # raised TypeError on it, though the CLI promises to always exit 0 with a report.
+        self.assertEqual(decision_signature({"decision": "cap at 300/day"}, PATTERN), "300/day")
+        self.assertIsNone(decision_signature({"decision": "no cap"}, PATTERN))
+
 
 class OverturnCandidates(unittest.TestCase):
     def test_cross_arm_same_decision_split_is_flagged(self):
@@ -77,7 +83,8 @@ class Cli(unittest.TestCase):
         # graded/arm_map.tsv and died FileNotFoundError on every template-blinded dir.
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "overturn.py")
         rows = [("b1", "C", True), ("b2", "P", False)]
-        for map_rel in ("arm_map.tsv", os.path.join("graded", "arm_map.tsv")):
+        for map_rel, norm in (("arm_map.tsv", "limit 300/day"),
+                              (os.path.join("graded", "arm_map.tsv"), {"decision": "300/day"})):
             with tempfile.TemporaryDirectory() as d:
                 os.makedirs(os.path.join(d, "graded"))
                 with open(os.path.join(d, map_rel), "w") as f:
@@ -85,7 +92,7 @@ class Cli(unittest.TestCase):
                             + "".join(f"{b}\t{a}\tS1\t1\n" for b, a, _ in rows))
                 with open(os.path.join(d, "graded", "verdicts.jsonl"), "w") as f:
                     for b, _, met in rows:
-                        f.write(json.dumps({"bid": b, "norm": "limit 300/day",
+                        f.write(json.dumps({"bid": b, "norm": norm,
                                             "expectations": [{"id": 2, "met": met}]}) + "\n")
                 r = subprocess.run([sys.executable, script, "--dir", d, "--pattern", PATTERN],
                                    capture_output=True, text=True)

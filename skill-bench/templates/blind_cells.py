@@ -49,10 +49,10 @@ def main():
     graded.mkdir(exist_ok=True)
 
     ok, errors = classify_cells(records, merged_response)   # #191 item 1
+    # always written: a clean re-run after regenerating ERROR cells must not leave a stale list
+    (graded / "error_cells.json").write_text(json.dumps(
+        [{"cell": r["cell"], "reason": why} for r, why in errors], indent=1), encoding="utf-8")
     if errors:
-        (graded / "error_cells.json").write_text(json.dumps(
-            [{"cell": r["cell"], "reason": why} for r, why in errors], indent=1),
-            encoding="utf-8")
         print(f"{len(errors)} ERROR cell(s) excluded (infrastructure, resumable) "
               f"-> graded/error_cells.json", file=sys.stderr)
 
