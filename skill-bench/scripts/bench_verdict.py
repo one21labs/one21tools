@@ -28,17 +28,20 @@ from judge import (make_judge, met_map, JudgeError, cli_available, CachedJudge, 
 
 
 def load_dir(d):
-    """-> (cells, baseline, keys, baseline_errors). A committed row that is an error row (the
-    grading template records judge failures as {bid, error}) or whose expectations are not ids
-    1..len(EXP_IDS) with boolean met is excluded from the baseline and recorded in
-    baseline_errors, never scored 0; an error row is not re-graded either (it has no norm)."""
+    """-> (cells, baseline, keys, baseline_errors, missing). A committed row that is an error row
+    (the grading template records judge failures as {bid, error}) or whose expectations are not
+    ids 1..len(EXP_IDS) with boolean met is excluded from the baseline and recorded in
+    baseline_errors, never scored 0; an error row is not re-graded either (it has no norm).
+    `missing` names every arm_map bid with no verdicts.jsonl row: a cell the grid ran but nobody
+    graded is an error, never a silent absence (it can flip a verdict by dropping one arm)."""
     amap = load_arm_map(d)
-    cells, baseline, berrs = [], [], []
+    cells, baseline, berrs, seen = [], [], [], set()
     with open(os.path.join(d, "graded/verdicts.jsonl")) as f:
         for line in f:
             v = json.loads(line)
             if v.get("bid") not in amap:
                 continue
+            seen.add(v["bid"])
             if "error" in v:
                 berrs.append({"bid": v["bid"], "error": str(v["error"])[:200]})
                 continue
@@ -52,7 +55,8 @@ def load_dir(d):
             baseline.append({"bid": v["bid"], "arm": arm, "scenario": scn, "met": met})
     with open(os.path.join(d, "graded/keys.json")) as f:
         keys = json.load(f)
-    return cells, baseline, keys, berrs
+    missing = [{"bid": b, "error": "no graded/verdicts.jsonl row"} for b in amap if b not in seen]
+    return cells, baseline, keys, berrs, missing
 
 
 def regrade_cell(judge, cell, key):
@@ -74,13 +78,13 @@ def cache_judge_name(rows):
 
 def regrade(judge, cells, keys, workers, cache=None):
     out, errs = [], []
-    if cache is not None:  # reuse a prior run's per-cell grades (offline / resumable)
+    if cache is not None:  # reuse a prior run's per-cell grades (offline)
         rows = {r["bid"]: r for r in cache}
         for c in cells:
             r = rows.get(c["bid"])
-            if r is None:
-                continue
-            try:  # an error row or a malformed grade is an error, as it would be live
+            try:  # a missing, error, or malformed row is an error, as a failed live call would be
+                if r is None:
+                    raise JudgeError("no --cache row")
                 if "error" in r:
                     raise JudgeError(str(r["error"]))
                 out.append({**c, "met": met_map(r, len(benchstats.EXP_IDS))})
@@ -104,7 +108,6 @@ def summarize(cells, x, y, practical=0.0):
     # matched-scenario, scenario-weighted: these subtract to the verdict's mean
     return {"arm_means": {a: round(v, 3) for a, v in d_xy["arm_means"].items()},
             f"{x}_minus_{y}": benchstats.keep_verdict(d_xy, practical),
-            f"{x}_minus_A": round(benchstats.clustered_delta(cells, x, "A")["mean"], 4),
             "per_expectation": {i: {a: round(v, 2) for a, v in benchstats.per_expectation(cells)[i].items()}
                                 for i in benchstats.EXP_IDS},
             # #191 item 3: the delta's largest per-cell contributors; inspect=true means the
@@ -128,7 +131,8 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--cache", help="prior regrade jsonl (offline: skip live judge calls)")
     ap.add_argument("--cells-out", help="also write per-cell regraded verdicts (jsonl: bid, arm, "
-                                        "scenario, met) — the substrate for judge-basis bar math")
+                                        "scenario, judge, expectations) — readable back as --cache; "
+                                        "the substrate for judge-basis bar math")
     ap.add_argument("--primary", default="C,B",
                     help="treatment,control arm pair for the clustered delta (default C,B)")
     ap.add_argument("--practical", type=float, default=0.0,
@@ -140,7 +144,7 @@ def main():
     except ValueError:
         sys.exit(f"--primary must be 'X,Y' (got {a.primary!r})")
 
-    cells, baseline, keys, baseline_errs = load_dir(a.dir)
+    cells, baseline, keys, baseline_errs, missing = load_dir(a.dir)
     if a.limit:
         cells, baseline = cells[:a.limit], baseline[:a.limit]
     cache = [json.loads(line) for line in open(a.cache) if line.strip()] if a.cache else None
@@ -170,14 +174,17 @@ def main():
     print(f"re-grading {len(cells)} cells with judge={judge.name}"
           + (" (from --cache)" if cache is not None else ""), file=sys.stderr)
     regraded, errs = regrade(judge, cells, keys, a.workers, cache=cache)
-    if a.cells_out:
+    errs = missing + errs
+    if a.cells_out:  # the --cache row shape, so a --cells-out file reads back with its judge
         with open(a.cells_out, "w") as f:
             for c in regraded:
                 f.write(json.dumps({"bid": c["bid"], "arm": c["arm"], "scenario": c["scenario"],
-                                    "met": c["met"]}) + "\n")
+                                    "judge": judge.name, "expectations": [
+                                        {"id": i, "met": m} for i, m in c["met"].items()]}) + "\n")
         print(f"wrote {len(regraded)} per-cell verdicts to {a.cells_out}", file=sys.stderr)
 
     report = {"dir": a.dir, "judge": judge.name, "n_cells": len(regraded), "errors": len(errs),
+              "error_cells": errs,
               "notional_cost_usd": {
                   "judge_calls": judge.calls, "usd": judge.cost_usd(),
                   "note": "shadow cost at published API rates (deterministic: tokens x rate); "
