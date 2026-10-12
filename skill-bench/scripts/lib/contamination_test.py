@@ -17,8 +17,7 @@ class TestSweepRecords(unittest.TestCase):
         tells = {"B1": [r"2\.94"]}
         dirty = {"cell": "B1-C-r1", "scenario": "B1", "response": "cost blew up 2.94x"}
         clean = {"cell": "B1-A-r1", "scenario": "B1", "response": "adopt only if under 0.7x"}
-        self.assertEqual(c.sweep_records([dirty, clean], tells, global_tells=[]),
-                         [("B1-C-r1", r"2\.94")])
+        self.assertEqual(c.sweep_records([dirty, clean], tells), [("B1-C-r1", r"2\.94")])
 
     def test_global_tells_apply_to_every_scenario(self):
         rec = {"cell": "S1-D-r1", "scenario": "S1",
@@ -30,7 +29,13 @@ class TestSweepRecords(unittest.TestCase):
     def test_artifacts_are_scanned(self):
         rec = {"cell": "B2-C-r1", "scenario": "B2",
                "response": "", "artifacts": {"d.md": "gate decidable, 216 ran"}}
-        self.assertTrue(c.sweep_records([rec], {"B2": [r"\b216\b"]}, global_tells=[]))
+        self.assertTrue(c.sweep_records([rec], {"B2": [r"\b216\b"]}))
+
+    def test_extra_tells_add_to_global_tells_never_replace_them(self):
+        rec = {"cell": "S1-D-r1", "scenario": "S1", "response": "ran hermetic_driver and x-wt"}
+        hits = c.sweep_records([rec], {}, [r"x-wt", r"hermetic_driver"])
+        self.assertEqual(sorted(p for _, p in hits), ["hermetic_driver", "x-wt"])  # no dup
+        self.assertEqual(c.sweep_records([rec], {}, []), [("S1-D-r1", "hermetic_driver")])
 
 
 class TestSweepTree(unittest.TestCase):
@@ -53,6 +58,20 @@ class TestSweepTree(unittest.TestCase):
                             f"history hit expected, got {hits}")
             self.assertFalse(any(w == "repo/notes.md" for w, _ in hits))
             self.assertEqual(c.sweep_tree(d, ["backstory-drift"]), [])
+
+    def test_empty_tells_refused(self):
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "a.md").write_text("anything")
+            with self.assertRaises(ValueError):
+                c.sweep_tree(d, [])
+
+    def test_archive_is_a_hit_by_itself(self):
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("bundle.tar.gz", "b.ZIP", "c.tgz"):
+                Path(d, name).write_bytes(b"\x1f\x8b opaque")
+            Path(d, "clean.md").write_text("nothing here")
+            hits = c.sweep_tree(d, ["planted"])
+            self.assertEqual(sorted(w for w, _ in hits), ["b.ZIP", "bundle.tar.gz", "c.tgz"])
 
 
 class TestSanitizedPluginDir(unittest.TestCase):

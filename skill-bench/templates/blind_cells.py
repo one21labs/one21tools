@@ -6,12 +6,15 @@ COPY into a dated benchmark dir and adapt the `ADAPT` blocks. The recipe you kee
   outputs/*.json -> graded/items/<bid>.json {bid, scenario, response} — NO arm field; any
   cell-written decision artifacts are folded into the response text so artifact PRESENCE
   cannot tell the arm. Arm-side inputs (advisor tables, framer output) are never included.
-  Also written: arm_map.tsv (the join the aggregator uses), keys.json (the grading key per
-  scenario), audit_bids.json (the guess-the-arm sample validating the blinding).
+  Also written: keys.json (the grading key per scenario), audit_bids.json (the guess-the-arm
+  sample validating the blinding), and arm_map.tsv (the join the aggregator uses) — at the
+  benchmark root, NOT under graded/: the map is the un-blinding key, so it never sits in the
+  directory the grader reads.
 
 #191 hardening baked in: ERROR cells are split out mechanically (classify_cells) before
-blinding — infrastructure, never quality zeros — and the capture-symmetry sweep runs BEFORE
-blinding; a skewed sweep aborts (fix the harness, don't grade the skew).
+blinding — infrastructure, never quality zeros — and the capture-symmetry sweep runs over ALL
+cells with every exclusion counted, BEFORE they are dropped (run on the survivors, it cannot
+see the skew); a skewed sweep aborts (fix the harness, don't grade the skew).
 """
 import json
 import sys
@@ -48,7 +51,9 @@ def main():
         print(f"{len(errors)} ERROR cell(s) excluded (infrastructure, resumable) "
               f"-> graded/error_cells.json", file=sys.stderr)
 
-    sweep = capture_symmetry(ok, merged_response)           # #191 item 2
+    excluded = {id(r) for r, _ in errors}
+    sweep = capture_symmetry(records, merged_response,      # #191 item 2
+                             excluded_fn=lambda r: id(r) in excluded)
     print("capture symmetry:", json.dumps(sweep))
     if sweep["skewed"]:
         sys.exit("arm-skewed capture — fix the harness before grading, this is not signal")
@@ -58,7 +63,7 @@ def main():
                                        "response": merged_response(r)})
     for m, r in zip(arm_map, ok):
         m["scenario"], m["rep"] = r["scenario"], r["rep"]
-    bench_io.dump_records(arm_map, str(graded / "arm_map.tsv"), fmt="tsv")
+    bench_io.dump_records(arm_map, str(HERE / "arm_map.tsv"), fmt="tsv")
 
     # ADAPT: keys.json — the per-scenario grading key (expectations / traps / outcome keys)
     # in the shape your grade workflow's rubric reads (ADR 0025/0026 layout).

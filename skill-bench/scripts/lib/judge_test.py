@@ -14,10 +14,26 @@ def _which(available):
 class TestJudge(unittest.TestCase):
     def test_met_map_extracts_bools_by_id(self):
         v = {"expectations": [{"id": 1, "met": True, "why": "x"}, {"id": 2, "met": False, "why": "y"}]}
+        self.assertEqual(judge.met_map(v, 2), {1: True, 2: False})
         self.assertEqual(judge.met_map(v), {1: True, 2: False})
 
-    def test_met_map_empty(self):
+    def test_met_map_strict_refuses_every_reply_that_is_not_a_grade(self):
+        # Each of these scored as a real all-false (or, for "false", a TRUE) grade with 0 errors.
+        bad = [{}, [], "x", {"expectations": []},
+               {"expectations": [{"id": 1, "met": True}]},                       # partial
+               {"expectations": [{"id": "1", "met": True}, {"id": "2", "met": True}]},
+               {"expectations": [{"id": 1, "met": "false"}, {"id": 2, "met": True}]},
+               {"expectations": [{"id": 1, "met": True}, {"id": 1, "met": True}]},  # dup id
+               {"expectations": [{"id": 1, "met": True}, {"id": 3, "met": True}]},
+               {"expectations": [{"id": 1, "met": 1}, {"id": 2, "met": True}]}]
+        for v in bad:
+            with self.assertRaises(judge.JudgeError, msg=repr(v)):
+                judge.met_map(v, 2)
+
+    def test_met_map_legacy_form_counts_only_literal_true(self):
+        # Frozen dated-dir callers pass no n; they keep running, but a string is never met.
         self.assertEqual(judge.met_map({}), {})
+        self.assertEqual(judge.met_map({"expectations": [{"id": 1, "met": "false"}]}), {1: False})
 
     def test_strip_fence_plain_json(self):
         self.assertEqual(judge.strip_json_fence('{"a": 1}'), '{"a": 1}')
@@ -78,6 +94,56 @@ class TestJudge(unittest.TestCase):
             with self.assertRaises(judge.JudgeError) as ctx:
                 j.grade("prompt", {"type": "object"})
         self.assertIn("timeout", str(ctx.exception))
+
+    def _claude_call(self, model="opus", served=("claude-opus-5-5",)):
+        """Run one ClaudeJudge.grade against a stubbed subprocess.run; -> (judge, argv, kwargs)."""
+        import json as _j
+        from unittest.mock import patch
+        env = {"type": "result", "result": '{"expectations": []}', "total_cost_usd": 0.5,
+               "usage": {"input_tokens": 10}, "modelUsage": {m: {} for m in served}}
+        seen = {}
+
+        def run(cmd, **kw):
+            seen["cmd"], seen["kw"] = cmd, kw
+            return type("R", (), {"returncode": 0, "stdout": _j.dumps(env), "stderr": ""})
+        j = judge.ClaudeJudge(model=model)
+        parent = {"CLAUDE_CODE_SESSION_ID": "parent", "CCR_TOKEN": "x", "CLAUDECODE": "1"}
+        with patch.dict(os.environ, parent), patch.object(judge.subprocess, "run", run):
+            j.grade("prompt", {"type": "object"})
+        return j, seen["cmd"], seen["kw"]
+
+    def test_claude_judge_runs_isolated_from_the_parent_session_and_checkout(self):
+        j, cmd, kw = self._claude_call()
+        for k in ("CLAUDE_CODE_SESSION_ID", "CCR_TOKEN", "CLAUDECODE"):
+            self.assertNotIn(k, kw["env"])
+        self.assertEqual(os.listdir(kw["env"]["CLAUDE_CONFIG_DIR"]), [])
+        repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.assertFalse(os.path.realpath(kw["cwd"]).startswith(repo + os.sep))
+        self.assertEqual(os.listdir(kw["cwd"]), [])
+        self.assertEqual(cmd[cmd.index("--tools") + 1], "")
+        for flag in ("--disable-slash-commands", "--strict-mcp-config"):
+            self.assertIn(flag, cmd)
+        self.assertNotIn("prompt", " ".join(cmd))  # prompt on stdin, not argv
+        self.assertIn("prompt", kw["input"])
+
+    def test_claude_judge_reports_the_model_that_served_it_not_the_alias(self):
+        j, _, _ = self._claude_call(served=("claude-opus-5-5",))
+        self.assertEqual(j.name, "claude-opus-5-5")
+        self.assertEqual(j.real_cost_usd, 0.5)
+        self.assertGreater(j.cost_usd(), 0)  # unpriced served id falls back to the default row
+
+    def test_claude_judge_pinned_model_refuses_a_different_server(self):
+        with self.assertRaises(judge.JudgeError):
+            self._claude_call(model="claude-opus-5-5", served=("claude-sonnet-5",))
+
+    def test_grok_runs_from_an_empty_cwd(self):
+        from unittest.mock import patch
+        j = judge.GrokJudge(bin="/usr/bin/grok")
+        r = type("R", (), {"returncode": 0, "stdout": '{"structuredOutput": {"expectations": []}}',
+                           "stderr": ""})
+        with patch.object(judge.subprocess, "run", return_value=r) as run:
+            j.grade("prompt", {"type": "object"})
+        self.assertEqual(os.listdir(run.call_args.kwargs["cwd"]), [])
 
     # --- cross-family generalization (#296): any family, verified per call ---
 
