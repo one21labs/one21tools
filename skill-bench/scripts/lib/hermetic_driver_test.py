@@ -160,6 +160,16 @@ class SummarizeCall(unittest.TestCase):
         self.assertIn("start", s["timestamps"])
 
 
+    def test_a_substituted_model_is_an_error_cell(self):
+        call = do_call("p", "claude-opus-5-5", {}, ".", run=fake_run())
+        call["envelope"]["modelUsage"] = {"claude-haiku-4-5": {}}
+        s = summarize_call(call, requested_model="claude-opus-5-5")
+        self.assertIn("envelope served ['claude-haiku-4-5']", s["error"])
+        call["envelope"]["modelUsage"] = {"claude-opus-5-5": {}}
+        self.assertIsNone(summarize_call(call, requested_model="claude-opus-5-5")["error"])
+        self.assertIsNone(summarize_call(call, requested_model="opus")["error"])  # alias: unchecked
+
+
 class NeutralCwd(unittest.TestCase):
     def test_creates_empty_scratch_dir(self):
         import tempfile

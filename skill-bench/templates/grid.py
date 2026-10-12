@@ -31,7 +31,8 @@ from cost_gate import (DEFAULT_FAILED_CALL_CHARGE_USD, admit, cell_spend, charge
 from hermetic_driver import (build_env, capture_artifacts, do_call,  # noqa: E402
                              fresh_copy, summarize_call)
 
-MODEL = "sonnet"   # ADAPT and PIN — deltas are model-relative
+MODEL = "sonnet"   # ADAPT and PIN to an exact claude-* id — deltas are model-relative, and only an
+                   # exact id lets summarize_call refuse a substituted model
 REPS = 3           # ADAPT (>=3 to separate reliably-good from lucky, ADR 0058)
 TIMEOUT_S = 2400
 
@@ -70,7 +71,7 @@ def run_cell(scenario, src, context, rep, arm, env, out, state, lock, cap, est):
                    allow=spec["allow"], extra_args=spec["extra_args"])
     artifacts = capture_artifacts(workdir, src)
     shutil.rmtree(workdir, ignore_errors=True)
-    summary = summarize_call(call)
+    summary = summarize_call(call, requested_model=MODEL)
     summary["cell_cost_usd"] = summary.get("cost_usd") or 0.0
     summary["charged_usd"] = charged_usd(summary.get("cost_usd"), est[arm])
     # The overwritten ERROR cell's calls were billed: carry them forward (spent_so_far sums them).

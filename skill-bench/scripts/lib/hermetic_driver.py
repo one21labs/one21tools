@@ -188,9 +188,16 @@ def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.r
     return retry
 
 
-def summarize_call(call):
-    """Per-call record for a cell file: envelope figures + wall-clock + timestamps."""
+def summarize_call(call, requested_model=None):
+    """Per-call record for a cell file: envelope figures + wall-clock + timestamps. With an exact
+    `claude-*` requested_model, a call the envelope says another model served is an ERROR cell: a
+    silently substituted model would measure the wrong arm (an alias cannot be checked)."""
     env = call.get("envelope")
+    served = sorted(((env or {}).get("modelUsage") or {}).keys())
+    error = call.get("error")
+    if (not error and served and requested_model and requested_model.startswith("claude-")
+            and requested_model not in served):
+        error = f"requested {requested_model}, envelope served {served}"
     return {
         "duration_ms_wall": round(call.get("duration_s", 0.0) * 1000, 1),
         "duration_ms": safe_get(env, "duration_ms"),
@@ -199,6 +206,7 @@ def summarize_call(call):
         "usage": (env or {}).get("usage") if env else None,
         "stop_reason": safe_get(env, "stop_reason"),
         "timestamps": call.get("timestamps"),
-        "error": call.get("error"),
+        "error": error,
+        "served_models": served,
         "retried": call.get("retried", False),
     }
