@@ -121,6 +121,10 @@ def main():
                 f.write(json.dumps(res["row"]) + "\n")
                 f.flush()
         real = getattr(judge, "real_cost_usd", None)
+        cost_file = HERE / "graded" / f"judge-cost-{jname}-{tag}.json"
+        prior = json.loads(cost_file.read_text()) if cost_file.exists() else {"billed_usd": 0.0, "calls": 0}
+        cost_file.write_text(json.dumps({"billed_usd": round(prior["billed_usd"] + (real or 0.0), 4),
+                                         "calls": prior["calls"] + judge.calls}, indent=1) + "\n")
         print(f"{jname}: {len(todo)} graded over {judge.calls} calls; billed "
               f"${real if real is not None else 'n/a'}", flush=True)
 
