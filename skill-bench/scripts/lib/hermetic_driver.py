@@ -55,9 +55,13 @@ def build_env(effort="medium"):
 
 
 def neutral_cwd(outdir):
-    """An empty scratch cwd outside the repo checkout (see module docstring)."""
-    cwd = os.path.join(outdir, "cwd")
-    os.makedirs(cwd, exist_ok=True)
+    """An empty scratch cwd OUTSIDE the repo checkout (see module docstring), named after outdir.
+
+    Built under the system temp dir, never under outdir: every caller passes its outputs dir,
+    which lives inside the checkout, so the old `<outdir>/cwd` auto-discovered this repo's
+    CLAUDE.md into every arm (measured 2026-10-12: a bare call under benchmarks/ quoted its
+    heading). The precondition is enforced here rather than trusted to each caller."""
+    cwd = tempfile.mkdtemp(prefix=f"neutral-cwd-{Path(outdir).name}-")
     return cwd
 
 

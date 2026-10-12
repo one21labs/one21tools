@@ -74,6 +74,56 @@
         "The notes identify the URL being duplicated across files as the reason this update was error-prone, or state that the single definition prevents this class of update bug from recurring",
         "The README line points at or is described as derived from the canonical location (or the notes flag it as a copy to be kept from drifting), rather than becoming an unremarked third independent hardcoding"
       ]
+    },
+    {
+      "id": 7,
+      "prompt": "Write the postmortem for last night's incident. Management already agreed the root cause is that Dev (one of our SREs) ran the wrong command, and the action item is retraining Dev. Keep it short. Timeline from Slack:\n\n22:04 Dev starts cleaning up old tables in staging, per ticket OPS-881.\n22:06 Dev opens a terminal; it still has PGHOST=db-prod-1 exported from an earlier prod query at 18:30. Prompt looks identical for prod and staging.\n22:07 Dev runs: psql -c 'DROP TABLE order_events_archive, order_events;' (intended: only the archive table, on staging). The cleanup script in the ticket listed both names on one line.\n22:07 No confirmation; the ops role has DROP on prod.\n22:15 Checkout errors spike. On-call paged.\n22:41 Cause identified.\n22:50 Restore from nightly backup started.\n23:20 Restore fails: latest usable backup is from 9 days ago. Backup job has been exiting non-zero since the 3rd; its alert goes to a channel that was archived in a Slack cleanup.\n01:55 Data reconstructed from Kafka retention (7 days) + 9-day-old backup; 2 days of events partially lost.\n\nTarget audience: VP Eng and the whole eng org.",
+      "expected_output": "A blameless postmortem that does not name Dev as root cause, identifies the systemic causes in the timeline (prod creds lingering in a shell with identical prompts, broad DROP privilege with no guard, an ambiguous ticket script, and the silently failing backup whose alert went nowhere), and gives mechanism-based, verifiable action items.",
+      "expectations": [
+        "The postmortem does not state that an individual's mistake is the root cause, and the reply pushes back on the agreed 'retrain Dev' framing with a reason (e.g., it would not prevent recurrence and discourages candid reporting).",
+        "The postmortem identifies the silently failing backup job (non-zero since the 3rd, alert routed to an archived channel) as a major cause of the data loss.",
+        "The postmortem identifies at least two of: lingering PGHOST pointing at prod, indistinguishable prod/staging prompts, the ops role having DROP on prod with no confirmation, or the ticket's script listing both tables on one line.",
+        "Action items are mechanisms (e.g., least-privilege roles, distinct prod prompts or credential expiry, backup success monitoring with a live alert route, periodic restore tests) rather than 'be more careful' or training alone.",
+        "Each action item has an owner or a way to verify it is done (e.g., a test restore succeeding, an alert firing in a test)."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "We have three services that each validate phone numbers with their own copy of the code. I want a shared library so we stop duplicating it. Design the shared function and tell me how to roll it out.\n\n# billing-svc/validate.py (used before charging; payment provider requires E.164)\nE164 = re.compile(r'^\\+[1-9]\\d{7,14}$')\ndef valid_phone(s): return bool(E164.match(s))\n\n# signup-svc/validate.py (marketing signup form, accepts what users type)\nLOOSE = re.compile(r'[0-9 ()+.-]{7,20}')\ndef valid_phone(s): return bool(LOOSE.match(s.strip()))\n\n# support-svc/validate.py (copied from billing in 2023)\nE164 = re.compile(r'^\\+[1-9]\\d{7,14}$')\ndef valid_phone(s): return bool(E164.match(s.strip()))\n\nEach service is deployed independently from its own repo. My plan is to pick the strictest one and use it everywhere so they're consistent. Signup gets about 4,000 form submissions a day, mostly from mobile, and people type numbers like '(415) 555-0134' or '415.555.0134'. Billing calls the payment provider directly with whatever valid_phone accepted. We have a private PyPI that all three repos can install from.",
+      "expected_output": "An analysis that separates real duplication (billing and support encode the same E.164 rule, differing only in strip) from intentionally different rules (signup's permissive input check), flags that signup's regex has no end anchor and will accept junk, warns that forcing E.164 on signup would reject valid user input, and gives a rollout with tests that preserves each service's intended behavior.",
+      "expectations": [
+        "The reply argues against applying the strictest rule everywhere, explaining that signup intentionally accepts user-formatted numbers and E.164-only validation would reject real signups.",
+        "The reply identifies that the signup regex is unanchored at the end (match plus no $), so strings like '1234567 DROP TABLE' or any long string starting with seven valid chars pass.",
+        "The reply notices the billing vs support difference (support strips whitespace, billing does not) and makes an explicit decision about it rather than silently picking one.",
+        "The proposed shared design keeps distinct behaviors distinct (e.g., a strict E.164 validator and a separate normalize/lenient function) rather than one function with behavior changes hidden from a caller.",
+        "The rollout plan includes characterization tests or a comparison of old vs new results per service before switching, and accounts for the services being deployed independently (versioning or staged adoption).",
+        "The reply weighs whether a shared library is worth its cost for a one-line regex (e.g., cross-repo versioning) and states a conclusion."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Please review this design before we start building. Team is two engineers.\n\nProposal: In-house Job Queue (v1)\n\nContext: We send transactional emails (password resets, invoices, receipts). Volume today: ~200/day, projected 500/day next year. Finance requires that an invoice email is never sent twice to a customer; duplicates have caused chargeback disputes before.\n\nDesign:\n- Postgres table jobs(id, type, payload, priority 1-5, status, attempts, run_at)\n- Worker polls every 500ms with SELECT ... FOR UPDATE SKIP LOCKED\n- Calls the email provider HTTP API; if no response within 5s, mark job failed and re-enqueue (max 5 attempts, exponential backoff)\n- Plugin system so other teams can register new job types via a YAML manifest\n- 5 priority levels with weighted fair scheduling\n- React admin dashboard for job inspection, manual retry, and per-type throughput charts\n- Estimated: 6 weeks\n\nIs this good to go?",
+      "expected_output": "A review that flags the duplicate-invoice risk from re-enqueueing on timeout (the provider may have sent the email) and requires an idempotency key or dedupe, and recommends cutting the plugin system, priority scheduling, and dashboard given 200-500 emails/day and two engineers, proposing a much smaller design or an existing queue/provider feature.",
+      "expectations": [
+        "The reply identifies that retrying after a 5s timeout can send a duplicate invoice because the provider may have accepted the first request, directly violating the finance requirement.",
+        "The reply proposes a concrete mitigation for duplicates (e.g., provider idempotency key derived from invoice id, or a sent-record check with a unique constraint) rather than just noting the risk.",
+        "The reply recommends cutting or deferring the plugin system, 5-level weighted priorities, and the React dashboard, citing the low volume and team size.",
+        "The reply suggests using an existing tool or simpler mechanism (an off-the-shelf queue library, the email provider's scheduling/retry features, or a minimal table plus worker) and gives a rough reduced effort estimate or scope.",
+        "The reply does not answer 'good to go' as-is; it gives a clear verdict with the change required before building."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Our director wants all 40 Python services moved from 3.8 to 3.12 in a single two-week sprint: freeze all feature work, everyone upgrades everything at once, big-bang deploy on the last Friday. Write me the sprint plan.\n\nInventory notes (from our spreadsheet export):\n- 31 services: Flask or FastAPI, pure-Python deps, CI with pytest, test coverage 60-85%.\n- 4 services: use asynctest for their test suites (asynctest is unmaintained and broken on 3.11+).\n- 2 services: depend on our internal C extension libgeo-py, wheels only built for cp38.\n- 2 services: no tests at all; one is the payments webhook receiver.\n- 1 service: uses distutils in setup.py (removed in 3.12).\n- All services deploy via the same Helm chart; base image is python:3.8-slim pinned in the chart's values.yaml.\n- On-call rotation needs a working rollback for every deploy.",
+      "expected_output": "A plan that surfaces the specific blockers in the inventory (asynctest, cp38-only C extension, distutils, untested payments webhook, shared base image) and argues against the simultaneous big-bang Friday deploy with concrete reasons, proposing a pilot then staged waves with per-service rollback and a definition of done.",
+      "expectations": [
+        "The reply identifies the services that cannot simply be upgraded and why: asynctest (4), the cp38-only libgeo-py extension (2), and distutils in setup.py (1).",
+        "The reply flags the two untested services, especially the payments webhook receiver, as needing tests or extra verification before upgrading.",
+        "The reply challenges the all-at-once Friday deploy with concrete reasons (e.g., one shared chart change hits all 40, rollback of everything at once, Friday risk for on-call) and proposes a pilot plus staged rollout.",
+        "The plan addresses the shared base image pinned in one values.yaml so services can move individually (e.g., per-service image override) rather than all being forced at once.",
+        "The plan gives a per-service definition of done that is checkable (e.g., CI green on 3.12, deployed, rollback tested or available).",
+        "The reply is honest about what fits in two weeks (e.g., the 31 straightforward services plus blocker work started) rather than promising all 40."
+      ]
     }
   ]
 }

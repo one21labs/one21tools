@@ -130,12 +130,23 @@ class SummarizeCall(unittest.TestCase):
 
 
 class NeutralCwd(unittest.TestCase):
-    def test_creates_scratch_dir(self):
+    def test_creates_empty_scratch_dir(self):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             cwd = neutral_cwd(td)
             self.assertTrue(os.path.isdir(cwd))
-            self.assertEqual(os.path.basename(cwd), "cwd")
+            self.assertEqual(os.listdir(cwd), [])
+            os.rmdir(cwd)
+
+    def test_outside_checkout_even_when_outdir_is_inside(self):
+        # The defect this pins: callers pass an outputs dir INSIDE the repo; a cwd nested under
+        # it auto-discovers the repo's CLAUDE.md into every arm.
+        repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        cwd = os.path.realpath(neutral_cwd(os.path.join(repo, "benchmarks", "x", "outputs")))
+        try:
+            self.assertFalse(cwd.startswith(repo + os.sep), cwd)
+        finally:
+            os.rmdir(cwd)
 
 
 class CarveOut(unittest.TestCase):

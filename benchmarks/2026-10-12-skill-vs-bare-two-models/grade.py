@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""Grade cells against the frozen expectations (rubric.skill_grade_prompt, one call per cell).
+
+Usage: python3 grade.py --dirs prescreen-outputs [--judges claude-opus-5-5 grok]
+  -> graded/cells-<judge>-<dirs>.jsonl
+Default judge: Claude Opus 5.5, run with the same isolation as generation (no tools, no skills,
+empty config, cwd outside the checkout). It is the GENERATOR'S FAMILY: every verdict it backs is
+FRAME-UNCHECKED (ADR 0093) until a cross-family judge (`--judges grok`, where grok is installed)
+grades the same committed cells. Capture-symmetry sweep + artifact gate first (ERROR cells
+excluded, never quality 0); per-judge resumable jsonl; a JudgeError records and continues.
+"""
+import argparse
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
+import rubric  # noqa: E402
+from artifact_check import check_artifact  # noqa: E402
+from blind import capture_symmetry  # noqa: E402
+from hermetic_driver import neutral_cwd  # noqa: E402
+from judge import ClaudeJudge, JudgeError, make_judge, met_map, strip_json_fence  # noqa: E402
+
+from grid import EVALS  # noqa: E402
+
+MIN_CHARS = 200
+
+
+class IsolatedClaudeJudge(ClaudeJudge):
+    """ClaudeJudge pinned to an exact model and the generation-side isolation flags."""
+
+    def __init__(self, model):
+        super().__init__(model=model)
+        self.name = model
+        self.config = tempfile.mkdtemp(prefix="judge-config-")
+        self.cwd = neutral_cwd("judge")
+        self.real_cost_usd = 0.0  # billed envelope cost; cost_usd() is the notional price table
+
+    def grade(self, prompt, schema):
+        p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
+        cmd = [self.bin, "-p", "--output-format", "json", "--model", self.model, "--tools", "",
+               "--disable-slash-commands", "--strict-mcp-config", "--effort", "medium"]
+        try:
+            r = subprocess.run(cmd, input=p, capture_output=True, text=True, timeout=self.timeout,
+                               cwd=self.cwd, env={**os.environ, "CLAUDE_CONFIG_DIR": self.config})
+        except subprocess.TimeoutExpired:
+            raise JudgeError(f"claude timeout after {self.timeout}s")
+        if r.returncode != 0:
+            raise JudgeError(f"claude exit {r.returncode}: {r.stderr[-300:]}")
+        env = json.loads(r.stdout)
+        self._record(env)
+        self.real_cost_usd += env.get("total_cost_usd") or 0.0
+        served = sorted((env.get("modelUsage") or {}).keys())
+        if self.model not in served:
+            raise JudgeError(f"judge requested {self.model}, envelope served {served}")
+        return json.loads(strip_json_fence(env.get("result", "")))
+
+
+def judge_for(name):
+    return IsolatedClaudeJudge(name) if name.startswith("claude-") else make_judge(name)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dirs", nargs="+", default=["outputs"])
+    ap.add_argument("--judges", nargs="+", default=["claude-opus-5-5"])
+    ap.add_argument("--workers", type=int, default=4)
+    args = ap.parse_args()
+
+    recs = [json.loads(p.read_text(encoding="utf-8"))
+            for d in args.dirs for p in sorted((HERE / d).glob("*.json"))]
+    (HERE / "graded").mkdir(exist_ok=True)
+    tag = "-".join(Path(d).name for d in args.dirs)
+    sym = capture_symmetry(recs, lambda r: r.get("response") or "")
+    (HERE / "graded" / f"symmetry-{tag}.json").write_text(json.dumps(sym, indent=1), encoding="utf-8")
+    if sym["skewed"]:
+        sys.exit(f"capture symmetry SKEWED — infrastructure defect, fix before grading: {sym}")
+
+    ok_cells, errors = [], []
+    for r in recs:
+        if r["summary"]["error"]:
+            errors.append({"cell": r["cell"], "reason": r["summary"]["error"]})
+            continue
+        ok, reason = check_artifact(r.get("response") or "", min_chars=MIN_CHARS)
+        if ok:
+            ok_cells.append(r)
+        else:
+            errors.append({"cell": r["cell"], "reason": reason})
+    if errors:
+        print(f"ERROR cells (excluded, #191): {errors}", file=sys.stderr)
+    (HERE / "graded" / f"error-cells-{tag}.json").write_text(json.dumps(errors, indent=1), encoding="utf-8")
+
+    for jname in args.judges:
+        out = HERE / "graded" / f"cells-{jname}-{tag}.jsonl"  # per dir: prescreen and grid bids collide
+        done = set()
+        if out.exists():
+            done = {json.loads(l)["bid"] for l in out.read_text(encoding="utf-8").splitlines() if l}
+        judge = judge_for(jname)
+        todo = [r for r in ok_cells if r["cell"] not in done]
+
+        def grade_one(r):
+            ev = EVALS[r["scenario"]]
+            try:
+                v = judge.grade(rubric.skill_grade_prompt(ev["task"], r["response"], ev["expectations"]),
+                                rubric.GRADE_SCHEMA)
+            except (JudgeError, json.JSONDecodeError) as e:
+                return {"error": {"judge": jname, "bid": r["cell"], "error": str(e)}}
+            m = met_map(v)
+            met = {i: bool(m.get(i, False)) for i in range(1, len(ev["expectations"]) + 1)}
+            return {"row": {"bid": r["cell"], "skill": r["skill"], "scenario": r["scenario"],
+                            "model": r["model"], "arm": r["arm"], "rep": r["rep"], "met": met,
+                            "why": {e["id"]: e.get("why", "") for e in v.get("expectations", [])}}}
+
+        with out.open("a", encoding="utf-8") as f, \
+                (HERE / "graded" / "judge-errors.jsonl").open("a", encoding="utf-8") as jerr, \
+                ThreadPoolExecutor(max_workers=args.workers) as pool:
+            for res in pool.map(grade_one, todo):
+                if "error" in res:
+                    jerr.write(json.dumps(res["error"]) + "\n")
+                    print(f"JUDGE ERROR (recorded): {res['error']}", flush=True)
+                    continue
+                f.write(json.dumps(res["row"]) + "\n")
+                f.flush()
+        real = getattr(judge, "real_cost_usd", None)
+        print(f"{jname}: {len(todo)} graded over {judge.calls} calls; billed "
+              f"${real if real is not None else 'n/a'}", flush=True)
+
+
+if __name__ == "__main__":
+    main()

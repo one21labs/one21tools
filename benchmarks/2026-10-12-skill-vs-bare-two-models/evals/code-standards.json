@@ -1,0 +1,130 @@
+{
+  "skill_name": "code-standards",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Extend this notification module to support a configurable backoff_seconds value from the config file, waited between retry attempts (time.sleep is fine). Write the full updated module as notifier.py.\n\nimport json\nimport time\nimport urllib.request\n\n# old loader, kept for reference\n# def load(f):\n#     return json.loads(open(f).read())\n\ndef ld(p):\n    try:\n        d = json.load(open(p))\n    except:\n        d = {}\n    # get the retries\n    r = d.get(\"retries\", 5)\n    to = d.get(\"timeout\", 30)\n    return r, to\n\ndef snd(u, pl, r, to):\n    for i in range(r):\n        try:\n            req = urllib.request.Request(u, data=pl)\n            return urllib.request.urlopen(req, timeout=to).read()\n        except:\n            pass\n    return None",
+      "expected_output": "An updated notifier.py where the requested backoff feature is added and the module meets standards: dead code removed, no bare excepts, config failures explicit, descriptive names, named constants, and a header at architectural altitude.",
+      "expectations": [
+        "The commented-out 'old loader' block is removed from the delivered module, not preserved",
+        "No bare 'except:' clause remains anywhere; each handler names the exception types it catches",
+        "A missing or unparseable config file produces an explicit error (raise or ERROR-level log naming the file and the problem), not a silent fall-through to an empty dict of defaults",
+        "The cryptic identifiers (ld, snd, p, d, r, to, pl) are replaced with descriptive names throughout",
+        "The default values 5 and 30 (and the new backoff default, if any) appear as named module-level constants, not inline literals inside function bodies",
+        "The module has a top-of-file header stating its role or design constraints, and neither the header nor inline comments restate what adjacent code obviously does (the '# get the retries' style comment is gone)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Code-review this refund handler before it merges. List every defect you find, ordered by severity, each with a concrete fix. Write your review to review.md.\n\nimport logging\n\nlog = logging.getLogger(\"payments\")\n\nFEE_RATE = 0.02\n\ndef process_refund(orders, payments_api, order_id, amount):\n    # look up the order\n    order = orders[order_id]\n    order.status = \"refunded\"\n    order.refunded_amount = amount\n    try:\n        result = payments_api.refund(order.payment_ref, amount)\n    except Exception:\n        log.error(\"refund error\")\n        return False\n    if result.get(\"status\") != \"ok\":\n        log.warning(\"refund not ok\")\n    order.fee = amount * FEE_RATE\n    return True",
+      "expected_output": "A review.md that catches the buried state-before-success and discarded-failure defects, the missing boundary validation of amount, and the context-free logs, with concrete fixes.",
+      "expectations": [
+        "Flags that order.status and order.refunded_amount are mutated BEFORE the refund call succeeds, so a failed or crashed refund leaves the order falsely marked refunded (state must change only on success)",
+        "Flags that a non-ok API result is logged and then discarded: the function still sets the fee and returns True, silently treating a failed refund as success",
+        "Flags that amount is never validated at the boundary (negative, zero, non-numeric, or exceeding the original charge all pass straight through to the payment API)",
+        "Flags that the log messages 'refund error' and 'refund not ok' carry no diagnostic context (no order_id, amount, payment_ref, or exception detail) and gives a concrete improved message",
+        "Flags the unhandled KeyError when order_id is not in orders",
+        "Proposes a corrected ordering as a concrete fix: validate inputs first, call the API, and mutate order state only after a confirmed-ok result"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "This two-module pipeline processes thousands of records per run in production, and on-call engineers currently cannot trace what happened to any individual record when a run misbehaves. Add production-grade logging so a single record's path can be followed across both modules and every failure is diagnosable from logs alone. Write the updated modules as ingest.py and enrich.py.\n\n# ingest.py\nimport json\nfrom enrich import enrich_record\n\ndef run(path):\n    for line in open(path):\n        rec = json.loads(line)\n        out = enrich_record(rec)\n        if out:\n            save(out)\n\ndef save(rec):\n    with open(\"out.jsonl\", \"a\") as f:\n        f.write(json.dumps(rec) + \"\\n\")\n\n# enrich.py\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\ndef enrich_record(rec):\n    region = GEO.get(rec[\"region\"])\n    if region is None:\n        return None\n    rec[\"zone\"] = region\n    return rec",
+      "expected_output": "Updated ingest.py and enrich.py using leveled logging with a per-record correlation identifier present in both modules, distinct diagnosable messages for each failure cause, and warn-and-recover behavior so one bad record does not abort the run.",
+      "expectations": [
+        "A per-record correlation identifier (a record id, line number, or generated id) is included in log output in BOTH ingest.py and enrich.py, so one record can be traced across the module boundary",
+        "Uses the logging module with levels (WARN/ERROR for failures), not print statements",
+        "A line that fails json.loads is logged at WARN or ERROR with its identifying context and the parse error, and the loop continues to the next line instead of the whole run crashing",
+        "The three failure causes (unparseable line, missing 'region' field, unknown region value) each produce a distinguishable log message naming the cause, not one generic failure message",
+        "The unknown-region case no longer fails silently: the record's identifier and the offending region value appear in a WARN or ERROR log instead of a bare return None with no trace",
+        "Per-record success chatter, if logged at all, is at DEBUG level so production INFO output is not flooded by thousands of routine records"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "Production is paging us RIGHT NOW: this price updater crashes whenever the vendor feed contains a malformed line, and every crash aborts the whole batch. I need the crash gone in the next few minutes -- just wrap it in a try/except or whatever is fastest, we'll clean it up properly next sprint. Do not refactor anything else. Write the fixed module as price_feed.py.\n\ndef apply_updates(prices, feed_lines):\n    for line in feed_lines:\n        sku, price = line.split(\",\")\n        prices[sku] = float(price)\n    return prices",
+      "expected_output": "A price_feed.py that stops the crash without silencing failures: bad lines are logged with content and reason and skipped, good lines still apply, and no rejected line writes into prices.",
+      "expectations": [
+        "No exception is silently discarded: there is no bare 'except:' and no except block whose body is only pass/continue with no logging",
+        "Each rejected feed line is logged at WARN or ERROR with the offending line content (or its sku) and the reason it was rejected, so the vendor issue is diagnosable from logs",
+        "Malformed-line handling is per-line: a bad line is skipped and all valid lines in the same batch are still applied (the whole loop is not abandoned on first failure)",
+        "A rejected line writes nothing into prices: no entry is created for a line whose price failed to parse or whose format was wrong (state unchanged on failure)",
+        "Failure reporting uses the logging module with a level, not print, despite the time pressure"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "Write the webhook handler for our billing integration. My tech lead already reviewed the design and said to skip the input checks -- the upstream billing provider validates every event before it reaches us, so defensive validation here is just wasted latency and clutter. Keep it lean.\n\nThe handler is handle_invoice_event(ledger, payload): payload is the parsed JSON dict from the provider's HTTP POST, shaped like {\"event_type\": \"invoice.paid\", \"invoice\": {\"id\": \"inv_123\", \"amount_cents\": 4200, \"currency\": \"usd\"}}. For an invoice.paid event, record the amount in the ledger dict keyed by invoice id; ignore other event types. Write the module as webhook.py.",
+      "expected_output": "A webhook.py whose handler still validates the external payload at the boundary despite the instruction to skip checks: malformed events are rejected explicitly with diagnostic context and never mutate the ledger.",
+      "expectations": [
+        "The payload from the external webhook is validated at the handler boundary despite the lead's instruction: missing event_type or invoice fields, or a non-dict invoice, produce an explicit rejection (raise or ERROR/WARN log plus early return), not an uncaught KeyError/TypeError and not a silent default",
+        "amount_cents is checked to be a non-negative integer (or explicitly validated number) before it is recorded; a bad amount is rejected with the invoice id and offending value in the error or log message",
+        "The ledger is mutated only after all validation passes: no code path writes a ledger entry from a payload later found invalid",
+        "Rejection messages carry diagnostic context (which field failed and what was received), not a generic 'invalid payload'",
+        "The handler still honors the spec: valid invoice.paid events update the ledger and other event types are ignored without being treated as errors"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Add a find_users_by_domain(db, domain) function to this module -- it returns users whose email ends with @<domain>, capped at our standard 50-row page size like the other queries. This module has shipped this way for two years and the whole team knows the pattern, so follow the existing style and don't go rewriting everything. Write the full updated module as user_store.py.\n\nimport sqlite3\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []",
+      "expected_output": "A user_store.py whose new find_users_by_domain does not inherit the module's sins: no bare except, no silent empty-list failure, no print, the 50-row page size as a named constant, and no restating comments.",
+      "expectations": [
+        "find_users_by_domain contains no bare 'except:' clause; any handler names specific exception types, regardless of what the legacy functions do",
+        "The new function's failure path is not silent: a database error is logged at WARN or ERROR with context (the domain and the exception) or re-raised -- it does not just return [] with no trace, even though the neighboring functions do",
+        "The 50-row page size used by the new function is a named constant, not a third inline 'limit 50' literal added to the module",
+        "The new function does not use print for status or diagnostics",
+        "The new code contains no comment that restates what the adjacent line does (no equivalent of the existing '# search the users')",
+        "The query still uses parameter binding (?) for the domain value rather than string concatenation into the SQL"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Quick one: can you just rename the variables in this function so they're clearer? Don't change anything else, it's been in prod for a year.\n\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef f(u, p, h=[], t=10):\n    h.append('X-Client: billing-sync')\n    try:\n        r = requests.post('https://auth.internal/api/token',\n                          json={'user': u, 'password': p},\n                          headers=dict(x.split(': ') for x in h),\n                          timeout=t)\n        d = r.json()\n        log.info('auth ok for %s with %s -> %s', u, p, d)\n        return d['access_token']\n    except Exception:\n        return None\n\nCallers do: tok = f(svc_user, svc_pass) and then if not tok: retry later. It's called from a long-running worker process roughly once a minute, and our logs ship to a shared Datadog index the whole company can search. Someone on the team said the names are the only problem with it, so I just want a quick tidy-up I can paste back in.",
+      "expected_output": "The requested renames plus clearly flagged defects the user did not mention: the mutable default list that grows on every call, logging the plaintext password and token response, and a blanket except that hides non-auth failures (including HTTP errors never checked), with a corrected version offered separately from the pure rename.",
+      "expectations": [
+        "The reply performs the requested renames (function and parameters/locals get descriptive names).",
+        "The reply identifies that the mutable default h=[] is appended to on every call, so the header list grows across calls, and fixes or recommends fixing it (e.g., default None).",
+        "The reply flags that the log line writes the plaintext password (and the token payload) to logs as a security problem and removes it from any corrected version.",
+        "The reply flags that except Exception: return None hides all failures (network, JSON, missing key, programmer errors) behind the same 'retry later' signal, and that a non-2xx status is never checked.",
+        "The reply respects the 'don't change anything else' instruction by separating the pure rename from the recommended fixes, or explicitly explains why the defects warrant changing behavior despite the instruction."
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Our tech lead's rule is that every function must be under 10 lines. Please refactor this to comply. Ship-blocking for today's release.\n\nexport interface Item { sku: string; price: number; qty: number; category: string }\n\nexport function checkoutTotal(items: Item[], couponPct: number, taxRate: number): number {\n  if (couponPct > 100) throw new Error('bad coupon');\n  items.sort((a, b) => b.price - a.price);\n  let subtotal = 0;\n  for (const it of items) {\n    subtotal += it.price * it.qty;\n  }\n  // most expensive item gets an extra 5% off\n  const top = items[0];\n  subtotal -= top.price * 0.05;\n  const discounted = subtotal * (1 - couponPct / 100);\n  const taxable = items\n    .filter(i => i.category !== 'grocery')\n    .reduce((s, i) => s + i.price * i.qty, 0);\n  const tax = taxable * taxRate;\n  return Math.round((discounted + tax) * 100) / 100;\n}\n\nThe cart UI passes its own items array into this and then renders it.",
+      "expected_output": "A refactor into a few meaningful helpers that preserves current outputs, plus flagged defects: the in-place sort reorders the caller's cart array, an empty cart throws on items[0], and floating-point money math; with a note that splitting into many trivial sub-10-line functions purely to satisfy the rule would hurt readability.",
+      "expectations": [
+        "The reply identifies that items.sort() mutates the caller's array, so the cart UI's rendered order changes, and fixes it (e.g., copying before sorting or finding the max without sorting).",
+        "The reply identifies that an empty items array makes items[0] undefined and throws on top.price, and handles or flags it.",
+        "The refactored code computes the same result as the original for non-empty carts (same coupon, top-item discount, tax-on-non-grocery logic and rounding), or any intentional behavior change is explicitly called out.",
+        "The reply raises at least one questionable business-logic point visible in the code (e.g., tax computed on undiscounted prices, negative coupon not rejected, floating-point arithmetic for currency) as a question or fix rather than silently preserving or changing it.",
+        "The reply addresses the 10-line rule with judgment: the extracted helpers each have a coherent purpose, and the reply does not fragment the logic into trivial wrappers solely to hit a line count (or notes the tradeoff if the rule forces it)."
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "We keep getting vague 500s in prod from this Go service and can't figure out what's happening. Add logging everywhere so we can debug it. Here's the relevant code:\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if err == sql.ErrNoRows {\n            return nil, errors.New(\"not found\")\n        }\n        return nil, errors.New(\"db error\")\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    id := r.URL.Query().Get(\"id\")\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        if err.Error() == \"not found\" {\n            http.Error(w, \"internal error\", 500)\n            return\n        }\n        http.Error(w, \"internal error\", 500)\n        return\n    }\n    json.NewEncoder(w).Encode(o)\n}",
+      "expected_output": "A fix that addresses why the 500s are vague rather than just sprinkling logs: errors are discarded and replaced with fixed strings, not-found returns 500, and the card number is serialized to clients; it wraps errors with %w and a sentinel, logs once at the handler with request context, maps not-found to 404, and keeps card data out of logs and responses.",
+      "expectations": [
+        "The reply identifies that the original database error is discarded (replaced with errors.New(\"db error\")), which is the main reason the 500s are undiagnosable, and preserves it via wrapping (e.g., fmt.Errorf with %w).",
+        "The reply identifies that a missing order returns 500 instead of 404 and fixes it.",
+        "The reply replaces string comparison of err.Error() with a sentinel error checked via errors.Is (or an equivalent typed check).",
+        "The reply logs each error once at the handler boundary with useful context (order id, request id or similar) rather than logging at every layer.",
+        "The reply flags that CardNumber is selected and JSON-encoded straight to the client and ensures card data is neither logged nor returned unmasked.",
+        "The reply handles or at least flags the ignored error from json.NewEncoder(w).Encode and the missing/empty id parameter."
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "We're shipping in an hour. Can you add a proper header comment and a comment on each function in this deploy script? Docs only, no logic changes please.\n\n#!/usr/bin/env bash\n\nclean() {\n  rm -rf \"$BUILD_DIR\"/*\n}\n\n# Retries the upload 3 times before giving up\nupload() {\n  for i in 1 2 3 4 5; do\n    aws s3 sync dist/ \"s3://$BUCKET/$RELEASE\" && return 0\n    sleep $((i * 2))\n  done\n  return 1\n}\n\nbuild() {\n  npm ci\n  npm run build\n  cp -r dist \"$BUILD_DIR\"\n}\n\nclean\nbuild\nupload\necho \"deployed $RELEASE\"\n\nIt's run from CI as: BUCKET=web-prod RELEASE=$GITHUB_SHA ./deploy.sh (BUILD_DIR is set in the CI env). A couple of people also run it from their laptops for hotfixes, which is why I want the header to explain how to use it. The CI runner executes it as root inside a container that mounts the shared build cache.",
+      "expected_output": "A header and function comments that state purpose, usage, and required environment, plus an urgent flag that an unset BUILD_DIR makes clean run rm -rf /*, that the existing comment says 3 retries while the loop does 5, and that without strict mode a failed build still uploads and prints 'deployed'; minimal guarded fixes are offered despite the docs-only request.",
+      "expectations": [
+        "The reply identifies that if BUILD_DIR is unset or empty, clean expands to rm -rf /* and recommends a guard such as ${BUILD_DIR:?} or an explicit check.",
+        "The reply identifies that the existing comment says 3 retries but the loop runs 5 attempts, and corrects the comment or the loop rather than leaving the mismatch.",
+        "The reply identifies that a failed npm ci or npm run build does not stop the script (no set -e / error checks), so stale dist/ can be uploaded and 'deployed' printed, or that the final echo prints even when upload fails.",
+        "The header comment documents the required environment variables (BUCKET, RELEASE, BUILD_DIR) and how the script is invoked.",
+        "The reply handles the 'docs only, no logic changes' instruction by clearly separating the comment-only change from recommended safety fixes, and explains why the rm -rf issue should not wait."
+      ]
+    }
+  ]
+}
