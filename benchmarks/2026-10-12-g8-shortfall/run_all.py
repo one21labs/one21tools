@@ -15,6 +15,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
+sys.path.insert(0, str(REPO / "skill-bench" / "scripts" / "lib"))
+from cost_gate import spent_so_far  # noqa: E402
+
 BRANCH = "claude/backlog-310-317-322"
 PASSES = 3  # re-run a stage while it still has ERROR cells, at most this many times
 TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
@@ -47,9 +50,13 @@ def errors(d):
 
 def run_until_clean(flag, d, label):
     for i in range(PASSES):
-        sh("python3", "-u", "grid.py", *([flag] if flag else []), "--workers", "4", check=False)
+        rc = sh("python3", "-u", "grid.py", *([flag] if flag else []), "--workers", "4",
+                check=False).returncode
         commit(f"{label}: cells after pass {i + 1}")
-        if (HERE / d).exists() and errors(d) == 0:
+        if rc:  # grid.py exits nonzero only for a halt or refusal, never for ERROR cells
+            sys.exit(f"{label}: grid.py exited {rc} (cost gate, backstop, or lock; see log) — "
+                     "stopping for the owner, nothing further graded")
+        if errors(d) == 0:
             return
     print(f"{label}: {errors(d)} ERROR cells remain after {PASSES} passes — they are excluded "
           "from grading (#191), never scored 0", flush=True)
@@ -84,8 +91,8 @@ def main():
     jc = judge_cost("prescreen-outputs")
     judge_per = jc["billed_usd"] / jc["calls"] if jc["calls"] else 0.0
     per = {m: round(sum(v) / len(v) + judge_per, 4) for m, v in gen.items()}
-    spent = sum(c["summary"]["cell_cost_usd"] or 0 for d in ("prescreen-outputs", "pilot-outputs")
-                for c in cells(d)) + jc["billed_usd"]
+    spent = (sum(spent_so_far(HERE / d) for d in ("prescreen-outputs", "pilot-outputs"))
+             + jc["billed_usd"])
     meta["pilot"]["result"] = {"generation_mean_usd": {m: round(sum(v) / len(v), 4) for m, v in gen.items()},
                                "judge_per_cell_usd": round(judge_per, 4)}
     meta["cost"]["per_cell_estimate_usd"] = per
@@ -94,8 +101,6 @@ def main():
     commit(f"Pilot done; per-cell estimate (generation + judge) {per}, spent ${spent:.2f}")
 
     run_until_clean(None, "outputs", "Grid")
-    if not (HERE / "outputs").exists():
-        sys.exit("grid refused by the cost gate (see log) — stopping for the owner, nothing graded")
     sh("python3", "-u", "grade.py", "--dirs", "outputs")
     sh("python3", "aggregate.py")
     commit("Grid graded and aggregated (results-<judge>.json)")

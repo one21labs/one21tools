@@ -231,12 +231,26 @@ class FreshCopyAndCapture(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             src = self.bundle(td)
-            work = fresh_copy(src, "S1-A-r1")
+            work = fresh_copy(src)
             try:
                 self.assertNotEqual(str(src), work)
                 self.assertEqual(pathlib.Path(work, "data.txt").read_text(), "payload")
                 pathlib.Path(work, "data.txt").write_text("mutated")
                 self.assertEqual((src / "data.txt").read_text(), "payload")
+            finally:
+                shutil.rmtree(work, ignore_errors=True)
+
+    def test_fresh_copy_name_does_not_leak_cell(self):
+        # A subject can read its cwd; the dir name must not carry the scenario/arm/rep tag.
+        import os.path
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            src = self.bundle(td)
+            work = fresh_copy(src, "S1-C-r1")
+            try:
+                self.assertNotIn("S1", os.path.basename(work))
+                self.assertNotIn("-C-", os.path.basename(work))
             finally:
                 shutil.rmtree(work, ignore_errors=True)
 
@@ -246,7 +260,7 @@ class FreshCopyAndCapture(unittest.TestCase):
         import tempfile
         with tempfile.TemporaryDirectory() as td:
             src = self.bundle(td)
-            work = fresh_copy(src, "S1-A-r1")
+            work = fresh_copy(src)
             try:
                 pathlib.Path(work, "docs", "decision.md").write_text("the cell's artifact")
                 got = capture_artifacts(work, src)

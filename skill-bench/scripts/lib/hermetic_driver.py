@@ -83,10 +83,13 @@ def neutral_cwd(outdir):
     return cwd
 
 
-def fresh_copy(src, tag, prefix="cell"):
+def fresh_copy(src, tag=None):
     """A private temp copy of a scenario bundle for ONE call — per-cell fresh-copy hermetics:
-    no cell ever sees another cell's writes. Caller removes it (shutil.rmtree) after capture."""
-    workdir = tempfile.mkdtemp(prefix=f"{prefix}-{tag}-")
+    no cell ever sees another cell's writes. Caller removes it (shutil.rmtree) after capture.
+
+    The dir name is neutral: a cell tag in it (cell-S1-C-r1-...) told a subject with a cwd
+    which arm it was in. `tag` is ignored, kept only so frozen benchmark callers still run."""
+    workdir = tempfile.mkdtemp(prefix="cell-")
     shutil.rmtree(workdir)
     shutil.copytree(src, workdir, symlinks=True)
     return workdir
