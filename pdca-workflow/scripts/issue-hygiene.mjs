@@ -26,6 +26,9 @@
  * Usage:
  *   gh issue list --state open --limit 200 \
  *     --json number,title,body,updatedAt | node issue-hygiene.mjs
+ *   (where GraphQL is blocked, e.g. cloud sessions: REST, dropping PRs, which REST includes)
+ *   gh api 'repos/{owner}/{repo}/issues?state=open&per_page=100' --jq \
+ *     '[.[]|select(.pull_request|not)|{number,title,body,updatedAt:.updated_at}]' | node issue-hygiene.mjs
  *   node issue-hygiene.mjs <dump.json> [--dormant-days N] [--tracking-min N]
  * Always exits 0 unless the input cannot be read: a proposal list is not a gate verdict, and an
  * advisory script that can fail a build teaches people to stop running it.
