@@ -77,8 +77,9 @@ Keep the SHORTEST description that holds the true-positive rate without raising 
 false-positive rate — a longer description that buys no additional trigger accuracy is pure
 context cost (the same "every char earns its place" bar as
 [section-ablation.md](section-ablation.md)). Run 1 replicate per query first; escalate to 3
-replicates ONLY for a query whose pass/fail flips between candidate descriptions — the
-sequential-escalation discipline (ADR 0019), applied here to ambiguous flips instead of CI width.
+replicates ONLY for a query whose pass/fail flips between candidate descriptions. Escalated
+looks are diagnostic (empirical-evals.md): a description choice that rests on them is confirmed by
+a fresh pre-registered run, not by the escalation itself.
 
 ## Result snapshots
 

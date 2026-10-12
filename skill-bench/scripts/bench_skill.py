@@ -16,35 +16,37 @@ import argparse, json, os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
-from judge import make_judge, met_map, BACKENDS  # noqa: E402
+from judge import make_judge, met_map, JudgeError, BACKENDS  # noqa: E402
 from substrate import make_substrate  # noqa: E402
 from spend_guard import add_spend_flag, require_yes  # noqa: E402
 
 
 def grade_all(gen_rows, evals_by_id, judge):
-    """gen_rows: [{prompt_id, arm, output}] -> cells: [{bid, arm, scenario, met}]."""
-    cells = []
+    """gen_rows: [{prompt_id, arm, output}] -> (cells: [{bid, arm, scenario, met}], errors).
+    A cell the judge cannot grade is recorded in errors and EXCLUDED: scoring it 0 would charge a
+    judge failure to the arm, and one bad reply must not end the run."""
+    cells, errs = [], []
     for r in gen_rows:
         ev = evals_by_id[r["prompt_id"]]
         exps = ev["expectations"]
-        v = judge.grade(rubric.skill_grade_prompt(ev["task"], r["output"], exps), rubric.GRADE_SCHEMA)
-        m = met_map(v)
-        # normalize to ids 1..len(exps); missing -> False
-        met = {i: bool(m.get(i, False)) for i in range(1, len(exps) + 1)}
-        cells.append({"bid": f'{ev["id"]}:{r["arm"]}:r{r.get("rep", 1)}', "arm": r["arm"],
-                      "scenario": str(ev["id"]), "met": met})
-    return cells
+        bid = f'{ev["id"]}:{r["arm"]}:r{r.get("rep", 1)}'
+        try:
+            m = met_map(judge.grade(rubric.skill_grade_prompt(ev["task"], r["output"], exps),
+                                    rubric.GRADE_SCHEMA), len(exps))
+        except (JudgeError, ValueError) as e:  # ValueError: a reply that is not JSON at all
+            errs.append({"bid": bid, "error": str(e)[:200]})
+            continue
+        met = {i: m[i] for i in range(1, len(exps) + 1)}  # strict met_map: exactly these ids
+        cells.append({"bid": bid, "arm": r["arm"], "scenario": str(ev["id"]), "met": met})
+    return cells, errs
 
 
-def aggregate(cells, with_arm="with", without_arm="without"):
+def aggregate(cells, with_arm="with", without_arm="without", practical=0.0):
     delta = benchstats.clustered_delta(cells, with_arm, without_arm)
-    return {"arm_means": {a: round(benchstats.arm_mean(cells, a), 3) for a in (with_arm, without_arm)},
-            "with_minus_without": benchstats.keep_verdict(delta),
+    # matched-scenario, scenario-weighted: these subtract to the verdict's mean
+    return {"arm_means": {a: round(v, 3) for a, v in delta["arm_means"].items()},
+            "with_minus_without": benchstats.keep_verdict(delta, practical),
             "per_scenario": {k: round(v, 3) for k, v in delta["per_scenario"].items()}}
-
-
-def frac_met_generic(met):
-    return sum(1 for v in met.values() if v) / len(met) if met else 0.0
 
 
 def main():
@@ -60,6 +62,9 @@ def main():
     ap.add_argument("--reps", type=int, default=3,
                     help="generations per task x arm (a single pass cannot separate reliably-good "
                          "from lucky; ADR 0019/0058 — set 1 only for a smoke run)")
+    ap.add_argument("--practical", type=float, default=0.0,
+                    help="pre-registered minimum difference worth having; KEEP needs the CI's "
+                         "lower bound above it (benchstats.keep_verdict)")
     ap.add_argument("--out", default="-")
     add_spend_flag(ap, "paid generation")
     a = ap.parse_args()
@@ -93,9 +98,9 @@ def main():
             g["prompt_id"] = evals[pid]["id"]
         elif isinstance(pid, str) and pid.isdigit():
             g["prompt_id"] = evals[int(pid)]["id"]
-    cells = grade_all(gen, evals_by_id, judge)
+    cells, errs = grade_all(gen, evals_by_id, judge)
     report = {"skill_evals": a.evals, "judge": judge.name, "n_tasks": len(evals),
-              "n_reps": a.reps, **aggregate(cells)}
+              "n_reps": a.reps, "errors": errs, **aggregate(cells, practical=a.practical)}
     js = json.dumps(report, indent=1)
     print(js) if a.out == "-" else open(a.out, "w").write(js)
 

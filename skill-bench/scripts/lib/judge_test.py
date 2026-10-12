@@ -116,7 +116,8 @@ class TestJudge(unittest.TestCase):
         j, cmd, kw = self._claude_call()
         for k in ("CLAUDE_CODE_SESSION_ID", "CCR_TOKEN", "CLAUDECODE"):
             self.assertNotIn(k, kw["env"])
-        self.assertEqual(os.listdir(kw["env"]["CLAUDE_CONFIG_DIR"]), [])
+        # Same clean config dir generation uses (hermetic_driver.build_env), never the caller's.
+        self.assertEqual(kw["env"]["CLAUDE_CONFIG_DIR"], judge.build_env("medium")["CLAUDE_CONFIG_DIR"])
         repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.assertFalse(os.path.realpath(kw["cwd"]).startswith(repo + os.sep))
         self.assertEqual(os.listdir(kw["cwd"]), [])

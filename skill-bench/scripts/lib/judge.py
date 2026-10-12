@@ -163,19 +163,20 @@ class GrokJudge(_CostTracking):
 
 class ClaudeJudge(_CostTracking):
     """claude -p with the generation-side isolation (ADR 0023): detached from any parent Claude
-    Code session (build_env), an EMPTY config dir (no plugins, skills, or CLAUDE.md), a neutral
-    cwd outside the checkout, every tool stripped. Without it a judge run inside a session shared
+    Code session (build_env), the same clean config dir generation uses (build_env's
+    CLAUDE_CONFIG_DIR, credentials only; `config_dir` overrides it, e.g. an empty dir where auth
+    comes from the environment), a neutral cwd outside the checkout, every tool stripped. Without it a judge run inside a session shared
     that session's id and loaded the repo CLAUDE.md into the grader. `name` starts as the price
     key for the alias and becomes the model the envelope says served the last call; an exact
     `claude-*` model id is a pin, and a call served by anything else raises."""
     name = "claude-opus-4-8"
 
-    def __init__(self, bin="claude", model="opus", timeout=300, effort="medium"):
+    def __init__(self, bin="claude", model="opus", timeout=300, effort="medium", config_dir=None):
         self.bin = bin
         self.model = model
         self.timeout = timeout
         self.effort = effort
-        self.config = tempfile.mkdtemp(prefix="judge-config-")
+        self.config = config_dir or build_env(effort)["CLAUDE_CONFIG_DIR"]
         self.cwd = neutral_cwd("judge")
         self.real_cost_usd = 0.0  # billed envelope cost; cost_usd() is the notional price table
         self._init_usage()

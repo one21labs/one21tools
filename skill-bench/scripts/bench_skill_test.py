@@ -33,7 +33,7 @@ class TestBenchSkill(unittest.TestCase):
         judge = FakeJudge({"outA": [True, True], "outB": [False, False]})
         rows = [{"prompt_id": "t1", "arm": "with", "output": "outA", "rep": 1},
                 {"prompt_id": "t1", "arm": "with", "output": "outB", "rep": 2}]
-        cells = bs.grade_all(rows, {e["id"]: e for e in EVALS}, judge)
+        cells, _ = bs.grade_all(rows, {e["id"]: e for e in EVALS}, judge)
         self.assertEqual({c["bid"] for c in cells}, {"t1:with:r1", "t1:with:r2"})
         self.assertEqual(len({c["bid"] for c in cells}), len(cells))
 
@@ -41,7 +41,7 @@ class TestBenchSkill(unittest.TestCase):
         gen = [{"prompt_id": "t1", "arm": "with", "output": "GOOD1"},
                {"prompt_id": "t1", "arm": "without", "output": "BAD1"}]
         judge = FakeJudge({"GOOD1": [True, True], "BAD1": [True, False]})
-        cells = bs.grade_all(gen, {e["id"]: e for e in EVALS}, judge)
+        cells, _ = bs.grade_all(gen, {e["id"]: e for e in EVALS}, judge)
         self.assertEqual(cells[0]["met"], {1: True, 2: True})
         self.assertEqual(cells[1]["met"], {1: True, 2: False})
         self.assertEqual(cells[0]["arm"], "with")
@@ -85,11 +85,51 @@ class TestBenchSkill(unittest.TestCase):
         ]
         self.assertEqual(bs.aggregate(cells)["with_minus_without"]["verdict"], "INCONCLUSIVE")
 
-    def test_missing_expectations_default_false(self):
+    def test_an_ungradable_cell_is_recorded_and_excluded_never_scored_zero(self):
+        # judge.met_map raises JudgeError on a malformed reply; one bad cell must neither end the
+        # run nor enter the arm as a 0 (that charges a judge failure to the skill).
+        from judge import JudgeError
+
+        class Flaky(FakeJudge):
+            def grade(self, prompt, schema):
+                if "BROKEN" in prompt:
+                    raise JudgeError("malformed judge reply")
+                return super().grade(prompt, schema)
+        gen = [{"prompt_id": "t1", "arm": "with", "output": "GOOD1"},
+               {"prompt_id": "t1", "arm": "without", "output": "BROKEN", "rep": 2}]
+        cells, errs = bs.grade_all(gen, {e["id"]: e for e in EVALS}, Flaky({"GOOD1": [True, True]}))
+        self.assertEqual([c["bid"] for c in cells], ["t1:with:r1"])
+        self.assertEqual([e["bid"] for e in errs], ["t1:without:r2"])
+
+    def test_practical_bar_is_passed_through_and_arm_means_subtract_to_the_delta(self):
+        cells = []
+        for i in range(6):
+            cells += [{"bid": f"t{i}:with", "arm": "with", "scenario": f"t{i}",
+                       "met": {1: True, 2: True}},
+                      {"bid": f"t{i}:without", "arm": "without", "scenario": f"t{i}",
+                       "met": {1: True, 2: i == 0}}]
+        cells.append({"bid": "t9:with", "arm": "with", "scenario": "t9", "met": {1: False, 2: False}})
+        agg = bs.aggregate(cells, practical=0.3)
+        v = agg["with_minus_without"]
+        self.assertEqual(v["practical"], 0.3)
+        self.assertEqual(v["verdict"], "INCONCLUSIVE")       # KEEP at 0.0, not at a 0.3 bar
+        self.assertEqual(bs.aggregate(cells)["with_minus_without"]["verdict"], "KEEP")
+        self.assertEqual(v["dropped_scenarios"], ["t9"])    # one-arm scenario named, not silent
+        m = agg["arm_means"]
+        self.assertAlmostEqual(m["with"] - m["without"], v["mean"], places=3)
+
+    def test_practical_flag_reaches_the_cli(self):
+        import subprocess
+        r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "bench_skill.py"), "--help"], capture_output=True, text=True)
+        self.assertIn("--practical", r.stdout)
+
+    def test_partial_judge_reply_is_excluded_not_defaulted_false(self):
         gen = [{"prompt_id": "t1", "arm": "with", "output": "PARTIAL"}]
         judge = FakeJudge({"PARTIAL": [True]})  # only 1 of 2 expectations returned
-        cells = bs.grade_all(gen, {e["id"]: e for e in EVALS}, judge)
-        self.assertEqual(cells[0]["met"], {1: True, 2: False})
+        cells, errs = bs.grade_all(gen, {e["id"]: e for e in EVALS}, judge)
+        self.assertEqual(cells, [])  # a missing grade is a judge failure, never a quality 0
+        self.assertEqual(len(errs), 1)
 
 
 if __name__ == "__main__":

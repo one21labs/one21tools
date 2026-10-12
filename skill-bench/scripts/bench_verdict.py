@@ -10,7 +10,8 @@ Two modes:
                         JUDGE-DIVERGENCE diagnostic (agreement, kappa, stricter-count, verdict flip).
 
 Input dir must contain graded/verdicts.jsonl (bid, scenario, norm, expectations[baseline judge]),
-graded/arm_map.tsv (bid arm scenario rep), graded/keys.json (scenario -> rubric key).
+arm_map.tsv (bid arm scenario rep; at the dir root, outside what the grader sees, or graded/ in
+dirs blinded before that move), graded/keys.json (scenario -> rubric key).
 
 Normalization is REUSED from the committed cells (the only stage that sees raw output) so the judge
 family is the sole changed variable. Reads the benchmark dir read-only; writes only to --out
@@ -27,13 +28,14 @@ from judge import (make_judge, met_map, JudgeError, cli_available, CachedJudge, 
 
 def load_dir(d):
     amap = {}
-    with open(os.path.join(d, "graded/arm_map.tsv")) as f:
+    root_map = os.path.join(d, "arm_map.tsv")
+    with open(root_map if os.path.exists(root_map) else os.path.join(d, "graded/arm_map.tsv")) as f:
         for line in f:
             if line.startswith("bid"):
                 continue
             b, a, s, r = line.strip().split("\t")
             amap[b] = (a, s)
-    cells, baseline = [], []
+    cells, baseline, berrs = [], [], []
     with open(os.path.join(d, "graded/verdicts.jsonl")) as f:
         for line in f:
             v = json.loads(line)
@@ -41,16 +43,20 @@ def load_dir(d):
                 continue
             arm, scn = amap[v["bid"]]
             cells.append({"bid": v["bid"], "arm": arm, "scenario": scn, "norm": v["norm"]})
-            baseline.append({"bid": v["bid"], "arm": arm, "scenario": scn, "met": met_map(v)})
+            try:  # a malformed committed verdict is excluded from the baseline, never scored 0
+                baseline.append({"bid": v["bid"], "arm": arm, "scenario": scn, "met": met_map(v)})
+            except JudgeError as e:
+                berrs.append({"bid": v["bid"], "error": str(e)[:200]})
     with open(os.path.join(d, "graded/keys.json")) as f:
         keys = json.load(f)
-    return cells, baseline, keys
+    return cells, baseline, keys, berrs
 
 
 def regrade_cell(judge, cell, key):
     g = judge.grade(rubric.grade_prompt(cell["norm"], key), rubric.GRADE_SCHEMA)
     p = judge.grade(rubric.prosecute_prompt(cell["norm"], key, g), rubric.GRADE_SCHEMA)
-    gm, pm = met_map(g), met_map(p)
+    n = len(benchstats.EXP_IDS)
+    gm, pm = met_map(g, n), met_map(p, n)
     return {"bid": cell["bid"], "arm": cell["arm"], "scenario": cell["scenario"],
             "met": {i: gm.get(i, False) and pm.get(i, False) for i in benchstats.EXP_IDS}}
 
@@ -72,18 +78,18 @@ def regrade(judge, cells, keys, workers, cache=None):
     return out, errs
 
 
-def summarize(cells, x, y):
+def summarize(cells, x, y, practical=0.0):
     d_xy = benchstats.clustered_delta(cells, x, y)
-    arms = sorted({c["arm"] for c in cells})
-    return {"arm_means": {a: round(benchstats.arm_mean(cells, a), 3) for a in arms},
-            f"{x}_minus_{y}": {**benchstats.keep_verdict(d_xy)},
+    # matched-scenario, scenario-weighted: these subtract to the verdict's mean
+    return {"arm_means": {a: round(v, 3) for a, v in d_xy["arm_means"].items()},
+            f"{x}_minus_{y}": benchstats.keep_verdict(d_xy, practical),
             f"{x}_minus_A": round(benchstats.clustered_delta(cells, x, "A")["mean"], 4),
             "per_expectation": {i: {a: round(v, 2) for a, v in benchstats.per_expectation(cells)[i].items()}
                                 for i in benchstats.EXP_IDS},
             # #191 item 3: the delta's largest per-cell contributors; inspect=true means the
             # verdict flips or halves without them — check those cells for infrastructure
             # failure before interpreting the bar.
-            "attribution": benchstats.top_cell_attribution(cells, x, y)}
+            "attribution": benchstats.top_cell_attribution(cells, x, y, practical=practical)}
 
 
 def main():
@@ -104,13 +110,16 @@ def main():
                                         "scenario, met) — the substrate for judge-basis bar math")
     ap.add_argument("--primary", default="C,B",
                     help="treatment,control arm pair for the clustered delta (default C,B)")
+    ap.add_argument("--practical", type=float, default=0.0,
+                    help="pre-registered minimum difference worth having; KEEP needs the CI's "
+                         "lower bound above it (benchstats.keep_verdict)")
     a = ap.parse_args()
     try:
         px, py = [s.strip() for s in a.primary.split(",")]
     except ValueError:
         sys.exit(f"--primary must be 'X,Y' (got {a.primary!r})")
 
-    cells, baseline, keys = load_dir(a.dir)
+    cells, baseline, keys, baseline_errs = load_dir(a.dir)
     if a.limit:
         cells, baseline = cells[:a.limit], baseline[:a.limit]
     cache = None
@@ -120,13 +129,14 @@ def main():
                   "met": {int(k): v for k, v in ({e["id"]: e["met"] for e in j["expectations"]}).items()}}
                  for j in map(json.loads, open(a.cache)) if "error" not in j and j["bid"] in {c["bid"] for c in cells}]
 
-    # 'both' needs grok AND claude for the divergence diagnostic; degrade gracefully if only one exists.
+    # 'both' needs ONE reachable cross-family judge: the baseline half is read off the committed
+    # cells, never re-graded (references/judging.md). Degrade gracefully if none is reachable.
     want_both = a.judge == "both"
     degrade_note = None
-    if want_both and not (cli_available("grok") and cli_available("claude")):
+    if want_both and not any(cli_available(n) for n, s in BACKENDS.items() if s["cross_family"]):
         want_both = False
-        degrade_note = ("--judge both needs grok AND claude for the divergence diagnostic; only one "
-                        "CLI is available — reporting a single-judge verdict instead")
+        degrade_note = ("--judge both needs a reachable cross-family judge for the divergence "
+                        "diagnostic; none is — reporting a single-judge verdict instead")
     primary = "auto" if a.judge in ("auto", "both") else a.judge
     try:
         judge = make_judge(primary)  # resolves per judge.AUTO_ORDER; raises with remedy if none
@@ -153,18 +163,20 @@ def main():
                   "judge_calls": judge.calls, "usd": judge.cost_usd(),
                   "note": "shadow cost at published API rates (deterministic: tokens x rate); "
                           "$0 marginal under subscription; 0 here when --cache (no live calls)"},
-              "regraded": summarize(regraded, px, py)}
+              "regraded": summarize(regraded, px, py, a.practical)}
     if judge.fallback_note:
         report["judge_fallback"] = judge.fallback_note
     if degrade_note:
         report["degraded"] = degrade_note
     if want_both:
         report["baseline_judge"] = "committed (opus)"
-        report["baseline"] = summarize(baseline, px, py)
+        report["baseline"] = summarize(baseline, px, py, a.practical)
+        if baseline_errs:
+            report["baseline_errors"] = baseline_errs
         report["divergence"] = benchstats.divergence(baseline, regraded, "baseline", judge.name)
         report["verdict_flip"] = benchstats.verdict_flip(
             benchstats.clustered_delta(baseline, px, py),
-            benchstats.clustered_delta(regraded, px, py))
+            benchstats.clustered_delta(regraded, px, py), a.practical)
     js = json.dumps(report, indent=1)
     if a.out == "-":
         print(js)

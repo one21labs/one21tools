@@ -8,7 +8,8 @@ even wired since 2026-07-27 (#311); this guard checks only that a wired file's c
 are reachable.
 
 Rule: in a *_test.py file, no top-level class definition may appear after the first
-`unittest.main()` call. Parsed with `ast` (a string literal containing the call text never
+`unittest.main()` call, and a file defining a TestCase class must call `unittest.main()` at all
+(without it the file exits 0 having run nothing). Parsed with `ast` (a string literal containing the call text never
 false-positives); a file that fails to parse is reported as a failure (fail closed — the
 test step would fail on it anyway).
 
@@ -19,7 +20,8 @@ import ast
 
 
 def unreachable_classes(source):
-    """Return [(lineno, name)] for top-level classes defined after the first unittest.main() call."""
+    """Return [(lineno, name)] for top-level classes defined after the first unittest.main() call,
+    or, when there is no unittest.main(), for every top-level TestCase subclass (unwired)."""
     tree = ast.parse(source)
     main_line = None
     for node in ast.walk(tree):
@@ -28,7 +30,9 @@ def unreachable_classes(source):
                 and node.func.value.id == "unittest"):
             main_line = node.lineno if main_line is None else min(main_line, node.lineno)
     if main_line is None:
-        return []
+        return [(n.lineno, n.name) for n in tree.body if isinstance(n, ast.ClassDef)
+                and any((getattr(b, "attr", None) or getattr(b, "id", "")).endswith("TestCase")
+                        for b in n.bases)]
     return [(n.lineno, n.name) for n in tree.body
             if isinstance(n, ast.ClassDef) and n.lineno > main_line]
 
@@ -52,8 +56,9 @@ def main(argv):
                 failures.append(f"{path}: does not parse ({e.msg}, line {e.lineno})")
                 continue
             failures.extend(
-                f"{path}:{lineno}: class {name} is below unittest.main() — never collected "
-                f"when CI runs the file in script mode" for lineno, name in bad)
+                f"{path}:{lineno}: class {name} is below unittest.main(), or the file has no "
+                f"unittest.main() — never collected when CI runs it in script mode"
+                for lineno, name in bad)
     if failures:
         print("check_reachability: unreachable test classes:", file=sys.stderr)
         for f in failures:

@@ -241,11 +241,11 @@ class TestVerdictMath(unittest.TestCase):
         cl, gk = [], []
         for i in range(6):
             cl += [cell(f"c{i}", "C", f"S{i}", [1, 0, 0, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
-            gk += [cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
+            gk += [cell(f"c{i}", "C", f"S{i}", [1, 1, 1, i % 2]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
         flip = bs.verdict_flip(bs.clustered_delta(cl, "C", "B"), bs.clustered_delta(gk, "C", "B"))
         self.assertTrue(flip["flipped"])
         self.assertEqual(flip["judge_a_verdict"], "INCONCLUSIVE")   # a flat null: no interval width
-        self.assertEqual(flip["judge_b_verdict"], "KEEP")           # +0.5 every scenario
+        self.assertEqual(flip["judge_b_verdict"], "KEEP")           # +0.5/+0.75 alternating
 
     def test_summarize_generalizes_to_any_arm_pair(self):
         # --primary D,C (#180 arm-D grid): arm means infer from the cells, delta keys follow the pair
@@ -253,10 +253,75 @@ class TestVerdictMath(unittest.TestCase):
         cells = [cell("d1", "D", "S1", [1, 1, 1, 1]), cell("c1", "C", "S1", [1, 1, 0, 0]),
                  cell("a1", "A", "S1", [1, 0, 0, 0])]
         s = bv.summarize(cells, "D", "C")
-        self.assertEqual(set(s["arm_means"]), {"A", "C", "D"})
+        self.assertEqual(set(s["arm_means"]), {"C", "D"})  # the verdict pair, matched scenarios
         self.assertIn("D_minus_C", s)
         self.assertIn("D_minus_A", s)
         self.assertAlmostEqual(s["D_minus_C"]["mean"], 0.5)
+
+
+class TestBenchstatsBoundaries(unittest.TestCase):
+    # Each assert pins a boundary a mutant once survived every suite on (2026-10 stats audit).
+    def test_identical_cluster_deltas_are_inconclusive_not_a_zero_width_keep(self):
+        cells = [c for i in range(6) for c in (cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]),
+                                                cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))]
+        v = bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))
+        self.assertEqual(v["verdict"], "INCONCLUSIVE")
+        self.assertIsNone(v["mde80"])
+        self.assertEqual(v["why"], "spread unestimable: every cluster delta is identical")
+
+    def test_one_arm_scenarios_are_named_not_silently_dropped(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 0, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 0]), cell("b2", "B", "S2", [1, 0, 0, 0]),
+                 cell("c3", "C", "S3", [1, 1, 1, 1]), cell("a3", "A", "S4", [0, 0, 0, 0])]
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertEqual(d["dropped_scenarios"], ["S3"])   # S4 carries neither arm: not dropped
+        self.assertEqual(bs.keep_verdict(d)["dropped_scenarios"], ["S3"])
+        full = [c for c in cells if c["scenario"] != "S3"]
+        self.assertNotIn("dropped_scenarios", bs.keep_verdict(bs.clustered_delta(full, "C", "B")))
+
+    def test_reported_arm_means_subtract_to_the_delta(self):
+        # S1 has 3 C reps, S2 one: the all-cells arm_mean weighs S1 thrice and misses the delta.
+        cells = ([cell(f"c1{r}", "C", "S1", [1, 1, 1, 1]) for r in range(3)]
+                 + [cell("c2", "C", "S2", [1, 0, 0, 0]), cell("b1", "B", "S1", [1, 1, 0, 0]),
+                    cell("b2", "B", "S2", [1, 1, 0, 0]), cell("c3", "C", "S3", [0, 0, 0, 0])])
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertAlmostEqual(d["arm_means"]["C"] - d["arm_means"]["B"], d["mean"])
+        self.assertNotAlmostEqual(bs.arm_mean(cells, "C") - bs.arm_mean(cells, "B"), d["mean"])
+
+    def test_verdict_boundaries(self):
+        kv = lambda lo, hi, p=0.0: bs.keep_verdict(
+            {"mean": (lo + hi) / 2, "ci95": [lo, hi], "n_clusters": 6}, p)["verdict"]
+        self.assertEqual(kv(-0.20, -0.01), "HARMFUL")       # any upper bound below zero
+        self.assertEqual(kv(-0.20, 0.0), "INCONCLUSIVE")    # touching zero is not clear of it
+        self.assertEqual(kv(0.0, 0.40), "INCONCLUSIVE")     # lower bound must EXCEED the bar
+        self.assertEqual(kv(0.10, 0.40, 0.10), "INCONCLUSIVE")
+        self.assertEqual(kv(-0.50, 0.05, 0.10), "INCONCLUSIVE")  # lo outside the band: no CUT
+        self.assertEqual(kv(-0.05, 0.05, 0.10), "CUT")
+        v = bs.keep_verdict({"mean": 0.1, "ci95": [-0.1, 0.3], "n_clusters": 6})
+        self.assertAlmostEqual(v["mde80"], (bs.t95(5) + bs.t80(5)) * 0.2 / bs.t95(5), places=3)
+
+    def test_a_tied_scenario_is_not_a_win(self):
+        d = {"mean": 0.1, "ci95": [0.05, 0.15], "per_scenario": {"S1": 0.0, "S2": 0.2}}
+        self.assertEqual(bs.keep_verdict(d)["win_rate"], 0.5)
+
+    def test_per_expectation_is_the_met_rate_per_arm(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 0, 0]), cell("c2", "C", "S2", [1, 0, 0, 0]),
+                 cell("b1", "B", "S1", [0, 0, 0, 1])]
+        pe = bs.per_expectation(cells)
+        self.assertEqual(pe[1], {"B": 0, "C": 1})
+        self.assertEqual(pe[2]["C"], 0.5)
+        self.assertEqual(pe[4], {"B": 1, "C": 0})
+
+    def test_divergence_counts_strictness_in_the_right_direction_and_kappa_at_full_agreement(self):
+        lax = [cell("x", "C", "S1", [1, 1, 1, 1])]
+        strict = [cell("x", "C", "S1", [1, 0, 0, 0])]
+        dv = bs.divergence(strict, lax, "s", "l")
+        self.assertEqual((dv["s_stricter_n"], dv["l_stricter_n"]), (3, 0))
+        self.assertEqual(bs.divergence(lax, lax)["kappa"], 1.0)
+
+    def test_sd_between_scales_by_root_g(self):
+        self.assertAlmostEqual(bs.sd_between({"ci95": [-0.1, 0.1], "n_clusters": 4}),
+                               0.1 / bs.t95(3) * 2)
 
 
 class TestTopCellAttribution(unittest.TestCase):
@@ -289,6 +354,38 @@ class TestTopCellAttribution(unittest.TestCase):
         attr = bs.top_cell_attribution(cells, "C", "B", top_n=2)
         self.assertEqual(len(attr["top"]), 2)
         self.assertNotIn("a1", [r["bid"] for r in attr["top"]])
+        self.assertNotIn("a1", [r["bid"] for r in bs.top_cell_attribution(cells, "C", "B", 10)["top"]])
+
+    def test_flip_means_the_verdict_changes_not_the_mean_sign(self):
+        # Base KEEP over 3 clusters; dropping any one cell leaves 2 clusters (t=12.7) and the
+        # verdict goes INCONCLUSIVE while the mean stays positive and unhalved. The mean-sign
+        # rule called this stable.
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 0]), cell("b2", "B", "S2", [1, 0, 0, 0]),
+                 cell("c3", "C", "S3", [1, 1, 1, 1]), cell("b3", "B", "S3", [1, 0, 0, 0])]
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))["verdict"], "KEEP")
+        self.assertTrue(bs.top_cell_attribution(cells, "C", "B")["inspect"])
+        # A practical bar the base already misses makes every leave-one-out agree with it.
+        self.assertFalse(bs.top_cell_attribution(cells, "C", "B", practical=0.9)["inspect"])
+
+    def test_inspect_covers_every_cell_not_only_those_shown(self):
+        cells = ([cell(f"c{s}{r}", "C", f"S{s}", [1, 1, 0, 0]) for s in (1, 2) for r in (1, 2, 3)]
+                 + [cell("p11", "P", "S1", [1, 1, 0, 0]), cell("p12", "P", "S1", [1, 1, 0, 0]),
+                    cell("p1z", "P", "S1", [0, 0, 0, 0])]
+                 + [cell(f"p2{r}", "P", "S2", [1, 1, 0, 0]) for r in (1, 2, 3)])
+        attr = bs.top_cell_attribution(cells, "C", "P", top_n=0)
+        self.assertEqual(attr["top"], [])
+        self.assertTrue(attr["inspect"])
+
+    def test_practical_flag_reaches_the_cli(self):
+        import subprocess
+        r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "bench_verdict.py"), "--help"], capture_output=True, text=True)
+        self.assertIn("--practical", r.stdout)
+        import bench_verdict as bv
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 1]), cell("b2", "B", "S2", [1, 0, 0, 0])]
+        self.assertEqual(bv.summarize(cells, "C", "B", 0.25)["C_minus_B"]["practical"], 0.25)
 
 
 if __name__ == "__main__":

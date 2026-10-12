@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """FROZEN 2026-07-27 — the HISTORICAL verdict rule. Do not use it for new work.
 
-Eleven dated aggregators under `benchmarks/2026-07-*` import `verdict_of`, and those dirs are
+Dated aggregators under `benchmarks/2026-07-*` import `verdict_of`, and those dirs are
 append-only records (ADR 0041): the frozen literal IS the record, so changing this function would
 make a re-run disagree with what was published. It therefore stays exactly as it was.
 

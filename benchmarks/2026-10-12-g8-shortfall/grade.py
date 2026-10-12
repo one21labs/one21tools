@@ -13,6 +13,7 @@ JudgeError (incl. a reply that is not a full grade, judge.met_map) is retried on
 import argparse
 import json
 import sys
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -29,8 +30,10 @@ MIN_CHARS = 200
 
 
 def judge_for(name):
-    """An exact claude-* id is pinned (ClaudeJudge refuses a call served by another model)."""
-    return ClaudeJudge(model=name) if name.startswith("claude-") else make_judge(name)
+    """An exact claude-* id is pinned (ClaudeJudge refuses a call served by another model). Empty
+    config dir, as generation (grid.py) and the 12-Oct judge used."""
+    return (ClaudeJudge(model=name, config_dir=tempfile.mkdtemp(prefix="judge-config-"))
+            if name.startswith("claude-") else make_judge(name))
 
 
 def main():
