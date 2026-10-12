@@ -5,22 +5,57 @@
  "arm": "without",
  "rep": 1,
  "model": "claude-opus-5-5",
- "served_models": [],
+ "served_models": [
+  "claude-opus-5-5"
+ ],
  "effort": "medium",
  "summary": {
-  "duration_ms_wall": 1354.3,
-  "duration_ms": null,
-  "duration_api_ms": null,
-  "cost_usd": null,
-  "usage": null,
-  "stop_reason": null,
-  "timestamps": {
-   "start": "2026-10-12T12:15:56.086361+00:00",
-   "end": "2026-10-12T12:15:57.440727+00:00"
+  "duration_ms_wall": 93153.9,
+  "duration_ms": 92259,
+  "duration_api_ms": 92028,
+  "cost_usd": 0.225844,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 665,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 11005,
+   "output_tokens_details": {
+    "thinking_tokens": 3392
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 665,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 11005,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 665,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 665
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
   },
-  "error": "nonzero exit 1: ",
-  "retried": true,
-  "cell_cost_usd": 0.0
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T16:18:08.294009+00:00",
+   "end": "2026-10-12T16:19:41.447984+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.225844
  },
- "response": ""
+ "response": "## Why not a skill\n\n| Option | What it does | Fits this problem? |\n|---|---|---|\n| CLAUDE.md rule (current) | Advisory text, always in context | Already failing about once a week |\n| Skill | Advisory text, loaded only when Claude thinks it's relevant | Weaker, since it may not load at all |\n| Permission deny rule `Edit(db/migrations/**)` | Hard block | No: it also blocks creating new migrations, and can't tell applied files from new ones |\n| **PreToolUse hook** | Script checks every edit and shell command, blocks with exit code 2 | **Yes.** It's deterministic, checked into the repo, and can ask git \"is this file on main?\" |\n\n## The hook\n\n**`.claude/hooks/protect-applied-migrations.sh`** (run `chmod +x` on it):\n\n```bash\n#!/usr/bin/env bash\n# PreToolUse hook: stop Claude from modifying migrations that are already merged\n# to main (and therefore applied in deployed environments). Creating new\n# migrations is unaffected. Humans amending a migration during an incident do it\n# by hand; this hook only applies to Claude Code tool calls.\n#\n# Exit 2 blocks the tool call and sends stderr back to Claude.\n# Any other failure (no git, no jq, no main ref) fails open.\nset -euo pipefail\n\ninput=$(cat)\ntool=$(jq -r '.tool_name' <<<\"$input\")\nroot=$(git -C \"${CLAUDE_PROJECT_DIR:-.}\" rev-parse --show-toplevel)\ncd \"$root\"\n\n# origin/main is what's deployed; fall back to local main.\nif git rev-parse -q --verify origin/main >/dev/null; then ref=origin/main\nelif git rev-parse -q --verify main >/dev/null; then ref=main\nelse exit 0; fi\n\nis_applied() { git cat-file -e \"$ref:$1\" 2>/dev/null; }\n\nblock() {\n  cat >&2 <<EOF\nBLOCKED: $1\nMigrations already merged to main have been applied in deployed environments and\nmust not be modified. Create a new migration in db/migrations/ with the next\nnumber instead. If this was a read-only command, rewrite it so it doesn't use\nredirects or write commands alongside the migration path.\nEOF\n  exit 2\n}\n\ncase \"$tool\" in\n  Edit|MultiEdit|Write)\n    path=$(jq -r '.tool_input.file_path // empty' <<<\"$input\")\n    [ -n \"$path\" ] || exit 0\n    rel=$(realpath -m --relative-to=\"$root\" \"$path\")\n    case \"$rel\" in\n      db/migrations/*)\n        if is_applied \"$rel\"; then block \"$rel is an applied migration\"; fi ;;\n    esac\n    ;;\n  Bash)\n    cmd=$(jq -r '.tool_input.command // empty' <<<\"$input\")\n    # Ignore commands with no write-like operation (cat, grep, head, git diff...).\n    grep -Eq '(^|[^0-9&>])>|\\bsed\\b[^|;&]*-i|\\bperl\\b[^|;&]*-i|\\btee\\b|\\b(mv|cp|rm|truncate|dd|patch)\\b|\\bgit +(mv|rm|apply)\\b' <<<\"$cmd\" || exit 0\n    # Globs over the migrations dir: can't tell which files, so refuse.\n    if grep -Eq 'migrations/[^[:space:]]*[*?[]' <<<\"$cmd\"; then\n      block \"write command uses a glob over db/migrations/\"\n    fi\n    # Any migration filename, with or without the db/migrations/ prefix\n    # (catches `cd db/migrations && sed -i ... 0042_add_index.sql`).\n    for f in $(grep -oE '[0-9]+_[A-Za-z0-9_]+\\.sql' <<<\"$cmd\" | sort -u); do\n      if is_applied \"db/migrations/$f\"; then\n        block \"db/migrations/$f is an applied migration\"\n      fi\n    done\n    ;;\nesac\nexit 0\n```\n\n**`.claude/settings.json`** (the shared, checked-in settings file; merge this into it if it already exists):\n\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|MultiEdit|Write|Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/protect-applied-migrations.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n```\n\nKeep the CLAUDE.md line as well. It tells Claude the right approach up front, and the hook catches the cases where it doesn't follow it.\n\n## What it allows and blocks\n\n- **Blocked:** Edit/Write/MultiEdit on any `db/migrations/*` file that exists on `origin/main`. Also blocked: shell commands that combine a write operation (`sed -i`, `perl -i`, `>`, `>>`, `tee`, `mv`, `cp`, `rm`, `truncate`, `dd`, `patch`, `git mv/rm/apply`) with an applied migration's filename, or with a glob over `migrations/`.\n- **Allowed:** creating new migrations, editing migrations that exist only on the current branch, and all read-only commands (`cat`, `grep db/migrations/*.sql`, `git diff`).\n\n## Verification\n\nI set up a scratch git repo with an applied `0042`, an unmerged `0043`, and a new `0044`, then piped sample hook payloads through the script. **However, the test output didn't come back to me, so I can't confirm the results.** I also patched the script with `sed` mid-test; the version above is the cleaned-up final form, not exactly what ran. Please run this quick check in your repo before rolling it out. Rows marked \"blocked\" should print `exit=2`; rows marked \"allowed\" should print `exit=0`:\n\n```bash\nH=.claude/hooks/protect-applied-migrations.sh; export CLAUDE_PROJECT_DIR=$PWD\nA=db/migrations/0042_add_index.sql   # pick a file that's on main\nt(){ printf '%-28s ' \"$1\"; echo \"$2\" | $H 2>/dev/null; echo \"exit=$?\"; }\nt \"Edit applied (blocked)\"   \"{\\\"tool_name\\\":\\\"Edit\\\",\\\"tool_input\\\":{\\\"file_path\\\":\\\"$PWD/$A\\\"}}\"\nt \"Write new (allowed)\"      \"{\\\"tool_name\\\":\\\"Write\\\",\\\"tool_input\\\":{\\\"file_path\\\":\\\"$PWD/db/migrations/9999_new.sql\\\"}}\"\nt \"sed -i applied (blocked)\" \"{\\\"tool_name\\\":\\\"Bash\\\",\\\"tool_input\\\":{\\\"command\\\":\\\"sed -i s/a/b/ $A\\\"}}\"\nt \"sed -i glob (blocked)\"    '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"sed -i s/a/b/ db/migrations/*.sql\"}}'\nt \"cat applied (allowed)\"    \"{\\\"tool_name\\\":\\\"Bash\\\",\\\"tool_input\\\":{\\\"command\\\":\\\"cat $A 2>&1\\\"}}\"\nt \"grep glob (allowed)\"      '{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"grep -n INDEX db/migrations/*.sql\"}}'\n```\n\n## Known limits\n\n- **Shell detection is best-effort.** It catches the `sed -i` and redirect patterns you're seeing. It won't catch a file built from a variable (`f=0042; sed -i ... $f*`) or written from a Python one-liner. Treat it as a strong guardrail, not a security boundary.\n- **Stale `origin/main`:** if someone merged `0043` and an engineer hasn't fetched since, the hook won't know `0043` is applied. Running `git fetch` on every tool call would be too slow.\n- **It fails open.** If `jq` or git is missing, the script exits with a non-blocking error instead of blocking everything.\n- **Optional backstop:** a CI check that fails PRs which modify any `db/migrations/` file already on main. That covers the stale-ref and clever-shell gaps, and it applies to humans too. Give it an override label for your incident amendments."
 }

@@ -5,22 +5,57 @@
  "arm": "without",
  "rep": 1,
  "model": "claude-sonnet-5-5",
- "served_models": [],
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
  "effort": "medium",
  "summary": {
-  "duration_ms_wall": 1481.2,
-  "duration_ms": null,
-  "duration_api_ms": null,
-  "cost_usd": null,
-  "usage": null,
-  "stop_reason": null,
-  "timestamps": {
-   "start": "2026-10-12T12:15:58.768194+00:00",
-   "end": "2026-10-12T12:16:00.249488+00:00"
+  "duration_ms_wall": 31183.4,
+  "duration_ms": 30331,
+  "duration_api_ms": 30120,
+  "cost_usd": 0.04345799999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 669,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 4057,
+   "output_tokens_details": {
+    "thinking_tokens": 2208
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 669,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4057,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 669,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 669
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
   },
-  "error": "nonzero exit 1: ",
-  "retried": true,
-  "cell_cost_usd": 0.0
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T16:19:41.449073+00:00",
+   "end": "2026-10-12T16:20:12.632537+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04345799999999999
  },
- "response": ""
+ "response": "**No, a skill is the wrong tool here. Use a PreToolUse hook instead.**\n\n- A skill is advice that Claude loads when it judges the skill relevant. It can still be skipped, and nothing stops the edit when Claude doesn't load it or ignores it. That's the same failure mode as your CLAUDE.md line, with a bit more emphasis.\n- A hook runs on every tool call and can refuse it. Your rule is mechanical: if the file exists on main, don't modify it. That makes it a good fit for enforcement.\n- A hook covers Claude's edit tools and its `sed`/redirect edits, because it can inspect Bash commands too.\n- New migrations stay unaffected, because a file that isn't on main yet is allowed.\n- Humans editing by hand don't go through Claude, so their incident amendments are unaffected.\n\nI haven't written these into a repo, since this working directory isn't yours. Here are the files to commit.\n\n**`.claude/settings.json`** (merge into your existing one if you have it)\n```json\n{\n  \"hooks\": {\n    \"PreToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit|NotebookEdit|Bash\",\n        \"hooks\": [\n          {\n            \"type\": \"command\",\n            \"command\": \"\\\"$CLAUDE_PROJECT_DIR\\\"/.claude/hooks/protect-applied-migrations.sh\"\n          }\n        ]\n      }\n    ]\n  }\n}\n```\n\n**`.claude/hooks/protect-applied-migrations.sh`** (`chmod +x` it)\n```bash\n#!/usr/bin/env bash\n# Blocks modification of db/migrations/ files that already exist on main\n# (= already applied, since main deploys continuously). New files are allowed.\nset -u\ninput=$(cat)\n\nroot=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0\nref=origin/main\ngit rev-parse --verify -q \"$ref\" >/dev/null || ref=main\ngit rev-parse --verify -q \"$ref\" >/dev/null || exit 0\n\napplied() { git cat-file -e \"$ref:$1\" 2>/dev/null; }\n\nblock() {\n  cat >&2 <<EOF\nBLOCKED: $1 is an applied migration (it exists on $ref). Editing it would break\nenvironments that already ran it. Do not modify it. Instead, create a NEW\nmigration file with the next number in db/migrations/ that makes the change.\nIf this truly must be amended (e.g. an incident), tell the user to do it by hand.\nEOF\n  exit 2\n}\n\ntool=$(jq -r '.tool_name // \"\"' <<<\"$input\")\n\nif [ \"$tool\" = \"Bash\" ]; then\n  cmd=$(jq -r '.tool_input.command // \"\"' <<<\"$input\")\n  # ignore harmless redirects like 2>&1 and >/dev/null\n  clean=$(sed -E 's/[0-9]*>&[0-9]//g; s/[0-9]*>[[:space:]]*\\/dev\\/null//g' <<<\"$cmd\")\n  write_re='(sed|perl|ruby)[^|;&]*[[:space:]]-[a-zA-Z]*i|>|(^|[^[:alnum:]_])(tee|mv|rm|cp|truncate|dd|install)[[:space:]]|git[[:space:]]+(checkout|restore|rm|mv|stash|reset)'\n  grep -qE \"$write_re\" <<<\"$clean\" || exit 0\n\n  while read -r f; do\n    [ -z \"$f\" ] && continue\n    case \"$f\" in\n      *[\\*\\?]*) block \"$f (glob)\" ;;\n    esac\n    rel=${f#\"$root\"/}\n    applied \"$rel\" && block \"$rel\"\n  done < <(grep -oE 'db/migrations/[^[:space:]\"'\"'\"';|&<>)]*' <<<\"$cmd\")\n  exit 0\nfi\n\npath=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // \"\"' <<<\"$input\")\nrel=${path#\"$root\"/}\ncase \"$rel\" in\n  db/migrations/*) applied \"$rel\" && block \"$rel\" ;;\nesac\nexit 0\n```\n\n**Caveats**\n- \"Applied\" is judged against `origin/main` as last fetched. A migration merged minutes ago is unprotected until someone fetches. I avoided fetching inside the hook to keep it fast and offline-safe.\n- The Bash check is a best-effort pattern match. It will catch `sed -i`, `>`, `tee`, `mv`, `rm`, `git checkout`, and similar, but something like `cd db/migrations && sed -i ...` can slip through. The Edit/Write check is exact. It also errs toward false positives, for example `cat 0042_x.sql > /tmp/out` gets blocked.\n- Claude gets the message on stderr and should switch to creating a new migration.\n\n**Recommended backstop:** add a CI check that fails a PR if `git diff --diff-filter=MDR --name-only origin/main...HEAD -- db/migrations/` is non-empty. Give it an override label for incident amendments. That catches anything the hook misses, from Claude or anyone else.\n\n**CLAUDE.md:** keep a short line so Claude knows why it gets blocked and what to do, e.g. \"Applied migrations (on main) are immutable; hooks enforce this. To change schema, add a new numbered migration.\"\n\nI can also write these into your repo if you point me at it."
 }

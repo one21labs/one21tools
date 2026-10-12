@@ -5,22 +5,57 @@
  "arm": "without",
  "rep": 1,
  "model": "claude-opus-5-5",
- "served_models": [],
+ "served_models": [
+  "claude-opus-5-5"
+ ],
  "effort": "medium",
  "summary": {
-  "duration_ms_wall": 1518.7,
-  "duration_ms": null,
-  "duration_api_ms": null,
-  "cost_usd": null,
-  "usage": null,
-  "stop_reason": null,
-  "timestamps": {
-   "start": "2026-10-12T12:16:01.672654+00:00",
-   "end": "2026-10-12T12:16:03.191339+00:00"
+  "duration_ms_wall": 27563.8,
+  "duration_ms": 26671,
+  "duration_api_ms": 26394,
+  "cost_usd": 0.05182400000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 630,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2318,
+   "output_tokens_details": {
+    "thinking_tokens": 475
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 630,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2318,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 630,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 630
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
   },
-  "error": "nonzero exit 1: ",
-  "retried": true,
-  "cell_cost_usd": 0.0
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T16:20:12.633525+00:00",
+   "end": "2026-10-12T16:20:40.197387+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.05182400000000001
  },
- "response": ""
+ "response": "The goal is sound, but the plan has several structural problems. The biggest ones are the context strategy, the handoffs, and the success metric. Here's a breakdown and a revised design.\n\n## Main problems\n\n**1. Seven agents is too many for a 1\u20133 file fix.**\nEvery handoff is a place where information gets lost or distorted. For small bugs, PM \u2192 Planner \u2192 Researcher is mostly overhead. A \"requirements doc\" for \"date picker shows the wrong timezone\" is just the ticket restated. Also, the planner runs *before* the researcher, so it plans without having seen the relevant code. That order is backwards.\n\n**2. Putting the whole repo in every system prompt causes problems instead of solving them.**\n- **Size:** 20k lines of TypeScript is roughly 150k\u2013250k tokens. That uses most or all of many context windows before the agent does any work.\n- **Cost:** you pay for it seven times per bug, on every turn. Prompt caching helps, but it's still waste.\n- **Quality:** models do worse at finding the 40 relevant lines when they're buried in 20k irrelevant ones.\n- **Staleness:** after the coder edits files, the repo copy in every later agent's prompt is out of date. The tester and reviewer would be reasoning about the old code.\n\nThe better approach is to give agents **tools** (grep/ripgrep, file read, run tests, `tsc`) plus a short orientation doc (package layout, how to run tests, conventions). Agents then pull in exactly what they need, and it's always current.\n\n**3. One-paragraph summaries throw away the context you're trying to preserve.**\nFixing a bug depends on details: exact file paths, line numbers, the failing input, the error message, the diff. A paragraph of prose drops all of that. Pass **structured artifacts** instead:\n- the bug reproduction (a failing test plus its output)\n- a list of relevant files and symbols\n- the actual diff\n- test results (pass/fail output, not a description of it)\n\n**4. \"Completes without errors\" measures the wrong thing.**\nA pipeline can finish cleanly with a wrong patch, a patch that deletes the failing test, or a test that asserts the buggy behavior. You need to measure whether **the bug is actually fixed and nothing else broke.**\n\n**5. Tests come too late, and they're written by the agent that grades the work.**\nIf the tester writes tests *after* seeing the patch, the tests will tend to confirm the patch. Write a failing reproduction test **before** the fix. That gives you a clear target and an objective check.\n\n## Revised design\n\n```\n1. Fixer agent (one agent, tool-equipped, iterative loop)\n   a. Read ticket \u2192 write a failing test that reproduces the bug\n      (if it can't reproduce, stop and report \u2014 don't guess-fix)\n   b. Search/read code to locate the cause\n   c. Write the patch\n   d. Run: repro test, affected package's tests, tsc, lint\n   e. Iterate until green (with a max-iteration cap)\n\n2. Reviewer agent (separate, fresh context)\n   Input: ticket + diff + test output (+ tool access to read code)\n   Checks: does the diff fix the root cause or just the symptom?\n           were any tests weakened/deleted? scope creep? edge cases?\n   Output: approve / request changes with specific line comments\n   \u2192 on \"request changes\", loop back to Fixer (cap at 1\u20132 rounds)\n\n3. (Optional) Docs check\n   Only if the diff touches public APIs, config, or CLI flags.\n   A simple rule or a single-line check in the reviewer works;\n   most bug fixes need no doc changes.\n```\n\nThe reviewer is the handoff worth keeping. A fresh context with no attachment to the patch catches real problems. Most of the other splits don't earn their cost.\n\n## Gaps to fill\n\n- **Orientation file** (e.g. `AGENTS.md` / `CLAUDE.md`): monorepo layout, how to run tests for one package, build commands, coding conventions, and files the agent must not touch.\n- **Sandboxing:** run in a disposable worktree or container with no push or deploy credentials. The output is a PR or patch for a human to review.\n- **Guardrails:** cap iterations and tokens per bug, cap diff size (flag anything over ~3 files or ~150 lines for a human), and forbid editing or deleting existing tests without justification.\n- **Escape hatch:** \"couldn't reproduce\" and \"ticket is ambiguous\" should be valid outcomes. Have the agent ask for clarification instead of inventing requirements.\n\n## How to measure success\n\nBuild an eval set from your own history. Take 30\u201350 past small bug fixes from git, check out the parent commit, give the agent the original ticket, and compare its result against the real fix.\n\n| Metric | What it tells you |\n|---|---|\n| Hidden-test pass rate (tests from the real fix commit, not shown to the agent) | Did it actually fix the bug? |\n| Full suite + `tsc` pass | Did it break anything? |\n| Human PR acceptance rate (approved without major edits) | Is the output useful? |\n| Post-merge regression/revert rate | Is it subtly wrong? |\n| Cost and wall-clock time per bug | Is it worth it vs. a human? |\n| \"Correctly gave up\" rate on unreproducible tickets | Does it know its limits? |\n\nStart with the single fixer agent, run the eval, and only add agents or split roles where the eval shows a specific failure that a separate role would fix. That keeps the design driven by data instead of by an org chart."
 }
