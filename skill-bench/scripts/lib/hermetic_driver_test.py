@@ -30,6 +30,20 @@ class BuildEnv(unittest.TestCase):
         self.assertEqual(env["CLAUDE_EFFORT"], "medium")
         self.assertTrue(env["PATH"].startswith(os.path.join(os.path.expanduser("~"), ".local", "bin")))
 
+    def test_detaches_from_parent_session_keeps_auth(self):
+        parent = {"PATH": "/usr/bin", "HOME": "/root", "CLAUDECODE": "1",
+                  "CLAUDE_CODE_SESSION_ID": "s", "CLAUDE_CODE_SYNC_SKILLS": "1",
+                  "CLAUDE_SESSION_INGRESS_TOKEN_FILE": "/t", "CCR_SESSION_PROFILE": "p",
+                  "SESSION_INGRESS_URL": "u", "CLAUDE_CODE_OAUTH_TOKEN": "tok",
+                  "ANTHROPIC_API_KEY": "k", "HTTPS_PROXY": "http://proxy"}
+        with unittest.mock.patch.dict(os.environ, parent, clear=True):
+            env = build_env()
+        for gone in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_SYNC_SKILLS",
+                     "CLAUDE_SESSION_INGRESS_TOKEN_FILE", "CCR_SESSION_PROFILE", "SESSION_INGRESS_URL"):
+            self.assertNotIn(gone, env)
+        for kept in ("CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "HTTPS_PROXY"):
+            self.assertIn(kept, env)
+
     def test_effort_override(self):
         self.assertEqual(build_env(effort="high")["CLAUDE_EFFORT"], "high")
 

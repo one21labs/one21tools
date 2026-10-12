@@ -1,0 +1,62 @@
+{
+ "cell": "code-standards-E8-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16189.9,
+  "duration_ms": 13953,
+  "duration_api_ms": 12192,
+  "cost_usd": 0.0224852,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1600,
+   "cache_read_input_tokens": 1382,
+   "output_tokens": 1578,
+   "output_tokens_details": {
+    "thinking_tokens": 788
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1600,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1578,
+     "cache_read_input_tokens": 1382,
+     "cache_creation_input_tokens": 1600,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1600
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:16:45.650216+00:00",
+   "end": "2026-10-12T05:17:01.840180+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0224852
+ },
+ "response": "Here's the refactor. Behavior is identical to the original, including the in-place sort, and every function is under 10 lines.\n\n```ts\nexport interface Item { sku: string; price: number; qty: number; category: string }\n\nconst lineTotal = (i: Item): number => i.price * i.qty;\n\nfunction sum(items: Item[]): number {\n  return items.reduce((s, i) => s + lineTotal(i), 0);\n}\n\nfunction taxableTotal(items: Item[]): number {\n  return sum(items.filter(i => i.category !== 'grocery'));\n}\n\nfunction topItemDiscount(items: Item[]): number {\n  // most expensive item gets an extra 5% off (items must be sorted desc)\n  return items[0].price * 0.05;\n}\n\nfunction applyCoupon(amount: number, couponPct: number): number {\n  return amount * (1 - couponPct / 100);\n}\n\nfunction roundCents(n: number): number {\n  return Math.round(n * 100) / 100;\n}\n\nexport function checkoutTotal(items: Item[], couponPct: number, taxRate: number): number {\n  if (couponPct > 100) throw new Error('bad coupon');\n  items.sort((a, b) => b.price - a.price); // in place: the cart UI renders this array\n  const subtotal = sum(items) - topItemDiscount(items);\n  const discounted = applyCoupon(subtotal, couponPct);\n  const tax = taxableTotal(items) * taxRate;\n  return roundCents(discounted + tax);\n}\n```\n\nI didn't run or test this. The arithmetic order is unchanged, so results should match the original to the cent.\n\n**The in-place sort.** `items.sort(...)` mutates the caller's array, and the cart UI renders that same array. So the UI is probably showing items sorted by price descending as a side effect of calling this function. I kept the mutation so today's release doesn't change what users see. The clean fix is `[...items].sort(...)` with an explicit sort in the UI, but that would change the cart's display order, so I'd do it after the release.\n\n**Existing quirks I didn't change:**\n- An empty `items` array throws a `TypeError` on `items[0].price`.\n- The \"extra 5% off\" uses `top.price * 0.05` and ignores `qty`. That may be intended, but it's worth confirming.\n- `couponPct` is only checked for `> 100`, so negative values pass through and raise the total."
+}

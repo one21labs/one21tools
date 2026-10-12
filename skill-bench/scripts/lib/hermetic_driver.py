@@ -40,16 +40,30 @@ NEUTRAL_FRAME = (
 )
 
 
+# Variables that make a child `claude -p` part of the PARENT Claude Code session, when the harness
+# itself runs inside one. Measured 2026-10-12 in a cloud session: inherited, they gave the child the
+# parent's session id (concurrent cells then hung or exited 1 with empty stderr), synced the
+# account's skills, and injected the parent's attribution + user-email reminders into a "bare" arm.
+# Auth variables survive: a credential is not session state.
+PARENT_SESSION_PREFIXES = ("CLAUDE_CODE_", "CLAUDE_", "CCR_")
+PARENT_SESSION_NAMES = ("CLAUDECODE", "SESSION_INGRESS_URL", "AI_AGENT")
+AUTH_KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+             "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_SKIP_BEDROCK_AUTH",
+             "CLAUDE_CODE_SKIP_VERTEX_AUTH", "CLAUDE_CODE_SKIP_FOUNDRY_AUTH")
+
+
 def build_env(effort="medium"):
-    """Per-call environment, identical across arms (protocol symmetry)."""
-    env = dict(os.environ)
+    """Per-call environment, identical across arms (protocol symmetry), detached from any parent
+    Claude Code session (PARENT_SESSION_* above)."""
+    env = {k: v for k, v in os.environ.items()
+           if k in AUTH_KEEP or not (k in PARENT_SESSION_NAMES
+                                     or k.startswith(PARENT_SESSION_PREFIXES))}
     home = os.path.expanduser("~")
     env["PATH"] = os.path.join(home, ".local", "bin") + os.pathsep + env.get("PATH", "")
     # Clean auth-only config dir. Override with $SKILL_BENCH_CONFIG_DIR when installed elsewhere;
     # the default is this repo's fallback (a consumer must create their own credentials-only dir).
     env["CLAUDE_CONFIG_DIR"] = os.environ.get(
         "SKILL_BENCH_CONFIG_DIR", os.path.join(home, "issue30", "claude-config"))
-    env.pop("CLAUDECODE", None)
     env["CLAUDE_EFFORT"] = effort
     return env
 

@@ -11,7 +11,6 @@ excluded, never quality 0); per-judge resumable jsonl; a JudgeError records and 
 """
 import argparse
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -23,7 +22,7 @@ sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
 import rubric  # noqa: E402
 from artifact_check import check_artifact  # noqa: E402
 from blind import capture_symmetry  # noqa: E402
-from hermetic_driver import neutral_cwd  # noqa: E402
+from hermetic_driver import build_env, neutral_cwd  # noqa: E402
 from judge import ClaudeJudge, JudgeError, make_judge, met_map, strip_json_fence  # noqa: E402
 
 from grid import EVALS  # noqa: E402
@@ -47,7 +46,7 @@ class IsolatedClaudeJudge(ClaudeJudge):
                "--disable-slash-commands", "--strict-mcp-config", "--effort", "medium"]
         try:
             r = subprocess.run(cmd, input=p, capture_output=True, text=True, timeout=self.timeout,
-                               cwd=self.cwd, env={**os.environ, "CLAUDE_CONFIG_DIR": self.config})
+                               cwd=self.cwd, env={**build_env("medium"), "CLAUDE_CONFIG_DIR": self.config})
         except subprocess.TimeoutExpired:
             raise JudgeError(f"claude timeout after {self.timeout}s")
         if r.returncode != 0:

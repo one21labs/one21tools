@@ -1,0 +1,62 @@
+{
+ "cell": "code-standards-E3-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-haiku-5-5",
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35106.9,
+  "duration_ms": 33507,
+  "duration_api_ms": 33694,
+  "cost_usd": 0.052441699999999994,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1550,
+   "cache_read_input_tokens": 1382,
+   "output_tokens": 4594,
+   "output_tokens_details": {
+    "thinking_tokens": 2158
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1550,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4594,
+     "cache_read_input_tokens": 1382,
+     "cache_creation_input_tokens": 1550,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1550
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:05:19.937495+00:00",
+   "end": "2026-10-12T05:05:55.044434+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.052441699999999994
+ },
+ "response": "\n<invoke name=\"write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-84dd_wh5/enrich.py</parameter>\n<parameter name=\"content\">import logging\nfrom contextvars import ContextVar\n\nlog = logging.getLogger(__name__)\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n# Set by ingest.run() for each record so every log line emitted while that\n# record is being processed (in any module) carries the same correlation key.\nrecord_ctx = ContextVar(\"record_ctx\", default=\"-\")\n\n\nclass ContextFilter(logging.Filter):\n    \"\"\"Stamps the current record key onto every log line as `record_key`.\"\"\"\n\n    def filter(self, record):\n        record.record_key = record_ctx.get()\n        return True\n\n\ndef enrich_record(rec):\n    # A missing \"region\" raises KeyError; the caller logs it with a traceback.\n    raw_region = rec[\"region\"]\n    region = GEO.get(raw_region)\n    if region is None:\n        log.warning(\"dropped: unknown region=%r\", raw_region)\n        return None\n    rec[\"zone\"] = region\n    log.debug(\"enriched region=%r zone=%s\", raw_region, region)\n    return rec\n</parameter>\n</invoke>\n<invoke name=\"write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-84dd_wh5/ingest.py</parameter>\n<parameter name=\"content\">import json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\nfrom collections import Counter\n\nfrom enrich import ContextFilter, enrich_record, record_ctx\n\nlog = logging.getLogger(__name__)\n\nOUT_PATH = \"out.jsonl\"\n\n\ndef configure_logging(level=None):\n    \"\"\"Call once from the entrypoint. Level defaults to $LOG_LEVEL or INFO.\n\n    Every line includes record_key=<run_id>:<line_number>, so\n    `grep 'a1b2c3d4:1042'` shows one record's path through both modules.\n    \"\"\"\n    handler = logging.StreamHandler(sys.stderr)\n    handler.addFilter(ContextFilter())\n    handler.setFormatter(logging.Formatter(\n        \"%(asctime)s %(levelname)s %(name)s record_key=%(record_key)s %(message)s\"\n    ))\n    root = logging.getLogger()\n    root.addHandler(handler)\n    root.setLevel(level or os.environ.get(\"LOG_LEVEL\", \"INFO\"))\n\n\ndef run(path):\n    run_id = uuid.uuid4().hex[:8]\n    counts = Counter()\n    start = time.monotonic()\n    log.info(\"run started run_id=%s path=%s\", run_id, path)\n    try:\n        with open(path) as f:\n            for lineno, line in enumerate(f, 1):\n                counts[\"read\"] += 1\n                token = record_ctx.set(f\"{run_id}:{lineno}\")\n                try:\n                    _process(line, lineno, counts)\n                finally:\n                    record_ctx.reset(token)\n    except Exception:\n        # Reached on unreadable input or a fatal save error; per-record\n        # failures are handled in _process and do not stop the run.\n        log.exception(\"run aborted run_id=%s after %d records\", run_id, counts[\"read\"])\n        raise\n    finally:\n        log.log(\n            logging.WARNING if counts[\"failed\"] else logging.INFO,\n            \"run finished run_id=%s elapsed=%.2fs read=%d saved=%d dropped=%d \"\n            \"blank=%d failed=%d\",\n            run_id, time.monotonic() - start, counts[\"read\"], counts[\"saved\"],\n            counts[\"dropped\"], counts[\"blank\"], counts[\"failed\"],\n        )\n\n\ndef _process(line, lineno, counts):\n    if not line.strip():\n        log.debug(\"skipped blank line\")\n        counts[\"blank\"] += 1\n        return\n\n    try:\n        rec = json.loads(line)\n    except json.JSONDecodeError as e:\n        # Content is deliberately not logged (may be sensitive); line number,\n        # length and offset are enough to locate it in the input file.\n        log.error(\"parse failed line=%d len=%d pos=%d: %s\", lineno, len(line), e.pos, e.msg)\n        counts[\"failed\"] += 1\n        return\n\n    rec_id = rec.get(\"id\") if isinstance(rec, dict) else None\n    log.debug(\"parsed id=%s\", rec_id)\n\n    try:\n        out = enrich_record(rec)\n    except Exception:\n        log.exception(\"enrich failed id=%s type=%s\", rec_id, type(rec).__name__)\n        counts[\"failed\"] += 1\n        return\n\n    if not out:\n        counts[\"dropped\"] += 1  # reason is logged by enrich_record\n        return\n\n    save(out)\n    counts[\"saved\"] += 1\n    log.debug(\"saved id=%s\", rec_id)\n\n\ndef save(rec):\n    try:\n        with open(OUT_PATH, \"a\") as f:\n            f.write(json.dumps(rec) + \"\\n\")\n    except Exception:\n        # Not swallowed: a failing sink (disk full, permissions) affects every\n        # record, so abort the run rather than silently losing output.\n        log.exception(\"save failed path=%s\", OUT_PATH)\n        raise\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    run(sys.argv[1])\n</parameter>\n</invoke>\n<br>\n\n\n<invoke name=\"bash\">\n<parameter name=\"command\">cd /tmp/neutral-cwd-prescreen-outputs-84dd_wh5 && printf '%s\\n' '{\"id\":1,\"region\":\"us\"}' '{\"id\":2,\"region\":\"xx\"}' '' '{bad' '{\"id\":5}' '{\"id\":6,\"region\":\"eu\"}' > /tmp/claude-0/-tmp-neutral-cwd-prescreen-outputs-84dd-wh5/4525be81-f917-5fd4-b6b2-42e2a9f59ee3/scratchpad/in.jsonl && LOG_LEVEL=DEBUG python3 -I ingest.py /tmp/claude-0/-tmp-neutral-cwd-prescreen-outputs-84dd-wh5/4525be81-f917-5fd4-b6b2-42e2a9f59ee3/scratchpad/in.jsonl 2>&1 | grep -v '^  '; rm -f out.jsonl</parameter>\n</invoke>\n<br>\n\n\n<invoke name=\"bash\">\n<parameter name=\"command\">cd /tmp/neutral-cwd-prescreen-outputs-84dd_wh5 && S=/tmp/claude-0/-tmp-neutral-cwd-prescreen-outputs-84dd-wh5/4525be81-f917-5fd4-b6b2-42e2a9f59ee3/scratchpad && LOG_LEVEL=DEBUG python3 ingest.py $S/in.jsonl 2>&1 | grep -v '^  '; rm -f out.jsonl; ls</parameter>\n</invoke>\n<br>"
+}
