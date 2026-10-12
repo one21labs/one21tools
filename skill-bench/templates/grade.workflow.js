@@ -88,13 +88,15 @@ const results = await pipeline(
     .then((v) => ({ ...it, grader: v })),
   (it) => agent(prosecute(it.norm, it.key, it.grader), { label: `pros:${it.bid}`, phase: 'Prosecute', schema: GRADE_SCHEMA, model: 'opus' })
     .then((p) => {
-      const g = (it.grader && it.grader.expectations) || []
-      const pr = (p && p.expectations) || []
+      // A reply that is not a full grade (null, missing ids, non-boolean met) is a judge failure:
+      // the cell is EXCLUDED and reported, never scored as every expectation unmet (judge.met_map).
+      const full = (v) => v && Array.isArray(v.expectations) && EXP_IDS.every((id) =>
+        v.expectations.filter((e) => e.id === id && typeof e.met === 'boolean').length === 1)
+      if (!full(it.grader) || !full(p)) return { bid: it.bid, scenario: it.scenario, error: 'grader or prosecutor reply is not a full grade' }
       const finalExp = EXP_IDS.map((id) => {
-        const gv = g.find((e) => e.id === id), pv = pr.find((e) => e.id === id)
-        const met = !!(gv && gv.met) && !!(pv && pv.met)
-        const src = met ? gv : (pv && !pv.met ? pv : gv)
-        return { id, met, why: src ? src.why : 'NULL verdict' }
+        const gv = it.grader.expectations.find((e) => e.id === id), pv = p.expectations.find((e) => e.id === id)
+        const met = gv.met && pv.met
+        return { id, met, why: (met || !pv.met ? pv : gv).why }
       })
       return { bid: it.bid, scenario: it.scenario, norm: it.norm, expectations: finalExp }
     })
@@ -108,4 +110,8 @@ const audits = await parallel(auditBids.map((bid) => () =>
         .then((a) => ({ bid, ...(a || { guess: 'A', why: 'NULL auditor' }) }))
     : null))
 
-return { cells: results.filter(Boolean), audit: audits.filter(Boolean) }
+// Every agent call here is a Claude model, the generators' family: the grades are FRAME-UNCHECKED
+// (ADR 0093) until a cross-family judge (judge.py --judge grok) re-grades the same cells.
+const graded = results.filter(Boolean)
+return { frame: 'FRAME-UNCHECKED (Claude-family grader and prosecutor, ADR 0093)',
+  cells: graded.filter((r) => !r.error), errors: graded.filter((r) => r.error), audit: audits.filter(Boolean) }
