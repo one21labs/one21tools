@@ -4,8 +4,8 @@
 For each skill: n-gram containment of its expectation text (expectations + expected_output) in
 its OWN corpus (SKILL.md + references/), minus the mean containment in the other three skills'
 corpora (controls generic domain phrasing). Reported separately for the original evals (ids 1-6,
-authored with the skill in view) and the blind-authored additions (ids 7+), so the leakage the
-blind process was meant to remove is visible as a number, not asserted.
+authored with the skill in view), the 12-Oct blind additions (7-10) and this batch's (11+), so
+the leakage the blind process was meant to remove is visible as a number, not asserted.
 
 A FLOOR, not the coupling: paraphrased house doctrine is invisible to n-grams (#317 comment).
 Writes overlap.json.
@@ -17,7 +17,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 SKILLS = ("building-skills", "code-standards", "engineering-principles", "optimizing-context")
+MEASURED = ("building-skills", "code-standards", "optimizing-context")  # this batch's evals
 BLIND_FROM_ID = 7
+NEW_FROM_ID = 11
 
 
 def grams(text, n):
@@ -40,10 +42,11 @@ def main():
     out = {}
     for n in (3, 4):
         cg = {s: grams(corp[s], n) for s in SKILLS}
-        for s in SKILLS:
+        for s in MEASURED:
             evals = json.loads((HERE / "evals" / f"{s}.json").read_text(encoding="utf-8"))["evals"]
             for origin, keep in (("original", lambda e: e["id"] < BLIND_FROM_ID),
-                                 ("blind", lambda e: e["id"] >= BLIND_FROM_ID)):
+                                 ("blind_12oct", lambda e: BLIND_FROM_ID <= e["id"] < NEW_FROM_ID),
+                                 ("blind_new", lambda e: e["id"] >= NEW_FROM_ID)):
                 text = " ".join(" ".join(e["expectations"]) + " " + e.get("expected_output", "")
                                 for e in evals if keep(e))
                 eg = grams(text, n)
