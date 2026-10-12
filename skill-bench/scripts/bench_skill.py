@@ -12,7 +12,7 @@ orchestration core (grade_all/aggregate) is unit-testable offline (see bench_ski
 Prints a cost estimate and refuses to spend without --yes (the refusal ADR 0016 made the
 condition for /bench being model-invocable at all).
 """
-import argparse, json, os, sys
+import argparse, json, os, re, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "lib"))
 import rubric, benchstats  # noqa: E402
@@ -45,12 +45,27 @@ def grade_all(gen_rows, evals_by_id, judge):
     return cells, errs
 
 
+PATH_FLAG = re.compile(r"(dir|file|path|settings|config)$")
+
+
 def relative_path_args(argv):
-    """The args of an arm argv that only resolve from the caller's cwd: argv[0] relative with a
-    slash, or any arg that exists here as a relative path. Arms run from an empty temp dir
-    (NativeSubstrate), where these silently miss — the skill not loaded — or fail to launch."""
-    return [x for i, x in enumerate(argv) if not os.path.isabs(x)
-            and ((i == 0 and "/" in x) or os.path.exists(x))]
+    """The args of an arm argv that only resolve from the caller's cwd. Arms run from an empty
+    temp dir (NativeSubstrate), where these silently miss (the skill not loaded) or fail to
+    launch. argv[0] resolves through PATH, so only a slash makes it cwd-relative. A later arg,
+    or the value of `--flag=value`, counts when it exists here and looks like a path: it has a
+    slash, starts with `.`, or follows a flag named like a path (`--plugin-dir myplug`); a plain
+    option value such as `--model sonnet` never does."""
+    out = []
+    for i, a in enumerate(argv):
+        if i == 0:
+            if "/" in a and not os.path.isabs(a):
+                out.append(a)
+            continue
+        flag, val = (a.split("=", 1) if a.startswith("-") and "=" in a else (argv[i - 1], a))
+        pathlike = "/" in val or val.startswith(".") or PATH_FLAG.search(flag.lstrip("-"))
+        if val and not os.path.isabs(val) and os.path.exists(val) and pathlike:
+            out.append(a)
+    return out
 
 
 def aggregate(cells, with_arm="with", without_arm="without", practical=0.0):

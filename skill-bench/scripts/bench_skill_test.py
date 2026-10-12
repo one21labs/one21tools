@@ -193,6 +193,25 @@ class TestBenchSkill(unittest.TestCase):
                            capture_output=True, text=True)
         self.assertIn("must be absolute", r.stdout)
 
+    def test_path_check_boundaries(self):
+        # Round 5: a bare program name resolves via PATH, never the cwd; `--flag=value` and a
+        # path-named flag's value are checked; a plain option value is never refused.
+        import tempfile
+        cwd = os.getcwd()
+        with tempfile.TemporaryDirectory() as d:
+            for name in ("claude", "sonnet", "myplug"):
+                os.makedirs(os.path.join(d, name))
+            os.chdir(d)
+            try:
+                self.assertEqual(bs.relative_path_args(["claude", "-p", "--model", "sonnet"]), [])
+                self.assertEqual(bs.relative_path_args(["claude", "--plugin-dir=myplug"]),
+                                 ["--plugin-dir=myplug"])
+                self.assertEqual(bs.relative_path_args(["claude", "--plugin-dir", "myplug"]),
+                                 ["myplug"])
+                self.assertEqual(bs.relative_path_args(["claude", "--plugin-dir=/abs/x"]), [])
+            finally:
+                os.chdir(cwd)
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 

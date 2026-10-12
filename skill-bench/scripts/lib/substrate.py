@@ -114,7 +114,8 @@ class PromptfooSubstrate:
         out = os.path.join(workdir, "results.json")
         json.dump(build_promptfoo_config(prompts, providers), open(cfg, "w"), indent=1)
         r = subprocess.run(self.argv + ["eval", "-c", cfg, "-o", out, "--no-cache"],
-                           capture_output=True, text=True, timeout=1800, cwd=workdir)
+                           capture_output=True, text=True, timeout=1800, cwd=workdir,
+                           env=arm_env())
         if not os.path.exists(out):
             raise RuntimeError(f"promptfoo produced no output: {r.stderr[-400:]}")
         return parse_promptfoo_output(json.load(open(out)))

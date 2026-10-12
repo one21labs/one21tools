@@ -63,6 +63,22 @@ class TestSubstrate(unittest.TestCase):
         self.assertEqual([r.get("error") for r in rows],
                          ["exec exit 1", "provider failed", "no output", None])
 
+    def test_promptfoo_runs_with_the_detached_env(self):
+        # Round 5: the round-4 env fix covered native arms only; promptfoo inherited the session.
+        from unittest import mock
+        seen = {}
+
+        def fake_run(cmd, **kw):
+            seen.update(kw)
+            raise RuntimeError("stop after capture")
+        with mock.patch.object(sub.subprocess, "run", fake_run), \
+                mock.patch.dict(os.environ, {"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "p"}):
+            with self.assertRaises(RuntimeError):
+                sub.PromptfooSubstrate().run([{"id": "t", "prompt": "x"}],
+                                             [{"name": "with", "cmd": ["true"]}])
+        self.assertNotIn("CLAUDECODE", seen["env"])
+        self.assertNotIn("CLAUDE_CODE_SESSION_ID", seen["env"])
+
     def test_make_substrate_dispatch(self):
         self.assertEqual(sub.make_substrate("native").name, "native")
         self.assertEqual(sub.make_substrate("promptfoo").name, "promptfoo")

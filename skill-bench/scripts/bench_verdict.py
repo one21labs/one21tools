@@ -87,6 +87,8 @@ def regrade(judge, cells, keys, workers, cache=None):
                     raise JudgeError("no --cache row")
                 if "error" in r:
                     raise JudgeError(str(r["error"]))
+                if "expectations" not in r and isinstance(r.get("met"), dict):  # pre-12-Oct shape
+                    r = {"expectations": [{"id": int(i), "met": m} for i, m in r["met"].items()]}
                 out.append({**c, "met": met_map(r, len(benchstats.EXP_IDS))})
             except JudgeError as e:
                 errs.append({"bid": c["bid"], "error": str(e)[:200]})
@@ -179,7 +181,7 @@ def main():
         with open(a.cells_out, "w") as f:
             for c in regraded:
                 f.write(json.dumps({"bid": c["bid"], "arm": c["arm"], "scenario": c["scenario"],
-                                    "judge": judge.name, "expectations": [
+                                    "judge": judge.name, "met": c["met"], "expectations": [
                                         {"id": i, "met": m} for i, m in c["met"].items()]}) + "\n")
         print(f"wrote {len(regraded)} per-cell verdicts to {a.cells_out}", file=sys.stderr)
 

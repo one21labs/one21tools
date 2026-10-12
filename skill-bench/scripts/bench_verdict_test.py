@@ -483,6 +483,17 @@ class TestLoadDirAndCache(unittest.TestCase):
         self.assertEqual({e["bid"] for e in rep["error_cells"]}, {"b2", "x9"})
         self.assertEqual(rep["regraded"]["C_minus_B"]["dropped_scenarios"], ["S2"])
 
+    def test_a_pre_12_oct_met_dict_cache_still_reads(self):
+        # Round 5: committed --cells-out files (e.g. 2026-07-14 grok-cells.jsonl) carry `met` only.
+        import bench_verdict as bv
+        cells = [{"bid": b, "arm": a, "scenario": s} for b, a, s, _ in GRID[:2]]
+        cache = [{"bid": "c1", "met": {"1": True, "2": True, "3": False, "4": True}},
+                 {"bid": "b1", "met": {"1": True}}]   # partial: still refused
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual([c["bid"] for c in out], ["c1"])
+        self.assertEqual(out[0]["met"], {1: True, 2: True, 3: False, 4: True})
+        self.assertEqual([e["bid"] for e in errs], ["b1"])
+
     def test_cells_out_reads_back_as_a_cache_carrying_its_judge(self):
         # Round 4: --cells-out wrote {met:{..}} with no judge, which --cache could not read.
         import json, tempfile
@@ -492,7 +503,9 @@ class TestLoadDirAndCache(unittest.TestCase):
             with open(first) as f:
                 rows = [json.loads(line) for line in f]
             self.assertEqual(len(rows), 4)
-            self.assertEqual(set(rows[0]), {"bid", "arm", "scenario", "judge", "expectations"})
+            # `met` stays for the frozen consumers (2026-07-14 aggregate_poker.py reads r["met"])
+            self.assertEqual(set(rows[0]), {"bid", "arm", "scenario", "judge", "met",
+                                            "expectations"})
             self.assertEqual({r["judge"] for r in rows}, {"grok-4.5"})
             self.assertEqual(rows[0]["expectations"][0], {"id": 1, "met": True})
             rep2 = self._run_cached("both", cache_file=first)
