@@ -9,8 +9,8 @@ summary: "The pre-registered provenance split fired (evals written with the skil
 # 0101 — expectation coupling: scope the claims, pilot executable outcomes
 
 - Decision: (1) new evals are blind-authored; every batch reports the delta split by eval
-  provenance next to overlap.json; (2) a KEEP reads "beats bare against the skill's own
-  expectations" (README measured block); (3) pilot executable outcomes (seeded defects or hidden
+  provenance next to overlap.json; (2) every KEEP is scoped to the skill's own
+  expectations (wording: README measured block); (3) pilot executable outcomes (seeded defects or hidden
   tests, a script grader) for code-standards; building-skills (validate.py + trigger eval)
   only after the pilot discriminates; doctrine skills stay rubric-graded.
 - Why: the pre-registered split fired (`benchmarks/2026-10-12-g8-shortfall/README.md` owns the

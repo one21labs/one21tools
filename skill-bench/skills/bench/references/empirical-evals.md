@@ -136,7 +136,8 @@ It pairs each eval's runs across configurations and reports:
 - **Win rate with a Wilson 95% CI, eval-clustered** (ADR 0019): replicates of one eval are
   correlated, so each eval's mean delta becomes one win/loss/tie and the headline interval
   is over non-tied EVALS — trust the interval, not the point estimate; under 6 non-tied
-  evals (where even a clean sweep fails an exact sign test) it prints a width warning. Pair-level W/L/T stays as detail.
+  evals (where even a clean sweep fails an exact sign test) it prints a width warning.
+  Pair-level W/L/T stays as detail.
 - **A 0/0 cell (both arms score zero) is a measurement failure, not a verdict** — the eval isn't discriminating the treatment from the baseline. Never read a 0/0 as license to cut the artifact; fix the eval via transcript-level diagnosis + the REWRITE discipline above (never difficulty-raise blind). If diagnosis instead confirms the skill genuinely doesn't help, it's a clean null — see "Keep cleanly-measured nulls."
 - **Mean pass-rate delta** (mean of per-eval means), its VERDICT (`benchstats.keep_verdict` on
   the eval-clustered interval), and the mean run-time token delta.
