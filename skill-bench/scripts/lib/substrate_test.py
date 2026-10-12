@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Decision-logic tests for the substrate adapter's pure functions (config build + output parse).
 No promptfoo/network. CLAUDE.md: no script ships without a test of its decision logic."""
-import os, sys, unittest
+import os, stat, sys, tempfile, unittest
 
 sys.path.insert(0, os.path.dirname(__file__))
 import substrate as sub  # noqa: E402
@@ -62,6 +62,57 @@ class TestSubstrate(unittest.TestCase):
         finally:
             if old is not None:
                 os.environ["SKILL_BENCH_PROMPTFOO_BIN"] = old
+
+
+def _stub(body):
+    """A stub CLI (python script) in a fresh temp dir; returns its argv."""
+    d = tempfile.mkdtemp(prefix="stubcli-")
+    p = os.path.join(d, "cli")
+    with open(p, "w") as f:
+        f.write("#!" + sys.executable + "\nimport os, sys, time\n" + body + "\n")
+    os.chmod(p, os.stat(p).st_mode | stat.S_IEXEC)
+    return [p]
+
+
+class TestNativeSubstrate(unittest.TestCase):
+    def _run(self, body, timeout=30):
+        rows = sub.NativeSubstrate(workers=2, timeout=timeout).run(["p0"], [{"name": "A", "cmd": _stub(body)}])
+        self.assertEqual(len(rows), 1)
+        return rows[0]
+
+    def test_success_row_carries_no_error(self):
+        r = self._run('print(\'{"result": "ok", "is_error": false}\')')
+        self.assertEqual(r["output"], "ok")
+        self.assertNotIn("error", r)
+
+    def test_nonzero_exit_is_an_error_row_not_an_output(self):
+        # a usage-limited CLI: exit 1, empty stdout. Grading it would score a failure as quality.
+        r = self._run('sys.stderr.write("usage limit reached"); sys.exit(1)')
+        self.assertIn("exit 1", r["error"])
+        self.assertIn("usage limit", r["error"])
+
+    def test_envelope_is_error_is_an_error_row_even_at_exit_zero(self):
+        r = self._run('print(\'{"result": "Credit balance is too low", "is_error": true}\')')
+        self.assertIn("is_error", r["error"])
+
+    def test_timeout_is_an_error_row_not_a_crash(self):
+        # TimeoutExpired used to propagate and abort the run, losing every paid generation
+        r = self._run("time.sleep(5)", timeout=0.5)
+        self.assertIn("timeout", r["error"])
+
+    def test_arms_run_outside_the_callers_project(self):
+        # both arms must not auto-load the caller's CLAUDE.md / .claude/skills via cwd discovery
+        proj = tempfile.mkdtemp(prefix="adopter-proj-")
+        old = os.getcwd()
+        os.chdir(proj)
+        try:
+            r = self._run("print(os.getcwd())")
+        finally:
+            os.chdir(old)
+        cwd = os.path.realpath(r["output"])
+        self.assertFalse(cwd.startswith(os.path.realpath(proj)), cwd)
+        repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        self.assertFalse(cwd.startswith(repo + os.sep), cwd)
 
 
 if __name__ == "__main__":

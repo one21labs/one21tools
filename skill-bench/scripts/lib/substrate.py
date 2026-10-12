@@ -7,11 +7,14 @@ the matrix + observability + CI regression gating; the models stay ours via `exe
 native fallback ships for environments without promptfoo. Stdlib only (JSON config, not YAML).
 
 A Substrate.run(prompts, arms) -> list of {"prompt_id","arm","output"}, where an Arm is
-  {"name": "C", "cmd": [argv...]}  and the prompt text is fed on stdin.
+  {"name": "C", "cmd": [argv...]}  and the prompt text is fed on stdin. A native row whose call
+  failed (nonzero exit, envelope is_error, timeout) also carries "error": it is not an output.
 The bench layer then normalizes + grades those outputs with judge.py / benchstats.py.
 """
-import json, os, shlex, stat, subprocess, sys, tempfile
+import json, os, shlex, shutil, stat, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+from hermetic_driver import neutral_cwd
 
 
 def build_promptfoo_config(prompts, providers):
@@ -105,22 +108,40 @@ class NativeSubstrate:
         self.workers = workers
         self.timeout = timeout
 
-    def _one(self, pid, prompt, arm):
+    def _one(self, pid, prompt, arm, cwd):
         # prompt passed as final argv element (universal for grok -p / claude -p), unless the arm
-        # opts into stdin. Keeps long prompts off the shell (argv, not a shell string).
-        if arm.get("stdin"):
-            r = subprocess.run(arm["cmd"], input=prompt, capture_output=True, text=True, timeout=self.timeout)
-        else:
-            r = subprocess.run(arm["cmd"] + [prompt], capture_output=True, text=True, timeout=self.timeout)
-        return {"prompt_id": pid, "arm": arm["name"], "output": unwrap_cli_output(r.stdout)}
+        # opts into stdin. Keeps long prompts off the shell (argv, not a shell string). cwd is a
+        # neutral dir outside the caller's project, so neither arm auto-loads its CLAUDE.md or
+        # .claude/skills (the bare arm picking up the skill under test pulls the delta to 0).
+        row = {"prompt_id": pid, "arm": arm["name"]}
+        argv, stdin = (arm["cmd"], prompt) if arm.get("stdin") else (arm["cmd"] + [prompt], None)
+        try:
+            r = subprocess.run(argv, input=stdin, capture_output=True, text=True,
+                               timeout=self.timeout, cwd=cwd)
+        except subprocess.TimeoutExpired:
+            return {**row, "output": "", "error": f"timeout after {self.timeout}s"}
+        row["output"] = unwrap_cli_output(r.stdout)
+        try:
+            is_error = json.loads(r.stdout).get("is_error") is True
+        except Exception:
+            is_error = False
+        if r.returncode != 0 or is_error:
+            # a failed or usage-limited call is not a quality result: the caller excludes it
+            row["error"] = f"exit {r.returncode}{' is_error' if is_error else ''}: " \
+                           f"{(r.stderr or r.stdout).strip()[-200:]}"
+        return row
 
     def run(self, prompts, arms, workdir=None):
         jobs = [(i, p, a) for i, p in enumerate(prompts) for a in arms]
+        cwd = neutral_cwd("native-substrate")
         res = []
-        with ThreadPoolExecutor(max_workers=self.workers) as ex:
-            futs = [ex.submit(self._one, i, p, a) for i, p, a in jobs]
-            for f in as_completed(futs):
-                res.append(f.result())
+        try:
+            with ThreadPoolExecutor(max_workers=self.workers) as ex:
+                futs = [ex.submit(self._one, i, p, a, cwd) for i, p, a in jobs]
+                for f in as_completed(futs):
+                    res.append(f.result())
+        finally:
+            shutil.rmtree(cwd, ignore_errors=True)
         return res
 
 

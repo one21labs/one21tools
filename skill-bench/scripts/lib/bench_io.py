@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Reusable benchmark-artifact IO (ADR 0026): format convention + sampled raw retention.
 
-ARCHITECTURE ROLE: the one home for benchmark-record serialization (dump_records/load_records)
-and for bounding raw-output byte cost (sample_and_archive_raw — archive, never discard).
+ARCHITECTURE ROLE: the one home for benchmark-record serialization (dump_records/load_records),
+for the arm-map location rule (load_arm_map), and for bounding raw-output byte cost
+(sample_and_archive_raw — archive, never discard).
 Format-choice rationale and size measurements live in ADR 0026; per-function contracts live in
 the docstrings below.
 
@@ -81,6 +82,24 @@ def load_records(path, fmt="csv"):
             return [json.loads(line) for line in fh if line.strip()]
     else:
         raise ValueError(f"unknown fmt {fmt!r}, expected one of {RAW_FORMATS}")
+
+
+def load_arm_map(bench_dir):
+    """Read a blinded benchmark's arm map -> {bid: (arm, scenario)}. The one home for WHERE the
+    map lives: `<bench_dir>/arm_map.tsv` (the root, outside what the grader reads — the
+    templates/blind_cells.py layout), falling back to `<bench_dir>/graded/arm_map.tsv` for dirs
+    blinded before that move. Columns are positional: bid, arm, scenario, rep (header skipped).
+    """
+    root = os.path.join(bench_dir, "arm_map.tsv")
+    path = root if os.path.exists(root) else os.path.join(bench_dir, "graded", "arm_map.tsv")
+    amap = {}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("bid"):
+                continue
+            bid, arm, scenario, _ = line.strip().split("\t")
+            amap[bid] = (arm, scenario)
+    return amap
 
 
 def sample_and_archive_raw(outputs_dir, keep_per_group, group_fn, archive_path=None):

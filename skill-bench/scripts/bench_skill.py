@@ -22,14 +22,18 @@ from spend_guard import add_spend_flag, require_yes  # noqa: E402
 
 
 def grade_all(gen_rows, evals_by_id, judge):
-    """gen_rows: [{prompt_id, arm, output}] -> (cells: [{bid, arm, scenario, met}], errors).
-    A cell the judge cannot grade is recorded in errors and EXCLUDED: scoring it 0 would charge a
-    judge failure to the arm, and one bad reply must not end the run."""
+    """gen_rows: [{prompt_id, arm, output[, error]}] -> (cells: [{bid, arm, scenario, met}], errors).
+    A generation that failed (row carries "error") or a cell the judge cannot grade is recorded in
+    errors and EXCLUDED, never graded: scoring it would charge a CLI or judge failure to the arm,
+    and one bad call must not end the run."""
     cells, errs = [], []
     for r in gen_rows:
         ev = evals_by_id[r["prompt_id"]]
         exps = ev["expectations"]
         bid = f'{ev["id"]}:{r["arm"]}:r{r.get("rep", 1)}'
+        if r.get("error"):
+            errs.append({"bid": bid, "error": "generation: " + r["error"][:200]})
+            continue
         try:
             m = met_map(judge.grade(rubric.skill_grade_prompt(ev["task"], r["output"], exps),
                                     rubric.GRADE_SCHEMA), len(exps))
@@ -101,6 +105,8 @@ def main():
     cells, errs = grade_all(gen, evals_by_id, judge)
     report = {"skill_evals": a.evals, "judge": judge.name, "n_tasks": len(evals),
               "n_reps": a.reps, "errors": errs, **aggregate(cells, practical=a.practical)}
+    if judge.fallback_note:  # same-family judge: the caveat travels with the numbers
+        report["judge_fallback"] = judge.fallback_note
     js = json.dumps(report, indent=1)
     print(js) if a.out == "-" else open(a.out, "w").write(js)
 

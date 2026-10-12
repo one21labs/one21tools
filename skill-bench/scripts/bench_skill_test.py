@@ -131,6 +131,44 @@ class TestBenchSkill(unittest.TestCase):
         self.assertEqual(cells, [])  # a missing grade is a judge failure, never a quality 0
         self.assertEqual(len(errs), 1)
 
+    def test_a_failed_generation_is_excluded_and_never_graded(self):
+        # a usage-limited CLI exits 1 with empty stdout: grading "" scores the failure as quality
+        class Spy(FakeJudge):
+            calls = 0
+
+            def grade(self, prompt, schema):
+                Spy.calls += 1
+                return super().grade(prompt, schema)
+        gen = [{"prompt_id": "t1", "arm": "with", "output": "GOOD1"},
+               {"prompt_id": "t1", "arm": "without", "output": "", "error": "exit 1: usage limit"}]
+        cells, errs = bs.grade_all(gen, {e["id"]: e for e in EVALS}, Spy({"GOOD1": [True, True]}))
+        self.assertEqual([c["bid"] for c in cells], ["t1:with:r1"])
+        self.assertEqual(errs[0]["bid"], "t1:without:r1")
+        self.assertIn("generation", errs[0]["error"])
+        self.assertEqual(Spy.calls, 1)
+
+    def test_report_carries_the_same_family_judge_caveat(self):
+        import json, tempfile
+        from unittest import mock
+
+        class Sub:
+            def run(self, prompts, arms):
+                return [{"prompt_id": i, "arm": a["name"], "output": "GOOD1"}
+                        for i in range(len(prompts)) for a in arms]
+        judge = FakeJudge({"GOOD1": [True, True]})
+        judge.fallback_note = "judge fell back to the generators' family"
+        ev = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False)
+        json.dump(EVALS, ev)
+        ev.close()
+        out = ev.name + ".out"
+        argv = ["bench_skill.py", "--evals", ev.name, "--with-cmd", '["x"]', "--without-cmd", '["y"]',
+                "--reps", "1", "--yes", "--out", out]
+        with mock.patch.object(bs, "make_substrate", lambda n: Sub()), \
+                mock.patch.object(bs, "make_judge", lambda n: judge), \
+                mock.patch.object(sys, "argv", argv), mock.patch("sys.stderr"):
+            bs.main()
+        self.assertEqual(json.load(open(out))["judge_fallback"], judge.fallback_note)
+
 
 if __name__ == "__main__":
     unittest.main()
