@@ -45,10 +45,9 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
 below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
-validity threat (#317) — on 12-Oct, evals written blind to the skill showed a near-zero effect
-(+0.04 vs +0.37 on the originals; easier tasks may explain part of it), so read a KEEP as "beats
-bare against the skill's own expectations" (`benchmarks/2026-10-12-g8-shortfall/`). Each verdict measured the skill AS OF its dated dir — the text may have
-changed since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
+validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's own
+expectations". Each verdict measured the skill AS OF its dated dir — the text may have changed
+since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
 - `code-standards`: KEEP, judge-robust (2026-07-17 re-measure). 12-Oct: KEEP on Sonnet 5.5 at
   G=8 under a same-family judge only, so not promoted.
