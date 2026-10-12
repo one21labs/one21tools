@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E7-sonnet-without-r2",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E7",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 11838.1,
+  "duration_ms": 11196,
+  "duration_api_ms": 10990,
+  "cost_usd": 0.0140886,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2846,
+   "output_tokens": 1380,
+   "output_tokens_details": {
+    "thinking_tokens": 308
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1380,
+     "cache_read_input_tokens": 2846,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:28:40.497709+00:00",
+   "end": "2026-10-12T22:28:52.335788+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0140886,
+  "charged_usd": 0.0140886,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Adding the full 1,800-line OpenAPI spec and 60 env var descriptions will probably make Claude ignore *more* of your file, not less. CLAUDE.md is loaded into context every session, so a long file dilutes the rules that matter. Reference material is better kept in separate files that Claude reads on demand.\n\n## Problems in the current file\n\n- **Leaked credential:** the DB URL contains what looks like a real password and points at `db.acme-prod.internal`, which is a prod hostname, not local dev. Remove it, rotate the password, and check git history for it. Put local config in `.env.local` (gitignored).\n- **Contradiction:** `Install: npm install` conflicts with \"Always use pnpm, never npm.\" This is likely one cause of the ignored rules.\n- **Vague rules:** \"Be careful,\" \"write good code,\" \"clean code,\" and \"follow best practices\" give Claude nothing to act on. Cut them.\n- **Unenforced \"no exceptions\" rule:** a formatter is better enforced by a hook (e.g. a PreToolUse or pre-commit hook) than by prose.\n\n## Suggested CLAUDE.md\n\n```markdown\n# Acme Web\n\nNext.js 14 app (TypeScript) with a Postgres backend. State management: Zustand.\n\n## Commands\n- Install: `pnpm install`\n- Dev: `pnpm dev`\n- Test: `pnpm test`\n- Format: `pnpm prettier --write .`\n- Use pnpm only; never npm.\n\n## Rules\n- Run `pnpm prettier --write .` before every commit.\n- Never commit directly to main; work on a branch.\n- Never put credentials in code or docs. Local DB config lives in `.env.local` (see `.env.example`).\n- Don't modify `src/legacy/`. It holds old Redux code that predates our 2023 migration to Zustand.\n\n## Layout\n- Components: `src/components`\n- Hooks: `src/hooks`\n\n## Reference (read only when relevant)\n- REST API: see `docs/openapi.yaml`. Read only the paths you need, don't load the whole file.\n- Environment variables: see `docs/env.md`. Keep `.env.example` in sync when adding one.\n```\n\n## Handling the big reference material\n\n1. **OpenAPI:** keep it in `docs/openapi.yaml` and point to it as above. Don't use `@docs/openapi.yaml`, because `@` imports inline the whole file every session. If the spec is split by resource, link the per-resource files instead.\n2. **Env vars:** put the 60 descriptions in `docs/env.md`, and have `.env.example` carry short comments. Mention in CLAUDE.md only the few that affect everyday work.\n3. **Area-specific rules:** if some rules only apply to certain directories (e.g. API routes), use `.claude/rules/` files scoped by path so they load only when relevant.\n4. **Enforcement:** make the prettier step a hook or a pre-commit check, and protect main with branch protection. Those hold even when the model slips.\n\nIf you paste the OpenAPI file and env var list, I can help organize them into `docs/openapi.yaml` and `docs/env.md`, but I'd keep them out of CLAUDE.md itself."
+}

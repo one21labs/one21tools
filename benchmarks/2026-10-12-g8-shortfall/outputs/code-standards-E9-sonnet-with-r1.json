@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E9-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14779.6,
+  "duration_ms": 14033,
+  "duration_api_ms": 13828,
+  "cost_usd": 0.022098700000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 799,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 1848,
+   "output_tokens_details": {
+    "thinking_tokens": 576
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 799,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1848,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 799,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 799
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:49.498398+00:00",
+   "end": "2026-10-12T22:27:04.277970+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.022098700000000002,
+  "charged_usd": 0.022098700000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The vague 500s come from the code itself, not from missing log lines. `GetOrder` replaces the real DB error with `errors.New(\"db error\")`, so the cause is gone before anything could log it. The handler also returns 500 on both branches, so \"not found\" looks like a server failure. Logging in the handler alone wouldn't help unless the store keeps the cause, so I fixed both.\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    id := r.URL.Query().Get(\"id\")\n    if id == \"\" {\n        slog.WarnContext(r.Context(), \"order request missing id\", \"method\", r.Method, \"path\", r.URL.Path)\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        if errors.Is(err, ErrNotFound) {\n            slog.InfoContext(r.Context(), \"order not found\", \"order_id\", id)\n            http.Error(w, \"not found\", http.StatusNotFound)\n            return\n        }\n        slog.ErrorContext(r.Context(), \"get order failed\", \"order_id\", id, \"path\", r.URL.Path, \"err\", err)\n        http.Error(w, \"internal error\", http.StatusInternalServerError)\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        slog.WarnContext(r.Context(), \"encode order response failed\", \"order_id\", id, \"err\", err)\n    }\n}\n```\n\n**What changed**\n- **Cause preserved:** the store wraps the DB error with `%w`, so the log shows the real failure (timeout, connection refused, scan type mismatch, and so on). Callers use `errors.Is` instead of comparing strings.\n- **Logged once, in the handler:** the store adds context and the handler logs, so each failure produces a single line.\n- **Status codes:** not-found now returns 404 and a missing `id` returns 400. Only real failures return 500, so your 500 rate should drop to the genuine errors. This is a behavior change, so check that no client relies on 404 being a 500.\n- **Encode failures:** a failed response write was previously ignored and is now logged.\n- **Levels:** expected outcomes (not found, bad request) are `INFO`/`WARN`. Unexpected failures are `ERROR`.\n\n**Things to be aware of**\n- I deliberately don't log the order struct or `card_number`. Logging only `order_id` keeps card data out of your log pipeline.\n- The handler also returns `card_number` in the JSON response. That is probably a PCI problem, and you should return a masked value or omit it. I left it unchanged because it's outside what you asked for.\n- To correlate log lines across a request, add request-ID middleware that puts the ID in the context. Use a `slog.Handler` that reads it, so every `*Context` call picks it up automatically.\n- I used `slog.Default()` because I don't know whether `Handler` has a logger field. If it does, swap in `h.logger`."
+}

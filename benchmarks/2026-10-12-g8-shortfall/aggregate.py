@@ -121,7 +121,8 @@ def verdicts(judge):
             v = benchstats.keep_verdict(delta)
             g = delta["n_clusters"]
             v["n_clusters"] = g
-            v["arm_means"] = {a: round(benchstats.arm_mean(cells, a), 3) for a in ("with", "without")}
+            # scenario-weighted over matched scenarios, so with - without equals the delta
+            v["arm_means"] = {a: round(x, 3) for a, x in delta["arm_means"].items()}
             v["per_eval"] = {k: round(d, 3) for k, d in delta["per_scenario"].items()}
             v["status"] = "BATCH" if g >= MIN_G else "DIAGNOSTIC-ONLY (G<8, ADR 0095 decision 4)"
             gap = sum(n for k, n in out["ungraded"].items() if k.startswith(f"{mk}:{s}:"))

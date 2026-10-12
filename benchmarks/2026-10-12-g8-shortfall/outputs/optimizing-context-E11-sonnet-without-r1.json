@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E11-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13069.1,
+  "duration_ms": 12264,
+  "duration_api_ms": 12038,
+  "cost_usd": 0.0192836,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 968,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1520,
+   "output_tokens_details": {
+    "thinking_tokens": 213
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 968,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1520,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 968,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 968
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:28:52.336283+00:00",
+   "end": "2026-10-12T22:29:05.405419+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0192836,
+  "charged_usd": 0.0192836,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# CLAUDE.md audit\n\n## Fix first: a credential is checked in\nThe staging DB line contains a username and password in plaintext, and it's in git history now. Rotate that password, and remove the line from the file. Removing it isn't enough on its own, since the old value stays in history. If Claude needs DB access, have it read `DATABASE_URL` from a gitignored `.env`, or from a secrets manager.\n\n## Why Claude seems to ignore half of it\nThe file is long, and the important lines are buried among low-value ones. Specific problems:\n\n| Issue | Lines | Action |\n|---|---|---|\n| **Contradiction** | `npm install` in Setup vs `pnpm` in Commands | Pick one. I assumed pnpm since three commands use it, so please confirm. |\n| **Persona and fluff** | \"world-class engineer\", \"take a deep breath\", \"be thorough\", \"quality matters!\", \"write good tests\" | Delete. They add no actionable information. |\n| **Enforced by tooling** | The whole Code style section | Delete the rules and keep one line pointing to prettier/eslint. Pre-commit already enforces them, and duplicating config invites drift. |\n| **Vague** | \"Be careful with the database\" | Replace with a concrete rule or delete. |\n| **Stale** | \"Ignore the old Jenkinsfile\" | Delete the Jenkinsfile if it's dead, then drop the line. |\n| **Bulky reference** | Payments API (about 40 lines) | Move it out of the root file. |\n| **Redundant** | \"IMPORTANT\" on two rules | Keep the emphasis only on rules that must never be broken. When everything is flagged, nothing stands out. |\n\nI haven't seen the 40 payments lines, so I can't say what in them is worth keeping. Function signatures that already live in typed source are better read from the code. Only the non-obvious parts, such as idempotency, webhook ordering or test-mode keys, are worth documenting.\n\n## Where the payments reference should go\nEither of these works:\n- **`payments/CLAUDE.md`**: loads only when Claude works in that directory.\n- **`docs/payments-api.md`**, with a one-line reference from the root file: `Payments API details: see docs/payments-api.md`.\n\n## Trimmed version\n\n```markdown\n# Acme Storefront\n\n## Setup\n- Node 18; install with `pnpm install`\n\n## Commands\n- dev: `pnpm dev`\n- test: `pnpm test -- --runInBand` (tests share one Postgres schema and flake in parallel)\n- typecheck: `pnpm tsc --noEmit`\n\n## Code style\nEnforced by prettier + eslint in pre-commit (see .prettierrc, .eslintrc). Don't hand-format.\n\n## Architecture\n- app/ \u2014 Next.js app router pages\n- lib/ \u2014 shared utils\n- src/legacy/ \u2014 old pages router. IMPORTANT: do not add new code here\n- payments/ \u2014 Stripe integration; API reference in payments/CLAUDE.md\n\n## Rules\n- IMPORTANT: never commit .env files\n- Run tests and typecheck before committing\n- Never run tests or migrations against staging or production; use the local DB from `DATABASE_URL` in .env\n```\n\n## Notes on judgment calls\n- **The `--runInBand` explanation** stays because it explains a non-obvious constraint.\n- **The DB rule** is my guess at what \"be careful\" meant. Edit it to match your real policy.\n- **\"Run tests before committing\"** is demoted from IMPORTANT. If you want it enforced rather than requested, a pre-commit or Claude Code hook is more reliable than prose.\n- **Node version:** consider an `.nvmrc` or `engines` field so it's machine-readable, then drop it from here.\n\nThe result is about 20 lines instead of roughly 80. If you paste the payments section, I can help split out what belongs in `payments/CLAUDE.md`."
+}

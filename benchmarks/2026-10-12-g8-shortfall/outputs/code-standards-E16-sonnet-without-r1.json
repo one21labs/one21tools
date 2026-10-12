@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E16-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E16",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12879.6,
+  "duration_ms": 12005,
+  "duration_api_ms": 11760,
+  "cost_usd": 0.0190696,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 742,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1589,
+   "output_tokens_details": {
+    "thinking_tokens": 232
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 742,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1589,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 742,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 742
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:27:18.076510+00:00",
+   "end": "2026-10-12T22:27:30.956165+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0190696,
+  "charged_usd": 0.0190696,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the module with docstrings added. Logic is untouched. While documenting, I found two things you should know about before Monday.\n\n```python\nTAX = 0.0825  # flat sales tax rate (8.25%) applied by calc()\n\n\ndef calc(o, f=True):\n    \"\"\"Compute the order total in dollars, rounded to 2 decimal places.\n\n    Sums price * qty over o['items'], subtracts the coupon discount from\n    get_discount(o), then optionally adds sales tax (TAX) on the discounted\n    subtotal.\n\n    Args:\n        o: Order dict. Must contain 'items', a list of dicts with 'price'\n            (float, dollars) and 'qty' (int). May contain 'coupon' (code).\n        f: If True (default), add sales tax. If False, return the\n            pre-tax total.\n\n    Returns:\n        float: Order total in dollars (NOT cents).\n\n    Side effects:\n        Calls get_discount(), which consumes one coupon use in the database\n        whenever a valid coupon is applied. Every call to calc() therefore\n        burns a use, including repeated calls for the same order.\n\n    Notes:\n        The discount is a flat amount and is applied before tax. The result\n        is not clamped, so a discount larger than the subtotal yields a\n        negative total.\n    \"\"\"\n    t = sum(i['price'] * i['qty'] for i in o['items'])\n    d = get_discount(o)\n    t = t - d\n    if f:\n        t = t + t * TAX\n    return round(t, 2)\n\n\ndef get_discount(o):\n    \"\"\"Look up the order's coupon and return its discount amount.\n\n    Finds the coupon in db.coupons matching o['coupon']. If it exists and\n    has uses remaining, decrements uses_left by 1 and returns the coupon's\n    'amount'. Otherwise returns 0.\n\n    Args:\n        o: Order dict. 'coupon' is optional; a missing key looks up\n            code=None and normally matches nothing.\n\n    Returns:\n        The coupon's 'amount' (flat dollar value, as stored) if applied,\n        else 0.\n\n    Side effects:\n        Writes to the database: $inc uses_left by -1 on a successful\n        match. The find and update are separate operations, so concurrent\n        requests can race on the last remaining use.\n    \"\"\"\n    c = db.coupons.find_one({'code': o.get('coupon')})\n    if c and c['uses_left'] > 0:\n        db.coupons.update_one({'_id': c['_id']}, {'$inc': {'uses_left': -1}})\n        return c['amount']\n    return 0\n\n\ndef is_valid(o):\n    \"\"\"Drop zero/negative-quantity items and check the order is non-empty.\n\n    Args:\n        o: Order dict with an 'items' list; each item needs a 'qty'.\n\n    Returns:\n        bool: True if at least one item with qty > 0 remains, else False.\n\n    Side effects:\n        Mutates the order in place: o['items'] is replaced with the\n        filtered list. Despite the name, this is not a pure check.\n    \"\"\"\n    o['items'] = [i for i in o['items'] if i['qty'] > 0]\n    return len(o['items']) > 0\n```\n\n**Things to flag (I documented them, but did not change them):**\n\n1. **The old comment `# returns total in cents` was wrong.** Since prices are stored in dollars, `calc()` returns dollars. I documented it as dollars. Also, `round(t, 2)` on floats can produce off-by-a-cent results, which is worth knowing for a money path.\n2. **`calc()` consumes a coupon use on every call.** `get_discount()` decrements `uses_left` each time, and `calc()` runs on every cart refresh and again at checkout. A single-use coupon would be spent by the first refresh, and the discount would then vanish on the next call, including at checkout. This looks like a real bug. A likely fix is to split \"compute discount\" (read-only) from \"redeem coupon\" (called once at checkout), but that changes behavior, so I left it for you to decide.\n\nAlso worth a mention: `is_valid()` mutates its input, so call order matters if it runs before or after `calc()`."
+}
