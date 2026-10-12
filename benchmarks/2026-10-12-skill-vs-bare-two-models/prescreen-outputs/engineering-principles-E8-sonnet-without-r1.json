@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21259.3,
+  "duration_ms": 20385,
+  "duration_api_ms": 20106,
+  "cost_usd": 0.027450099999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 782,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2411,
+   "output_tokens_details": {
+    "thinking_tokens": 800
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 782,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2411,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 782,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 782
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:41:46.974236+00:00",
+   "end": "2026-10-12T05:42:08.233605+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.027450099999999998
+ },
+ "response": "Picking the strictest validator everywhere would break signup. The strict E.164 regex rejects `(415) 555-0134` and `415.555.0134`, which are exactly what your mobile users type, so you'd lose signups. The two validators do different jobs, and the shared library should reflect that.\n\n## Design: separate \"normalize\" from \"validate\"\n\nSignup should accept messy input and convert it to E.164. Billing and support should only ever see E.164.\n\n```python\n# phone_utils/__init__.py\nimport re\nimport phonenumbers\n\n_E164 = re.compile(r'[+][1-9][0-9]{7,14}')\n\ndef is_e164(s: str) -> bool:\n    \"\"\"Strict check. No stripping, no normalization. Use at trust boundaries (billing).\"\"\"\n    return isinstance(s, str) and _E164.fullmatch(s) is not None\n\ndef normalize_phone(raw: str, default_region: str = \"US\") -> str | None:\n    \"\"\"Parse human-typed input and return E.164, or None if it isn't a plausible number.\"\"\"\n    if not isinstance(raw, str) or len(raw) > 40:\n        return None\n    try:\n        num = phonenumbers.parse(raw.strip(), default_region)\n    except phonenumbers.NumberParseException:\n        return None\n    if not phonenumbers.is_possible_number(num):\n        return None\n    out = phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)\n    return out if is_e164(out) else None\n```\n\nUsage by service:\n- **signup**: `normalize_phone(form_value, region)`. If it returns a value, store and use that E.164 string. If `None`, show a validation error.\n- **billing**: `is_e164(value)` immediately before calling the provider. Nothing is stripped or coerced there.\n- **support**: `normalize_phone` for agent-typed input, `is_e164` for stored values.\n\nI'd drop the name `valid_phone` entirely. It currently means three different things, and a shared function with that name would hide the difference.\n\n## Bugs in the current code to fix\n\n- **Billing/support:** `$` matches before a trailing newline, so `\"+14155550134\\n\"` passes and goes to the payment provider. `fullmatch` fixes that. Billing also doesn't strip, which is fine for a strict check, but it should be a deliberate choice.\n- **Signup:** the regex has no anchors and uses `match`, so `\"5551234567<anything>\"` passes, and so does `\"()()()()()()()\"`. It validates almost nothing, so expect some junk in the stored data.\n- **Region:** numbers without a country code need a default region. Decide it deliberately, for example from the user's locale or country field, rather than silently assuming US.\n\n## Rollout\n\nSince each service deploys independently, make the library additive and migrate one service at a time.\n\n1. **Build and publish `phone-utils` 1.0** to the private PyPI. Include a shared test corpus covering the formats above, trailing newlines, unicode digits, empty and `None` values, over-length input, and non-US numbers. Services should pin `~=1.0`.\n2. **Support first.** It's the lowest risk, and its logic matches billing's. Swap in `is_e164` and add `normalize_phone` where agents type numbers.\n3. **Billing second, with a shadow period.** Keep the old check as the decision-maker and call `is_e164` alongside it. Log any disagreement for about a week. Expect only the trailing-newline case, and confirm that before cutting over. Then switch. Don't change behavior and the dependency in the same deploy.\n4. **Signup last, since it changes behavior the most.**\n   - Shadow-run `normalize_phone` against the old regex and log the rejection delta. With about 4,000 submissions a day, a few days gives a solid sample.\n   - Switch to storing the normalized E.164 value.\n   - Check how signup numbers reach billing or support today. If loose-format numbers are stored and later sent to billing, they've been failing or relying on something else downstream. Plan a backfill that normalizes the stored numbers and reports the ones that can't be normalized.\n5. **Delete the three local `validate.py` files** once all services are cut over, so the duplicates can't drift again.\n\nRollback is a version pin in any one repo, and it doesn't affect the other two.\n\n## Open questions\n\n- Should billing also use `phonenumbers.is_valid_number`? The regex only checks shape, so `+10000000000` passes. Stricter checking catches more bad numbers, but it can reject numbers that carriers have newly assigned if the library data is stale. I'd keep the regex as the gate and log `is_valid_number` failures at first.\n- Do you have non-US signups? That determines whether a fixed `\"US\"` default is acceptable.\n\nI can write the package skeleton, `pyproject.toml`, and the test corpus next if you'd like."
+}

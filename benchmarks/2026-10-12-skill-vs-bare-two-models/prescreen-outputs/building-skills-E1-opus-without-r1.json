@@ -1,0 +1,61 @@
+{
+ "cell": "building-skills-E1-opus-without-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 111597.9,
+  "duration_ms": 109943,
+  "duration_api_ms": 109490,
+  "cost_usd": 0.277259,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2113,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 13012,
+   "output_tokens_details": {
+    "thinking_tokens": 1340
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2113,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 13012,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2113,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2113
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:27:28.761300+00:00",
+   "end": "2026-10-12T05:29:20.359193+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.277259
+ },
+ "response": "\n<invoke name=\"Bash\">\n<parameter name=\"command\">cd /tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/outputs/sanitizing-customer-exports/scripts && python3 -I -c \"\nimport sys; sys.path.insert(0,'.'); import redact_export as r\nfor s in ['seen 2024-03-01 14:30 ok','tel 555.123.4567','+44 20 7946 0958','INV12345678','a@b.co call 0049 30 1234567']: print(repr(r.mask_free_text(s)))\"; rm -rf __pycache__</parameter>\n</invoke>\nThe skill is written to `outputs/sanitizing-customer-exports/`. All 9 unit tests pass, and a manual run on a sample export produced the expected output.\n\n```\nsanitizing-customer-exports/\n\u251c\u2500\u2500 SKILL.md                      # trigger description + 5-step workflow\n\u251c\u2500\u2500 reference/redaction-rules.md  # full policy detail, loaded only when needed\n\u2514\u2500\u2500 scripts/\n    \u251c\u2500\u2500 redact_export.py          # the redactor (Python standard library only)\n    \u2514\u2500\u2500 test_redact_export.py     # unit tests\n```\n\n**How it works**\n- **Trigger:** the description makes the skill fire whenever a customer CSV is about to be sent, attached or uploaded outside the company. It also fires on explicit \"redact\" or \"sanitize\" requests.\n- **Workflow:** Claude runs the script, then re-checks the output with `--verify`, then looks for PII the rules don't cover, then reports back. It doesn't send the file itself unless asked.\n- **Policy is locked:** SKILL.md tells Claude not to relax the rules on request and not to redact by hand instead of using the script.\n\n**What the script does beyond the stated rules**\n- **Protecting the original:** it opens the original read-only and refuses any output path that points to it. It writes to a temp file and renames it, so a failed run never leaves a partial `.redacted.csv`. It won't overwrite an existing redacted file without `--force`.\n- **Refusing bad input:** it stops with an error if a row has the wrong number of fields or a PII column appears twice. It won't guess at column alignment.\n- **Flagging possible PII:** after a run it prints a `REVIEW:` line for leftover columns whose headers look like PII (address, dob, card, and so on). It doesn't change those columns.\n- **`--verify` mode:** this re-scans every cell of the output for email and phone patterns.\n\n**Choices I made that you should check**\n1. **Output name:** `customers.csv` becomes `customers.redacted.csv`, not `customers.csv.redacted.csv`.\n2. **Opaque ids:** names become `cust_000001`, `cust_000002`, and so on, in a column renamed `customer_ref`. The same name gets the same id within one file. The ids are deliberately not hashes of the name, because a hashed name can be reversed by guessing names. The trade-off is that ids aren't stable across separate files or runs. If you need cross-file consistency, the safe way is a keyed hash with a secret held by the support team.\n3. **What counts as a phone number in notes/comments:** any number with 7 to 15 digits. Short numbers like ticket numbers and years are kept, and so are ISO dates. Long bare numbers, such as 8-digit order ids, get masked too. Masking too much is the safer mistake. All of this is written up in the reference file.\n4. **Gap:** an SSN, address or name typed into a free-text field is not masked, because the rules only cover emails and phones there. The skill tells Claude to look for these and report them, not to quietly widen the rules. If you want SSNs masked in free text, it's a small addition to the script."
+}

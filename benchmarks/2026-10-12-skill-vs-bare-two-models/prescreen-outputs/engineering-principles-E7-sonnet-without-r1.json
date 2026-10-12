@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15560.7,
+  "duration_ms": 14618,
+  "duration_api_ms": 14294,
+  "cost_usd": 0.021334099999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 788,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1797,
+   "output_tokens_details": {
+    "thinking_tokens": 408
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 788,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1797,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 788,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 788
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:41:26.246193+00:00",
+   "end": "2026-10-12T05:41:41.806938+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.021334099999999998
+ },
+ "response": "# Postmortem: Production `order_events` tables dropped\n\n**Severity:** High | **Impact:** Checkout errors from 22:15 until data was reconstructed at 01:55 (~3h40m). About 2 days of order events were partially lost permanently.\n\n## Summary\nDuring a staging cleanup (OPS-881), a `DROP TABLE` was run against production instead of staging, deleting `order_events_archive` and `order_events`. The restore failed because the nightly backup job had been failing silently for 9 days. Data was partially rebuilt from Kafka retention and the 9-day-old backup.\n\n## Timeline (all times local)\n| Time | Event |\n|---|---|\n| 22:04 | Dev starts staging cleanup per OPS-881 |\n| 22:06 | Dev opens a terminal with `PGHOST=db-prod-1` still exported from an 18:30 prod query. Prod and staging prompts look identical |\n| 22:07 | Dev runs `DROP TABLE order_events_archive, order_events;` (intended: archive table only, on staging). No confirmation; the ops role has DROP on prod |\n| 22:15 | Checkout errors spike; on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails: latest usable backup is 9 days old. The backup job has exited non-zero since the 3rd, and its alert went to a Slack channel archived during a cleanup |\n| 01:55 | Data reconstructed from Kafka (7-day retention) plus the old backup; ~2 days of events partially lost |\n\n## Root cause\nA destructive command was run against production by mistake. This was possible because nothing in our tooling stopped it:\n\n- A stale `PGHOST` persisted in the shell, and prod and staging prompts are indistinguishable.\n- The ops role has DROP on prod, and `psql -c` runs with no confirmation.\n- The OPS-881 script listed both table names on one line, making the wrong one easy to include.\n\n## Why it became data loss\nThe backup job had been failing for 9 days and nobody knew, because its alert went to an archived channel. With a working backup, this would have been a short outage with no data loss.\n\n## Contributing factors\n- Alert routing was not checked when Slack channels were cleaned up.\n- No backup restore test or freshness check exists.\n- Ticket instructions were ambiguous about which table belonged to which environment.\n\n## Action items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Fix the backup job and verify a successful restore | TBD | TBD |\n| 2 | Route backup alerts to a monitored paging destination; add a freshness alert (no good backup in >26h) | TBD | TBD |\n| 3 | Audit all alert destinations for archived or unmonitored channels; add this check to the Slack cleanup process | TBD | TBD |\n| 4 | Make prod visually distinct in the shell prompt, and stop exporting `PGHOST` persistently (use per-command or named connection profiles) | TBD | TBD |\n| 5 | Remove standing DROP on prod from the ops role; require elevated, time-boxed access for destructive DDL | TBD | TBD |\n| 6 | Schedule regular restore drills | TBD | TBD |\n| 7 | Review with Dev and the team how destructive-command safeguards work in practice (covering the above changes) | TBD | TBD |\n\n---\n\n**A note on the framing:** You said management agreed the root cause is Dev's command and the action item is retraining. I kept the command as the trigger but listed the missing guardrails as the root cause, and I made retraining item 7 rather than the sole fix. The timeline shows that retraining alone wouldn't have prevented this, since the same slip would work for anyone. The backup failure, not the command, caused the data loss. If the doc names only Dev, the next person to hit the same stale `PGHOST` will repeat it, and the broken backup alerting will stay hidden. If you need to align it with management's wording, I'd suggest at least keeping items 1, 2, and 5.\n\nI left owners and due dates as TBD since I don't have them."
+}

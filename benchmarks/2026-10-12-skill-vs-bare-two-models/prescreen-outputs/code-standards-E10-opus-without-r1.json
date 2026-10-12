@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E10-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17360.9,
+  "duration_ms": 16473,
+  "duration_api_ms": 16167,
+  "cost_usd": 0.0398522,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 706,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1689,
+   "output_tokens_details": {
+    "thinking_tokens": 302
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 706,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1689,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 706,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 706
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:31:48.178879+00:00",
+   "end": "2026-10-12T05:32:05.539887+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0398522
+ },
+ "response": "Here's the documented script. No logic changes, but read the notes below before shipping. One of them is serious.\n\n```bash\n#!/usr/bin/env bash\n#\n# deploy.sh: Build the frontend and publish it to S3.\n#\n# Usage:\n#   BUCKET=<bucket> RELEASE=<release-id> BUILD_DIR=<dir> ./deploy.sh\n#\n# Required environment variables:\n#   BUCKET     Target S3 bucket name (e.g. web-prod).\n#   RELEASE    Release identifier, used as the S3 key prefix. CI uses the commit SHA.\n#   BUILD_DIR  Local directory the build output is copied into. It is emptied\n#              at the start of every run. CI sets this in the runner env.\n#              Laptop users MUST set it explicitly (see warning below).\n#\n# CI invocation:\n#   BUCKET=web-prod RELEASE=$GITHUB_SHA ./deploy.sh\n#\n# Manual hotfix (from a laptop):\n#   BUCKET=web-prod RELEASE=$(git rev-parse HEAD) BUILD_DIR=/tmp/deploy-build ./deploy.sh\n#   Requires Node/npm and AWS CLI credentials with write access to $BUCKET.\n#\n# WARNING: If BUILD_DIR is unset or empty, clean() expands to `rm -rf /*`.\n#\n# Steps: clean -> build -> upload. Output goes to s3://$BUCKET/$RELEASE/.\n\n# Deletes the contents of $BUILD_DIR (not the directory itself).\nclean() {\n  rm -rf \"$BUILD_DIR\"/*\n}\n\n# Syncs dist/ to s3://$BUCKET/$RELEASE. Makes up to 5 attempts, with\n# increasing backoff between them (2s, 4s, 6s, 8s, 10s). Returns 1 if all fail.\nupload() {\n  for i in 1 2 3 4 5; do\n    aws s3 sync dist/ \"s3://$BUCKET/$RELEASE\" && return 0\n    sleep $((i * 2))\n  done\n  return 1\n}\n\n# Installs dependencies from the lockfile, builds into dist/, and copies\n# dist/ into $BUILD_DIR.\nbuild() {\n  npm ci\n  npm run build\n  cp -r dist \"$BUILD_DIR\"\n}\n\nclean\nbuild\nupload\necho \"deployed $RELEASE\"\n```\n\n**Things I found that you should know before shipping:**\n\n1. **Dangerous: `clean()` can wipe the machine.** If `BUILD_DIR` is unset, `\"$BUILD_DIR\"/*` becomes `/*`. CI sets it, but you said people run this from laptops, and that's exactly where it'll be missing. In CI, a typo or env change would mean `rm -rf /*` as root, including the mounted shared build cache. I added a warning to the header, but a comment won't stop it. The one-line fix is `rm -rf \"${BUILD_DIR:?BUILD_DIR must be set}\"/*`, which aborts if it's unset or empty. I'd strongly recommend adding it even with the deadline. Say the word and I'll apply it.\n\n2. **The existing comment was wrong.** It said \"retries 3 times,\" but the loop makes 5 attempts. I updated the comment to match the code. If 3 was the intent, that's a logic change you'd need to decide on.\n\n3. **No `set -e`.** If `npm ci` or `npm run build` fails, the script still continues and uploads whatever is in `dist/`, which could be a stale build. It also prints \"deployed\" even if `upload` fails, and exits 0, so CI would show green. Adding `set -euo pipefail` after the shebang would fix both issues (and `-u` would also catch #1). This is a behavior change, so test it before you rely on it.\n\n4. **Minor:** `upload` syncs `dist/`, not `$BUILD_DIR`, so the copy into `BUILD_DIR` doesn't affect what gets deployed. That's fine if the cache is used for something else; I just documented it as written."
+}

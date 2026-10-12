@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E7-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12524.4,
+  "duration_ms": 11366,
+  "duration_api_ms": 11061,
+  "cost_usd": 0.0262762,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 679,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 1021,
+   "output_tokens_details": {
+    "thinking_tokens": 190
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 679,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1021,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 679,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 679
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:30:24.986065+00:00",
+   "end": "2026-10-12T05:30:37.510478+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0262762
+ },
+ "response": "Here's the rename-only version, with behavior unchanged:\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef fetch_access_token(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        token_payload = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_payload)\n        return token_payload['access_token']\n    except Exception:\n        return None\n```\n\nCallers will need `tok = fetch_access_token(svc_user, svc_pass)`. If you'd rather not touch call sites, keep the name `f`.\n\n**However, the names aren't the only problem.** Two of these issues are urgent:\n\n1. **The service password and token are going to the company-wide Datadog index.** `log.info(... u, p, d)` logs the plaintext password and the full token response on every successful call, about once a minute, for a year. Anyone who can search that index can likely read the `svc_user` credentials. I'd treat that password as compromised. Rotate it, ask whoever owns Datadog about purging or restricting those logs, and change the line to something like `log.info('auth ok for %s', username)`.\n\n2. **The mutable default `h=[]` leaks memory.** The default list is shared across calls, so each call appends another `'X-Client: billing-sync'`. In a long-running worker that's around 500k entries a year, and `dict(...)` re-parses all of them on every call. The request still works because the dict dedupes them, but memory and CPU grow until the process restarts. The fix is `header_lines=None` followed by `header_lines = list(header_lines or [])` before the append.\n\n3. **The bare `except Exception: return None` is a smaller issue.** It hides every failure, including bad credentials, a 500 response, or a missing `access_token` key, behind \"retry later\" with nothing logged. Adding a `log.warning('auth failed', exc_info=True)` would help, as long as it doesn't log the password.\n\nYou asked for a rename only, so I haven't applied these fixes. I'd strongly suggest at least fixing #1 and rotating the credential today. If you'd like, I can give you a version with all three fixed that keeps the same `None`-on-failure contract your callers rely on."
+}

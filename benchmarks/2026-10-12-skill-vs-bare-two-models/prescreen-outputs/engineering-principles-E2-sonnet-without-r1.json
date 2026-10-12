@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E2-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17996.5,
+  "duration_ms": 17124,
+  "duration_api_ms": 16799,
+  "cost_usd": 0.025070099999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 717,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2199,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 717,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2199,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 717,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 717
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:35:49.734599+00:00",
+   "end": "2026-10-12T05:36:07.731150+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.025070099999999998
+ },
+ "response": "<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/docs-plan.md</parameter>\n<parameter name=\"content\"># Docs restructuring plan\n\nPrinciple: every fact has exactly one canonical home. Other documents link to it, never restate it. Facts that can be verified in code live in code.\n\n## 1. Local setup steps\n\n**Conflict:** README.md says `clone, npm install, copy .env.example, npm run dev`. CONTRIBUTING.md says `clone, npm ci, create .env by hand, npm start`. The copies have drifted.\n\n**Canonical location:** README.md (\"Getting started\" section).\n\n**Content of the canonical copy:** clone, `npm install`, copy `.env.example` to `.env`, `npm run dev`. This is the current, correct version. `npm run dev` is confirmed by the CLAUDE.md history (`npm start` was replaced after a port clash), and copying `.env.example` is more reliable than creating `.env` by hand.\n\n**Other copies:**\n- CONTRIBUTING.md: delete the setup steps. Replace with one line: \"For local setup, see [README.md#getting-started](README.md#getting-started).\" Add contributor-only extras (branching, PR process) only if they exist; do not add setup variants.\n- CLAUDE.md: do not copy the steps. If Claude needs the dev command, one line pointing to the README is enough.\n\n**Open question to verify before editing:** whether CONTRIBUTING's `npm ci` is intentional for contributors (reproducible installs from the lockfile). If so, keep it as a single note in CONTRIBUTING (\"use `npm ci` for a clean, lockfile-exact install\"), not as a second full setup sequence. Otherwise drop it.\n\n## 2. API request timeout\n\n**Conflict:** README.md says 30 seconds. CONTRIBUTING.md says 45 seconds. The real value is a constant in `src/http/client.js`.\n\n**Canonical location:** `src/http/client.js`. The constant is the source of truth. Add a short comment on it stating what it controls and its unit.\n\n**Other copies:**\n- README.md: remove the \"30 seconds\" statement. If users need to know about timeouts, replace it with a pointer without a number: \"Request timeout is configured in `src/http/client.js`.\" If the number is useful to users, state it in the README only after reading the constant, and accept that it may drift. The preferred choice is no number.\n- CONTRIBUTING.md: remove the \"45 seconds\" statement entirely. It is not contributor process info. Add no replacement.\n- Neither number should be trusted. Read the constant first; if it matches neither, both docs were wrong.\n\n## 3. Support email\n\n**Canonical location:** README.md (only place it currently appears). Keep it in a \"Support\" section.\n\n**Other copies:** none exist. CONTRIBUTING.md may link to the README's Support section if it needs to direct people there; it must not repeat the address.\n\n## 4. Rule: \"in src/billing.js, always call recalcTotals() after any mutation to line items\"\n\n**Problem:** misplaced. It is a file-specific invariant, and `billing.js` is the only place it matters. In a root CLAUDE.md it is loaded into every session regardless of relevance, and it is invisible to human developers reading the code.\n\n**Canonical location:** a comment in `src/billing.js`, at the top of the module or on the line-item mutation functions, e.g. \"Invariant: call `recalcTotals()` after any mutation to line items.\" This reaches humans and Claude when they touch that file.\n\n**Other copies:**\n- CLAUDE.md: remove the rule from the root file. Optionally keep it only if an enforcement need exists that the code comment cannot meet; if so, put it in a `src/CLAUDE.md` scoped to that directory, not the root.\n- Better follow-up (optional): enforce the invariant in code (for example, have the mutation helpers call `recalcTotals()` themselves, or add a test) so it does not rely on documentation at all.\n\n## 5. CLAUDE.md \"Lessons learned\" section\n\n**Problem:** misplaced. It is a narrative history of past mistakes (\"2025-11: we originally used npm start, switched to npm run dev after the port clash; 2026-01: renamed the export module...\"). History is not an instruction, goes stale, and costs context in every session.\n\n**Dispositions by item:**\n- **npm start \u2192 npm run dev switch (2025-11):** the only forward-looking content is \"use `npm run dev`\", which is already canonical in README (item 1). Delete the narrative. The port-clash backstory belongs in git history or the commit message that made the change.\n- **Export module rename (2026-01):** delete. Rename history is recoverable from git. If old names still cause confusion (for example, stale imports), the fix is a one-line current-state fact in the code or a deprecation note at the module, not a dated story.\n- **Any other entries:** apply the same test. If an entry encodes a rule that is still true, convert it to an imperative and move it to where it applies (code comment, scoped file). Otherwise delete it.\n\n**Result:** the \"Lessons learned\" section is removed entirely.\n\n## 6. Final CLAUDE.md\n\nAfter the moves above, the root CLAUDE.md contains only information that applies to the whole repo and cannot be found in the code. Per this plan, that is likely just a short pointer to the README for setup. If nothing else qualifies, keep it to a few lines or do not create it.\n\n## Summary table\n\n| Fact | Canonical location | README.md | CONTRIBUTING.md | CLAUDE.md |\n|---|---|---|---|---|\n| Setup steps | README.md | keep (authoritative) | replace with link | do not copy |\n| API timeout | `src/http/client.js` | remove number, optional pointer | remove | n/a |\n| Support email | README.md | keep | link only | n/a |\n| `recalcTotals()` rule | comment in `src/billing.js` | n/a | n/a | remove |\n| Lessons learned | git history | n/a | n/a | delete section |\n\n## Verification before executing\n\n1. Read `src/http/client.js` for the actual timeout value.\n2. Confirm `npm run dev` exists in `package.json` scripts and `.env.example` exists.\n3. Confirm with the team whether `npm ci` has a deliberate contributor purpose.\n4. Check `src/billing.js` for existing comments before adding the invariant.\n</parameter>\n</invoke>\n_use"
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E3-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18802.8,
+  "duration_ms": 17847,
+  "duration_api_ms": 17558,
+  "cost_usd": 0.0283761,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 666,
+   "cache_read_input_tokens": 2081,
+   "output_tokens": 2550,
+   "output_tokens_details": {
+    "thinking_tokens": 480
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 666,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2550,
+     "cache_read_input_tokens": 2081,
+     "cache_creation_input_tokens": 666,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 666
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T05:28:54.562237+00:00",
+   "end": "2026-10-12T05:29:13.365054+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0283761
+ },
+ "response": "\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/enrich.py</parameter>\n<parameter name=\"content\">import logging\n\nlog = logging.getLogger(__name__)\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec, ref=None):\n    \"\"\"Add a zone to rec. Returns None if the region is unknown.\n\n    ref is the caller's record reference (e.g. \"path:lineno\") so log lines\n    can be joined with the ingest module's lines.\n    \"\"\"\n    ref = ref or rec.get(\"id\", \"?\")\n    try:\n        raw_region = rec[\"region\"]\n    except KeyError:\n        log.error(\"enrich failed: missing 'region' field ref=%s fields=%s\",\n                  ref, sorted(rec))\n        raise\n\n    region = GEO.get(raw_region)\n    if region is None:\n        log.warning(\"enrich skipped: unknown region ref=%s region=%r known=%s\",\n                    ref, raw_region, sorted(GEO))\n        return None\n\n    rec[\"zone\"] = region\n    log.debug(\"enriched ref=%s region=%r zone=%s\", ref, raw_region, region)\n    return rec\n</parameter>\n</invoke>\n<invoke name=\"Write\">\n<parameter name=\"file_path\">/tmp/neutral-cwd-prescreen-outputs-k6lkoe_r/ingest.py</parameter>\n<parameter name=\"content\">import json\nimport logging\nimport time\nimport uuid\nfrom collections import Counter\n\nfrom enrich import enrich_record\n\nlog = logging.getLogger(__name__)\n\nOUT_PATH = \"out.jsonl\"\n\n\ndef run(path):\n    run_id = uuid.uuid4().hex[:8]\n    stats = Counter()\n    start = time.monotonic()\n    log.info(\"run started run=%s path=%s out=%s\", run_id, path, OUT_PATH)\n\n    try:\n        with open(path) as f:\n            for lineno, line in enumerate(f, 1):\n                stats[\"read\"] += 1\n                # Same ref is passed to enrich so both modules' lines join on it.\n                ref = f\"{run_id}:{lineno}\"\n                try:\n                    _process_line(line, ref, stats)\n                except Exception:\n                    # One bad record must not abort the run; the traceback and\n                    # ref in the log are enough to find and replay it.\n                    stats[\"failed\"] += 1\n                    log.exception(\"record failed ref=%s path=%s line=%d\",\n                                  ref, path, lineno)\n    except Exception:\n        log.exception(\"run aborted run=%s path=%s stats=%s\",\n                      run_id, path, dict(stats))\n        raise\n\n    log.info(\"run finished run=%s elapsed=%.2fs stats=%s\",\n             run_id, time.monotonic() - start, dict(stats))\n    return stats\n\n\ndef _process_line(line, ref, stats):\n    if not line.strip():\n        stats[\"blank\"] += 1\n        log.debug(\"blank line skipped ref=%s\", ref)\n        return\n\n    rec = json.loads(line)\n    rec_id = rec.get(\"id\", \"?\") if isinstance(rec, dict) else \"?\"\n    log.debug(\"parsed ref=%s id=%s\", ref, rec_id)\n\n    out = enrich_record(rec, ref=ref)\n    if not out:\n        stats[\"dropped\"] += 1\n        log.info(\"record dropped ref=%s id=%s reason=enrich_returned_none\",\n                 ref, rec_id)\n        return\n\n    save(out, ref=ref)\n    stats[\"saved\"] += 1\n    log.debug(\"record saved ref=%s id=%s\", ref, rec_id)\n\n\ndef save(rec, ref=\"?\"):\n    try:\n        with open(OUT_PATH, \"a\") as f:\n            f.write(json.dumps(rec) + \"\\n\")\n    except Exception:\n        log.error(\"save failed ref=%s out=%s\", ref, OUT_PATH)\n        raise\n\n\nif __name__ == \"__main__\":\n    import sys\n\n    logging.basicConfig(\n        level=logging.INFO,\n        format=\"%(asctime)s %(levelname)s %(name)s %(message)s\",\n    )\n    run(sys.argv[1])\n</parameter>\n</invoke>\n_text\nI've written both files. I haven't run them.\n\n**What a trace looks like**\n- Each run gets a `run` id, and every record gets `ref=<run_id>:<lineno>`. `ingest` passes `ref` to `enrich_record`, so grepping one `ref` shows the record's whole path across both modules: parsed, enriched or dropped, saved or failed.\n- The record's own `id` field is logged when present. I assumed that field might exist; your records may use a different key.\n\n**Failure coverage**\n- Bad JSON, a missing `region`, and write errors are all logged with a traceback, the `ref`, the file path and the line number.\n- Unknown regions are logged as a WARNING with the offending value and the known set.\n- The run logs a start line, plus a finish line with elapsed time and counts (`read`, `saved`, `dropped`, `failed`, `blank`). If the counts don't add up, something is wrong.\n- Record contents are not logged, only field names and the region value, to avoid leaking data into logs.\n\n**Behavior changes to review**\n- A failing record no longer aborts the run. It's logged, counted as `failed`, and the run continues. Before, one bad line killed everything after it. If you want fail-fast, remove the per-record `except` in `run`.\n- Blank lines are skipped and counted instead of raising a JSON error.\n- The input file is now closed via `with`.\n- `run` now returns the stats counter.\n- `enrich_record` and `save` take an optional `ref` argument, so existing callers still work.\n\n**Logging setup**\nHandlers are configured only under `__main__` (`python ingest.py <path>`). If you call `run` from elsewhere, configure logging there. At INFO you get one line per drop or failure plus the run summary. DEBUG adds per-record lines, which is a lot at thousands of records per run."
+}
