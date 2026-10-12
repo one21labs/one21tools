@@ -49,16 +49,15 @@ validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's
 expectations". Each verdict measured the skill AS OF its dated dir — the text may have changed
 since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
-- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure). 12-Oct: KEEP on Sonnet 5.5 at
-  G=8 under a same-family judge only, so not promoted.
+- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure); a 12-Oct re-measure is not
+  promoted (`benchmarks/2026-10-12-g8-shortfall/`).
 - `building-skills`: unsettled — the 2026-07-18 baseline measured +0.153 [-0.016, +0.321]
   (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
   iter-3 revision missed its pre-registered bar and was reverted
-  (`benchmarks/2026-07-18-bs-iter3-remeasure/`). 12-Oct: KEEP on Opus 5.5 and Sonnet 5.5 at
-  G>=8 under a same-family judge only, so not promoted.
-- `optimizing-context`: unmeasured. The 12-Oct re-measure could not reach 8 discriminating evals
-  on either model (ADR 0100); diagnostic deltas +0.06 on both, INCONCLUSIVE. The 2026-07-09
-  MERGE ran on an instrument with isolation defects fixed since.
+  (`benchmarks/2026-07-18-bs-iter3-remeasure/`); 12-Oct re-measures are not promoted
+  (`benchmarks/2026-10-12-g8-shortfall/`).
+- `optimizing-context`: unmeasured (ADR 0100; `benchmarks/2026-10-12-g8-shortfall/`). The
+  2026-07-09 MERGE ran on an instrument with isolation defects fixed since.
 - `engineering-principles`: what SHIPS is the slim operational core (2026-07-18, #248/#249), and
   it ships on a NON-INFERIORITY bar, not a fresh effect proof — slim +0.170, CI [-0.029, +0.370],
   straddling zero at n=6; slim minus full +0.043, CI [+0.016, +0.069], excluding zero in the
@@ -83,7 +82,7 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
 1. Each measured skill has `evals/evals.json` (3+ cases, schema-gated).
 2. Paired hermetic runs — with/without the skill, no repo access, no installed plugins; a
    non-hermetic run is a recorded confounded null, never a verdict.
-3. Blind grading + a prosecutor re-examining every PASS.
+3. Blind grading; the verdict path adds a prosecutor re-examining every PASS.
 4. Verdict: eval-clustered mean delta with a 95% CI, read against token cost. Keep, improve, or
    revert follows the measurement; results land under `benchmarks/<date>-*/`.
 5. Description ablation: the always-loaded frontmatter description is trigger-tested separately.

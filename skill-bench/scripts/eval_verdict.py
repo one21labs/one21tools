@@ -17,7 +17,7 @@ metadata.json sample_rule and asserts every selected cell's transcript is presen
 silent-drop tripwire) - independent of the verdict computation above.
 
 Usage:
-    python eval_verdict.py <benchmark.json> --skill <skill-folder> [--fail-under DELTA]
+    python eval_verdict.py <benchmark.json> --skill <skill-folder> [--practical BAR] [--fail-under DELTA]
     python eval_verdict.py --check-audit-sample <benchmark-dir>
 """
 import argparse

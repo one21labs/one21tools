@@ -128,7 +128,7 @@ bounded by (2)/(4), not eliminated. Treat those verdict components as directiona
 Post-process the harness's `benchmark.json` with the owned layer:
 
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/eval_verdict.py" <benchmark.json> --skill <skill-folder>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/eval_verdict.py" <benchmark.json> --skill <skill-folder> [--practical <bar>]
 ```
 
 It pairs each eval's runs across configurations and reports:

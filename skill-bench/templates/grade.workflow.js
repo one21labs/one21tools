@@ -115,7 +115,7 @@ const audits = await parallel(auditBids.map((bid) => () =>
     : null))
 
 // Every agent call here is a Claude model, the generators' family: the grades are FRAME-UNCHECKED
-// (ADR 0093) until a cross-family judge (judge.py --judge grok) re-grades the same cells.
+// (ADR 0093) until a cross-family judge (bench_verdict.py --judge grok) re-grades the same cells.
 const graded = results.filter(Boolean)
 return { frame: 'FRAME-UNCHECKED (Claude-family grader and prosecutor, ADR 0093)',
   cells: graded.filter((r) => !r.error), errors: graded.filter((r) => r.error), audit: audits.filter(Boolean) }
