@@ -45,17 +45,21 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
 below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
-validity threat (#317). Each verdict measured the skill AS OF its dated dir — the text may have
+validity threat (#317) — on 12-Oct, evals written blind to the skill showed a near-zero effect
+(+0.04 vs +0.37 on the originals; easier tasks may explain part of it), so read a KEEP as "beats
+bare against the skill's own expectations" (`benchmarks/2026-10-12-g8-shortfall/`). Each verdict measured the skill AS OF its dated dir — the text may have
 changed since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
-- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure).
+- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure). 12-Oct: KEEP on Sonnet 5.5 at
+  G=8 under a same-family judge only, so not promoted.
 - `building-skills`: unsettled — the 2026-07-18 baseline measured +0.153 [-0.016, +0.321]
   (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
   iter-3 revision missed its pre-registered bar and was reverted
-  (`benchmarks/2026-07-18-bs-iter3-remeasure/`).
-- `optimizing-context`: measured once — improvement-loop iteration 1 (2026-07-09) recorded
-  MERGE, d_new +0.269 [+0.123, +0.414] (`benchmarks/2026-07-09-three-skills-remeasure/`); no
-  re-measure since.
+  (`benchmarks/2026-07-18-bs-iter3-remeasure/`). 12-Oct: KEEP on Opus 5.5 and Sonnet 5.5 at
+  G>=8 under a same-family judge only, so not promoted.
+- `optimizing-context`: unmeasured. The 12-Oct re-measure could not reach 8 discriminating evals
+  on either model (ADR 0100); diagnostic deltas +0.06 on both, INCONCLUSIVE. The 2026-07-09
+  MERGE ran on an instrument with isolation defects fixed since.
 - `engineering-principles`: what SHIPS is the slim operational core (2026-07-18, #248/#249), and
   it ships on a NON-INFERIORITY bar, not a fresh effect proof — slim +0.170, CI [-0.029, +0.370],
   straddling zero at n=6; slim minus full +0.043, CI [+0.016, +0.069], excluding zero in the

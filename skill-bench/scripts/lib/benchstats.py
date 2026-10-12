@@ -217,13 +217,10 @@ def keep_verdict(delta, practical=0.0):
     dropped = {"dropped_scenarios": delta["dropped_scenarios"]} if delta.get("dropped_scenarios") else {}
     if m != m:
         return {"verdict": "NO-DATA", **dropped}
-    if lo != lo or hi - lo <= 1e-12:  # float-equal deltas can leave an epsilon width
-        # Zero width is not certainty: identical cluster deltas give SE=0, and a zero-width
-        # interval would call KEEP (and mde80=0) off a spread the data never estimated.
+    if lo != lo:
         return {"verdict": "INCONCLUSIVE", "mean": round(m, 4), "ci95": [None, None],
                 "half_width": None, "mde80": None, "practical": practical, "win_rate": win,
-                "why": ("a single cluster carries no interval, so no difference is callable"
-                        if lo != lo else "spread unestimable: every cluster delta is identical"),
+                "why": "a single cluster carries no interval, so no difference is callable",
                 **dropped}
     if lo > practical:
         verdict = "KEEP"
@@ -245,13 +242,23 @@ def keep_verdict(delta, practical=0.0):
     g = delta.get("n_clusters") or 0
     se = half / t95(g - 1) if g >= 2 else float("nan")
     mde80 = (t95(g - 1) + t80(g - 1)) * se if se == se else float("nan")
+    # Identical cluster deltas give a zero-width interval. The verdict is kept: it is the limit of
+    # the nearly-identical case, and refusing it made the rule non-monotone (more consistent
+    # evidence read weaker). The power figure is NOT kept: a zero SE says nothing about what the
+    # design can detect.
+    zero_spread = hi - lo <= 1e-12
+    if zero_spread:
+        mde80 = float("nan")
     out = {"verdict": verdict, "mean": round(m, 4), "ci95": [round(lo, 4), round(hi, 4)],
            "half_width": round(half, 4),
            "mde80": None if mde80 != mde80 else round(mde80, 4),
            "practical": practical, "win_rate": None if win is None else round(win, 3)}
+    if zero_spread:
+        out["spread"] = "zero: every cluster delta is identical; mde80 unestimable"
     if verdict == "INCONCLUSIVE":
         bar = "zero" if practical == 0 else f"the practical bar of {practical:+.3f}"
         reach = (f"reliably call a difference of {mde80:.3f} or larger" if mde80 == mde80
+                 else "reach no stated power (zero spread)" if zero_spread
                  else "reach no stated power (cluster count unknown)")
         out["why"] = (f"the 95% interval does not clear {bar}; this design could only {reach}, "
                       f"and the observed mean is {m:+.3f}")

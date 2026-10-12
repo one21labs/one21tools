@@ -261,13 +261,21 @@ class TestVerdictMath(unittest.TestCase):
 
 class TestBenchstatsBoundaries(unittest.TestCase):
     # Each assert pins a boundary a mutant once survived every suite on (2026-10 stats audit).
-    def test_identical_cluster_deltas_are_inconclusive_not_a_zero_width_keep(self):
+    def test_identical_cluster_deltas_keep_the_verdict_but_drop_the_power_figure(self):
         cells = [c for i in range(6) for c in (cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]),
                                                 cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))]
         v = bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))
-        self.assertEqual(v["verdict"], "INCONCLUSIVE")
+        self.assertEqual(v["verdict"], "KEEP")
         self.assertIsNone(v["mde80"])
-        self.assertEqual(v["why"], "spread unestimable: every cluster delta is identical")
+        self.assertIn("zero", v["spread"])
+
+    def test_verdict_is_monotone_as_one_identical_delta_grows(self):
+        # A refusal at zero spread made more consistent evidence read weaker (round 3).
+        same = [c for i in range(4) for c in (cell(f"c{i}", "C", f"S{i}", [1, 1, 0, 0]),
+                                               cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))]
+        bigger = same[:-2] + [cell("c3", "C", "S3", [1, 1, 1, 0]), cell("b3", "B", "S3", [1, 0, 0, 0])]
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(same, "C", "B"))["verdict"], "KEEP")
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(bigger, "C", "B"))["verdict"], "KEEP")
 
     def test_one_arm_scenarios_are_named_not_silently_dropped(self):
         cells = [cell("c1", "C", "S1", [1, 1, 0, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
@@ -365,8 +373,6 @@ class TestTopCellAttribution(unittest.TestCase):
                  cell("c3", "C", "S3", [1, 1, 1, 1]), cell("b3", "B", "S3", [1, 0, 0, 0])]
         self.assertEqual(bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))["verdict"], "KEEP")
         self.assertTrue(bs.top_cell_attribution(cells, "C", "B")["inspect"])
-        # A practical bar the base already misses makes every leave-one-out agree with it.
-        self.assertFalse(bs.top_cell_attribution(cells, "C", "B", practical=0.9)["inspect"])
 
     def test_inspect_covers_every_cell_not_only_those_shown(self):
         cells = ([cell(f"c{s}{r}", "C", f"S{s}", [1, 1, 0, 0]) for s in (1, 2) for r in (1, 2, 3)]

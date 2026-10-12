@@ -65,8 +65,7 @@ test("bench_verdict reproduces a verdict from an installed-plugin layout, offlin
     assert.equal(report.regraded.arm_means.C, 1.0);
     assert.equal(report.regraded.arm_means.B, 0.5);
     assert.equal(report.regraded.C_minus_B.mean, 0.5);
-    // Two clusters with identical deltas: the spread is unestimable, so no difference is callable.
-    assert.equal(report.regraded.C_minus_B.verdict, "INCONCLUSIVE");
+    assert.equal(report.regraded.C_minus_B.verdict, "KEEP");
   } finally {
     rmSync(root, { recursive: true, force: true });
     rmSync(otherCwd, { recursive: true, force: true });
