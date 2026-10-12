@@ -13,9 +13,8 @@ summary: "The pre-registered split fired: +0.37 on evals written with the skill 
   expectations" (README measured block); (3) pilot executable outcomes (seeded defects or hidden
   tests, a script grader) for code-standards; building-skills (validate.py + trigger eval)
   only after the pilot discriminates; doctrine skills stay rubric-graded.
-- Why: 2026-10-12-g8-shortfall, pre-registered: original +0.366 [+0.228, +0.503] (bare 0.45),
-  new blind +0.040 [-0.028, +0.108] (bare 0.82). Provenance and difficulty are confounded; a
-  script grader is immune to reading (1) either way. Panel (adopter, economist, lean,
+- Why: the pre-registered split fired (`benchmarks/2026-10-12-g8-shortfall/README.md` owns the
+  numbers). Provenance and difficulty are confounded; a script grader is immune to reading (1). Panel (adopter, economist, lean,
   operator) converged.
 - Rejected: a difficulty-matched blind re-author (30 of 35 blind tasks saturated; matching
   selects on bare outcomes; either answer leads to the same build). Retiring claims for a
