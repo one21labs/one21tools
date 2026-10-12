@@ -56,12 +56,18 @@ KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_V
         "CLAUDE_ENABLE_STREAM_WATCHDOG")
 
 
+def detached_env():
+    """The caller's environment minus any parent Claude Code session (PARENT_SESSION_* above);
+    auth/provider keys in KEEP survive. The one home of that filter."""
+    return {k: v for k, v in os.environ.items()
+            if k in KEEP or not (k in PARENT_SESSION_NAMES
+                                      or k.startswith(PARENT_SESSION_PREFIXES))}
+
+
 def build_env(effort="medium"):
-    """Per-call environment, identical across arms (protocol symmetry), detached from any parent
-    Claude Code session (PARENT_SESSION_* above)."""
-    env = {k: v for k, v in os.environ.items()
-           if k in KEEP or not (k in PARENT_SESSION_NAMES
-                                     or k.startswith(PARENT_SESSION_PREFIXES))}
+    """Per-call environment, identical across arms (protocol symmetry): detached_env() plus the
+    hermetic overrides below."""
+    env = detached_env()
     home = os.path.expanduser("~")
     env["PATH"] = os.path.join(home, ".local", "bin") + os.pathsep + env.get("PATH", "")
     # Clean auth-only config dir. Override with $SKILL_BENCH_CONFIG_DIR when installed elsewhere;

@@ -63,7 +63,8 @@ its home is the script that regenerates it, not git.
 - `artifact_check.check_artifact/classify_cells` — the ERROR-cell rule: a cell whose graded
   artifact fails the mechanical shape check is infrastructure, never a quality 0.
 - `blind.capture_symmetry(records, response_fn, excluded_fn)` — per-arm exclusion-rate sweep (any
-  excluded cell counts, whatever the reason) run BEFORE blinding; `skewed: true` means fix the harness, not grade the skew.
+  excluded cell counts, whatever the reason) run BEFORE blinding; `skewed: true` means fix the
+  harness, not grade the skew.
 - `benchstats.top_cell_attribution(cells, x, y)` — leave-one-out per-cell contributors to the
   clustered delta; `inspect: true` (the verdict flips or the mean halves without some cell) sends
   the reader to those cells before interpreting the bar.

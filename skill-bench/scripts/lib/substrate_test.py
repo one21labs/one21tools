@@ -137,7 +137,7 @@ class TestNativeSubstrate(unittest.TestCase):
 
     def test_arms_do_not_inherit_the_parent_claude_session(self):
         # Round 4: inside a Claude Code session the child inherited its session id (hangs, exit
-        # 1), synced skills and reminders. The filter is hermetic_driver.build_env's.
+        # 1), synced skills and reminders. The filter is hermetic_driver.detached_env's.
         planted = {"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "parent",
                    "CLAUDE_CODE_REMOTE_SESSION_ID": "parent", "CLAUDE_CODE_SYNC_SKILLS": "1",
                    "CLAUDE_CONFIG_DIR": "/nonexistent-cfg", "CLAUDE_CODE_OAUTH_TOKEN": "tok",
@@ -151,8 +151,9 @@ class TestNativeSubstrate(unittest.TestCase):
                 os.environ.pop(k) if v is None else os.environ.__setitem__(k, v)
         env = __import__("json").loads(r["output"])
         for k in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_REMOTE_SESSION_ID",
-                  "CLAUDE_CODE_SYNC_SKILLS", "CLAUDE_CONFIG_DIR", "CLAUDE_EFFORT"):
-            self.assertNotIn(k, env)  # no session key, and no hermetic config-dir override
+                  "CLAUDE_CODE_SYNC_SKILLS", "CLAUDE_EFFORT"):
+            self.assertNotIn(k, env)  # no session key, and no hermetic override
+        self.assertEqual(env["CLAUDE_CONFIG_DIR"], "/nonexistent-cfg")  # the caller's own, kept
         self.assertEqual(env["CLAUDE_CODE_OAUTH_TOKEN"], "tok")  # the user's own login survives
         self.assertEqual(env["SKILLBENCH_PLAIN"], "kept")
         self.assertEqual(env["PATH"], os.environ["PATH"])

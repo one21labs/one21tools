@@ -15,19 +15,17 @@ The bench layer then normalizes + grades those outputs with judge.py / benchstat
 import json, os, shlex, shutil, stat, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from hermetic_driver import build_env, neutral_cwd
+from hermetic_driver import detached_env, neutral_cwd
 
 
 def arm_env():
     """The caller's environment minus the parent Claude Code session (an arm run inside one
-    inherited its session id — hangs, exit 1 — plus synced skills and reminders). The filter is
-    hermetic_driver.build_env's, never restated; its hermetic overrides are undone, so an arm
-    keeps the caller's PATH and own login (no CLAUDE_CONFIG_DIR / CLAUDE_EFFORT injected)."""
-    env = build_env()
-    for k in ("CLAUDE_CONFIG_DIR", "CLAUDE_EFFORT", "PATH"):
-        env.pop(k, None)
-    if "PATH" in os.environ:
-        env["PATH"] = os.environ["PATH"]
+    inherited its session id — hangs, exit 1 — plus synced skills and reminders), via
+    hermetic_driver.detached_env. No hermetic overrides: an arm keeps the caller's PATH and own
+    login, including a CLAUDE_CONFIG_DIR the caller set themselves."""
+    env = detached_env()
+    if "CLAUDE_CONFIG_DIR" in os.environ:
+        env["CLAUDE_CONFIG_DIR"] = os.environ["CLAUDE_CONFIG_DIR"]
     return env
 
 
