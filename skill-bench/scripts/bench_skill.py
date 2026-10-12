@@ -45,6 +45,14 @@ def grade_all(gen_rows, evals_by_id, judge):
     return cells, errs
 
 
+def relative_path_args(argv):
+    """The args of an arm argv that only resolve from the caller's cwd: argv[0] relative with a
+    slash, or any arg that exists here as a relative path. Arms run from an empty temp dir
+    (NativeSubstrate), where these silently miss — the skill not loaded — or fail to launch."""
+    return [x for i, x in enumerate(argv) if not os.path.isabs(x)
+            and ((i == 0 and "/" in x) or os.path.exists(x))]
+
+
 def aggregate(cells, with_arm="with", without_arm="without", practical=0.0):
     delta = benchstats.clustered_delta(cells, with_arm, without_arm)
     # matched-scenario, scenario-weighted: these subtract to the verdict's mean
@@ -56,8 +64,10 @@ def aggregate(cells, with_arm="with", without_arm="without", practical=0.0):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--evals", required=True, help="JSON list of {id, task, expectations[]}")
-    ap.add_argument("--with-cmd", required=True, help="argv (JSON list) for the skill-loaded arm")
-    ap.add_argument("--without-cmd", required=True, help="argv (JSON list) for the bare arm")
+    arm_note = ("; arms run from an empty temp dir, so every path in it must be absolute")
+    ap.add_argument("--with-cmd", required=True,
+                    help="argv (JSON list) for the skill-loaded arm" + arm_note)
+    ap.add_argument("--without-cmd", required=True, help="argv (JSON list) for the bare arm" + arm_note)
     # Derived from judge.BACKENDS, never restated — see the same note in bench_verdict.py.
     ap.add_argument("--judge", choices=["auto", *sorted(BACKENDS)], default="auto",
                     help="auto = the first reachable backend in judge.AUTO_ORDER, preferring "
@@ -79,6 +89,11 @@ def main():
     evals_by_id = {e["id"]: e for e in evals}
     arms = [{"name": "with", "cmd": json.loads(a.with_cmd)},
             {"name": "without", "cmd": json.loads(a.without_cmd)}]
+    for arm in arms:
+        rel = relative_path_args(arm["cmd"])
+        if rel:
+            sys.exit(f"--{arm['name']}-cmd: {rel} are relative paths; arms run from an empty temp "
+                     f"dir, where they would not resolve — make them absolute")
     n_gen = len(evals) * 2 * a.reps
     require_yes(a.yes, f"{len(evals)} tasks x 2 arms x {a.reps} reps = {n_gen} generations + "
                        f"{n_gen} judge calls (judge={a.judge}, substrate={a.substrate})")

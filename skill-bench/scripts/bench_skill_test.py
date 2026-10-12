@@ -169,6 +169,33 @@ class TestBenchSkill(unittest.TestCase):
             bs.main()
         self.assertEqual(json.load(open(out))["judge_fallback"], judge.fallback_note)
 
+    def test_relative_arm_paths_are_refused_before_any_spend(self):
+        # Round 4: arms run from an empty temp dir, so a relative skill path silently loaded
+        # nothing (with=0, 0 errors) and a relative argv[0] crashed the run.
+        import json, subprocess, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "skills", "x"))
+            open(os.path.join(d, "skills", "x", "SKILL.md"), "w").close()
+            ev = os.path.join(d, "evals.json")
+            json.dump(EVALS, open(ev, "w"))
+            absolute = os.path.join(d, "skills", "x", "SKILL.md")
+            self.assertEqual(bs.relative_path_args(["claude", "-p", "--file", absolute]), [])
+            for cmd in (["claude", "-p", "--file", "skills/x/SKILL.md"], ["./arm.sh"]):
+                r = subprocess.run([sys.executable, os.path.join(HERE, "bench_skill.py"),
+                                    "--evals", ev, "--with-cmd", json.dumps(cmd),
+                                    "--without-cmd", '["claude", "-p"]'],
+                                   capture_output=True, text=True, cwd=d)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("make them absolute", r.stderr, cmd)
+                self.assertIn(cmd[-1], r.stderr)
+                self.assertNotIn("[cost]", r.stderr)  # refused before the spend estimate
+        r = subprocess.run([sys.executable, os.path.join(HERE, "bench_skill.py"), "--help"],
+                           capture_output=True, text=True)
+        self.assertIn("must be absolute", r.stdout)
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 
 if __name__ == "__main__":
     unittest.main()

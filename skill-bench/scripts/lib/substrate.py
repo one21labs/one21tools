@@ -8,13 +8,27 @@ native fallback ships for environments without promptfoo. Stdlib only (JSON conf
 
 A Substrate.run(prompts, arms) -> list of {"prompt_id","arm","output"}, where an Arm is
   {"name": "C", "cmd": [argv...]}  and the prompt text is fed on stdin. A native row whose call
-  failed (nonzero exit, envelope is_error, timeout) also carries "error": it is not an output.
+  failed (nonzero exit, envelope is_error, timeout, unlaunchable argv) — or a promptfoo row with a
+  response error, success false, or no output — also carries "error": it is not an output.
 The bench layer then normalizes + grades those outputs with judge.py / benchstats.py.
 """
 import json, os, shlex, shutil, stat, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from hermetic_driver import neutral_cwd
+from hermetic_driver import build_env, neutral_cwd
+
+
+def arm_env():
+    """The caller's environment minus the parent Claude Code session (an arm run inside one
+    inherited its session id — hangs, exit 1 — plus synced skills and reminders). The filter is
+    hermetic_driver.build_env's, never restated; its hermetic overrides are undone, so an arm
+    keeps the caller's PATH and own login (no CLAUDE_CONFIG_DIR / CLAUDE_EFFORT injected)."""
+    env = build_env()
+    for k in ("CLAUDE_CONFIG_DIR", "CLAUDE_EFFORT", "PATH"):
+        env.pop(k, None)
+    if "PATH" in os.environ:
+        env["PATH"] = os.environ["PATH"]
+    return env
 
 
 def build_promptfoo_config(prompts, providers):
@@ -48,7 +62,9 @@ def unwrap_cli_output(s):
 
 def parse_promptfoo_output(obj):
     """Tolerant parse of `promptfoo eval -o out.json` (rows nest at results.results[] in 0.121).
-    Pull provider label, prompt_id (echoed in vars), and response output."""
+    Pull provider label, prompt_id (echoed in vars), and response output. A row whose call failed
+    (response error, success false, no output) carries "error", so it is excluded, never graded
+    as quality 0."""
     res = obj.get("results", obj)
     rows = res.get("results", res) if isinstance(res, dict) else res
     out = []
@@ -60,7 +76,13 @@ def parse_promptfoo_output(obj):
         pid = vars_.get("prompt_id", meta.get("prompt_id"))
         resp = r.get("response", {})
         raw = resp.get("output") if isinstance(resp, dict) else resp
-        out.append({"prompt_id": pid, "arm": label, "output": unwrap_cli_output(raw)})
+        row = {"prompt_id": pid, "arm": label, "output": unwrap_cli_output(raw)}
+        err = resp.get("error") if isinstance(resp, dict) else None
+        if not err and r.get("success") is False:  # no asserts are configured: false = failed call
+            err = r.get("error") or "success false"
+        if err or raw is None:
+            row["error"] = str(err or "no output")[-200:]
+        out.append(row)
     return out
 
 
@@ -108,18 +130,22 @@ class NativeSubstrate:
         self.workers = workers
         self.timeout = timeout
 
-    def _one(self, pid, prompt, arm, cwd):
+    def _one(self, pid, prompt, arm, cwd, env):
         # prompt passed as final argv element (universal for grok -p / claude -p), unless the arm
         # opts into stdin. Keeps long prompts off the shell (argv, not a shell string). cwd is a
         # neutral dir outside the caller's project, so neither arm auto-loads its CLAUDE.md or
-        # .claude/skills (the bare arm picking up the skill under test pulls the delta to 0).
+        # .claude/skills (the bare arm picking up the skill under test pulls the delta to 0), so
+        # an arm's paths must be absolute (bench_skill refuses relative ones). env drops the
+        # parent session (arm_env).
         row = {"prompt_id": pid, "arm": arm["name"]}
         argv, stdin = (arm["cmd"], prompt) if arm.get("stdin") else (arm["cmd"] + [prompt], None)
         try:
             r = subprocess.run(argv, input=stdin, capture_output=True, text=True,
-                               timeout=self.timeout, cwd=cwd)
+                               timeout=self.timeout, cwd=cwd, env=env)
         except subprocess.TimeoutExpired:
             return {**row, "output": "", "error": f"timeout after {self.timeout}s"}
+        except OSError as e:  # unlaunchable argv (e.g. a relative path from the neutral cwd)
+            return {**row, "output": "", "error": f"launch failed: {e}"[:200]}
         row["output"] = unwrap_cli_output(r.stdout)
         try:
             is_error = json.loads(r.stdout).get("is_error") is True
@@ -133,11 +159,11 @@ class NativeSubstrate:
 
     def run(self, prompts, arms, workdir=None):
         jobs = [(i, p, a) for i, p in enumerate(prompts) for a in arms]
-        cwd = neutral_cwd("native-substrate")
+        cwd, env = neutral_cwd("native-substrate"), arm_env()
         res = []
         try:
             with ThreadPoolExecutor(max_workers=self.workers) as ex:
-                futs = [ex.submit(self._one, i, p, a, cwd) for i, p, a in jobs]
+                futs = [ex.submit(self._one, i, p, a, cwd, env) for i, p, a in jobs]
                 for f in as_completed(futs):
                     res.append(f.result())
         finally:

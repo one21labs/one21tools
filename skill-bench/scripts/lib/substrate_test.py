@@ -48,6 +48,21 @@ class TestSubstrate(unittest.TestCase):
              "response": {"output": '{"text": "the answer"}'}}]}}
         self.assertEqual(sub.parse_promptfoo_output(obj)[0]["output"], "the answer")
 
+    def test_a_failed_promptfoo_call_is_an_error_row_not_an_empty_output(self):
+        # Round 4: each of these became {'output': ''} with no error and was graded as quality 0.
+        obj = {"results": {"results": [
+            {"provider": {"label": "C"}, "vars": {"prompt_id": 0},
+             "response": {"error": "exec exit 1"}},
+            {"provider": {"label": "C"}, "vars": {"prompt_id": 1}, "success": False,
+             "error": "provider failed", "response": {"output": ""}},
+            {"provider": {"label": "C"}, "vars": {"prompt_id": 2}},
+            {"provider": {"label": "C"}, "vars": {"prompt_id": 3}, "success": True,
+             "response": {"output": "fine"}},
+        ]}}
+        rows = sub.parse_promptfoo_output(obj)
+        self.assertEqual([r.get("error") for r in rows],
+                         ["exec exit 1", "provider failed", "no output", None])
+
     def test_make_substrate_dispatch(self):
         self.assertEqual(sub.make_substrate("native").name, "native")
         self.assertEqual(sub.make_substrate("promptfoo").name, "promptfoo")
@@ -113,6 +128,34 @@ class TestNativeSubstrate(unittest.TestCase):
         self.assertFalse(cwd.startswith(os.path.realpath(proj)), cwd)
         repo = os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
         self.assertFalse(cwd.startswith(repo + os.sep), cwd)
+
+    def test_an_unlaunchable_arm_is_an_error_row_not_a_crash(self):
+        # Round 4: a relative argv (["./arm.sh"]) does not exist from the neutral cwd; the
+        # FileNotFoundError escaped the pool and aborted the run.
+        rows = sub.NativeSubstrate(workers=1).run(["p0"], [{"name": "A", "cmd": ["./arm.sh"]}])
+        self.assertIn("launch failed", rows[0]["error"])
+
+    def test_arms_do_not_inherit_the_parent_claude_session(self):
+        # Round 4: inside a Claude Code session the child inherited its session id (hangs, exit
+        # 1), synced skills and reminders. The filter is hermetic_driver.build_env's.
+        planted = {"CLAUDECODE": "1", "CLAUDE_CODE_SESSION_ID": "parent",
+                   "CLAUDE_CODE_REMOTE_SESSION_ID": "parent", "CLAUDE_CODE_SYNC_SKILLS": "1",
+                   "CLAUDE_CONFIG_DIR": "/nonexistent-cfg", "CLAUDE_CODE_OAUTH_TOKEN": "tok",
+                   "SKILLBENCH_PLAIN": "kept"}
+        old = {k: os.environ.get(k) for k in planted}
+        os.environ.update(planted)
+        try:
+            r = self._run("import json; print(json.dumps(dict(os.environ)))")
+        finally:
+            for k, v in old.items():
+                os.environ.pop(k) if v is None else os.environ.__setitem__(k, v)
+        env = __import__("json").loads(r["output"])
+        for k in ("CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CLAUDE_CODE_REMOTE_SESSION_ID",
+                  "CLAUDE_CODE_SYNC_SKILLS", "CLAUDE_CONFIG_DIR", "CLAUDE_EFFORT"):
+            self.assertNotIn(k, env)  # no session key, and no hermetic config-dir override
+        self.assertEqual(env["CLAUDE_CODE_OAUTH_TOKEN"], "tok")  # the user's own login survives
+        self.assertEqual(env["SKILLBENCH_PLAIN"], "kept")
+        self.assertEqual(env["PATH"], os.environ["PATH"])
 
 
 if __name__ == "__main__":
