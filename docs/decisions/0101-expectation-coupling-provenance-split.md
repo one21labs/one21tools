@@ -14,8 +14,8 @@ summary: "The pre-registered split fired: +0.37 on evals written with the skill 
   tests, a script grader) for code-standards; building-skills (validate.py + trigger eval)
   only after the pilot discriminates; doctrine skills stay rubric-graded.
 - Why: the pre-registered split fired (`benchmarks/2026-10-12-g8-shortfall/README.md` owns the
-  numbers). Provenance and difficulty are confounded; a script grader is immune to reading (1). Panel (adopter, economist, lean,
-  operator) converged.
+  numbers). Provenance and difficulty are confounded; a script grader is immune to coupling
+  either way. Panel (adopter, economist, lean, operator) converged.
 - Rejected: a difficulty-matched blind re-author (30 of 35 blind tasks saturated; matching
   selects on bare outcomes; either answer leads to the same build). Retiring claims for a
   smaller blind lift (no headroom is not no value). A trigram-overlap gate (a floor).
