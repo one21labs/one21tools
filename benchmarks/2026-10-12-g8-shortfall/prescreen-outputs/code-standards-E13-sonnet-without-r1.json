@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E13-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E13",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12532.3,
+  "duration_ms": 11854,
+  "duration_api_ms": 11636,
+  "cost_usd": 0.022026,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1131,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1729,
+   "output_tokens_details": {
+    "thinking_tokens": 238
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1131,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1729,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 1131,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1131
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:25.827645+00:00",
+   "end": "2026-10-12T22:14:38.359952+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.022026,
+  "charged_usd": 0.022026,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Using `%v` would keep the bug alive. `%v` flattens the error to a string, so `errors.Is(err, sql.ErrNoRows)` in your handler would still fail. Use `%w` everywhere.\n\nThat also explains your ticket. `GetUser` currently returns `errors.New(\"get user failed\")`, which discards the original error, so the handler never sees `sql.ErrNoRows` and falls through to 500. Wrapping with `%w` fixes the ticket.\n\n```go\nfunc (r *Repo) GetUser(ctx context.Context, id int64) (*User, error) {\n    var u User\n    err := r.db.QueryRowContext(ctx, `SELECT id, email, created_at FROM users WHERE id = $1`, id).Scan(&u.ID, &u.Email, &u.CreatedAt)\n    if err != nil {\n        return nil, fmt.Errorf(\"get user %d: %w\", id, err)\n    }\n    return &u, nil\n}\n\nfunc (r *Repo) ListOrders(ctx context.Context, userID int64) ([]Order, error) {\n    rows, err := r.db.QueryContext(ctx, `SELECT id, total_cents FROM orders WHERE user_id = $1`, userID)\n    if err != nil {\n        return nil, fmt.Errorf(\"list orders for user %d: %w\", userID, err)\n    }\n    defer rows.Close()\n\n    var out []Order\n    for rows.Next() {\n        var o Order\n        if err := rows.Scan(&o.ID, &o.TotalCents); err != nil {\n            return nil, fmt.Errorf(\"scan order for user %d: %w\", userID, err)\n        }\n        out = append(out, o)\n    }\n    if err := rows.Err(); err != nil {\n        return nil, fmt.Errorf(\"iterate orders for user %d: %w\", userID, err)\n    }\n    return out, nil\n}\n\nfunc (r *Repo) UpdateEmail(ctx context.Context, id int64, email string) error {\n    tx, err := r.db.BeginTx(ctx, nil)\n    if err != nil {\n        return fmt.Errorf(\"begin tx for user %d: %w\", id, err)\n    }\n    defer tx.Rollback() // no-op after a successful Commit\n\n    if _, err := tx.ExecContext(ctx, `UPDATE users SET email = $1 WHERE id = $2`, email, id); err != nil {\n        return fmt.Errorf(\"update email for user %d: %w\", id, err)\n    }\n    if _, err := tx.ExecContext(ctx, `INSERT INTO audit (user_id, action) VALUES ($1, 'email_change')`, id); err != nil {\n        return fmt.Errorf(\"insert audit for user %d: %w\", id, err)\n    }\n    if err := tx.Commit(); err != nil {\n        return fmt.Errorf(\"commit email change for user %d: %w\", id, err)\n    }\n    return nil\n}\n```\n\n**Other issues I fixed, and you may want to call out in the PR:**\n\n1. **`UpdateEmail` returned `nil` when the audit insert failed.** The caller was told it succeeded, and the transaction was never rolled back or committed, so the connection leaked. This is the most serious bug. The `defer tx.Rollback()` now covers every early return.\n2. **`ListOrders` called `defer rows.Close()` before checking `err`.** If the query fails, `rows` is nil and this panics.\n3. **`ListOrders` was missing `rows.Err()`.** A mid-iteration failure, such as a dropped connection or a canceled context, silently returned partial results as success.\n4. **`ListOrders` logged scan errors and continued.** That also returned partial data silently. I changed it to return the error. If you want best-effort behavior, make that choice deliberately and document it.\n\n**Things I did not change:**\n\n- **`UpdateEmail` doesn't check `RowsAffected`.** For a nonexistent user, the `UPDATE` matches nothing and still succeeds, and an audit row gets written. You probably want to return `sql.ErrNoRows` (wrapped) when it's 0.\n- **The handler depends on `database/sql` through the repo layer.** `errors.Is(err, sql.ErrNoRows)` works, but a repo-level `ErrNotFound` would decouple the two. That is optional and probably belongs in a separate PR.\n- **Error messages now include the user ID.** If those messages reach clients or logs you consider sensitive, trim them."
+}

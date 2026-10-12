@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E14-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E14",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17051.2,
+  "duration_ms": 16364,
+  "duration_api_ms": 16171,
+  "cost_usd": 0.02261,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 577,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2009,
+   "output_tokens_details": {
+    "thinking_tokens": 908
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 577,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2009,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 577,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 577
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:31.612545+00:00",
+   "end": "2026-10-12T22:15:48.663726+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.02261,
+  "charged_usd": 0.02261,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Caps plus \"CRITICAL\" plus repetition is the weaker option. Emphasis can nudge adherence a little, but it dilutes everything else in the file, and CLAUDE.md is advisory context, so it can never guarantee compliance. Both of your rules are mechanical, so enforce them with settings and use CLAUDE.md to explain them.\n\n## 1. Enforce in `.claude/settings.json` (committed, shared by both platforms)\n\n```json\n{\n  \"permissions\": {\n    \"deny\": [\"Edit(vendor/**)\", \"Write(vendor/**)\"]\n  },\n  \"hooks\": {\n    \"PostToolUse\": [\n      {\n        \"matcher\": \"Edit|Write|MultiEdit\",\n        \"hooks\": [\n          { \"type\": \"command\", \"command\": \"python .claude/hooks/ruff_fix.py\" }\n        ]\n      }\n    ]\n  }\n}\n```\n\n`.claude/hooks/ruff_fix.py` is a Python script rather than a shell one-liner, so it doesn't depend on bash, `jq`, or path syntax:\n\n```python\nimport json, subprocess, sys\n\npath = json.load(sys.stdin).get(\"tool_input\", {}).get(\"file_path\", \"\")\nif path.endswith(\".py\"):\n    fix = subprocess.run([\"ruff\", \"check\", \"--fix\", path], capture_output=True, text=True)\n    subprocess.run([\"ruff\", \"format\", path], capture_output=True, text=True)\n    if fix.returncode != 0:\n        print(fix.stdout + fix.stderr, file=sys.stderr)\n        sys.exit(2)  # surfaces remaining lint errors to Claude\n```\n\nCross-platform caveats:\n- macOS often has only `python3`, while Windows usually has `python`. If that bites, use `uv run` or make sure `python` is on everyone's PATH.\n- `ruff` must be on PATH on both platforms (or invoke it as `python -m ruff`).\n- Deny rules use forward slashes on Windows too.\n- Deny rules cover Claude's edit tools, but not a `sed -i` through Bash. If that matters, add a `PreToolUse` hook on Bash, or rely on the rule text below.\n\n## 2. Reword CLAUDE.md: specific, with the reason and an alternative\n\n```\n- When you finish editing a .py file, run `ruff check --fix <file>` and then `ruff format <file>`. (A hook also does this; if it reports lint errors, fix them before moving on.)\n- Never modify anything under vendor/. It is overwritten by the nightly upstream sync, so changes are silently lost. If vendor code needs to change, tell me, or put the change in our own code (wrapper/subclass/patch) instead.\n```\n\nWhy this works better:\n- A reason lets Claude generalize, for example to `sed` or a shell redirect into `vendor/`.\n- A fallback (\"tell me or wrap it\") gives Claude something to do instead of just a prohibition.\n- Naming the exact trigger (\"when you finish editing a .py file\") is less ambiguous than \"after editing any Python file\".\n- Stating once, clearly, beats repeating at the top and bottom. If you want redundancy, the hooks and deny rules are the redundancy.\n\nIf you still want emphasis, a single \"Never\" on the vendor rule is plenty."
+}

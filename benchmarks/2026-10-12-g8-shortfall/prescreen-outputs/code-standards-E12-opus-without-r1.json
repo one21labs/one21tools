@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E12-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E12",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22470.1,
+  "duration_ms": 21739,
+  "duration_api_ms": 21522,
+  "cost_usd": 0.04976,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 882,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2114,
+   "output_tokens_details": {
+    "thinking_tokens": 321
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 882,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2114,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 882,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 882
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:03.357136+00:00",
+   "end": "2026-10-12T22:14:25.827212+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04976,
+  "charged_usd": 0.04976,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "More logging alone won't fix this. Your logs already show the bug, and the handler has a security problem that needs attention first.\n\n## What the logs are telling you\n\n```\nINFO Order done\nERROR Error: undefined     <- error logged *after* \"done\"\n```\n\n1. **`forEach(async ...)` isn't awaited.** `forEach` ignores the promises, so the handler logs \"Order done\" and returns `{ ok: true }` while reservations and shipments are still running. The card was already charged, so a failed item leaves the customer charged with nothing shipped, and the caller is told it succeeded. On Lambda it's worse: once the handler returns, the execution environment can be frozen, so in-flight work and its error logs may never run at all. You may be missing failures entirely, not just details.\n\n2. **`throw \\`reserve failed: ...\\`` throws a string, not an `Error`.** Strings have no `.message`, so the log says `Error: undefined`. That line was almost certainly a failed `reserveStock` call, and the status code you needed was in the string you threw away.\n\n3. **There are no identifiers.** Nothing ties those lines to an order, SKU, or request, so you can't tell which of several concurrent orders they belong to.\n\n## Security issue: fix this first\n\n```ts\nlogger.debug(JSON.stringify(event));\n```\n\nThis logs the full card number, CVV, and customer PII. Storing CVV after authorization is prohibited under PCI DSS in any form, including logs. Even if debug is off in prod today, one config change turns it on. Remove the line. Also check whether debug has ever been enabled in any environment that saw real cards. If it has, those log groups contain CVVs and need to go to your security/compliance team. Don't just delete them quietly.\n\n## Revised code\n\n```ts\n// inventory-client.ts\nexport async function reserveStock(sku: string, qty: number) {\n  const res = await fetch(`${INV_URL}/reserve`, {\n    method: 'POST',\n    body: JSON.stringify({ sku, qty }),\n  });\n  if (!res.ok) {\n    const body = await res.text().catch(() => '');\n    throw new Error(`reserve failed: sku=${sku} qty=${qty} status=${res.status} body=${body.slice(0, 500)}`);\n  }\n}\n```\n\n```ts\nexport async function handleOrder(event: OrderEvent) {\n  const log = logger.child({\n    orderRef: event.orderId,          // or whatever stable ID the event carries\n    customerId: event.customer.id,    // an ID, never name/email/address\n    itemCount: event.items.length,\n  });\n\n  log.info('Processing order');\n\n  const order = await chargeCard(event.customer, event.payment);\n  log.info('Card charged', { chargeId: order.id });\n\n  const results = await Promise.allSettled(\n    event.items.map(async (item) => {\n      const itemLog = log.child({ sku: item.sku, qty: item.qty });\n      itemLog.info('Reserving stock');\n      await reserveStock(item.sku, item.qty);\n      itemLog.info('Creating shipment');\n      const shipment = await createShipment(order.id, item);\n      itemLog.info('Shipment created', { shipmentId: shipment?.id });\n    }),\n  );\n\n  const failures = results\n    .map((r, i) => ({ r, item: event.items[i] }))\n    .filter((x): x is { r: PromiseRejectedResult; item: typeof event.items[number] } => x.r.status === 'rejected');\n\n  for (const { r, item } of failures) {\n    const err = r.reason instanceof Error ? r.reason : new Error(String(r.reason));\n    log.error('Item failed', { sku: item.sku, error: err.message, stack: err.stack });\n  }\n\n  if (failures.length > 0) {\n    log.error('Order incomplete after charge', {\n      chargeId: order.id,\n      failed: failures.map((f) => f.item.sku),\n    });\n    // TODO: refund / void the charge, or enqueue for retry. Don't return ok:true.\n    return { ok: false, chargeId: order.id, failedSkus: failures.map((f) => f.item.sku) };\n  }\n\n  log.info('Order complete', { chargeId: order.id });\n  return { ok: true };\n}\n```\n\nNotes:\n- The `String(r.reason)` fallback means string throws from other clients still produce readable messages.\n- Use `for...of` with `await` instead of `Promise.allSettled` if items must be processed sequentially, for example if inventory can't handle concurrent reservations.\n- If your logger has no `.child()`, pass the context object on every call instead.\n- Adjust field names (`orderId`, `customer.id`, `shipment.id`) to match your actual types. I've guessed at them.\n\n## Still open: a design question\n\nEven with this fix, you charge the card before you know you can reserve stock. Consider reserving first and charging last, or using an authorize-then-capture flow. Otherwise you need a refund/retry path for partial failures (the TODO above). That's the real fix for \"charged but never shipped\". The logging just lets you see it happen.\n\n## For the current escalated order\n\nThe existing logs can't identify the failed SKU. Look up the charge ID from your payment provider around 14:02:11, then check the inventory service's logs for a non-2xx `/reserve` response in that window. That's most likely where the failure was. The customer probably needs a manual refund or reshipment."
+}

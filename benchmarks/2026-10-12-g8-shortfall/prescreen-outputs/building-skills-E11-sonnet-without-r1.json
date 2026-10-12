@@ -1,0 +1,63 @@
+{
+ "cell": "building-skills-E11-sonnet-without-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17879.0,
+  "duration_ms": 16599,
+  "duration_api_ms": 16175,
+  "cost_usd": 0.0283835,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2289,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 1917,
+   "output_tokens_details": {
+    "thinking_tokens": 502
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2289,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1917,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2289,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2289
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:13:48.468343+00:00",
+   "end": "2026-10-12T22:14:06.347349+00:00"
+  },
+  "error": "eval text changed after generation (home-path redaction, metadata.json deviations)",
+  "retried": false,
+  "cell_cost_usd": 0.0283835,
+  "charged_usd": 0.0283835,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "I haven't opened the repo, so this is based only on the text you pasted. There are two root causes, plus a few portability problems for teammates.\n\n## Why it doesn't trigger\n\n- **The description is too vague.** \"This skill helps with reports.\" is what Claude uses to decide whether to load the skill. It never mentions PDFs, sales, regions, quarters, or CSVs, so \"make the Q3 regional sales PDF\" doesn't match. Say what the skill does and when to use it, using the words people actually type.\n- **The name doesn't match the directory.** Use `pdf-report-gen`, in kebab-case, not `PDF Report Generator`.\n- **\"Always follow these steps when the user wants a report\" is too broad.** It makes the skill sound generic. Scope it to this specific report.\n\n## Why the charts differ every time\n\n- **Claude rewrites the script on every run.** Step 1 says \"write a Python script\", so layout, colors, and chart choices are regenerated each time. The fix is to ship the script in the skill (`scripts/build_report.py`) and have the skill run it, not write it.\n- **The brand rules are buried in 420 lines of prose.** Claude can't apply that consistently. Encode the chart styling as constants in the script. Keep the prose in a reference file, and only read it when someone asks about something the script doesn't cover.\n\n## Problems for teammates\n\n- `/Users/dana/brand/fonts/` only exists on your machine. Commit the fonts into the skill (`assets/fonts/`) and use relative paths, if the font licenses allow it.\n- `~/Desktop/report.pdf` is machine-specific and overwrites the previous report. Take an output path argument and default to something like `./reports/<quarter>-regional-sales.pdf`.\n- The 420 lines of guidelines and the 3 full examples load into context every time the skill fires. Move them out of `SKILL.md`.\n\n## Suggested layout\n\n```\n.claude/skills/pdf-report-gen/\n\u251c\u2500\u2500 SKILL.md\n\u251c\u2500\u2500 scripts/build_report.py        # deterministic, fixed chart styling\n\u251c\u2500\u2500 assets/fonts/\n\u2514\u2500\u2500 references/\n    \u251c\u2500\u2500 brand-guidelines.md        # the 420 lines\n    \u2514\u2500\u2500 example-reports.md         # trimmed to 1 example\n```\n\n## Revised SKILL.md\n\n```markdown\n---\nname: pdf-report-gen\ndescription: Generates the branded regional sales PDF report (monthly totals per region, with charts) from a CSV using reportlab. Use when the user asks to make, build, or generate a sales report, quarterly or regional sales PDF, or \"Q3/Q4 regional sales\" output from CSV data.\n---\n\n# PDF Report Generator\n\nBuilds a branded PDF of monthly sales totals per region from a CSV.\n\n## Steps\n\n1. Identify the input CSV. If the user hasn't given a path, ask for it.\n   Identify the quarter or date range (e.g. \"Q3\"). If it's unclear, ask.\n2. Run the bundled script. Do not write a new one:\n\n   python scripts/build_report.py --csv <path> --quarter Q3 --out reports/<quarter>-regional-sales.pdf\n\n3. Open or check the output, and tell the user where it was saved.\n\n## Rules\n\n- Never change chart styling, colors, or fonts ad hoc. They are fixed in\n  `scripts/build_report.py`, so output stays identical across runs.\n- If the CSV is missing expected columns, report which ones. Don't guess.\n- Only read `references/brand-guidelines.md` if the user asks for a\n  change the script doesn't support (e.g. a new chart type).\n- `references/example-reports.md` shows the expected output structure.\n```\n\n## Still to do\n\n- Write `scripts/build_report.py`. It should take the CSV, quarter, and output path as arguments, and fix chart type, colors, axis order, region order (sort it!), and figure size. Unsorted region order is a common cause of charts that change between runs.\n- Document the expected CSV columns in the skill (e.g. `date, region, amount`), so Claude can validate them.\n- Add `allowed-tools` to the frontmatter if you want the script to run without a permission prompt. Check the current skill frontmatter docs for the exact syntax.\n\nI can write the script and reorganize the files if you want."
+}

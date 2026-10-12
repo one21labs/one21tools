@@ -1,0 +1,63 @@
+{
+ "cell": "building-skills-E13-sonnet-without-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E13",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14876.1,
+  "duration_ms": 13200,
+  "duration_api_ms": 12867,
+  "cost_usd": 0.024511500000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2301,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 1525,
+   "output_tokens_details": {
+    "thinking_tokens": 505
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2301,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1525,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2301,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2301
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:13:48.480582+00:00",
+   "end": "2026-10-12T22:14:03.356740+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.024511500000000002,
+  "charged_usd": 0.024511500000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Both problems come from the descriptions, and the second has a likely YAML bug as well.\n\n## `sql-migrations`: too broad, and it misses the actual trigger\n\nThe description is matched semantically against the user's request. Yours has two problems:\n\n- **It's a catch-all.** \"Anything involving SQL, databases, queries, Postgres, MySQL, or data\" matches \"why is this SELECT slow?\" about as well as anything.\n- **It never mentions the real trigger.** Nothing in it says schema changes, adding columns, Alembic, or migration files. \"Add a nullable archived_at column to orders\" doesn't use any of its words, so it often doesn't match.\n\nRewrite it around what the skill does and the phrasings people use:\n\n```yaml\n---\nname: sql-migrations\ndescription: Create Alembic migration files in migrations/versions/ for any database schema change: adding, dropping, or altering columns, tables, indexes, or constraints. Use whenever someone asks to add a column, change a table, or modify the schema, instead of running ALTER TABLE directly. Not for query tuning or read-only SELECT questions.\n---\n```\n\nBecause of the `: ` after \"change\", you should quote the value. See the next section.\n\n## `postgres-query-helper`: probably a YAML parse error\n\nYour description is `Postgres performance: use for slow queries...`. An unquoted YAML value containing `: ` (colon plus space) is invalid, so the frontmatter probably fails to parse and the skill never loads. That would explain why it has never fired. Quote the value or avoid the colon:\n\n```yaml\n---\nname: postgres-query-helper\ndescription: \"Diagnose slow Postgres queries: read EXPLAIN / EXPLAIN ANALYZE output, spot missing indexes, and interpret query plans. Use when someone asks why a SELECT or other query is slow or how to speed it up. Not for schema changes or migrations.\"\n---\n```\n\nQuoting `sql-migrations` the same way is the safest option, since it has the same colon problem in my rewrite.\n\nEven with valid YAML, the overbroad `sql-migrations` description would have competed with this skill for slow-query questions. Narrowing it should fix that.\n\n## Verifying\n\n- Run `/skills` (or check the skill listing) to confirm that `postgres-query-helper` now appears. If it's missing, the frontmatter still isn't parsing.\n- Test these prompts:\n  - \"Add a nullable archived_at column to orders\" should trigger `sql-migrations`.\n  - \"Why is this SELECT slow?\" should trigger `postgres-query-helper`.\n  - \"What does a LEFT JOIN do?\" should trigger neither.\n- I haven't seen the body of `postgres-query-helper`, so make sure it has real content and isn't just the frontmatter.\n\n## Optional hardening\n\nA skill is only guidance once it loads. If \"never run ALTER directly\" must hold every time, also add a line to `CLAUDE.md` and consider a permission deny rule or hook that blocks `psql` commands containing `ALTER`. That doesn't depend on the description matching."
+}

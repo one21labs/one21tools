@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E15-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E15",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14633.2,
+  "duration_ms": 13951,
+  "duration_api_ms": 13726,
+  "cost_usd": 0.018324,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 743,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1514,
+   "output_tokens_details": {
+    "thinking_tokens": 617
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 743,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1514,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 743,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 743
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:48.664186+00:00",
+   "end": "2026-10-12T22:16:03.297362+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.018324,
+  "charged_usd": 0.018324,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Partly, but it's the weakest fix. Your setup is filling the context with things that don't need to be there, and a bigger window only delays that.\n\n**Likely causes, biggest first (token figures are rough estimates)**\n\n1. **`get_logs` is probably the main culprit.** At 2-5 MB, one call is roughly 500k-1.5M tokens. That can overflow even a very large window in a single call, and each call pushes earlier context (including your CLAUDE.md rules) toward compaction. Several log pulls in one day would explain the forgetting and the re-reading of files.\n2. **Fixed overhead on every turn.** CLAUDE.md plus the two imports is about 3,350 lines, likely 40-50k tokens. `@`-imports load in full at startup, so they don't save anything. Around 190 tool definitions from 14 servers could add tens of thousands more, and Linear is dead weight.\n3. **One long session per day.** Context fills, gets auto-compacted, and the summary loses detail. After that you see forgotten rules, repeated file reads, and confusion about which service is being edited. Long contexts also tend to get less reliable on their own, even before the limit.\n\n**What I'd do, in order**\n\n- **Fix `get_logs`.** Add parameters like `query`, `level`, `limit` and a time range, and filter server-side. Better still, write the full dump to a file and return a summary plus the path, so the agent can grep it. Never return multi-MB blobs into context.\n- **Run `/context`** to see the actual breakdown of tools, memory files, and conversation. That will confirm the above before you change anything.\n- **Cut MCP servers.** Remove Linear, and move Figma, Notion, the browser server, and the second Postgres server to project or on-demand scope. Don't enable all 14 globally.\n- **Slim CLAUDE.md.** Aim for under about 200 lines of rules that must always apply. Replace the `@`-imports with plain path references like \"see docs/API.md when touching API routes\", so they're read only when needed. For the wrong-service edits, add a short CLAUDE.md in each service directory so the right rules load in the right place.\n- **Change session habits.**\n  - Use `/clear` between tickets instead of one session per day.\n  - Use `/compact` with focus instructions mid-ticket.\n  - Delegate log investigation to a subagent, so only its conclusion comes back to the main context.\n\n**Where a bigger window fits in**\n\nAfter the changes above, a larger window gives extra headroom and is reasonable. On its own, you'd pay more per turn and still hit the same decay, just later in the day. I can't see your repo, so I'd verify the numbers with `/context` before treating any of these estimates as exact."
+}

@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E11-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 24669.5,
+  "duration_ms": 23924,
+  "duration_api_ms": 23692,
+  "cost_usd": 0.035722,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 950,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 3171,
+   "output_tokens_details": {
+    "thinking_tokens": 1037
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 950,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3171,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 950,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 950
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:02.866867+00:00",
+   "end": "2026-10-12T22:14:27.536370+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.035722,
+  "charged_usd": 0.035722,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The code has several bugs that explain missing invoices. I'd hold the merge until at least the first three are fixed.\n\n## Likely causes of the missing invoices\n\n1. **Pagination is ignored.** The API returns at most 100 invoices per response with a `next_cursor`, but the code fetches one page and stops. Any night with more than 100 new invoices silently loses everything after the first 100. If `since` then advances past them, they are gone for good. This is most likely your main culprit.\n\n2. **One bad row can poison the whole batch (if this is Postgres).** The `%(name)s` placeholders suggest psycopg2. In Postgres, once a statement fails, the transaction is aborted and every later `execute` fails with \"current transaction is aborted\". The bare `except` then logs `error occurred` for each remaining row, and `db.commit()` commits nothing. A single bad invoice can therefore drop the rest of the page.\n\n3. **Strict timestamp parsing.** `strptime(..., '%Y-%m-%dT%H:%M:%S')` raises on fractional seconds, a `Z` suffix, or an offset. Those rows are swallowed by the `except` and never inserted.\n\n4. **Retry loop fails silently.** If all 5 attempts return non-200, the code falls through with the last bad response. `resp.json()` or `data['invoices']` then raises outside the `try`, which crashes the job with a traceback, or the body is an error payload. It also sleeps after the final attempt, has no `timeout=`, and doesn't catch `requests` exceptions like connection errors. Retrying 401/404 is pointless, and 429 should honor `Retry-After`.\n\n5. **Logging hides everything.**\n   - `'error occurred'` has no invoice id, no exception, and no traceback. Use `log.exception(...)` with the id.\n   - `'sync complete'` is logged even when rows failed.\n   - Cron never sees a failure, because nothing raises or returns a nonzero exit.\n\n## Other problems\n\n- **API key leak:** `log.info(f'fetching {url}')` writes the key into your logs. Pass it in a header (or `params=`) and never log it. Rotate the key if those logs are retained anywhere.\n- **Mutable default `seen=[]`:** it persists across calls in the same process, so tests or any long-running caller will skip invoices. It's also an O(n) lookup. Drop it and let the database enforce uniqueness with `ON CONFLICT (id) DO NOTHING` (assuming `id` is a primary key or unique).\n- **Money as float:** `float(amount) / 100` can introduce rounding errors. Use `Decimal` or keep integer cents. Also confirm currency and minor units are handled.\n- **`INSERT INTO invoices VALUES (...)` has no column list,** so it breaks if the schema changes.\n- **`since` is hand-interpolated** and not URL-encoded. Use `params=`.\n- **Late-arriving invoices:** if `since` is based on `issued_at` and the caller advances it to \"now\", invoices created late or backdated will be missed. Use an overlap window and rely on idempotent inserts.\n\n## Sketch of a fix\n\n```python\nimport logging\nimport time\nfrom datetime import datetime\nfrom decimal import Decimal\n\nimport requests\n\nlog = logging.getLogger(__name__)\nAPI = 'https://billing.example.com/v2'\n\n\ndef _get(session, params):\n    for attempt in range(5):\n        try:\n            resp = session.get(f'{API}/invoices', params=params, timeout=30)\n            if resp.status_code == 200:\n                return resp.json()\n            if resp.status_code not in (429, 500, 502, 503, 504):\n                resp.raise_for_status()\n        except (requests.ConnectionError, requests.Timeout):\n            pass\n        if attempt < 4:\n            time.sleep(2 ** attempt)\n    raise RuntimeError(f'billing API failed after retries: {params}')\n\n\ndef sync_invoices(db, api_key, since):\n    session = requests.Session()\n    session.headers['Authorization'] = f'Bearer {api_key}'  # confirm auth scheme\n    params = {'since': since}\n    inserted, failed = 0, []\n\n    while True:\n        data = _get(session, params)\n        for inv in data['invoices']:\n            try:\n                db.execute('SAVEPOINT row')\n                db.execute(\n                    'INSERT INTO invoices (id, amount, issued, customer) '\n                    'VALUES (%(id)s, %(amount)s, %(issued)s, %(customer)s) '\n                    'ON CONFLICT (id) DO NOTHING',\n                    {\n                        'id': inv['id'],\n                        'amount': Decimal(inv['amount']) / 100,\n                        'issued': datetime.fromisoformat(inv['issued_at']),\n                        'customer': inv['customer']['id'],\n                    },\n                )\n                db.execute('RELEASE SAVEPOINT row')\n                inserted += 1\n            except Exception:\n                db.execute('ROLLBACK TO SAVEPOINT row')\n                log.exception('failed to sync invoice %s', inv.get('id'))\n                failed.append(inv.get('id'))\n        db.commit()\n\n        cursor = data.get('next_cursor')\n        if not cursor:\n            break\n        params = {'cursor': cursor}  # verify whether `since` must be resent\n\n    log.info('sync finished: %d inserted, %d failed', inserted, len(failed))\n    if failed:\n        raise RuntimeError(f'{len(failed)} invoices failed: {failed[:20]}')\n    return inserted\n```\n\nThe sketch assumes a few things you should check against the real API and schema:\n- The auth scheme.\n- Whether the cursor replaces or accompanies `since`.\n- The savepoint syntax for your DB wrapper.\n- That `id` is unique.\n- That `fromisoformat` handles your timestamp format (Python 3.11+ handles `Z`).\n\n## Before merging the cleanup\n\n- Add a test with a mocked API returning 2\u20133 pages, one malformed row, and one 500 response.\n- After deploying, run a one-off backfill for the period finance flagged. Comparing invoice counts against the billing system will show how much was lost. The `ON CONFLICT` insert makes re-running safe.\n- Make the cron job exit nonzero on failure and alert on it, so \"sync complete\" actually means something."
+}

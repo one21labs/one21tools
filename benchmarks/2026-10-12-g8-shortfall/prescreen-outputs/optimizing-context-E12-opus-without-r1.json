@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E12-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E12",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 25527.1,
+  "duration_ms": 24815,
+  "duration_api_ms": 24588,
+  "cost_usd": 0.038164000000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 675,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1617,
+   "output_tokens_details": {
+    "thinking_tokens": 548
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 675,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1617,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 675,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 675
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:06.084933+00:00",
+   "end": "2026-10-12T22:15:31.612066+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.038164000000000003,
+  "charged_usd": 0.038164000000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Mostly sound, but only about half of this belongs in CLAUDE.md. CLAUDE.md is context Claude reads and generally follows. It doesn't enforce anything, it can't add capabilities, and everything in it costs context on every session.\n\n| # | Item | Where it belongs |\n|---|------|------------------|\n| 1 | Go version, build/test/lint commands | **CLAUDE.md.** This is exactly what it's for. |\n| 2 | Never `terraform apply` / `kubectl delete` | **Permission deny rules** in `.claude/settings.json`, plus a one-line mention in CLAUDE.md |\n| 3 | 350-line postmortem template and guide | **A skill** (`.claude/skills/postmortem/SKILL.md`) |\n| 4 | Your terse-answer preference | **`~/.claude/CLAUDE.md`** (your user-level file), not the team file |\n| 5 | Datadog lookups | **An MCP server** in `.mcp.json`, plus a note in CLAUDE.md on when to use it |\n| 6 | Don't modify merged migrations | **CLAUDE.md**, backed by a hook and a CI check |\n| 7 | Handler validation pattern | **CLAUDE.md** is fine, or a path-scoped rule |\n\n**Details on the ones that change:**\n\n- **#2 is the important one.** You've already had an incident, so a written instruction isn't enough. Add deny rules:\n  ```json\n  { \"permissions\": { \"deny\": [\"Bash(terraform apply:*)\", \"Bash(kubectl delete:*)\"] } }\n  ```\n  Prefix matching can miss variants like `terraform -chdir=infra apply` or commands wrapped in scripts. If you want stronger coverage, add a `PreToolUse` hook that inspects the full command. The strongest fix is to keep credentials that can apply or delete out of the environment Claude runs in.\n- **#3:** About 350 lines loaded into every session for something used twice a month is wasteful, and it dilutes the instructions that matter. A skill loads only when someone is writing a postmortem.\n- **#4:** If this goes in the project file, it applies to all your teammates. Your user-level file applies only to you, across all projects. You could also use `CLAUDE.local.md`, which is gitignored and per-project.\n- **#5:** CLAUDE.md can't give Claude access to anything. Configure a Datadog MCP server in a project-scoped `.mcp.json` so the whole team gets it. Use a read-only API key.\n- **#6:** The rule is fine in CLAUDE.md, but add a `PreToolUse` hook on Edit/Write that blocks changes to existing files under `db/migrations/`, plus a CI check. That also protects you from humans.\n- **#7:** 15 lines is fine in the main file. If you want it to load only when relevant, put it in `.claude/rules/` with a `paths:` frontmatter scoped to your handlers directory.\n\nThe end result is a short, team-wide CLAUDE.md with #1, a pointer for #2, #6, the Datadog usage note, and #7. Enforcement goes in settings and hooks, and the rarely used material goes in a skill."
+}

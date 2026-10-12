@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E13-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E13",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15876.8,
+  "duration_ms": 14985,
+  "duration_api_ms": 14735,
+  "cost_usd": 0.04458000000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 1127,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1757,
+   "output_tokens_details": {
+    "thinking_tokens": 142
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 1127,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1757,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 1127,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 1127
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:21.693307+00:00",
+   "end": "2026-10-12T22:14:37.570106+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04458000000000001,
+  "charged_usd": 0.04458000000000001,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Use `%w`, not `%v`\n\n`fmt.Errorf(\"...: %v\", err)` turns the error into a string and drops the chain. Your handler's `errors.Is(err, sql.ErrNoRows)` would then never match. `%w` adds the same context and keeps the error unwrappable, so `errors.Is` and `errors.As` still work.\n\n# Bugs this pass should fix\n\n1. **`GetUser` causes your 404\u2192500 ticket.** `errors.New(\"get user failed\")` discards the original error, so `sql.ErrNoRows` never reaches the handler. Wrapping with `%w` fixes the ticket.\n\n2. **`ListOrders` defers `rows.Close()` before checking `err`.** If the query fails, `rows` is nil and the deferred `Close` panics. Move the defer after the error check.\n\n3. **`ListOrders` drops failed rows silently.** On a scan error it logs and continues, so callers get a partial list with no error. Return the error instead.\n\n4. **`ListOrders` never checks `rows.Err()`.** If the connection drops or the context is cancelled mid-iteration, `rows.Next()` just returns false and you return a truncated result as success.\n\n5. **`UpdateEmail` returns `nil` when the audit insert fails.** This is the worst one: the caller is told the update succeeded, but the transaction is never committed or rolled back. The update is lost and the connection stays held until the tx is garbage-collected or times out. Use `defer tx.Rollback()`. It is a no-op after a successful `Commit`, and it covers every early return.\n\n# Revised code\n\n```go\nfunc (r *Repo) GetUser(ctx context.Context, id int64) (*User, error) {\n    var u User\n    err := r.db.QueryRowContext(ctx, `SELECT id, email, created_at FROM users WHERE id = $1`, id).Scan(&u.ID, &u.Email, &u.CreatedAt)\n    if err != nil {\n        return nil, fmt.Errorf(\"get user %d: %w\", id, err)\n    }\n    return &u, nil\n}\n\nfunc (r *Repo) ListOrders(ctx context.Context, userID int64) ([]Order, error) {\n    rows, err := r.db.QueryContext(ctx, `SELECT id, total_cents FROM orders WHERE user_id = $1`, userID)\n    if err != nil {\n        return nil, fmt.Errorf(\"list orders for user %d: %w\", userID, err)\n    }\n    defer rows.Close()\n\n    var out []Order\n    for rows.Next() {\n        var o Order\n        if err := rows.Scan(&o.ID, &o.TotalCents); err != nil {\n            return nil, fmt.Errorf(\"scan order for user %d: %w\", userID, err)\n        }\n        out = append(out, o)\n    }\n    if err := rows.Err(); err != nil {\n        return nil, fmt.Errorf(\"iterate orders for user %d: %w\", userID, err)\n    }\n    return out, nil\n}\n\nfunc (r *Repo) UpdateEmail(ctx context.Context, id int64, email string) error {\n    tx, err := r.db.BeginTx(ctx, nil)\n    if err != nil {\n        return fmt.Errorf(\"update email: begin tx: %w\", err)\n    }\n    defer tx.Rollback() // no-op after successful Commit\n\n    if _, err := tx.ExecContext(ctx, `UPDATE users SET email = $1 WHERE id = $2`, email, id); err != nil {\n        return fmt.Errorf(\"update email for user %d: %w\", id, err)\n    }\n    if _, err := tx.ExecContext(ctx, `INSERT INTO audit (user_id, action) VALUES ($1, 'email_change')`, id); err != nil {\n        return fmt.Errorf(\"insert audit for user %d: %w\", id, err)\n    }\n    if err := tx.Commit(); err != nil {\n        return fmt.Errorf(\"update email: commit: %w\", err)\n    }\n    return nil\n}\n```\n\n# Other things to consider\n\n- **`UpdateEmail` on a missing user:** the `UPDATE` affects zero rows and succeeds, and you still write an audit row. If that should be a 404, check `RowsAffected()` and return `sql.ErrNoRows`, or your own `ErrNotFound`.\n- **A repo-level sentinel:** returning something like `ErrUserNotFound` instead of leaking `sql.ErrNoRows` keeps the handler from depending on `database/sql`. With `%w` the current approach works, so this is optional.\n- **Scope of the PR:** this is now a behavior change, not just a cleanup. The 404 fix, the panic fix, and the swallowed audit error all change behavior. It's worth saying so in the PR description, and a test for \"missing user \u2192 404\" would close out the ticket nicely."
+}

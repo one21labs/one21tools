@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E12-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E12",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15345.0,
+  "duration_ms": 14550,
+  "duration_api_ms": 14326,
+  "cost_usd": 0.022136,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 886,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1838,
+   "output_tokens_details": {
+    "thinking_tokens": 446
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 886,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1838,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 886,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 886
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:06.347796+00:00",
+   "end": "2026-10-12T22:14:21.692807+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.022136,
+  "charged_usd": 0.022136,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The logs you have already point to two bugs, and one existing line is a security problem.\n\n**What the logs show**\n- `Order done` prints before the items finish, and the order still returns `ok: true`. `forEach(async ...)` doesn't await its callbacks, so the handler returns while the work is still running. In Lambda, the runtime may freeze or kill that work after return, so shipments can be silently dropped.\n- `Error: undefined` happens because `reserveStock` does `throw \\`reserve failed: ...\\`` (a string), so `e.message` is `undefined`. The real failure, probably an inventory non-2xx, was thrown away. That is likely your missing shipment.\n- `logger.debug(JSON.stringify(event))` writes the card number, CVV, and customer PII to CloudWatch whenever debug is enabled. Remove it. Storing CVV at all is a PCI DSS violation. If debug has ever been on in prod, those logs need to be purged and security told.\n\n**Updated handler**\n\n```ts\nexport async function handleOrder(event: OrderEvent) {\n  const started = Date.now();\n  // Never log event.payment or event.customer. Log only non-sensitive fields.\n  logger.info('Processing order', {\n    itemCount: event.items.length,\n    skus: event.items.map((i) => i.sku),\n  });\n\n  let order;\n  try {\n    order = await chargeCard(event.customer, event.payment);\n  } catch (e) {\n    logger.error('chargeCard failed', { err: serializeError(e) });\n    throw e;\n  }\n  const ctx = { orderId: order.id };\n  logger.info('Card charged', ctx);\n\n  const results = await Promise.allSettled(\n    event.items.map(async (item) => {\n      const itemCtx = { ...ctx, sku: item.sku, qty: item.qty };\n      logger.info('Processing item', itemCtx);\n      try {\n        await reserveStock(item.sku, item.qty);\n        logger.info('Stock reserved', itemCtx);\n        await createShipment(order.id, item);\n        logger.info('Shipment created', itemCtx);\n      } catch (e) {\n        logger.error('Item failed', { ...itemCtx, err: serializeError(e) });\n        throw e;\n      }\n    }),\n  );\n\n  const failed = results.filter((r) => r.status === 'rejected').length;\n  logger.info('Order done', {\n    ...ctx,\n    total: results.length,\n    failed,\n    durationMs: Date.now() - started,\n  });\n\n  return { ok: failed === 0 };\n}\n\nfunction serializeError(e: unknown) {\n  if (e instanceof Error) return { name: e.name, message: e.message, stack: e.stack };\n  return { message: String(e) };\n}\n```\n\n**Fix in inventory-client.ts**\n\n```ts\nexport async function reserveStock(sku: string, qty: number) {\n  const res = await fetch(`${INV_URL}/reserve`, {\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: JSON.stringify({ sku, qty }),\n  });\n  if (!res.ok) {\n    const body = await res.text().catch(() => '');\n    throw new Error(`reserve failed: ${res.status} ${body.slice(0, 200)}`);\n  }\n}\n```\n\n**Things to check**\n- **Return value:** `ok` is now `false` if any item failed. Before, it was always `true`. Check that callers and any retry logic handle that.\n- **Charged but unshipped:** the card is charged before stock is reserved, and nothing compensates when reservation fails. Logging helps you see it, but the underlying fix is to reserve first, charge second, or add a refund/retry path for failed items.\n- **Logger signature:** I assumed `logger.info(msg, fields)` is supported. If yours isn't structured (pino, powertools, etc.), adapt the call shape.\n- **Correlation:** if the event or Lambda context has a request ID, add it to every log line so support can search by order or request.\n\nFor the escalated order, the `Error: undefined` line means one of the three items failed. With the old code, you can't tell which item or why. Once this is deployed, the next occurrence will show it."
+}

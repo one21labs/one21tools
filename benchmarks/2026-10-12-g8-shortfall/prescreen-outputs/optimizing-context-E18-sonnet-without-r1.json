@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E18-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E18",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12852.6,
+  "duration_ms": 11977,
+  "duration_api_ms": 11765,
+  "cost_usd": 0.015586000000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 546,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1319,
+   "output_tokens_details": {
+    "thinking_tokens": 468
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 546,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1319,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 546,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 546
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:16:08.684065+00:00",
+   "end": "2026-10-12T22:16:21.536669+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.015586000000000001,
+  "charged_usd": 0.015586000000000001,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Split it into two pieces, and put neither in the root CLAUDE.md.\n\n**1. A short trigger, scoped to the two directories**\n\nCreate a path-scoped rule, e.g. `.claude/rules/security-review.md`, with `paths:` frontmatter matching `services/auth/**` and `services/gateway/**`. It loads only when Claude works on matching files, so the CSS fixer never sees it. Keep it to about 10 lines: the few non-negotiables for those services, plus \"before finishing, run the `security-reviewer` subagent on your diff.\"\n\nNested `services/auth/CLAUDE.md` and `services/gateway/CLAUDE.md` files also work. They load on demand when Claude reads files in those directories. But that means two copies to keep in sync, so one path-scoped rule is easier to maintain.\n\n**2. The 220-line checklist, in a reviewer subagent**\n\nPut the full checklist (auth, session handling, crypto, SSRF) in the system prompt of `.claude/agents/security-reviewer.md`. This fixes the second problem for two reasons:\n\n- **Fresh context:** The subagent hasn't just written the code or talked itself into its design choices, so it isn't anchored to \"this is fine.\"\n- **Context cost:** The checklist only enters the reviewer's context, not the main session.\n\nTo make the reviewer less agreeable:\n- Give it read-only tools (Read, Grep, Glob, `git diff`).\n- Tell it to assume the change is flawed and to report findings per checklist item, each with a file:line citation or an explicit \"not applicable because\u2026\". A bare \"looks good\" shouldn't be an allowed output.\n- Have it return only findings, not a summary of the change.\n\n**Optional hardening**\n- A hook (e.g. on Stop) or a CI check that fails if the diff touches those paths and no review ran. Instructions in prose are advisory; hooks and CI are enforced.\n- Move mechanically checkable items to tooling. Things like \"no outbound requests without the allowlist helper\" or \"no `md5`/`ECB`\" fit Semgrep rules or tests better than prose, and they don't depend on Claude's judgment at all. This will probably shrink the checklist considerably.\n\n**Net result:** root CLAUDE.md gets at most a one-line pointer (or nothing), the path-scoped rule is small and loads only where relevant, and the long checklist lives where an independent reviewer reads it.\n\nI haven't checked the exact frontmatter syntax against current docs, so verify the `paths:` format and the agent file fields before relying on them."
+}

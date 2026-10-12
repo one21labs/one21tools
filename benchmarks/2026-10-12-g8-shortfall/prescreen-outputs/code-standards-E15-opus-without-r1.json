@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E15-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E15",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 26521.4,
+  "duration_ms": 25762,
+  "duration_api_ms": 25536,
+  "cost_usd": 0.059448,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 698,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2672,
+   "output_tokens_details": {
+    "thinking_tokens": 669
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 698,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2672,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 698,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 698
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:38.360396+00:00",
+   "end": "2026-10-12T22:15:04.881836+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.059448,
+  "charged_usd": 0.059448,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Adding `set -x` alone would cause a problem here. Bash would trace the `curl` line with variables expanded, so your `DEPLOY_TOKEN` would be printed in plain text to a log the whole org can read. Below is a version that traces everything except the secret. It also fixes several bugs that are likely causing your silent weekly failures.\n\n```bash\n#!/bin/bash\nset -Eeuo pipefail\n\n# Timestamp + line number on every traced command\nexport PS4='+ [$(date -u +%H:%M:%S)] ${BASH_SOURCE##*/}:${LINENO}: '\ntrap 'echo \"ERROR: line $LINENO exited with status $? running: $BASH_COMMAND\" >&2' ERR\n\nlog() { echo \"[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*\" >&2; }\n\n# Fail fast with a clear message if required inputs are missing\n: \"${WORKSPACE:?WORKSPACE is not set}\"\n: \"${HOST:?HOST is not set}\"\n: \"${RELEASE_ID:?RELEASE_ID is not set}\"\n: \"${DEPLOY_TOKEN:?DEPLOY_TOKEN is not set}\"\n\nset -x\n\nBUILD_DIR=\"$WORKSPACE/build\"\nlog \"Deploying release $RELEASE_ID to $HOST\"\n\ncd \"$WORKSPACE/app\"\n\nlog \"Installing dependencies\"\nnpm ci\n\nlog \"Building\"\nnpm run build 2>&1 | tee build.log\n\nlog \"Copying artifacts to $BUILD_DIR\"\n[ -d dist ] && [ -n \"$(ls -A dist)\" ] || { log \"dist/ is missing or empty\"; exit 1; }\nmkdir -p \"$BUILD_DIR\"\nrm -rf \"${BUILD_DIR:?}\"/*\ncp -r dist/. \"$BUILD_DIR/\"\n\nlog \"Registering release with deploy API\"\n# Disable tracing so the token is never written to the shared log\n{ set +x; } 2>/dev/null\nhttp_status=$(curl -sS -o release_response.json -w '%{http_code}' \\\n  -X POST \\\n  -H \"Authorization: Bearer $DEPLOY_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  --data @release.json \\\n  https://deploy.internal/api/release) || { log \"curl failed (network/transport error)\"; exit 1; }\nset -x\nlog \"Deploy API returned HTTP $http_status\"\nif [ \"$http_status\" -lt 200 ] || [ \"$http_status\" -ge 300 ]; then\n  log \"Deploy API error response:\"; cat release_response.json >&2\n  exit 1\nfi\n\nlog \"Switching release on $HOST\"\nssh -o BatchMode=yes -o ConnectTimeout=15 \"deploy@$HOST\" bash -s <<EOF\nset -euxo pipefail\ncd /srv/app\n./switch.sh \"$RELEASE_ID\"\necho \"done at \\$(date -u)\"\nEOF\n\nlog \"Deployed release $RELEASE_ID\"\n```\n\n## What changed and why\n\n**Keeping the secret out of the log**\n- `{ set +x; } 2>/dev/null` turns tracing off silently around the `curl` call, and `set -x` turns it back on afterwards. Without this, the trace would contain `Authorization: Bearer <actual token>`.\n- Masking by the CI system is not reliable on its own. It often fails to catch secrets once they've been reformatted or split across lines, so it's better never to print them.\n- **If this script has already run with `set -x` on a shared runner, rotate `DEPLOY_TOKEN`.**\n\n**Bugs that could cause silent or confusing failures**\n1. **No `set -e`.** Every step ran even when an earlier one failed. A failed build would go on to deploy stale or empty output.\n2. **`npm run build | tee build.log` hid build failures.** A pipeline's exit status is `tee`'s, which is almost always 0. `pipefail` fixes this.\n3. **`curl -s` hid API failures.** A 401 or 500 response still counted as success, and `-s` also suppressed the error text. The script now captures the HTTP status, fails on anything outside 2xx, and prints the response body.\n4. **`rm -rf $BUILD_DIR/*` was dangerous.** If `WORKSPACE` was unset or empty, it became `rm -rf /build/*`. `set -u`, `${BUILD_DIR:?}`, and quoting prevent that.\n5. **`$(date)` in the heredoc ran on the CI runner, not the remote host.** It's now escaped as `\\$(date)`, so it runs remotely. `$RELEASE_ID` is still expanded locally, which is what you want.\n6. **Remote failures weren't visible.** Your local `set -x` doesn't trace commands on the remote host. The remote `set -euxo pipefail` traces them there and propagates `switch.sh`'s exit code back through `ssh`.\n7. **`ssh` could hang** waiting for a password prompt or an unreachable host. `BatchMode` and `ConnectTimeout` make it fail fast instead.\n\n**Logging additions**\n- `PS4` adds a timestamp and line number to every traced command, so you can see where time went and exactly which line failed.\n- The `ERR` trap prints the failing line, its exit code, and the command.\n- `log` writes timestamped phase markers to stderr, which makes the log easy to scan.\n\n## Two more things to check\n- **`release.json` and `release_response.json`.** I don't print the request, and I only print the response when the call fails. If either can contain secrets, remove the `cat`.\n- **Other secrets that get expanded in commands.** Check for anything like `$NPM_TOKEN` used directly on a command line elsewhere in your pipeline. Any traced command that expands a secret variable will leak it, so wrap those lines with `set +x` too."
+}

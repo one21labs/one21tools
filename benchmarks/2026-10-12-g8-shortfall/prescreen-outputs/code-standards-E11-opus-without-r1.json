@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E11-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 52731.7,
+  "duration_ms": 51121,
+  "duration_api_ms": 50857,
+  "cost_usd": 0.12578299999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2491,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 5287,
+   "output_tokens_details": {
+    "thinking_tokens": 2590
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2491,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5287,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2491,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2491
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:13:48.481508+00:00",
+   "end": "2026-10-12T22:14:41.213270+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.12578299999999998,
+  "charged_usd": 0.12578299999999998,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Don't merge this as cleanup. It has several real bugs, and at least two of them silently drop invoices. Here they are, ordered by how likely each is to explain finance's report.\n\n## Why invoices go missing\n\n**1. No pagination. This is almost certainly the main cause.**\nThe code fetches one page and ignores `next_cursor`. Any night with more than 100 invoices since `since` loses everything past the first 100. The job still logs \"sync complete\" because, from its point of view, it did complete.\n\n**2. Every per-invoice failure is swallowed.**\n`except Exception: log.error('error occurred')` drops the invoice and records neither its ID nor the reason. Likely triggers:\n- **`strptime(..., '%Y-%m-%dT%H:%M:%S')` is very strict.** Any `issued_at` with a `Z`, a UTC offset (`+00:00`), or fractional seconds (`.123`) raises `ValueError`. If the API emits these even occasionally, for example only on invoices created through a particular path, those invoices never land.\n- **`inv['customer']['id']`** raises `TypeError` if `customer` is `null`, as it might be for deleted customers or one-off invoices.\n\n**3. One failed INSERT can poison the whole batch (if this is Postgres).**\nThe `%(name)s` placeholders suggest psycopg. In Postgres, after any statement error, such as a duplicate key from an overlapping `since` window, the transaction is aborted. Every later INSERT then fails with \"current transaction is aborted\", each one logs \"error occurred\", and `commit()` silently becomes a rollback. So one bad row can wipe out the entire night's sync. If you ever see \"error occurred\" many times in a row, this is what happened.\n\n**4. Retry exhaustion isn't handled.**\nIf all 5 attempts return non-200, the loop exits and the code calls `.json()` on the failed response. That either crashes or hits `KeyError: 'invoices'`. Connection errors and timeouts aren't caught at all. There's also no `timeout=`, so a stalled connection can hang the cron job indefinitely.\n\n**5. The job never signals failure.**\nIt returns normally even when invoices were dropped, so cron reports success and nobody gets alerted.\n\n## Other issues\n\n- **API key leak:** `log.info(f'fetching {url}')` writes the API key to your logs in plaintext every night. Having it in the query string also means it can end up in proxy and server access logs, and in `requests` exception messages. Rotate the key once this is fixed. If the API supports header auth, use that instead.\n- **Mutable default `seen=[]`:** this list is shared across calls within a process. It does nothing useful under cron, since each run is a new process, but it would cause wrong skips if the function were ever called twice in one process. It's also O(n) per lookup. The database should handle dedup through the primary key.\n- **`float` for money:** `float(amount) / 100` introduces binary rounding errors. Use `Decimal`, or store integer cents.\n- **Naive datetimes:** even when parsing succeeds, the result has no timezone attached.\n- **`INSERT INTO invoices VALUES (...)` without a column list** breaks or misaligns silently if the table schema changes.\n- **`since` isn't URL-encoded.** A timestamp containing `+` gets decoded as a space. Pass it with `params=`.\n- **Retrying 4xx errors is pointless,** except 429. A 401 or 400 won't fix itself after 31 seconds.\n\n## Suggested rewrite\n\n```python\nimport logging\nimport time\nfrom datetime import datetime\nfrom decimal import Decimal\n\nimport requests\n\nlog = logging.getLogger(__name__)\nAPI = 'https://billing.example.com/v2'\nRETRYABLE = {429, 500, 502, 503, 504}\n\n\ndef _get(session, url, params):\n    for attempt in range(5):\n        try:\n            resp = session.get(url, params=params, timeout=30)\n        except (requests.ConnectionError, requests.Timeout) as e:\n            log.warning('request failed (attempt %d): %s', attempt + 1, type(e).__name__)\n        else:\n            if resp.status_code == 200:\n                return resp.json()\n            if resp.status_code not in RETRYABLE:\n                raise RuntimeError(f'billing API returned HTTP {resp.status_code}')\n            log.warning('HTTP %d (attempt %d)', resp.status_code, attempt + 1)\n        time.sleep(2 ** attempt)\n    raise RuntimeError('billing API unavailable after 5 attempts')\n\n\ndef _parse(inv):\n    return {\n        'id': inv['id'],\n        'amount': Decimal(str(inv['amount'])) / 100,\n        'issued': datetime.fromisoformat(inv['issued_at'].replace('Z', '+00:00')),\n        'customer': inv['customer']['id'],\n    }\n\n\ndef sync_invoices(db, api_key, since):\n    session = requests.Session()\n    params = {'api_key': api_key, 'since': since}\n    log.info('syncing invoices since %s', since)\n    processed = failed = pages = 0\n\n    while True:\n        data = _get(session, f'{API}/invoices', params)\n        pages += 1\n        for inv in data['invoices']:\n            try:\n                row = _parse(inv)\n            except (KeyError, TypeError, ValueError):\n                failed += 1\n                log.exception('could not parse invoice %r', inv.get('id'))\n                continue\n            db.execute(\n                'INSERT INTO invoices (id, amount, issued, customer) '\n                'VALUES (%(id)s, %(amount)s, %(issued)s, %(customer)s) '\n                'ON CONFLICT (id) DO NOTHING',\n                row,\n            )\n            processed += 1\n\n        cursor = data.get('next_cursor')\n        if not cursor:\n            break\n        params['cursor'] = cursor\n\n    db.commit()\n    log.info('sync done: %d pages, %d invoices processed, %d failed', pages, processed, failed)\n    if failed:\n        raise RuntimeError(f'{failed} invoices failed to parse; see log for IDs')\n    return processed\n```\n\nDesign notes:\n- **Parse errors are caught; DB errors are not.** Parse errors are per-row and safe to skip. A DB error aborts the transaction anyway, so it should fail the run loudly rather than be swallowed.\n- **`ON CONFLICT DO NOTHING` makes the sync idempotent.** You can safely use an overlapping `since` window, such as the last run time minus a few hours, to catch late-arriving invoices.\n- **All pages commit in one transaction.** A mid-run crash leaves nothing half-written, and the next run redoes it cleanly.\n- **Raising at the end** happens only after good rows are committed. Make sure the cron wrapper exits non-zero and that someone actually receives the output (e.g. `MAILTO`, or your alerting).\n\n## Things I assumed \u2014 please check\n1. **How the cursor is passed.** I guessed a `cursor` query param alongside `since`. Check the API docs, since some APIs want the cursor alone.\n2. **The `amount` format.** I assumed integer cents (or a string of them). Confirm this, and also confirm that `issued_at` really is ISO 8601. `fromisoformat` handles `Z` natively on Python 3.11+; the `.replace` covers older versions.\n3. **How the caller computes `since`.** If it's \"time of last cron run\" and the API filters on creation time while `issued_at` can be backdated, you can still miss invoices. Persisting a high-water mark, or using an overlap window, is safer.\n4. **Postgres/psycopg and a primary key on `invoices.id`.** `ON CONFLICT` requires a unique constraint.\n\n## Recovering the missing data\nOnce this is deployed, run it once with `since` set to before the job first went live. With `ON CONFLICT DO NOTHING`, that run is safe and will backfill everything that was dropped. The parse-failure log will then tell you exactly which invoices have bad data, if any."
+}
