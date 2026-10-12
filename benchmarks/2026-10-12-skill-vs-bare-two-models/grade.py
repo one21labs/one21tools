@@ -99,11 +99,14 @@ def main():
 
         def grade_one(r):
             ev = EVALS[r["scenario"]]
-            try:
-                v = judge.grade(rubric.skill_grade_prompt(ev["task"], r["response"], ev["expectations"]),
-                                rubric.GRADE_SCHEMA)
-            except (JudgeError, json.JSONDecodeError) as e:
-                return {"error": {"judge": jname, "bid": r["cell"], "error": str(e)}}
+            prompt = rubric.skill_grade_prompt(ev["task"], r["response"], ev["expectations"])
+            for attempt in (1, 2):  # one retry: a malformed reply is a judge hiccup, not a grade
+                try:
+                    v = judge.grade(prompt, rubric.GRADE_SCHEMA)
+                    break
+                except (JudgeError, json.JSONDecodeError) as e:
+                    if attempt == 2:
+                        return {"error": {"judge": jname, "bid": r["cell"], "error": str(e)}}
             m = met_map(v)
             met = {i: bool(m.get(i, False)) for i in range(1, len(ev["expectations"]) + 1)}
             return {"row": {"bid": r["cell"], "skill": r["skill"], "scenario": r["scenario"],
