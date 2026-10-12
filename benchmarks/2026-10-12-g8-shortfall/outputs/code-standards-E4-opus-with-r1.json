@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E4-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E4",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 11006.6,
+  "duration_ms": 10279,
+  "duration_api_ms": 10093,
+  "cost_usd": 0.024145399999999997,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 570,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 937,
+   "output_tokens_details": {
+    "thinking_tokens": 272
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 570,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 937,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 570,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 570
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:20:33.122853+00:00",
+   "end": "2026-10-12T22:20:44.129454+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.024145399999999997,
+  "charged_usd": 0.024145399999999997,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's `price_feed.py`. Malformed lines are now skipped and logged, and the rest of the batch still applies:\n\n```python\n\"\"\"\nprice_feed.py - apply vendor price feed lines to a price table\n\nDESIGN CONSTRAINTS:\n  - A malformed feed line is skipped and logged at WARN; it must never\n    abort the batch. Valid lines are still applied.\n\"\"\"\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef apply_updates(prices, feed_lines):\n    for line_number, line in enumerate(feed_lines, start=1):\n        try:\n            sku, price = line.split(\",\")\n            parsed_price = float(price)\n        except (ValueError, AttributeError) as err:\n            logger.warning(\n                \"Skipping malformed feed line %d: %r (%s)\", line_number, line, err\n            )\n            continue\n        prices[sku] = parsed_price\n    return prices\n```\n\n**What changed**\n- **Per-line `try/except`.** A bad line skips only itself, not the whole batch.\n- **Exceptions caught:**\n  - `ValueError` covers the wrong number of fields (`a,b,c` or no comma) and non-numeric prices.\n  - `AttributeError` covers non-string entries, such as `None`, in the feed.\n- **Warning log for every skipped line.** It includes the line number, the raw content and the error. Bad vendor data shows up in your logs and isn't silently dropped.\n- **`prices` is only written after both parsing steps succeed.** A half-parsed line can't leave a partial update.\n\nNothing else was changed.\n\n**For next sprint, not addressed here**\n- `float()` accepts `nan`, `inf` and negative values. Those will still be written to `prices`.\n- SKUs aren't stripped of whitespace, so `\" ABC\"` and `\"ABC\"` are different keys.\n- You may want a count of skipped lines per batch, or an alert threshold, so a fully corrupt feed doesn't pass quietly as \"0 updates.\""
+}

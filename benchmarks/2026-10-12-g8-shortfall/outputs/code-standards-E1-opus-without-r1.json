@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E1-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 8981.7,
+  "duration_ms": 7926,
+  "duration_api_ms": 7741,
+  "cost_usd": 0.033719,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2188,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 805,
+   "output_tokens_details": {
+    "thinking_tokens": 182
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2188,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 805,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2188,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2188
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:19:22.777733+00:00",
+   "end": "2026-10-12T22:19:31.759422+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.033719,
+  "charged_usd": 0.033719,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "```python\nimport json\nimport time\nimport urllib.request\n\n# old loader, kept for reference\n# def load(f):\n#     return json.loads(open(f).read())\n\ndef ld(p):\n    try:\n        d = json.load(open(p))\n    except:\n        d = {}\n    # get the retries\n    r = d.get(\"retries\", 5)\n    to = d.get(\"timeout\", 30)\n    bo = d.get(\"backoff_seconds\", 0)\n    return r, to, bo\n\ndef snd(u, pl, r, to, bo=0):\n    for i in range(r):\n        try:\n            req = urllib.request.Request(u, data=pl)\n            return urllib.request.urlopen(req, timeout=to).read()\n        except:\n            # wait before the next attempt, but not after the last one\n            if i < r - 1:\n                time.sleep(bo)\n    return None\n```\n\n**Changes:**\n- `ld` reads `backoff_seconds` from the config and returns it as a third value.\n- `snd` takes a new `bo` argument and sleeps that many seconds between failed attempts. It skips the sleep after the final failure so the caller isn't delayed for no reason.\n\n**Defaults:** `backoff_seconds` defaults to `0`, so configs without it behave as before. `bo` also defaults to `0` in `snd`, so existing calls like `snd(u, pl, r, to)` still work.\n\n**One thing to update:** `ld` now returns three values, so any call site doing `r, to = ld(p)` will raise a `ValueError`. Change those calls to `r, to, bo = ld(p)` and pass `bo` to `snd`.\n\nI left the bare `except:` clauses alone to keep the change small. Be aware that the one in `snd` also catches `KeyboardInterrupt`, so Ctrl-C during a long backoff will start the next retry instead of exiting. Switching it to `except Exception:` would fix that if you want it."
+}

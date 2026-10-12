@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E1-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22266.8,
+  "duration_ms": 21291,
+  "duration_api_ms": 21101,
+  "cost_usd": 0.08127680000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4290,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 2342,
+   "output_tokens_details": {
+    "thinking_tokens": 704
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4290,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2342,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4290,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4290
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:19:22.775994+00:00",
+   "end": "2026-10-12T22:19:45.042802+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.08127680000000001,
+  "charged_usd": 0.08127680000000001,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# notifier.py\n\n```python\n\"\"\"\nnotifier.py - HTTP notification delivery with retry and backoff\n\nARCHITECTURE ROLE:\n  Loads delivery settings from a JSON config file and POSTs payloads to a\n  notification endpoint. Does not build payloads or choose endpoints;\n  callers own both.\n\nDESIGN CONSTRAINTS:\n  - A missing, unreadable, or invalid config never crashes the caller.\n    Each bad or missing value falls back to its default with a WARN log.\n  - snd() blocks the calling thread for up to\n    retries * timeout + (retries - 1) * backoff_seconds seconds.\n  - snd() returns None after all attempts fail. Callers must check for it.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\n\n\ndef _read_config_value(config, key, default, minimum):\n    value = config.get(key, default)\n    # bool is a subclass of int, so it is rejected explicitly.\n    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)\n    if not is_number or value < minimum:\n        logger.warning(\n            \"Invalid config value %s=%r (must be a number >= %s); using default %r\",\n            key, value, minimum, default,\n        )\n        return default\n    return value\n\n\ndef ld(config_path):\n    \"\"\"Return (retries, timeout_seconds, backoff_seconds) from a JSON config.\"\"\"\n    try:\n        with open(config_path) as config_file:\n            config = json.load(config_file)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Could not load config %s (%s); using defaults\", config_path, err)\n        config = {}\n\n    if not isinstance(config, dict):\n        logger.warning(\"Config %s is not a JSON object; using defaults\", config_path)\n        config = {}\n\n    retries = int(_read_config_value(config, \"retries\", DEFAULT_RETRIES, minimum=1))\n    timeout_seconds = _read_config_value(config, \"timeout\", DEFAULT_TIMEOUT_SECONDS, minimum=0.001)\n    backoff_seconds = _read_config_value(config, \"backoff_seconds\", DEFAULT_BACKOFF_SECONDS, minimum=0)\n    return retries, timeout_seconds, backoff_seconds\n\n\ndef snd(url, payload, retries, timeout_seconds, backoff_seconds=DEFAULT_BACKOFF_SECONDS):\n    \"\"\"POST payload to url. Return the response body, or None if every attempt fails.\"\"\"\n    for attempt in range(1, retries + 1):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            with urllib.request.urlopen(request, timeout=timeout_seconds) as response:\n                return response.read()\n        except OSError as err:  # covers URLError, HTTPError, and timeouts\n            logger.warning(\n                \"Notification to %s failed (attempt %d/%d): %s\",\n                url, attempt, retries, err,\n            )\n        if attempt < retries:\n            time.sleep(backoff_seconds)\n\n    logger.error(\"Notification to %s failed after %d attempts\", url, retries)\n    return None\n```\n\n## What changed\n\n**The new feature**\n- `ld()` reads `backoff_seconds` from the config. It defaults to `0`, so existing configs behave as before.\n- `snd()` sleeps for `backoff_seconds` between attempts, but not after the last one.\n\n**Breaking change to check**\n- `ld()` now returns three values instead of two. Any caller doing `r, to = ld(p)` must change to `r, to, backoff = ld(p)`.\n- `snd()` takes `backoff_seconds` as an optional last argument, so existing `snd(...)` calls still work.\n\n**Fixes made along the way**\n- **Bare `except:` removed.** It hid every failure, including `KeyboardInterrupt` and programming errors. The code now catches `OSError` for network failures and `OSError`/`JSONDecodeError` for config loading, and logs each one.\n- **Config values are validated.** Before, a value like `\"retries\": \"3\"` or `-1` would crash or silently skip all attempts. Now an invalid value falls back to its default and logs a warning.\n- **File handles are closed.** The config file and the HTTP response are now opened with `with`, so they no longer leak.\n- **Dead code removed.** The commented-out `load()` is gone; version control is the place to keep old code.\n- Defaults are now named constants, and a module header was added.\n\nI kept the public names `ld` and `snd` so imports don't break. If you can update the callers, I'd suggest renaming them to `notifier_load_config` and `notifier_send`."
+}

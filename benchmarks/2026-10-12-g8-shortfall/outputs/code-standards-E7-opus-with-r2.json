@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E7-opus-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14566.1,
+  "duration_ms": 13651,
+  "duration_api_ms": 13385,
+  "cost_usd": 0.026109,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4905,
+   "output_tokens": 1256,
+   "output_tokens_details": {
+    "thinking_tokens": 409
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1256,
+     "cache_read_input_tokens": 4905,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:21:29.677171+00:00",
+   "end": "2026-10-12T22:21:44.243330+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.026109,
+  "charged_usd": 0.026109,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the rename, with behavior unchanged:\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef f(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        response_body = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, response_body)\n        return response_body['access_token']\n    except Exception:\n        return None\n```\n\nI left the function name `f` because renaming it would break your callers. Renaming the parameters only matters if some caller passes `h=` or `t=` by keyword. The call you showed is positional, so it's fine.\n\n**However, the names aren't the only problem, and one issue is urgent:**\n\n1. **The service password and access token go into company-wide logs.** The `log.info` line logs `password` and the full response body, which includes `access_token`, on every successful call. It runs once a minute and ships to a shared Datadog index anyone can search. That has probably been happening for a year. I'd do this now:\n   - Rotate the `svc_pass` credential and revoke any outstanding tokens.\n   - Change the line to `log.info('auth ok for %s', username)`.\n   - Ask whoever owns Datadog about purging or restricting the existing log entries.\n\n2. **The mutable default argument leaks memory in a long-running worker.** `header_lines=[]` is created once, so every call appends another `'X-Client: billing-sync'` to the same list. At once a minute, that's about 525k entries a year, and every call re-splits all of them to build the headers dict. It's slow growth in memory and CPU that only resets when the worker restarts. The fix is `header_lines=None`, then `header_lines = list(header_lines or []) + ['X-Client: billing-sync']`.\n\n3. **`except Exception: return None` hides every failure.** Wrong password, auth service down, a bad JSON response, and a missing `access_token` all look the same to the caller (\"retry later\"), and nothing is logged. At minimum, add `log.warning('auth failed for %s', username, exc_info=True)`. Don't include the password.\n\nYou asked for names only, so I didn't apply any of these fixes. I do think #1 should go in today rather than wait for a tidy-up. I'm happy to send a version with all three fixed if you want it."
+}

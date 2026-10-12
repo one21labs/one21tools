@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E7-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12248.5,
+  "duration_ms": 11595,
+  "duration_api_ms": 11362,
+  "cost_usd": 0.0263872,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 718,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1011,
+   "output_tokens_details": {
+    "thinking_tokens": 128
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 718,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1011,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 718,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 718
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:21:30.117071+00:00",
+   "end": "2026-10-12T22:21:42.365551+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0263872,
+  "charged_usd": 0.0263872,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the rename only, with behavior unchanged:\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef fetch_auth_token(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        response_data = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, response_data)\n        return response_data['access_token']\n    except Exception:\n        return None\n```\n\nYou'll need to update callers from `f(...)` to `fetch_auth_token(...)`. Any caller passing `u=`, `p=`, `h=`, or `t=` as keywords will also need updating.\n\n**However, the names aren't the only problem, and one issue is urgent:**\n\n1. **The service password and access token are being logged to a company-wide searchable index.** The `log.info` line writes `password` and the full response (including `access_token`) to Datadog about once a minute. Anyone who can search those logs can likely see the billing-sync credentials, and may have been able to for a year. I'd treat that credential as compromised: rotate it, remove the line or log only the username, and consider purging or restricting the existing log entries.\n\n2. **The mutable default `header_lines=[]` grows forever.** The same list is reused on every call, so another `'X-Client: billing-sync'` gets appended each minute. That's roughly 500k entries a year in a long-running worker. The resulting header dict is still correct because duplicate keys collapse, which is probably why nobody noticed. But it's a slow memory leak, and it rebuilds an ever-larger dict on every call. The usual fix is `header_lines=None` and then `header_lines = list(header_lines or [])` inside the function.\n\n3. **`except Exception: return None` hides everything.** Bad credentials, a 500 from the auth service, a JSON parse error, and a missing `access_token` key all look the same as a transient failure, so the worker just keeps retrying silently. Logging the exception type and the response status, but not the body, would make failures diagnosable. Also, there's no `response.raise_for_status()`, so error responses only fail indirectly through the `KeyError`.\n\nI've left all of these unchanged as you asked. I'd strongly recommend at least fixing #1 and rotating the password before pasting this back in. I'm happy to give you a version with those fixes that keeps the same return contract (token or `None`), so callers don't need to change."
+}

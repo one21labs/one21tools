@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E3-opus-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 69747.3,
+  "duration_ms": 68884,
+  "duration_api_ms": 68666,
+  "cost_usd": 0.1582856,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4888,
+   "output_tokens": 7865,
+   "output_tokens_details": {
+    "thinking_tokens": 4416
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7865,
+     "cache_read_input_tokens": 4888,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:19:31.759910+00:00",
+   "end": "2026-10-12T22:20:41.507220+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1582856,
+  "charged_usd": 0.1582856,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The rewrite emits one JSON log line per event to stderr. Every line about a record carries the correlation ID `<run_id>:<line_no>`, so grepping for that ID shows the record's whole path through both modules. Per-record success logs at `DEBUG` so `INFO` stays readable with thousands of records. Each failure logs at `WARN` or `ERROR` with enough context to diagnose it.\n\n### ingest.py\n\n```python\n\"\"\"\ningest.py - JSONL ingestion entry point\n\nARCHITECTURE ROLE:\n    Reads input records, delegates enrichment to enrich.py, persists results.\n    Owns logging configuration for the pipeline; enrich.py only emits.\n\nDESIGN CONSTRAINTS:\n    - One bad record never aborts the run: per-record failures are logged\n      and counted. Only an unreadable input or unwritable output is fatal,\n      since every later record would fail the same way.\n    - Every log line about a record carries correlation_id\n      \"<run_id>:<line_no>\"; grepping it yields that record's full path\n      across both modules.\n    - Per-record success logs at DEBUG so INFO stays usable at volume.\n      Set LOG_LEVEL=DEBUG to trace every record.\n    - Record contents are never logged, only identifiers and the fields\n      needed to explain a decision.\n\nSEE ALSO:\n    enrich.py - region-to-zone enrichment\n\"\"\"\nimport json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\nfrom datetime import datetime, timezone\n\nfrom enrich import enrich_record\n\nOUTPUT_PATH = \"out.jsonl\"\nLOG_LEVEL_ENV_VAR = \"LOG_LEVEL\"\nDEFAULT_LOG_LEVEL = \"INFO\"\nRUN_ID_HEX_CHARS = 12\n\nlog = logging.getLogger(\"ingest\")\n\n\nclass JsonLogFormatter(logging.Formatter):\n    def format(self, record):\n        entry = {\n            \"timestamp\": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"correlation_id\": getattr(record, \"correlation_id\", None),\n            \"message\": record.getMessage(),\n            \"context\": getattr(record, \"context\", {}),\n        }\n        if record.exc_info:\n            entry[\"exception\"] = self.formatException(record.exc_info)\n        return json.dumps(entry, default=str)\n\n\ndef configure_logging():\n    handler = logging.StreamHandler(sys.stderr)\n    handler.setFormatter(JsonLogFormatter())\n    root = logging.getLogger()\n    root.handlers[:] = [handler]\n\n    requested = os.environ.get(LOG_LEVEL_ENV_VAR, DEFAULT_LOG_LEVEL).upper()\n    level = logging.getLevelName(requested)\n    if isinstance(level, int):\n        root.setLevel(level)\n    else:\n        root.setLevel(DEFAULT_LOG_LEVEL)\n        log.warning(\"Unknown log level; using default\", extra={\n            \"context\": {\"requested\": requested, \"default\": DEFAULT_LOG_LEVEL}})\n\n\ndef run(path, output_path=OUTPUT_PATH):\n    run_id = uuid.uuid4().hex[:RUN_ID_HEX_CHARS]\n    counts = {\"read\": 0, \"saved\": 0, \"skipped\": 0, \"failed\": 0}\n    started = time.monotonic()\n    log.info(\"Run started\", extra={\n        \"correlation_id\": run_id,\n        \"context\": {\"input\": path, \"output\": output_path}})\n\n    try:\n        # Binary read so a bad byte sequence fails one line in json.loads\n        # instead of killing the iterator for the rest of the file.\n        with open(path, \"rb\") as source, open(output_path, \"a\", encoding=\"utf-8\") as sink:\n            for line_no, raw in enumerate(source, start=1):\n                correlation_id = f\"{run_id}:{line_no}\"\n                if not raw.strip():\n                    log.debug(\"Blank line ignored\", extra={\"correlation_id\": correlation_id})\n                    continue\n                counts[\"read\"] += 1\n                counts[process_line(raw, correlation_id, sink)] += 1\n    except OSError:\n        log.error(\"Run aborted: input or output file I/O failed\", exc_info=True, extra={\n            \"correlation_id\": run_id,\n            \"context\": {\"input\": path, \"output\": output_path, **counts}})\n        raise\n\n    summary_level = logging.WARNING if counts[\"failed\"] else logging.INFO\n    log.log(summary_level, \"Run finished\", extra={\n        \"correlation_id\": run_id,\n        \"context\": {**counts, \"duration_s\": round(time.monotonic() - started, 3)}})\n    return counts\n\n\ndef process_line(raw, correlation_id, sink):\n    \"\"\"Return the outcome bucket for one line: \"saved\", \"skipped\", or \"failed\".\"\"\"\n    try:\n        rec = json.loads(raw)\n    except ValueError as err:\n        log.error(\"Malformed input line\", extra={\n            \"correlation_id\": correlation_id,\n            \"context\": {\"error\": str(err), \"line_bytes\": len(raw)}})\n        return \"failed\"\n\n    context = {\"record_id\": rec.get(\"id\") if isinstance(rec, dict) else None}\n\n    # Broad catch: a defect in enrich.py should cost one record, not the\n    # run. The traceback is logged, so nothing is lost for diagnosis.\n    try:\n        enriched = enrich_record(rec, correlation_id)\n    except Exception:\n        log.error(\"Enrichment raised unexpectedly\", exc_info=True, extra={\n            \"correlation_id\": correlation_id, \"context\": context})\n        return \"failed\"\n\n    if enriched is None:\n        return \"skipped\"  # enrich_record logged the reason\n\n    try:\n        save(enriched, sink)\n    except OSError:\n        log.error(\"Failed to write record\", exc_info=True, extra={\n            \"correlation_id\": correlation_id, \"context\": context})\n        raise\n\n    log.debug(\"Record saved\", extra={\"correlation_id\": correlation_id, \"context\": context})\n    return \"saved\"\n\n\ndef save(rec, sink):\n    sink.write(json.dumps(rec) + \"\\n\")\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    if len(sys.argv) != 2:\n        log.error(\"Usage: python ingest.py <input.jsonl>\", extra={\"context\": {\"argv\": sys.argv}})\n        sys.exit(2)\n    run(sys.argv[1])\n```\n\n### enrich.py\n\n```python\n\"\"\"\nenrich.py - region-to-zone enrichment\n\nARCHITECTURE ROLE:\n    Pure transformation of a single record. No I/O and no logging\n    configuration; the caller owns handlers and levels.\n\nDESIGN CONSTRAINTS:\n    - Returns a new dict; the input record is never mutated.\n    - Returns None for records that cannot be enriched, after logging the\n      reason at WARN. Callers treat None as \"skip\", not as an error.\n    - correlation_id comes from the caller so these logs join the caller's\n      trace of the same record.\n\nUSED BY:\n    ingest.py\n\"\"\"\nimport logging\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\nMAX_LOGGED_VALUE_CHARS = 64\n\nlog = logging.getLogger(\"enrich\")\n\n\ndef enrich_record(rec, correlation_id=None):\n    if not isinstance(rec, dict):\n        _log_skip(\"Record is not a JSON object\", correlation_id,\n                  {\"record_type\": type(rec).__name__})\n        return None\n\n    record_id = rec.get(\"id\")\n    region = rec.get(\"region\")\n    if not isinstance(region, str):\n        _log_skip(\"Missing or non-string region\", correlation_id, {\n            \"record_id\": record_id,\n            \"has_region\": \"region\" in rec,\n            \"region_type\": type(region).__name__})\n        return None\n\n    zone = GEO.get(region)\n    if zone is None:\n        _log_skip(\"Unknown region\", correlation_id, {\n            \"record_id\": record_id,\n            \"region\": region[:MAX_LOGGED_VALUE_CHARS],\n            \"known_regions\": sorted(GEO)})\n        return None\n\n    log.debug(\"Record enriched\", extra={\n        \"correlation_id\": correlation_id,\n        \"context\": {\"record_id\": record_id, \"region\": region, \"zone\": zone}})\n    return {**rec, \"zone\": zone}\n\n\ndef _log_skip(reason, correlation_id, context):\n    log.warning(\"Record skipped: %s\", reason, extra={\n        \"correlation_id\": correlation_id, \"context\": context})\n```\n\n### Notes for on-call\n- **Tracing a record:** Search for its correlation ID (`<run_id>:<line_no>`). If you only know the business ID, search for `\"record_id\": \"<id>\"` and then pivot to that line's correlation ID.\n- **Run triage:** Every run starts with `Run started` and ends with `Run finished`, which reports read/saved/skipped/failed counts and the duration. The finish line logs at `WARN` if any record failed. An `ERROR` saying `Run aborted` means the input or output file broke and the counts show how far the run got.\n- **Levels:** Skipped records (expected data problems) log at `WARN`. Failed records (malformed JSON, enrichment bugs, write errors) log at `ERROR`, with a traceback where one exists.\n\n### Behavior changes\n- **No crash on missing region:** A record without `\"region\"` used to raise `KeyError` and kill the whole run. It is now skipped with a `WARN`. Non-object JSON and non-string regions are handled the same way.\n- **Output file opened once:** `out.jsonl` is opened once per run instead of once per record. A write failure is now fatal. It is still logged with the failing record's correlation ID first, so you can see where it stopped.\n- **No mutation:** `enrich_record` returns a new dict instead of changing the input. It also takes an optional `correlation_id`, so existing calls still work.\n- **New return value and entry point:** `run()` now returns the counts, and the module has a `__main__` entry point that sets up logging. If you import `run` from elsewhere, call `configure_logging()` yourself or attach your own handler."
+}

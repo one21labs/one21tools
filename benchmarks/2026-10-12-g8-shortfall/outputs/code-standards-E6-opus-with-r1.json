@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E6-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E6",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 20290.7,
+  "duration_ms": 19593,
+  "duration_api_ms": 19338,
+  "cost_usd": 0.0480814,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 692,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 2085,
+   "output_tokens_details": {
+    "thinking_tokens": 641
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 692,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2085,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 692,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 692
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:21:09.385926+00:00",
+   "end": "2026-10-12T22:21:29.676671+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0480814,
+  "charged_usd": 0.0480814,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's `user_store.py`. The three existing functions are unchanged. The new function follows the module's conventions (same signature shape, `select *`, a 50-row cap, and `[]` on database failure), but it doesn't copy the bare `except:` or silent failure.\n\n```python\n\"\"\"\nuser_store.py - SQLite queries for the users table\n\nARCHITECTURE ROLE:\n  Thin query layer over a caller-supplied sqlite3 connection.\n  Does not own connection lifecycle or schema creation.\n\nDESIGN CONSTRAINTS:\n  - List queries cap results at USER_PAGE_SIZE rows.\n  - List queries return [] on database failure; callers cannot\n    distinguish \"no matches\" from \"query failed\" except via logs.\n\"\"\"\n\nimport logging\nimport sqlite3\n\nlogger = logging.getLogger(__name__)\n\nUSER_PAGE_SIZE = 50\nLIKE_ESCAPE_CHAR = \"\\\\\"\n\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []\n\ndef _escape_like(value):\n    return (\n        value.replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)\n        .replace(\"%\", LIKE_ESCAPE_CHAR + \"%\")\n        .replace(\"_\", LIKE_ESCAPE_CHAR + \"_\")\n    )\n\ndef find_users_by_domain(db, domain):\n    if not isinstance(domain, str):\n        raise ValueError(f\"domain must be a str, got {type(domain).__name__}\")\n    normalized_domain = domain.strip().lstrip(\"@\")\n    if not normalized_domain or \"@\" in normalized_domain:\n        raise ValueError(f\"invalid email domain: {domain!r}\")\n\n    # Escape LIKE wildcards so a domain like \"a_b.com\" can't match \"axb.com\".\n    # SQLite LIKE is ASCII case-insensitive, which suits email domains.\n    pattern = \"%@\" + _escape_like(normalized_domain)\n    try:\n        return db.execute(\n            \"select * from users where email like ? escape ? \"\n            \"order by created desc limit ?\",\n            (pattern, LIKE_ESCAPE_CHAR, USER_PAGE_SIZE),\n        ).fetchall()\n    except sqlite3.Error as err:\n        logger.error(\n            \"find_users_by_domain failed: domain=%r error=%s\", normalized_domain, err\n        )\n        return []\n```\n\nHow the new function differs from the existing ones:\n\n- **Input validation.** A non-string, empty, or `@`-containing domain raises `ValueError` instead of running a query that can't be meaningful. A leading `@` is tolerated, so `\"@example.com\"` works the same as `\"example.com\"`.\n- **Wildcard escaping.** Without it, `%` or `_` in the domain would act as LIKE wildcards and match the wrong users.\n- **Narrow exception plus logging.** It catches `sqlite3.Error` only, so programming bugs aren't swallowed, and logs the domain and error. The `[]`-on-failure return value matches the module's contract, so callers don't need to change.\n- **`order by created desc`.** Without an `ORDER BY`, a `LIMIT 50` returns an arbitrary 50 rows. I matched `recent_users`. Change it if you'd prefer a different order.\n- **`USER_PAGE_SIZE` constant.** The new query uses it. The other two still hard-code `50`, so the page size now lives in two places. Switching them to the constant is a two-token change you might want later.\n\nNot changed, but worth a separate ticket: the bare `except:` in the existing three functions also catches things like `KeyboardInterrupt` and typos in the code, and fails without any trace. `add_user` also prints `\"ok\"` to stdout on every insert."
+}
