@@ -9,7 +9,8 @@ sibling dated dir (those are frozen measurement records, ADR 0041). The shape yo
   - resumable outputs: an existing non-error cell file is skipped on re-run
   - --pilot mode + cost gate + spend backstop: cost-pilot-first, the grid never runs ungated;
     the backstop reserves each call's estimate BEFORE launch, so concurrent calls cannot jointly
-    pass the cap on their estimates; a call costing more than its estimate still can. Exit is nonzero only for a halt or refusal (an ERROR cell re-runs, it is not a halt)
+    pass the cap on their estimates; a call costing more than its estimate still can. Exit is
+    nonzero only for a halt or refusal (an ERROR cell re-runs, it is not a halt)
   - artifact capture for EVERY arm, never pre-existing corpus files (#185 lesson, #191)
   - an infrastructure failure records an ERROR cell (resumable), never a quality 0 (#191)
 """

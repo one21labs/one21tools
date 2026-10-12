@@ -3,7 +3,7 @@ id: 0101
 title: "#317 expectation coupling: confirmed; claims scoped to own expectations, executable outcomes piloted on code-standards"
 status: accepted
 tier: lite
-summary: "The pre-registered split fired: +0.37 on evals written with the skill in view, +0.04 on new blind ones. Claims now read 'beats bare against the skill's own expectations'; evals stay blind-authored with the split reported per batch; executable outcomes are piloted for code-standards first."
+summary: "The pre-registered provenance split fired (evals written with the skill in view score far above new blind ones). Claims now read 'beats bare against the skill's own expectations'; evals stay blind-authored with the split reported per batch; executable outcomes are piloted for code-standards first."
 ---
 
 # 0101 — expectation coupling: scope the claims, pilot executable outcomes

@@ -3,7 +3,7 @@ id: 0100
 title: "G<8 shortfall (#322): author one more blind round, then retire whatever still falls short"
 status: accepted
 tier: lite
-summary: "ADR 0095 trigger 2 fired for 4 (skill, model) pairs. Author blind tasks once more for code-standards, optimizing-context, and building-skills on Sonnet, and run a fresh grid. Pre-registered stop: any pair still below G=8 afterwards loses its measured claim, with no third authoring round."
+summary: "ADR 0095 trigger 2 fired for 5 (skill, model) pairs. Author blind tasks once more for code-standards, optimizing-context, and building-skills on Sonnet, and run a fresh grid. Pre-registered stop: any pair still below G=8 afterwards loses its measured claim, with no third authoring round."
 ---
 
 # 0100 — G<8 shortfall: author once, then retire
