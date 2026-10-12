@@ -1,26 +1,25 @@
 ---
 id: 0101
-title: "#317 expectation coupling: blind authoring by default, every batch reports a provenance split; no task-value instrument yet"
+title: "#317 expectation coupling: confirmed; claims scoped to own expectations, executable outcomes piloted on code-standards"
 status: accepted
 tier: lite
-summary: "On 12-Oct data the skill effect is +0.31 on the original evals versus +0.04 on blind-authored ones, so the coupling is plausibly real. Decision: new evals are blind-authored, and each batch reports the delta split by provenance as a pre-registered secondary next to the overlap number. Executable task-value outcomes wait on the confirmatory split."
+summary: "The pre-registered split fired: +0.37 on evals written with the skill in view, +0.04 on new blind ones. Claims now read 'beats bare against the skill's own expectations'; evals stay blind-authored with the split reported per batch; executable outcomes are piloted for code-standards first."
 ---
 
-# 0101 — expectation coupling: measure the split, defer the rebuild
+# 0101 — expectation coupling: scope the claims, pilot executable outcomes
 
-- Decision: (1) every new eval is authored blind, by a lane that sees only the skill's public
-  description; (2) every batch reports the (with - without) delta split by eval provenance
-  (original vs blind) as a pre-registered secondary, alongside overlap.json; (3) no
-  executable task-value outcome is built yet. The 2026-10-12-g8-shortfall batch is the
-  confirmatory test.
-- Why: post hoc on the 12-Oct grid, original ids 1-6 gave a delta of +0.31 (bare 0.49, n=39
-  eval-model pairs) and blind ids 7-10 gave +0.04 (bare 0.78, n=18). With the skill, both groups
-  reached about 0.81. Normalized for headroom, that is 0.62 vs 0.17. Difficulty and provenance are
-  confounded, so this is a lead, not a verdict.
-- Rejected: building task-value outcomes now. That rewrites every eval and the judge before the
-  split is confirmed. A gate on trigram overlap: that number is a floor, and a gate on it would
-  certify paraphrase-coupled sets as clean.
-- Reopen-if: in the confirmatory batch, the delta CI on the NEW blind ids (11+) excludes the
-  original-id point estimate (ids 7-10 made the lead, so cannot confirm it). Then the
-  original-eval KEEPs are suspect and task-value outcomes get decided next; #317 stays open.
-- Enforced: `benchmarks/2026-10-12-g8-shortfall/metadata.json` (secondary metric)
+- Decision: (1) new evals are blind-authored; every batch reports the delta split by eval
+  provenance next to overlap.json; (2) a KEEP reads "beats bare against the skill's own
+  expectations" (README measured block); (3) pilot executable outcomes (seeded defects or hidden
+  tests, a script grader) for code-standards; building-skills (validate.py + trigger eval)
+  only after the pilot discriminates; doctrine skills stay rubric-graded.
+- Why: 2026-10-12-g8-shortfall, pre-registered: original +0.366 [+0.228, +0.503] (bare 0.45),
+  new blind +0.040 [-0.028, +0.108] (bare 0.82). Provenance and difficulty are confounded; a
+  script grader is immune to reading (1) either way. Panel (adopter, economist, lean,
+  operator) converged.
+- Rejected: a difficulty-matched blind re-author (30 of 35 blind tasks saturated; matching
+  selects on bare outcomes; either answer leads to the same build). Retiring claims for a
+  smaller blind lift (no headroom is not no value). A trigram-overlap gate (a floor).
+- Reopen-if: the pilot's bare pass rate is >= 0.85 on 70% of drafted tasks, or its delta CI
+  includes 0 at G>=8 -> stop building, keep (2). A CI excluding 0 -> upgrade the claim.
+- Enforced: `README.md` (measured block); `benchmarks/2026-10-12-g8-shortfall/aggregate.py`
