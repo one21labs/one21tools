@@ -44,8 +44,8 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
 - `--evals`: JSON list of `{id, task, expectations:[...]}`. Arms differ ONLY in skill loading (arm
   symmetry) — the task is appended as the final CLI arg. Arms run from an empty temp dir, so every
   path in `--with-cmd`/`--without-cmd` must be absolute. Both arms still see your installed
-  plugins and user skills: lock them down per the hermetic-executor rule in
-  [empirical-evals.md](references/empirical-evals.md), or the result is a confounded null.
+  plugins and user skills: point both at a credentials-only `CLAUDE_CONFIG_DIR` and load the
+  skill in the with-arm via `--append-system-prompt`, or the result is a confounded null.
 - Prints a cost estimate and **refuses to spend without `--yes`** (spend guard).
 - `--substrate` selects the generation runner; see [substrate.md](references/substrate.md).
 - `--reps` (default 3): generations per task x arm — a single pass cannot separate reliably-good
