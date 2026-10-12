@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E1-sonnet-with-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 27625.5,
+  "duration_ms": 26858,
+  "duration_api_ms": 26622,
+  "cost_usd": 0.0448084,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 3290,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 3159,
+   "output_tokens_details": {
+    "thinking_tokens": 304
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 3290,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3159,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 3290,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 3290
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:39:06.709720+00:00",
+   "end": "2026-10-12T19:39:34.335238+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0448084
+ },
+ "response": "I haven't written `rca.md`, because you asked me not to use tools. The full document is below, ready to save as-is.\n\n---\n\n# Post-Incident Analysis: Empty Customer Export Delivered to Client\n\n**Date of analysis:** 2026-10-12\n**Status:** Third occurrence in two months\n**Severity:** Client-facing data-quality failure, detected by the client rather than by us\n\n## 1. Summary\n\nThe nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. No alert fired. The client noticed first.\n\nThis is the third time in two months with the same outcome and different triggers:\n\n| # | Trigger | Outcome |\n|---|---------|---------|\n| 1 | Schema rename | Empty file, exit 0, no alert, client noticed |\n| 2 | Expired credential, swallowed by the job | Empty file, exit 0, no alert, client noticed |\n| 3 | Export SQL query changed without the manual verification step | Empty file, exit 0, no alert, client noticed |\n\n## 2. Impact\n\n- An empty file was delivered to a client three times.\n- The client, not our monitoring, detected the failures each time.\n- Trust damage compounds with each recurrence.\n- Each incident cost an unplanned investigation and remediation.\n\n*(Add: client names, duration of each outage, and re-delivery times if known.)*\n\n## 3. Timeline (this incident)\n\n- An engineer (Priya) modified the export SQL query.\n- The documented manual check was not run: \"after changing the query, run it once by hand and eyeball the row count.\"\n- The nightly job ran, wrote zero rows, and exited 0.\n- Monitoring saw exit code 0 and reported healthy.\n- The empty file was delivered.\n- The client reported the problem.\n\n*(Add timestamps.)*\n\n## 4. Root Cause Analysis\n\n### Why did the client receive an empty file?\nThe job produced one, and nothing between production and delivery checked it.\n\n### Why did nothing check it?\n- **The job treats zero rows as success.** It exits 0 regardless of output content.\n- **Monitoring checks only the exit code.** It cannot see the difference between a good run and an empty one.\n- **There is no delivery gate.** Files are shipped without validation.\n\n### Why did the empty output happen this time?\nA query change was not verified. The only safeguard was a manual wiki step that depends on memory and on knowing the step exists.\n\n### Why does the same outcome keep recurring with different triggers?\nThis is the central finding. The triggers (schema rename, expired credential, unverified query change) are different, but they all lead to the same failure mode: **the system cannot distinguish \"ran successfully\" from \"produced valid output.\"** Fixing each trigger in turn, as we have been doing, leaves the underlying gap open, so the next novel trigger will produce the same result.\n\n### Root cause\nThe success criterion for the job and its monitoring is \"the process didn't crash\" rather than \"the process produced correct, non-empty output.\" Every incident passes through that gap.\n\n### Contributing factors\n1. **Reliance on a manual, undocumented-in-code control.** The verification step lives in the wiki, not in the pipeline. It is not enforced, and \"eyeball the row count\" is subjective.\n2. **Swallowed errors.** The expired-credential case shows the job hides failures instead of surfacing them.\n3. **No schema or contract checks.** A rename silently produced an empty result instead of failing.\n4. **Onboarding gap.** Someone who joined six weeks ago was able to change a production query with no automated safety net. This is a system weakness, not an individual failing. Any engineer, including an experienced one, could skip a manual step under time pressure.\n5. **Lack of learning from recurrence.** After incidents 1 and 2, the fixes addressed the specific trigger rather than the shared failure mode.\n\n### What is *not* the root cause\nPriya skipping the manual check was the trigger, not the cause. A control that depends on someone remembering to run it will eventually be missed. Blame-focused remediation (a reminder, a warning) would not have prevented incidents 1 or 2 and will not prevent the next one.\n\n## 5. Corrective Actions\n\nOrdered by impact. The first three close the shared failure mode and should be done first.\n\n### Priority 1: Make the job fail on bad output (stop the line)\n- **Fail on zero rows.** The job exits non-zero if the row count is 0, unless an explicit, documented \"empty is valid\" flag is set for that export.\n- **Stop swallowing errors.** Remove catch-and-continue around credential and connection failures. Authentication errors must propagate to a non-zero exit.\n- **Validate before writing the final file.** Write to a temporary location, validate, then promote. A failed run never leaves a deliverable file behind.\n\n### Priority 2: Add a delivery gate\n- Delivery is a separate step that runs only if output validation passes.\n- Minimum checks: row count > 0, file size above a threshold, expected columns present, and row count within a tolerance band of recent runs (e.g., not below X% of the trailing 7-day median).\n- On gate failure: do not deliver, and page the owning team.\n\n### Priority 3: Monitor outcomes, not just process health\n- Emit metrics per run: row count, file size, duration, and delivery status.\n- Alert on row count of 0, on large deviation from baseline, and on missing or late runs.\n- Keep the exit-code check, but treat it as necessary rather than sufficient.\n\n### Priority 4: Replace the manual step with automation\n- Add a CI check for query changes that runs the query against a test or staging dataset and asserts non-empty output with the expected schema.\n- Keep the wiki step as background context only. Do not rely on it as the control.\n\n### Priority 5: Catch upstream changes earlier\n- Add a schema or contract check at job start that verifies required tables and columns exist, so a rename fails loudly with a clear message.\n- Add a credential-expiry check or alert ahead of the actual expiry date.\n\n### Priority 6: Process and learning\n- Add \"does this failure mode have output validation, not just exit-code monitoring?\" to the review checklist for any data job.\n- Audit other scheduled exports for the same pattern (exit 0 on empty output, exit-code-only monitoring). The same gap likely exists elsewhere.\n- Include query-change workflow and the CI check in onboarding.\n- When an incident recurs, require the review to ask what the earlier incidents had in common, not only what triggered this one.\n\n## 6. Action Items\n\n| # | Action | Owner | Due |\n|---|--------|-------|-----|\n| 1 | Fail job on zero rows; stop swallowing errors | TBD | TBD |\n| 2 | Temp-file-then-promote output with validation | TBD | TBD |\n| 3 | Delivery gate with row count, size, schema, baseline checks | TBD | TBD |\n| 4 | Output metrics and alerts (zero rows, deviation, missing run) | TBD | TBD |\n| 5 | CI check for query changes | TBD | TBD |\n| 6 | Startup schema and credential checks | TBD | TBD |\n| 7 | Audit other exports for the same pattern | TBD | TBD |\n| 8 | Update onboarding and review checklist | TBD | TBD |\n| 9 | Client communication and re-delivery for this incident | TBD | TBD |\n\n## 7. Verification (how we'll know it worked)\n\n**Prediction:** After items 1\u20134 are in place, an empty or anomalous export is blocked before delivery and alerts us, with no client-reported empty files.\n\n**Checks:**\n- Deliberately reproduce each of the three triggers in staging (rename a column, expire a credential, break the query) and confirm each one blocks delivery and alerts.\n- Track the number of client-reported data-quality issues over the next 90 days. The target is zero.\n- Track time-to-detection for any caught failure. The target is that we detect it before the client does.\n\nIf any reproduction still delivers an empty file, the fix is incomplete and this analysis should be reopened.\n\n## 8. Lessons Learned\n\n- Exit code 0 means the process finished, not that the output is correct.\n- A control that relies on human memory will eventually fail, so automate the checks that matter.\n- When incidents share an outcome but not a trigger, look for the shared gap rather than fixing each trigger separately.\n- The new engineer exposed the weakness; they did not create it.\n\n---\n\nFill in the owners, due dates, timestamps, and client details before circulating. If you'd like me to save it to `rca.md`, let me know and I'll write the file."
+}

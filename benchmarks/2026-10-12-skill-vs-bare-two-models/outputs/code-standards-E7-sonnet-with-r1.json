@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E7-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14068.6,
+  "duration_ms": 13367,
+  "duration_api_ms": 13146,
+  "cost_usd": 0.0181165,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 721,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1481,
+   "output_tokens_details": {
+    "thinking_tokens": 585
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 721,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1481,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 721,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 721
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:38.127671+00:00",
+   "end": "2026-10-12T19:38:52.196327+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0181165
+ },
+ "response": "Here's the rename-only version. Logic, log line, and behavior are unchanged.\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef request_access_token(username, password, extra_headers=[], timeout_seconds=10):\n    extra_headers.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(header_line.split(': ') for header_line in extra_headers),\n                                 timeout=timeout_seconds)\n        token_payload = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_payload)\n        return token_payload['access_token']\n    except Exception:\n        return None\n```\n\nRenaming `f` means updating the call sites (`tok = f(...)`). The parameter renames are safe as long as nobody passes `u=`, `p=`, `h=`, or `t=` by keyword. Your described caller uses positional args.\n\n**Don't paste this back as-is.** The names aren't the only problem, and one of the other problems is serious:\n\n1. **Credentials are being logged.** The `log.info` line writes the plaintext password and the full token response (including `access_token`) on every successful auth, about once a minute. Those logs go to a company-wide searchable Datadog index, so anyone there can read the service password and live tokens. I'd treat the password as exposed and rotate it after fixing the log. Minimal fix, changing only that line:\n   ```python\n   log.info('auth ok for %s', username)\n   ```\n2. **Mutable default argument.** `extra_headers=[]` is shared across calls, and each call appends another `'X-Client: billing-sync'`. In a long-running worker that list grows by one entry per minute for the life of the process. The `dict(...)` collapses the duplicates, so it works, but it's a slow leak and the work grows each call. The fix is `extra_headers=None` and building a fresh list inside.\n3. **Silent failure.** `except Exception: return None` discards every error with no log, so bad credentials, a timeout, and a malformed response all look identical to the caller's \"retry later.\" At minimum, add `log.error('token request failed for %s', username, exc_info=True)` (without the password). Also, there's no `raise_for_status()`, so a 401 with a JSON body that lacks `access_token` ends up in that same silent `except` via a `KeyError`.\n\nI left all three alone since you asked for renames only, but I'd do #1 at minimum before this ships anywhere. If you'd like, I can send a version with just the log line fixed, or all three fixes with caller behavior unchanged (still returns `None` on failure)."
+}

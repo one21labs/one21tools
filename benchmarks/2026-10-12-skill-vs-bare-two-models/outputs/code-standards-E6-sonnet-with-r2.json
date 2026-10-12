@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E6-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E6",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13332.4,
+  "duration_ms": 12667,
+  "duration_api_ms": 12467,
+  "cost_usd": 0.016902,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4880,
+   "output_tokens": 1641,
+   "output_tokens_details": {
+    "thinking_tokens": 528
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1641,
+     "cache_read_input_tokens": 4880,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:29.628551+00:00",
+   "end": "2026-10-12T19:38:42.960938+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.016902
+ },
+ "response": "Here is the full `user_store.py`. The three existing functions are untouched. The new function doesn't copy their defects: it catches only `sqlite3.Error`, logs failures, validates `domain` at entry, and escapes LIKE wildcards.\n\n```python\n\"\"\"\nuser_store.py - user persistence and queries over a sqlite3 connection\n\nARCHITECTURE ROLE:\n    Data access for the users table. Does not own connection lifecycle\n    or schema creation; callers pass an open connection.\n\nDESIGN CONSTRAINTS:\n    - Query functions return at most one page of rows.\n    - Legacy functions (add_user, recent_users, search_users) swallow all\n      errors and return a sentinel. find_users_by_domain does the same\n      return-[] on database failure, but logs it.\n\"\"\"\nimport logging\nimport sqlite3\n\nlogger = logging.getLogger(__name__)\n\nPAGE_SIZE = 50\nLIKE_ESCAPE_CHAR = \"\\\\\"\n\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []\n\ndef find_users_by_domain(db, domain):\n    if not isinstance(domain, str) or not domain.strip():\n        logger.warning(\"find_users_by_domain: invalid domain %r\", domain)\n        return []\n    # Escape LIKE wildcards so \"a_b.com\" or \"%\" match literally.\n    escaped = (\n        domain.strip()\n        .replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)\n        .replace(\"%\", LIKE_ESCAPE_CHAR + \"%\")\n        .replace(\"_\", LIKE_ESCAPE_CHAR + \"_\")\n    )\n    try:\n        return db.execute(\n            \"select * from users where email like ? escape ? limit ?\",\n            (\"%@\" + escaped, LIKE_ESCAPE_CHAR, PAGE_SIZE),\n        ).fetchall()\n    except sqlite3.Error as err:\n        logger.error(\"find_users_by_domain failed: domain=%r error=%s\", domain, err)\n        return []\n```\n\nNotes:\n- **Existing code left alone:** I didn't touch the bare `except:` blocks, the `print(\"ok\")`, or the literal `50`s, as you asked. They do hide failures, since a locked database looks the same as \"no results\". That's worth a separate cleanup when you have time.\n- **`PAGE_SIZE`:** it's used only by the new function. The other queries still hardcode `50`, so switching them over later would give one source of truth.\n- **Case sensitivity:** SQLite's `LIKE` is case-insensitive for ASCII, so `Example.com` and `example.com` both match.\n- **Bad input:** an empty or non-string `domain` returns `[]` with a warning instead of building a `%@` pattern that matches every address."
+}

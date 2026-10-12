@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E10-sonnet-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E10",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12560.0,
+  "duration_ms": 11755,
+  "duration_api_ms": 11549,
+  "cost_usd": 0.015646200000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2822,
+   "output_tokens": 1536,
+   "output_tokens_details": {
+    "thinking_tokens": 268
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1536,
+     "cache_read_input_tokens": 2822,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:03.488532+00:00",
+   "end": "2026-10-12T19:38:16.048593+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.015646200000000002
+ },
+ "response": "Here's the script with comments only; no logic changed.\n\n```bash\n#!/usr/bin/env bash\n#\n# deploy.sh - build the web app and publish it to S3.\n#\n# Steps (in order): clean -> build -> upload.\n#\n# Usage:\n#   BUCKET=<bucket> RELEASE=<release-id> BUILD_DIR=<dir> ./deploy.sh\n#\n# Required environment variables:\n#   BUCKET     Target S3 bucket name (e.g. web-prod).\n#   RELEASE    Key prefix for this release in the bucket. CI uses $GITHUB_SHA.\n#   BUILD_DIR  Directory that receives a copy of the built output. Set by CI.\n#              WARNING: its contents are deleted on every run (see clean()).\n#              When running locally, set it explicitly to a dedicated directory.\n#\n# Requirements: bash, npm, and the AWS CLI with credentials that can write\n# to the target bucket.\n#\n# Where it runs:\n#   - CI: BUCKET=web-prod RELEASE=$GITHUB_SHA ./deploy.sh\n#     The CI runner executes this as root inside a container that mounts the\n#     shared build cache, so BUILD_DIR may point at shared storage.\n#   - Laptops: used occasionally for hotfixes, with the same variables.\n#\n# Notes:\n#   - The script does not use `set -e`, so a failed step does not stop the\n#     later ones. Check the output before trusting the final \"deployed\" line.\n\n# Deletes everything inside $BUILD_DIR (the directory itself is kept).\n# Destructive: if BUILD_DIR is unset or empty, the pattern expands to /*.\n# Make sure BUILD_DIR is set before running.\nclean() {\n  rm -rf \"$BUILD_DIR\"/*\n}\n\n# Syncs ./dist/ to s3://$BUCKET/$RELEASE.\n# Makes up to 5 attempts, sleeping 2, 4, 6, 8, 10 seconds after each failure.\n# Returns 0 on the first success, or 1 if all attempts fail.\nupload() {\n  for i in 1 2 3 4 5; do\n    aws s3 sync dist/ \"s3://$BUCKET/$RELEASE\" && return 0\n    sleep $((i * 2))\n  done\n  return 1\n}\n\n# Installs dependencies from the lockfile (npm ci), runs the production\n# build (npm run build), then copies the resulting dist/ into $BUILD_DIR.\n# Run from the repository root, since it uses relative paths.\nbuild() {\n  npm ci\n  npm run build\n  cp -r dist \"$BUILD_DIR\"\n}\n\nclean\nbuild\nupload\necho \"deployed $RELEASE\"\n```\n\nThings to know before shipping:\n\n1. **The old comment was wrong.** It said \"Retries the upload 3 times\", but the loop makes 5 attempts. I corrected the comment to match the code.\n2. **`clean()` is risky.** If `BUILD_DIR` is unset, `rm -rf \"$BUILD_DIR\"/*` becomes `rm -rf /*`. CI sets it, but a laptop hotfix might not, and CI runs as root on a mounted shared cache. I documented this but did not change it. After the release, I'd suggest `\"${BUILD_DIR:?}\"/*`.\n3. **No `set -e`.** If `npm ci` or the build fails, the script still runs `upload` and prints \"deployed\". That could publish a stale `dist/`. The header mentions it, but it's worth a follow-up fix.\n4. **`upload` syncs `dist/`, not `$BUILD_DIR`.** The copy into `BUILD_DIR` isn't what gets uploaded, so I described the code as written."
+}

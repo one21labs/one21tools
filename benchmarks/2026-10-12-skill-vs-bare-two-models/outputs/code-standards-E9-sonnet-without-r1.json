@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E9-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13954.7,
+  "duration_ms": 13094,
+  "duration_api_ms": 12861,
+  "cost_usd": 0.0197534,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 798,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 1635,
+   "output_tokens_details": {
+    "thinking_tokens": 118
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 798,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1635,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 798,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 798
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:52.401846+00:00",
+   "end": "2026-10-12T19:39:06.356568+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0197534
+ },
+ "response": "The 500s are vague because the code throws away the real error. `GetOrder` replaces every failure with `errors.New(\"db error\")`, and the handler returns 500 for everything, including \"not found\". Logging in the handler alone wouldn't help, because the underlying error is gone by then. Here is a version that preserves and logs it, using stdlib `log/slog`:\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx,\n        `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        // Keep the real cause (timeout, conn refused, scan type mismatch, etc.)\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    start := time.Now()\n    id := r.URL.Query().Get(\"id\")\n    log := slog.With(\"handler\", \"Order\", \"order_id\", id, \"remote\", r.RemoteAddr)\n\n    if id == \"\" {\n        log.Warn(\"missing order id\")\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        switch {\n        case errors.Is(err, ErrNotFound):\n            log.Info(\"order not found\", \"duration\", time.Since(start))\n            http.Error(w, \"not found\", http.StatusNotFound)\n        case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):\n            log.Warn(\"request context ended\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"request timeout\", http.StatusGatewayTimeout)\n        default:\n            log.Error(\"get order failed\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"internal error\", http.StatusInternalServerError)\n        }\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        log.Error(\"encode response failed\", \"err\", err)\n        return\n    }\n    log.Info(\"order served\", \"duration\", time.Since(start))\n}\n```\n\nSetup in `main`, so logs are structured and searchable:\n\n```go\nslog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})))\n```\n\n**What changed**\n- **Real errors are kept.** `%w` wrapping preserves the DB error, and the handler logs it at `Error` level. This is the part that will explain your 500s.\n- **Not-found is a 404.** Your handler had a branch for it but returned 500 anyway, so 404s were inflating your 500 count. Compare `ErrNotFound` with `errors.Is` instead of matching on `err.Error()`.\n- **Timeouts are separated out.** Context cancellation and deadline errors are logged distinctly. If the 500s are pool exhaustion or slow queries, this will show it.\n- **Encode errors are logged.** The unchecked `Encode` call could fail silently.\n- **Duration is on every line**, which helps spot slow queries.\n\n**Things to watch**\n- **Don't log `card_number` or whole `Order` structs.** I deliberately only log the ID. Also, the handler currently returns `CardNumber` in the JSON response. If `Order` has no `json:\"-\"` tag on that field, you're sending full card numbers to clients, and that's a PCI problem worth fixing now. Use a response DTO or mask to the last four digits.\n- **\"Everywhere\" is rarely the right amount.** Logging at the failure points above, plus one access-log line per request, is usually enough. Adding a request-ID middleware (and attaching the ID to `log`) will let you correlate a client's 500 to a specific log line.\n- **Also check `db.Stats()`.** If the cause is connection pool exhaustion, logging `OpenConnections`, `InUse`, and `WaitCount` periodically will confirm it."
+}

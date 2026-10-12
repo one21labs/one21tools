@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-opus-with-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 26273.4,
+  "duration_ms": 25360,
+  "duration_api_ms": 25134,
+  "cost_usd": 0.0467688,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4004,
+   "output_tokens": 2298,
+   "output_tokens_details": {
+    "thinking_tokens": 594
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2298,
+     "cache_read_input_tokens": 4004,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:37.489067+00:00",
+   "end": "2026-10-12T19:34:03.762530+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0467688
+ },
+ "response": "# Don't use the strictest one everywhere\n\nThe three services don't share one rule. They need two different things:\n\n- **Billing and support** need a number that **is already E.164** (`+14155550134`), because the payment provider requires it.\n- **Signup** needs to **accept what humans type** (`(415) 555-0134`, `415.555.0134`).\n\nIf you put the E.164 regex in signup, both of your example inputs fail, since neither starts with `+`. That would reject most of your ~4,000 daily mobile submissions. Matching all three services to the strictest one makes them consistent by breaking signup.\n\nThe fact all three services actually share is **\"what is this number in canonical form?\"** That is the thing to define once. Every service should **normalize to E.164**, and only billing should *require* that the input already be in that form.\n\n## Bugs in the current copies\n\n- **Signup's regex isn't anchored at the end.** `LOOSE.match` checks only a prefix, so `\"5551234 call after 5pm\"` and `\"1234567abc\"` both pass. It also accepts `\"-------\"` and `\"+++++++\"`.\n- **Billing doesn't strip whitespace but support does.** A trailing space from a form or CSV fails in billing and passes in support, so your two \"identical\" copies have already drifted.\n- **Signup stores raw strings.** If those numbers ever flow to billing or support, they will fail E.164 there.\n\n## Shared library design\n\nWrap Google's `phonenumbers` (the Python port of libphonenumber) instead of maintaining your own regex. Country rules change, and the library tracks them.\n\n```python\n# phonetools/__init__.py\nimport re\nimport phonenumbers\n\n_E164 = re.compile(r'^\\+[1-9]\\d{7,14}$')\n\ndef normalize_phone(raw: str, default_region: str | None = None) -> str | None:\n    \"\"\"Parse human or E.164 input; return canonical E.164, or None if invalid.\n\n    default_region (e.g. \"US\") is used only when the input has no leading '+'.\n    Without it, only international-format input is accepted.\n    \"\"\"\n    if not raw:\n        return None\n    try:\n        num = phonenumbers.parse(raw.strip(), default_region)\n    except phonenumbers.NumberParseException:\n        return None\n    if not phonenumbers.is_valid_number(num):\n        return None\n    return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)\n\ndef is_e164(s: str) -> bool:\n    \"\"\"True only if s is already exactly E.164 (no normalization).\"\"\"\n    return bool(_E164.match(s)) and normalize_phone(s) == s\n```\n\nHow each service uses it:\n\n| Service | Call | What gets stored or sent |\n|---|---|---|\n| signup | `normalize_phone(user_input, default_region=\"US\")` | Store the **returned E.164**, and keep the raw input for display if you want |\n| support | `normalize_phone(s)` (no region, so a `+` is required) | E.164 |\n| billing | `e = normalize_phone(s)`, and send `e` to the provider, never `s` | E.164 |\n\nFor billing, sending the normalized value rather than the raw input is the important part. It also absorbs inputs like `+1 415 555 0134` that the current regex rejects.\n\n**Open question for you:** what default region should signup use? If the form gets international users, the form should either collect a country or use a per-request region (from locale or IP), not a hard-coded `\"US\"`.\n\n## Rollout\n\nThe repos deploy independently, so roll out one service at a time and compare old and new behavior before switching.\n\n1. **Publish `phonetools` 1.0.0** to your private PyPI. Each service pins it exactly (`phonetools==1.0.0`) so upgrades are deliberate. Put a table-driven test suite in the library using real samples from each service's logs, both accepted and rejected.\n2. **Shadow mode in each service.** Keep the old `valid_phone` as the decision-maker. Also call `normalize_phone`, and log any disagreement with the input (redacted as needed). Run it for about a week. Expect two kinds of diff:\n   - `is_valid_number` is stricter than a regex. It may reject numbers your regex accepted, such as wrong lengths or unassigned ranges. Check these before cutover, especially in billing, where a new rejection means a failed charge.\n   - Signup will start rejecting junk the unanchored regex let through, which is the intended fix.\n3. **Cut over in order of risk:**\n   1. **support**, which has the lowest blast radius;\n   2. **signup**, where you should watch form-error rates on mobile after cutover;\n   3. **billing**, after you confirm that zero shadow-mode disagreements would have changed a successful charge.\n4. **Backfill (optional):** normalize existing signup records into a new E.164 column.\n5. **Delete the three `validate.py` copies.** If you skip this, you end up with four copies instead of one.\n\nAfterwards, upgrade the `phonenumbers` dependency inside `phonetools` on a schedule, since its metadata changes as countries renumber. Roll each new version out through the services the same way, using the pinned version bump."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E10-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E10",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35205.6,
+  "duration_ms": 34314,
+  "duration_api_ms": 34103,
+  "cost_usd": 0.04274940000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 712,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 3969,
+   "output_tokens_details": {
+    "thinking_tokens": 675
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 712,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3969,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 712,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 712
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:39:34.335716+00:00",
+   "end": "2026-10-12T19:40:09.541381+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.04274940000000001
+ },
+ "response": "# 3.8 \u2192 3.12 Migration: Two-Week Sprint Plan\n\nI've kept your director's shape (freeze, all 40 services, one sprint, last-Friday cutover) and built in the rollback and risk controls the inventory calls for. Three places where I'd push back are flagged in **Risks to raise with the director**.\n\n## Goals and exit criteria\n- All 40 services build and pass tests on python:3.12-slim.\n- Every service has a tested rollback path before Friday.\n- No service is deployed on 3.12 without at least a smoke test, including the two with no tests.\n\n## Workstreams\n\n| Group | Count | Work |\n|---|---|---|\n| A. Standard Flask/FastAPI | 31 | Bump CI to 3.12, fix deprecations and removals, upgrade deps. Mostly mechanical. |\n| B. asynctest | 4 | Migrate to `unittest.IsolatedAsyncioTestCase` or `pytest-asyncio`. `asynctest` is broken on 3.11+. |\n| C. libgeo-py | 2 | Build cp312 wheels (and cp39\u2013cp311 for CI matrix if cheap). Blocks both services. |\n| D. No tests | 2 | Write characterization/smoke tests before upgrading. The payments webhook receiver is the priority. |\n| E. distutils | 1 | Move `setup.py` to `setuptools` (or `pyproject.toml`) and drop `distutils` imports. |\n| F. Platform | all | Helm chart, base image, rollback, CI matrix, deploy runbook. |\n\n## Pre-sprint (before Day 1; do not skip)\n- Start the **libgeo-py cp312 wheel build** (see Group C). It is the critical path.\n- Add a **py3.12 CI job** (non-blocking) to a template or shared workflow so every service can run it on Day 1.\n- Run a **dependency audit script** across all 40 repos: list pins that lack 3.12 support (e.g. old `pydantic`, `uvloop`, `psycopg2`, `numpy`, `grpcio`, `cryptography`, `lxml`).\n- Name an owner per group and a rotating \"unblock\" person for the dependency and Helm questions.\n\n## Week 1: Make it work\n\n**Day 1: Kickoff and baseline**\n- Freeze feature work. Only the migration, plus hotfixes approved by the lead.\n- Each team runs its service's tests under 3.12 and records failures in a shared tracker (service, failure category, owner).\n- Platform: add a per-service `image.pythonVersion` (or full `image.tag`) override in the Helm chart, defaulting to the current 3.8 value. See Risk 1.\n- Group C: confirm the libgeo-py build toolchain works (`python:3.12` build image with compilers, `manylinux` wheels, or an internal index publish).\n\n**Day 2\u20133: Bulk fixes**\n- **Group A:** Fix the usual 3.9\u20133.12 breakage:\n  - Removed `asyncio.coroutine` and loop-argument usage\n  - `collections` ABC aliases (removed in 3.10)\n  - Removed `unittest` aliases such as `assertEquals` (3.12)\n  - `imp` and `distutils` modules (3.12)\n  - Stricter `datetime`/`ast`/regex behaviors\n  - Pinned dependency upgrades, especially Flask/Werkzeug and FastAPI/Pydantic (v1\u2192v2 may be a rabbit hole; pin to the minimum version that supports 3.12 and defer v2)\n- **Group B:** Migrate the four asynctest suites. Mostly `asynctest.TestCase` \u2192 `IsolatedAsyncioTestCase` and replacing `asynctest.CoroutineMock` with `unittest.mock.AsyncMock`.\n- **Group E:** Convert `setup.py`; verify `pip install .` and wheel build on 3.12.\n- **Group D:** Write characterization tests against the current 3.8 behavior first. For the payments webhook: valid signed payload, invalid signature, duplicate delivery/idempotency, malformed body, and downstream failure. Run them on 3.8 (green), then on 3.12.\n- **Group C:** Wheels built and published by end of Day 3. If not, escalate immediately (see Contingency).\n\n**Day 4\u20135: Finish and converge**\n- All Group A services green on 3.12 in CI. Make the 3.12 job blocking, with 3.8 retained until cutover.\n- Group C services unblocked with the new wheel; tests green.\n- Platform: build the python:3.12-slim base and confirm each service image builds. Check for missing system libs that the 3.8-slim image happened to have.\n- **End-of-week gate:** a go/no-go list. Any service not green on 3.12 is named, with an owner and plan.\n\n## Week 2: Prove it and ship\n\n**Day 6\u20137: Staging soak**\n- Deploy all 40 services to staging on 3.12 via Helm.\n- Run integration tests, contract tests between services, and load or smoke tests on the high-traffic ones.\n- Payments webhook: replay recorded or sandbox webhook traffic in staging and verify signatures, idempotency, and processing end to end with the provider's test mode.\n- Watch for runtime-only issues the unit tests miss: C-extension behavior, JSON/datetime serialization, pickled or cached data shared between 3.8 and 3.12 processes, and performance or memory changes.\n\n**Day 8: Rollback rehearsal (required)**\n- In staging, execute the full rollback: `helm rollback` (or revert the image override) for several services, including the payments receiver and both libgeo-py services. Confirm 3.8 images are still available in the registry and have not been garbage-collected.\n- Verify data compatibility: nothing written by a 3.12 pod (cache entries, pickles, queue messages, DB rows) breaks a 3.8 pod after rollback.\n- On-call walks through the runbook; update it with real timings.\n\n**Day 9 (Thursday): Freeze and prepare**\n- Code freeze on the migration branch(es). Merge everything to main behind the version override, with the default still on 3.8 if possible.\n- Final go/no-go meeting. Confirm dashboards and alerts (error rate, latency, restarts, queue depth), and that on-call and service owners are present Friday.\n- Pre-stage the rollback command set and verify that 3.8 image tags are pinned and immutable.\n\n**Day 10 (Friday): Cutover**\n- Deploy in a defined order within the day, with a hold point after each batch: (1) low-risk internal services, (2) the bulk of Group A, (3) Group C, (4) the payments receiver last, with an owner watching live traffic.\n- Rollback triggers (agree these in advance): error rate above X% over baseline for N minutes, any failed signature verification or payment event loss, crashloops, or p95 latency regression above Y%.\n- Hold the sprint-end retro until Monday and keep on-call coverage through the weekend.\n\n## Rollback plan (applies to every deploy)\n- 3.8 images stay in the registry, tagged immutably, for at least 30 days.\n- Rollback unit is per service: `helm rollback <release>` or reverting that service's image override. Because the base image is pinned in the chart's `values.yaml`, don't make rollback depend on reverting that one shared file.\n- Libraries built for 3.12 (libgeo-py) are published separately and don't overwrite cp38 wheels.\n- Each service owner documents any 3.12-written state that would be incompatible with 3.8 (see Day 8).\n- Rollback is rehearsed before the deploy, not first tried during an incident.\n\n## Risks to raise with the director\n\n1. **The shared `values.yaml` makes this a single point of failure.** If the base image is changed once for all 40 services, a problem in one forces a decision to roll back all of them. Fix: add the per-service override on Day 1 (cheap), so \"big-bang\" is just a coordinated change set where each service can still roll back alone.\n2. **Friday-afternoon big-bang deploy of 40 services, including payments.** If something fails, the weekend is the recovery window. I'd recommend moving the cutover to Tuesday or Wednesday of week 2, using Thursday and Friday as the buffer, or at minimum deploying in batches on Friday morning with the payments receiver last and a hard stop time. If the director insists on Friday, the Day 8 rehearsal becomes non-negotiable.\n3. **Critical-path dependencies.** libgeo-py wheel production (2 services) and the untested payments webhook are the two likeliest to slip. If the wheel isn't ready by Day 3, or the payments characterization tests can't give reasonable confidence by Day 7, those services stay on 3.8 for this release.\n\n## Contingency\n- Any service not green by the Day 5 gate, or failing the staging soak, ships later. A 3.8 holdout is acceptable for a short time; a broken payments service isn't.\n- The Helm override lets 3.8 and 3.12 services coexist, so \"40 at once\" is a target, not a hard dependency.\n\n## Open questions\n- Is there an internal package index where cp312 libgeo-py wheels can be published, and does the build pipeline for it still work?\n- Which services share state (queues, caches, databases) in ways that make mixed 3.8/3.12 versions risky during rollout or rollback?\n- Do any services already pin Pydantic v1, SQLAlchemy 1.x, or similar libraries where \"just bump\" means a real migration?\n- Who is the incident commander for Friday, and what are the specific rollback thresholds?\n\nI can turn this into a tracker (one row per service, with group, owner, and gate status) or a one-page deployment runbook next."
+}

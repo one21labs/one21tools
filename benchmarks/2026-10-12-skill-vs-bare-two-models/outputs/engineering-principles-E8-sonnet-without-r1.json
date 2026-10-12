@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21210.0,
+  "duration_ms": 20516,
+  "duration_api_ms": 20244,
+  "cost_usd": 0.028371400000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 820,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 2488,
+   "output_tokens_details": {
+    "thinking_tokens": 783
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 820,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2488,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 820,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 820
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:41:49.745875+00:00",
+   "end": "2026-10-12T19:42:10.955934+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.028371400000000005
+ },
+ "response": "## The problem with \"strictest everywhere\"\n\nThese three aren't duplicates of one rule. They're two different jobs:\n\n- **Billing and support** need a canonical E.164 string (the provider requires it).\n- **Signup** needs to accept what humans type.\n\nIf you put the billing regex in signup, `(415) 555-0134` and `415.555.0134` get rejected. That's probably most of your ~4,000 daily submissions, since those formats are the common case. The fix is to make signup convert loose input into E.164 before anything is validated, not to make it stricter.\n\n## Existing bugs to fix while consolidating\n\n- **Signup's `LOOSE` regex is unanchored.** `re.match` only anchors at the start, so `5551234abc<garbage>` passes. It also accepts `-------` or `((((((((`, since it never requires digits.\n- **`$` matches before a trailing newline.** `+14155550134\\n` passes billing's check and goes to the payment provider as-is. Use `fullmatch` (or `\\Z`).\n- **Billing doesn't strip, support does.** Today the same input can pass in one service and fail in another.\n- **Billing sends the raw input**, not a normalized value. Even a correct validator doesn't help if the original string is what gets sent.\n\n## Shared library design\n\n```python\n# company_phone/__init__.py\nimport re\nimport phonenumbers  # libphonenumber port\n\n_E164 = re.compile(r'\\+[1-9]\\d{7,14}')\n\ndef is_e164(s: str) -> bool:\n    \"\"\"Strict: exact canonical form, no stripping, no tolerance.\"\"\"\n    return isinstance(s, str) and _E164.fullmatch(s) is not None\n\ndef normalize_phone(raw: str, default_region: str | None = None) -> str | None:\n    \"\"\"Parse human-typed input and return E.164, or None if unusable.\"\"\"\n    if not isinstance(raw, str):\n        return None\n    try:\n        num = phonenumbers.parse(raw.strip(), default_region)\n    except phonenumbers.NumberParseException:\n        return None\n    if not phonenumbers.is_possible_number(num):\n        return None\n    out = phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)\n    return out if is_e164(out) else None\n```\n\nDesign points:\n\n- **Two functions, two contracts.** `is_e164` is the gate for anything going to the provider. `normalize_phone` is for ingesting user input. Don't ship a single `valid_phone` that means different things per caller.\n- **`default_region` has no silent default.** `(415) 555-0134` has no country code, so signup must say what region to assume (e.g. `\"US\"`, or derived from the form's country field). Guessing quietly would produce wrong numbers.\n- **The output of `normalize_phone` always satisfies `is_e164`.** Billing can then treat the stored value as trusted but still check it at the boundary.\n- If you'd rather not take the `phonenumbers` dependency, a hand-rolled normalizer (strip separators, require `+` or an explicit region rule) works, but country-code handling gets tricky quickly. I'd use the library.\n\n## Rollout\n\nSince each service deploys independently, none of these steps needs to be coordinated.\n\n1. **Publish `company-phone` 1.0** to the private PyPI, with a shared test-vector file. Include `(415) 555-0134`, `415.555.0134`, `+14155550134`, a trailing newline, an empty string, `None`, letters, and `-------`. Each repo can run the same vectors.\n2. **Support first.** Its behavior already matches billing plus `strip`, so it's the lowest risk. Swap in `is_e164(s.strip())` or `normalize_phone`, depending on where its input comes from.\n3. **Billing second.** Call `is_e164` on the value right before the provider call, and send exactly the string that was checked. The behavior changes are that trailing-newline input is now rejected (which is correct) and surrounding whitespace is handled consistently. Before switching, run old and new side by side for a few days and log disagreements.\n4. **Signup last, since it's the real behavior change.**\n   - Run `normalize_phone` on submit, store the E.164 result, and show a friendly error when it returns `None`.\n   - Shadow-run first: log how often old-accepts/new-rejects, and review samples, to confirm you aren't dropping legitimate signups.\n   - Decide what to do about existing stored numbers in loose format. A backfill that normalizes them (and flags the ones that fail) is worth doing, because anything that later flows into billing or support expects E.164.\n5. **Pin with a compatible range** (`company-phone>=1,<2`) and treat any change to what counts as valid as a major version bump, so one service can't be surprised by a library update.\n6. **Delete the three local `validate.py` copies** once each service is switched over.\n\n## One question that affects the plan\n\nDoes signup data ever reach billing or support (for example, a signup number later used to charge or contact someone)? If so, step 4's normalize-at-ingest is what makes that path work, and the backfill becomes a requirement rather than a nice-to-have."
+}

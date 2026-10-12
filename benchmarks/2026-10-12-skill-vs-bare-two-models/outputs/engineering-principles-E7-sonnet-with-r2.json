@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-sonnet-with-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15404.7,
+  "duration_ms": 14350,
+  "duration_api_ms": 14105,
+  "cost_usd": 0.017795400000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4014,
+   "output_tokens": 1739,
+   "output_tokens_details": {
+    "thinking_tokens": 393
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1739,
+     "cache_read_input_tokens": 4014,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:41:34.340616+00:00",
+   "end": "2026-10-12T19:41:49.745328+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.017795400000000003
+ },
+ "response": "# Postmortem: Production `order_events` tables dropped (OPS-881)\n\n**Severity:** High. Checkout outage and partial permanent data loss.\n**Duration:** ~3h 40m (22:15 first errors, 01:55 data reconstructed).\n**Impact:** Checkout errors for the duration. About 2 days of `order_events` data was only partially recovered.\n\n## What happened\nWhile cleaning up staging tables for OPS-881, Dev ran `DROP TABLE order_events_archive, order_events;` in a terminal that still had `PGHOST=db-prod-1` exported from an 18:30 prod query. The command ran against prod. The database did not ask for confirmation, and the ops role had DROP rights on prod. The restore then failed because the newest usable backup was 9 days old. The backup job had been failing silently since the 3rd.\n\n## Timeline\n| Time | Event |\n|---|---|\n| 18:30 | Prod query leaves `PGHOST=db-prod-1` exported |\n| 22:07 | DROP runs against prod |\n| 22:15 | Checkout errors spike, on-call paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails: latest usable backup is 9 days old |\n| 01:55 | Data rebuilt from Kafka (7-day retention) + old backup. About 2 days of events partially lost |\n\n## Root causes\nThe wrong command was the trigger, but the incident needed four independent safeguards to be missing at once:\n\n1. **Backups were broken and nobody knew.** The job failed from the 3rd on, and its alert went to a channel archived in a Slack cleanup. This turned a short outage into permanent data loss, and it is the biggest cause of the impact.\n2. **Staging and prod are easy to confuse.** Prompts look identical, and a stale `PGHOST` persisted in the shell.\n3. **Excess privilege.** The ops role can DROP on prod with no confirmation step.\n4. **The ticket invited the error.** The cleanup script listed prod-critical and archive tables on one line, so the intended target was one name away from a core table.\n\n## What went well\n- On-call responded within minutes of the page, and the cause was found in 26 minutes.\n- Kafka retention made a partial recovery possible.\n\n## Action items\n| # | Action | Addresses | Owner | Due |\n|---|---|---|---|---|\n| 1 | Route backup-failure alerts to a paging target, not a channel. Add a \"last successful backup age\" alert. | 1 | TBD | TBD |\n| 2 | Run a restore test on a schedule and alert on failure. | 1 | TBD | TBD |\n| 3 | Fix the backup job that has been failing since the 3rd. | 1 | TBD | TBD |\n| 4 | Audit alert destinations before archiving any Slack channel. | 1 | TBD | TBD |\n| 5 | Make prod visually distinct (prompt color and hostname). Stop persisting `PG*` env vars across sessions. | 2 | TBD | TBD |\n| 6 | Remove standing DROP on prod from the ops role. Require break-glass or a second approver. | 3 | TBD | TBD |\n| 7 | Split destructive ticket steps into one object per line, with the target environment stated explicitly. | 4 | TBD | TBD |\n| 8 | Extend Kafka retention for `order_events` beyond the backup-gap risk window. | 1 | TBD | TBD |\n\n## Note on the agreed root cause\nThis draft does not list \"Dev ran the wrong command\" as the root cause, and it does not include retraining Dev as an action item. Retraining Dev changes nothing about the four conditions above, so the next person in the same position would have the same outcome. Blaming an individual also makes people less likely to report near-misses. I'd recommend presenting it this way to the VP Eng. If management still wants the original framing, I can add it as a \"trigger\" line, but I'd keep items 1\u20138 regardless."
+}

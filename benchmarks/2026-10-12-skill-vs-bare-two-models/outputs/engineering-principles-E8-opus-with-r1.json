@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-opus-with-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 27902.5,
+  "duration_ms": 27299,
+  "duration_api_ms": 27111,
+  "cost_usd": 0.058573599999999997,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 816,
+   "cache_read_input_tokens": 3188,
+   "output_tokens": 2570,
+   "output_tokens_details": {
+    "thinking_tokens": 754
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 816,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2570,
+     "cache_read_input_tokens": 3188,
+     "cache_creation_input_tokens": 816,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 816
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:33:25.778440+00:00",
+   "end": "2026-10-12T19:33:53.680926+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.058573599999999997
+ },
+ "response": "# Don't use the strictest one everywhere\n\nThe three copies aren't one rule duplicated. They are two different rules:\n\n| Service | What it actually needs |\n|---|---|\n| billing, support | \"Is this string **already** E.164?\" (a strict check before passing to a provider) |\n| signup | \"Can I **turn** what a human typed into a phone number?\" (lenient input parsing) |\n\nIf you put billing's regex in signup, `(415) 555-0134` and `415.555.0134` get rejected. Those are the formats you said most of your ~4,000 mobile submissions use, so you'd break most of signup's traffic on the first deploy. Consistency is the right goal, but it belongs on the **stored format** (always E.164), not on what users are allowed to type.\n\nSo the shared library should do two things: parse lenient input into E.164, and check strict E.164.\n\n## Bugs in the current copies\n\n1. **signup accepts garbage.** `LOOSE.match` only anchors at the start and has no `$`, so `\"5551234 call me after 5pm\"` passes. It also accepts `\"+++++++\"` and `\"-------\"`. Signup is probably storing unusable numbers today.\n2. **support and billing differ.** support strips whitespace before checking, but `valid_phone` returns a bool, so the caller still holds the *unstripped* string. If support ever forwards that value, it can send `\" +14155550134\"` to something strict. That's why the shared API should return the cleaned value, not a bool.\n\n## The shared function\n\nPackage it as `phonekit` on your private PyPI. Base it on [`phonenumbers`](https://pypi.org/project/phonenumbers/) (the Python port of Google's libphonenumber) instead of a regex. It knows real numbering plans, which a regex can't.\n\n```python\n# phonekit/__init__.py\nimport re\nimport phonenumbers\n\n_E164 = re.compile(r'^\\+[1-9]\\d{7,14}$')\n\nclass InvalidPhone(ValueError):\n    pass\n\ndef is_e164(s: str) -> bool:\n    \"\"\"Strict check: s is already canonical E.164. No stripping, no coercion.\"\"\"\n    return isinstance(s, str) and bool(_E164.match(s))\n\ndef to_e164(raw: str, default_region: str = \"US\") -> str:\n    \"\"\"Parse human input ('(415) 555-0134', '415.555.0134', '+44 20 ...') into E.164.\n    Raises InvalidPhone if it isn't a plausible real number.\"\"\"\n    try:\n        num = phonenumbers.parse(raw, default_region)\n    except phonenumbers.NumberParseException as e:\n        raise InvalidPhone(str(e)) from e\n    if not phonenumbers.is_valid_number(num):\n        raise InvalidPhone(f\"not a valid number: {raw!r}\")\n    return phonenumbers.format_number(num, phonenumbers.PhoneNumberFormat.E164)\n```\n\nHow each service uses it:\n\n- **signup:** `phone = to_e164(form_value)`. Store the returned value, never the raw input.\n- **billing:** `if not is_e164(phone): reject`, then pass `phone` to the provider. It stays strict, with no stripping, because the provider requires exact E.164.\n- **support:** `is_e164`, or `to_e164` if agents paste numbers in by hand.\n\nOnce signup stores E.164, everything downstream gets clean data, and billing's strict check will rarely fail on numbers that came from signup.\n\n## Rollout\n\nEach repo deploys independently, so go one service at a time, lowest risk first.\n\n1. **Publish `phonekit` 1.0.0.** Include tests for the formats above, the garbage cases (`\"+++++++\"`, trailing text), and a table that pins the current billing regex's behavior so `is_e164` provably matches it. Pin exact versions in each repo (`phonekit==1.0.0`) and let Dependabot/Renovate propose upgrades, so services can't silently drift.\n2. **support:** swap to `is_e164`. Its semantics are the same as today except for the stripping. Check whether any caller relied on the strip; if so, use `to_e164` there.\n3. **billing:** swap to `is_e164`. The regex is identical, so this should be a no-op. Confirm with the test table.\n4. **signup in shadow mode first.** Run `to_e164` alongside the old check for about a week. Log disagreements: inputs the old code accepted that the new code rejects, and the reverse. With 4k a day, you'll have about 28k real samples. Expect the new code to reject some junk the old one let through. Check that it's actually junk and not a format you care about, such as international numbers missing a `+`.\n5. **signup cutover:** enforce `to_e164` and store its output. Show users a friendly error message, since this is a form.\n6. **Backfill (optional):** run `to_e164` over existing signup records. Normalize what parses and flag what doesn't. Those failures show you how much garbage the old regex let in.\n7. **Delete the three `validate.py` copies** so nobody copies them again, the way support copied billing in 2023.\n\n## Open questions before you start\n\n- **Default region:** is signup US-only? `to_e164` needs a region to interpret numbers with no country code like `415.555.0134`. If you have international users, derive it from locale or a country field instead of hardcoding `\"US\"`.\n- **Who reads signup's stored phone numbers?** If anything downstream expects the raw typed format, switching to E.164 is a change for them too."
+}

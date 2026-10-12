@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E8-sonnet-with-r2",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E8",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21395.8,
+  "duration_ms": 20691,
+  "duration_api_ms": 20410,
+  "cost_usd": 0.0234248,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4008,
+   "output_tokens": 2302,
+   "output_tokens_details": {
+    "thinking_tokens": 833
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2302,
+     "cache_read_input_tokens": 4008,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:41:49.477268+00:00",
+   "end": "2026-10-12T19:42:10.873091+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0234248
+ },
+ "response": "## Don't pick the strictest one\n\nApplying billing's E.164 regex to signup would reject `(415) 555-0134` and `415.555.0134`, which is what most of your ~4,000 daily submissions look like. Signup would lose real users to make the code consistent.\n\nThe three copies aren't really disagreeing about one thing. They answer two different questions:\n\n- **\"Can a human's input be turned into a phone number?\"** is signup's job.\n- **\"Is this string safe to send to the payment provider?\"** is billing's job.\n\nSo the library should expose both and connect them with a normalization step.\n\n## Design\n\n```python\n# phonecheck/__init__.py\ndef normalize_phone(raw: str, default_region: str | None = None) -> str | None:\n    \"\"\"Loose human input -> canonical E.164 ('+14155550134'), or None if unparseable.\"\"\"\n\ndef is_e164(s: str) -> bool:\n    \"\"\"Strict check on an already-canonical string. No stripping, no guessing.\"\"\"\n```\n\n- `is_e164` uses `re.fullmatch(r'\\+[1-9]\\d{7,14}', s)`. This fixes a bug in both E.164 copies: `$` matches before a trailing newline, so `\"+14155550134\\n\"` currently passes and goes straight to the payment provider. `fullmatch` or `\\Z` closes that.\n- `normalize_phone` should wrap the `phonenumbers` library (a libphonenumber port) rather than a hand-rolled regex. It strips punctuation and whitespace, handles `+` and national formats, and returns E.164.\n- `default_region` is required for input like `(415) 555-0134`, which has no country code. Don't guess it inside the library. Signup passes its own (e.g. `\"US\"`), and billing passes `None`, so a number without `+` is rejected.\n- Signup's current `LOOSE` regex has a separate bug. It's unanchored on the right, so `555-0134abc` passes, and so does `-------`. Normalization replaces it with real parsing.\n\nHow each service uses it:\n\n| Service | Behavior |\n|---|---|\n| signup | `normalize_phone(raw, \"US\")`, then **store the E.164 result**, not the raw input |\n| billing | `is_e164(s)` on the stored value right before the provider call |\n| support | `normalize_phone(raw)` on input; `is_e164` for checks |\n\nSignup stores the canonical value, so billing can stay strict without rejecting anyone.\n\n## Rollout\n\nSince the repos deploy independently, ship in this order and treat each step as its own small PR.\n\n1. **Publish `phonecheck` 1.0 to private PyPI.** Include a table-driven test suite: the three services' current accept/reject behavior as characterization tests, plus trailing newline, `555-0134abc`, whitespace, and 7- vs 15-digit boundaries. Pin consumers with `phonecheck>=1,<2`, and follow semver strictly, because services will upgrade at different times.\n2. **Support-svc first.** It's a copy of billing plus `.strip()`, so it's the lowest risk. Replace its `validate.py` with the library and delete the local copy.\n3. **Billing next.** The only behavior change is rejecting the trailing-newline case. Before the swap, log any input where old and new disagree, and run that for a few days to confirm it's quiet. Billing is the money path, so verify before cutting over.\n4. **Signup last, since it's the real behavior change.**\n   - Run in shadow mode first: keep the old check as the decision, but log when `normalize_phone` disagrees. Look at the rejected samples for formats you didn't expect (extensions like `x123`, international numbers typed without `+`).\n   - Then switch to normalize-and-store.\n   - Watch the form rejection rate for a week.\n5. **Backfill.** Existing signup records are probably in loose formats. Normalize them in a one-off job, and list the ones that fail so they can be fixed or flagged. Until this is done, anything that reads those rows into billing will fail the strict check.\n\n## Questions to settle before step 4\n\n- What `default_region` should signup use? If you serve multiple countries, you may need to infer it from locale or a country selector on the form.\n- Does billing read phone numbers from signup's data, or collect its own? That determines how urgent the backfill is.\n- Should signup accept extensions or non-mobile numbers? E.164 can't represent extensions, so you need a decision on whether to drop or store them separately."
+}

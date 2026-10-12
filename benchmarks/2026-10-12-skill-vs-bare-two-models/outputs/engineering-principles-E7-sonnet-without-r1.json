@@ -1,0 +1,61 @@
+{
+ "cell": "engineering-principles-E7-sonnet-without-r1",
+ "skill": "engineering-principles",
+ "scenario": "engineering-principles:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14724.4,
+  "duration_ms": 14047,
+  "duration_api_ms": 13814,
+  "cost_usd": 0.0200654,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 826,
+   "cache_read_input_tokens": 2074,
+   "output_tokens": 1655,
+   "output_tokens_details": {
+    "thinking_tokens": 148
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 826,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1655,
+     "cache_read_input_tokens": 2074,
+     "cache_creation_input_tokens": 826,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 826
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:41:34.752300+00:00",
+   "end": "2026-10-12T19:41:49.476709+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0200654
+ },
+ "response": "I didn't frame the root cause as \"Dev ran the wrong command,\" because the timeline doesn't support it as the cause. The command was the trigger. Any SRE with that shell state and those permissions could have done the same, and the 9-day-old backup is what turned a short outage into data loss. A retraining-only action item would leave all of that in place. The draft below is blameless, and you can adjust the tone, but I'd keep the contributing factors.\n\n---\n\n# Postmortem: Production `order_events` tables dropped (checkout outage and partial data loss)\n\n**Date:** last night, 22:07 to 01:55 | **Severity:** High | **Audience:** Eng org, VP Eng\n\n## Summary\nDuring a staging cleanup (OPS-881), an SRE ran `DROP TABLE order_events_archive, order_events;` in a shell still pointed at production. Checkout errors began about 8 minutes later. Recovery took about 4 hours, and roughly 2 days of events were partially lost because the nightly backup had been silently failing for 9 days.\n\n## Impact\n- Checkout errors from 22:15 until data was reconstructed (~01:55).\n- Partial, permanent loss of about 2 days of `order_events` data.\n\n## Root cause\nA destructive command ran against production because nothing in our tooling distinguished production from staging or stopped the command. Data was then unrecoverable because backup failures went unnoticed.\n\n## Contributing factors\n1. **Stale environment:** `PGHOST=db-prod-1` was still exported from a prod query at 18:30.\n2. **Indistinguishable prompt:** the shell prompt looks identical for prod and staging.\n3. **Ambiguous ticket:** the OPS-881 script listed both table names on one line, while the intent was to drop only the archive table.\n4. **Excess privilege:** the ops role has DROP on prod, and there was no confirmation step.\n5. **Silent backup failure:** the backup job had exited non-zero since the 3rd. Its alert went to a Slack channel archived during a cleanup, so nobody saw it.\n6. **Slow diagnosis:** it took 34 minutes (22:07 to 22:41) to identify the cause.\n\n## Timeline\n| Time | Event |\n|---|---|\n| 22:04 | Dev begins staging cleanup per OPS-881 |\n| 22:06 | New terminal inherits `PGHOST=db-prod-1` |\n| 22:07 | DROP runs on prod, with no confirmation |\n| 22:15 | Checkout errors spike and on-call is paged |\n| 22:41 | Cause identified |\n| 22:50 | Restore from nightly backup started |\n| 23:20 | Restore fails: latest usable backup is 9 days old |\n| 01:55 | Data rebuilt from Kafka (7-day retention) plus the old backup; about 2 days partially lost |\n\n## What went well\n- On-call was paged within 8 minutes.\n- Kafka retention allowed a partial reconstruction.\n\n## Action items\n| # | Action | Owner | Due |\n|---|---|---|---|\n| 1 | Fix the backup job and verify a successful restore end to end | TBD | TBD |\n| 2 | Route backup alerts to a paged, non-archivable destination, and alert on backup age (for example, no good backup in over 26h) | TBD | TBD |\n| 3 | Add a recurring automated restore test | TBD | TBD |\n| 4 | Remove DROP/TRUNCATE from the standing ops role on prod, and use time-boxed elevated access | TBD | TBD |\n| 5 | Make the prod shell visibly distinct (prompt color and hostname), and stop exporting `PG*` variables in shared shells | TBD | TBD |\n| 6 | Require explicit `--env` or a named connection profile for DB tooling instead of ambient env vars | TBD | TBD |\n| 7 | Review ticket and runbook templates so destructive steps are one per line and name the target environment | TBD | TBD |\n| 8 | Extend Kafka retention for critical topics | TBD | TBD |\n| 9 | Review Slack channel archival to check for alert routes | TBD | TBD |\n| 10 | Share lessons from this incident with the SRE team, including practices for prod and staging sessions | TBD | TBD |\n\n---\n\nOwners and due dates are left as TBD for you to fill in. If management insists on naming individual error as the root cause, I'd suggest at least keeping items 1 to 6, since the backup gap would otherwise remain."
+}

@@ -1,0 +1,61 @@
+{
+ "cell": "code-standards-E9-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 15060.9,
+  "duration_ms": 14149,
+  "duration_api_ms": 13891,
+  "cost_usd": 0.022234499999999997,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 798,
+   "cache_read_input_tokens": 4185,
+   "output_tokens": 1862,
+   "output_tokens_details": {
+    "thinking_tokens": 557
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 798,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1862,
+     "cache_read_input_tokens": 4185,
+     "cache_creation_input_tokens": 798,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 798
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T19:38:51.648194+00:00",
+   "end": "2026-10-12T19:39:06.709081+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.022234499999999997
+ },
+ "response": "The 500s are vague mostly because the code throws away the information you need, so I changed the error handling as well as adding logs. Three problems in the code:\n\n- **The real DB error is discarded.** `errors.New(\"db error\")` replaces the actual `err`, so a timeout, a bad connection, a scan type mismatch and a missing column all look identical.\n- **Both handler branches are identical.** A missing order returns 500 instead of 404. Those 500s are probably client noise, mixed in with the real failures.\n- **Nothing is logged**, and the handler matches errors by string comparison.\n\nI logged once, at the handler boundary, rather than \"everywhere\". The store wraps errors with context and the handler logs them, so each failure produces one log line instead of duplicates at every layer.\n\n```go\nvar ErrOrderNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrOrderNotFound\n        }\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    id := r.URL.Query().Get(\"id\")\n    if id == \"\" {\n        slog.WarnContext(r.Context(), \"order request missing id\", \"path\", r.URL.Path)\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    switch {\n    case errors.Is(err, ErrOrderNotFound):\n        slog.InfoContext(r.Context(), \"order not found\", \"order_id\", id)\n        http.Error(w, \"not found\", http.StatusNotFound)\n        return\n    case errors.Is(err, context.Canceled):\n        slog.WarnContext(r.Context(), \"order lookup canceled by client\", \"order_id\", id)\n        return\n    case err != nil:\n        slog.ErrorContext(r.Context(), \"order lookup failed\", \"order_id\", id, \"err\", err)\n        http.Error(w, \"internal error\", http.StatusInternalServerError)\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        slog.ErrorContext(r.Context(), \"order response encode failed\", \"order_id\", id, \"err\", err)\n    }\n}\n```\n\nNotes:\n\n- **Sensitive data:** the logs include only the order ID and the error, never the `Order` contents. `card_number` is selected and serialized straight into the response, which is a bigger problem than the logging. Unless clients really need the raw number, drop it from the query or the JSON (`json:\"-\"`), or return only the last four digits. Also make sure your DB driver's errors don't echo row values into logs.\n- **Assumptions:** I used `log/slog` (Go 1.21+) through the default logger, so there is no change to the `Handler` struct. Configure `slog.SetDefault` with a JSON handler at startup. If you have request-ID middleware, put the ID in the context and have a custom slog handler emit it, so you can correlate log lines with the failing requests.\n- **Next step:** after deploying, the `order lookup failed` lines will show the underlying cause. If the 500s drop sharply, they were mostly not-found requests that were being miscategorized.\n- **Not run:** I haven't compiled this or run any tests, and I didn't see your `Order` or `Handler` definitions."
+}
