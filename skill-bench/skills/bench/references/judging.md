@@ -70,11 +70,13 @@ flag), then its `$*_BIN` variable, then `PATH`, then the vendor's default instal
 
 ## Grading pipeline
 
-Each cell is graded then prosecuted: a first pass judges every pre-registered expectation, then an
-adversarial pass re-judges each met call and defaults to not-met when the evidence is thin. The final
-met is the AND of the two (the min rule) — leniency in either stage drops the score. Normalization to
-a neutral schema (stripping format and role tells) happens once and is reused, so a judge swap
-changes only the grader, keeping the comparison clean.
+On the VERDICT path each cell is graded then prosecuted: a first pass judges every pre-registered
+expectation, then an adversarial pass re-judges each met call and defaults to not-met when the
+evidence is thin. The final met is the AND of the two (the min rule) — leniency in either stage
+drops the score. The `/bench skill` path grades once — no prosecutor pass runs there today
+(ADR 0096; wiring is a spend decision, ADR 0098). Normalization to a neutral schema (stripping
+format and role tells) happens once and is reused, so a judge swap changes only the grader,
+keeping the comparison clean.
 
 ## `--judge both` and the divergence diagnostic
 

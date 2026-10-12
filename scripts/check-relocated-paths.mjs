@@ -72,16 +72,61 @@ export function extractPathTokens(files, knownTopDirs) {
 }
 
 /**
+ * Pure derivation (ADR 0089 Act): the shipped-skill dirs eligible for the MOVED-marker
+ * exemption. Only a plugin's explicit `skills[]` entries qualify — never a bare `source`
+ * root, which would exempt whole toolchains (scripts, lib) a note cannot substitute for.
+ */
+export function shippedSkillDirs(manifest) {
+  const out = new Set();
+  for (const p of manifest.plugins ?? []) {
+    if (!p.source || !Array.isArray(p.skills)) continue;
+    for (const s of p.skills)
+      out.add(`${p.source.replace(/^\.\//, "")}/${s.replace(/^\.\//, "")}`);
+  }
+  return out;
+}
+
+// A correction marker is a whole line: `MOVED: <old-path> -> `<new-path>``. Old path plain
+// text (a backticked old path would be a new gate-visible cite); new path backticked and
+// expected to resolve. Anchored — trailing prose disqualifies the line.
+const MOVED_RE = /^MOVED: (\S+) -> `([^`]+)`\s*$/;
+
+/** Pure: per-file MOVED markers. `files` = [{ path, text }]. */
+export function movedMarkers(files) {
+  const out = new Map();
+  for (const { path, text } of files) {
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const m = lines[i].match(MOVED_RE);
+      if (!m) continue;
+      if (!out.has(path)) out.set(path, []);
+      out.get(path).push({ line: i + 1, oldPath: m[1], newPath: m[2] });
+    }
+  }
+  return out;
+}
+
+/**
  * Pure decision. `candidates` from extractPathTokens; `existingPaths` = Set of candidates
  * present in the worktree; `everExisted` = Set of absent candidates with non-empty
- * `git log --all` history. Problem iff absent AND ever-existed (a stranded relocation).
+ * `git log --all` history. Problem iff absent AND ever-existed (a stranded relocation) —
+ * UNLESS (ADR 0089 Act) the path is doc-only (.md), lies under a shipped skill dir, and the
+ * citing file carries a MOVED marker for it (not on the cited line) whose new path resolves.
+ * Executables never qualify: a note cannot run.
  */
-export function checkRelocatedPaths({ candidates, existingPaths, everExisted }) {
+export function checkRelocatedPaths({ candidates, existingPaths, everExisted,
+  shippedDirs = new Set(), markersByFile = new Map(), resolvableNewPaths = new Set() }) {
+  const exempt = c =>
+    c.path.endsWith(".md")
+    && [...shippedDirs].some(d => c.path.startsWith(`${d}/`))
+    && (markersByFile.get(c.file) ?? []).some(m =>
+      m.oldPath === c.path && m.line !== c.line && resolvableNewPaths.has(m.newPath));
   const problems = candidates
-    .filter(c => !existingPaths.has(c.path) && everExisted.has(c.path))
+    .filter(c => !existingPaths.has(c.path) && everExisted.has(c.path) && !exempt(c))
     .map(c => `${c.file}:${c.line}: \`${c.path}\` is cited by this frozen dir but absent from the `
       + `worktree despite existing in git history — a relocation stranded it; restore it at the `
-      + `old path (shim or pointer stub, ADR 0089/PR #230), never edit the frozen line`);
+      + `old path (shim or pointer stub, ADR 0089/PR #230) or, for a doc-only path under a `
+      + `shipped skill dir, append a MOVED marker in the citing file — never edit the frozen line`);
   return { problems };
 }
 
@@ -130,6 +175,18 @@ function main(argv) {
     try { files.push({ path: p, text: readFileSync(join(root, p), "utf8") }); }
     catch (e) { if (e.code !== "ENOENT") throw e; }
   }
+  let shippedDirs;
+  try {
+    shippedDirs = shippedSkillDirs(JSON.parse(readFileSync(join(root, ".claude-plugin/marketplace.json"), "utf8")));
+  } catch (e) {
+    console.error(`check-relocated-paths: cannot derive shipped-skill dirs from marketplace.json: ${e.message}`);
+    process.exit(2);
+  }
+  console.log(`shipped-skill exemption dirs (derived from marketplace.json): ${[...shippedDirs].sort().join(", ")}`);
+  const markersByFile = movedMarkers(files);
+  const resolvableNewPaths = new Set();
+  for (const ms of markersByFile.values())
+    for (const m of ms) if (existsSync(join(root, m.newPath))) resolvableNewPaths.add(m.newPath);
   const candidates = extractPathTokens(files, knownTopDirs);
   const existingPaths = new Set(), everExisted = new Set();
   for (const path of new Set(candidates.map(c => c.path))) {
@@ -142,7 +199,8 @@ function main(argv) {
       process.exit(2);
     }
   }
-  const { problems } = checkRelocatedPaths({ candidates, existingPaths, everExisted });
+  const { problems } = checkRelocatedPaths({ candidates, existingPaths, everExisted,
+    shippedDirs, markersByFile, resolvableNewPaths });
   if (problems.length) {
     console.error(`check-relocated-paths: ${problems.length} stranded path(s)`);
     for (const p of problems) console.error(`  - ${p}`);

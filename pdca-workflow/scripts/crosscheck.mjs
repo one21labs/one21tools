@@ -21,9 +21,22 @@
 // same-family answer is the precise failure ADR 0093 exists to close. So a foreign CLI that
 // returns a Claude model is FRAME-UNCHECKED, exactly as if it were absent.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
+
+// ADR 0093 (anti-priming amendment): every run persists claim + raw response + resolved model,
+// OUTSIDE the repo tree, so a primed prompt can be audited after the fact. Persistence failure
+// never breaks the check itself.
+const RUN_LOG_DIR = join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"),
+  "one21tools", "crosscheck");
+function persistRun(stamp, claim, record) {
+  try {
+    mkdirSync(RUN_LOG_DIR, { recursive: true });
+    writeFileSync(join(RUN_LOG_DIR, `${stamp}-claim.txt`), claim);
+    writeFileSync(join(RUN_LOG_DIR, `${stamp}-response.json`), JSON.stringify(record, null, 2));
+  } catch { /* audit trail is best-effort; the verdict pipeline is not */ }
+}
 
 /** Pure: the lineage this plugin runs inside. `$PDCA_MAKER_FAMILY` is a real override, not a
  *  comment — an adopter driving these skills from another vendor's host inverts which family is
@@ -215,15 +228,20 @@ function main(argv) {
   if (!lanes.length) { console.log(JSON.stringify(NO_LANE, null, 2)); process.exit(3); }
 
   const failures = [];
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   for (const lane of lanes) {
     let answer;
     try {
       answer = runLane(lane, claim, timeoutMs);
     } catch (e) {
       // First line only: a failed lane echoes its whole argv, and the argv contains the claim.
+      persistRun(`${stamp}-${lane.name}`, claim, { lane: lane.name, model: null, text: null,
+        error: String(e.message).split("\n")[0].slice(0, 160) });
       failures.push(`${lane.name}: ${String(e.message).split("\n")[0].slice(0, 160)}`);
       continue;
     }
+    persistRun(`${stamp}-${lane.name}`, claim,
+      { lane: lane.name, model: answer.model, text: answer.text });
     const v = verdictFor({ lane: lane.name, model: answer.model, text: answer.text });
     if (v.status === "CHECKED") { console.log(JSON.stringify(v, null, 2)); return; }
     failures.push(`${lane.name}: ${v.note}`);

@@ -29,7 +29,7 @@ VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated
      package-relative import and runs standalone: `python3 run_eval.py ...`.
 
 Linux/WSL-only (select.select() on a subprocess pipe fd; no Windows equivalent). Run protocol:
-the dev-skills plugin's building-skills skill, references/description-ablation.md (method home).
+this plugin's /bench skill, references/description-ablation.md (method home).
 """
 
 import argparse

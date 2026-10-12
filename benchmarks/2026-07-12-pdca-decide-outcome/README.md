@@ -173,3 +173,12 @@ est.) Cost of the information: two decision-grade nulls + a hardened reusable ha
 - Author-written scenarios (ADR 0052 [unverifiable]; REOPEN-IF a consumer diverges).
 - B's budget match is median-based; arm C's spend variance is a pilot output, recorded
   before the grid.
+
+## Correction (appended 2026-07-28, ADR 0089 Act)
+
+Four raw outputs (`outputs/B{1..4}-C-r1.json`) embed an ADR 0031 snapshot naming a
+building-skills reference that was a pointer stub inside a shipped plugin; the stub is
+deleted (its citers are `.json`, outside the path gate's scanned extensions — this note
+serves the human reader; frozen `outputs/` files are never edited):
+
+MOVED: skills/building-skills/references/section-ablation.md -> `skill-bench/skills/bench/references/section-ablation.md`

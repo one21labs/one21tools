@@ -38,4 +38,5 @@ practical bar tested on the interval's LOWER bound, a per-scenario win rate, and
 equivalence result. Rule, rationale and sizing (`sd_between`/`clusters_for`) live at
 `skill-bench/scripts/lib/benchstats.py:keep_verdict` — the one home (CLAUDE.md's one-home rule),
 so this is an amendment, not a new record. `lib/verdict.py` is FROZEN for 11 append-only dated
-aggregators (ADR 0041); the single recomputation of record is in #310.
+aggregators (ADR 0041); the single recomputation of record is in #310. Out-of-loop edits to
+measured skills are scoped by ADR 0095 (measured-at-baseline + batched G>=8 re-measure).
