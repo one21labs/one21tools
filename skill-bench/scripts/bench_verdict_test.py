@@ -255,8 +255,14 @@ class TestVerdictMath(unittest.TestCase):
         s = bv.summarize(cells, "D", "C")
         self.assertEqual(set(s["arm_means"]), {"C", "D"})  # the verdict pair, matched scenarios
         self.assertIn("D_minus_C", s)
-        self.assertIn("D_minus_A", s)
+        self.assertNotIn("D_minus_A", s)  # only the verdict pair's delta is reported
         self.assertAlmostEqual(s["D_minus_C"]["mean"], 0.5)
+
+    def test_a_control_arm_A_keeps_its_verdict(self):
+        # Round 4: with --primary C,A a legacy bare-mean f"{x}_minus_A" key overwrote the verdict.
+        import bench_verdict as bv
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 1]), cell("a1", "A", "S1", [1, 0, 0, 0])]
+        self.assertIn("verdict", bv.summarize(cells, "C", "A")["C_minus_A"])
 
 
 class TestBenchstatsBoundaries(unittest.TestCase):
@@ -427,7 +433,8 @@ class TestLoadDirAndCache(unittest.TestCase):
             bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID]
                       + [("e1", "C", "S1", {"error": "judge exit 1"}),            # template error row
                          ("m1", "B", "S1", {"norm": {}, "expectations": [{"id": 1, "met": True}]})])
-            cells, baseline, _, berrs = bv.load_dir(d)
+            cells, baseline, _, berrs, missing = bv.load_dir(d)
+        self.assertEqual(missing, [])
         self.assertEqual({c["bid"] for c in cells}, {"c1", "b1", "c2", "b2", "m1"})  # m1 has a norm
         self.assertEqual({c["bid"] for c in baseline}, {"c1", "b1", "c2", "b2"})
         self.assertEqual({e["bid"] for e in berrs}, {"e1", "m1"})
@@ -456,20 +463,62 @@ class TestLoadDirAndCache(unittest.TestCase):
         self.assertEqual([c["bid"] for c in out], ["c1"])
         self.assertEqual({e["bid"] for e in errs}, {"b1", "c2"})
 
-    def _run_cached(self, judge_arg, cache_judge=None):
+    def test_a_cell_with_no_verdict_row_or_no_cache_row_is_a_named_error(self):
+        # Round 4: a scenario whose rows were absent was skipped silently — its arm dropped, the
+        # verdict moved (INCONCLUSIVE -> KEEP on an 8-cell fixture) and errors read 0.
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID])
+            with open(os.path.join(d, "arm_map.tsv"), "a") as f:
+                f.write("x9\tB\tS3\t1\n")                     # in the map, never graded
+            cells, _, _, _, missing = bv.load_dir(d)
+        self.assertEqual(missing, [{"bid": "x9", "error": "no graded/verdicts.jsonl row"}])
+        cache = [{"bid": b, **exps(m)} for b, _, _, m in GRID if b != "b2"]
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual(errs, [{"bid": "b2", "error": "no --cache row"}])
+        self.assertEqual(bv.summarize(out, "C", "B")["C_minus_B"]["dropped_scenarios"], ["S2"])
+        rep = self._run_cached("auto", drop=("b2",), extra_map="x9\tB\tS3\t1\n")
+        self.assertEqual(rep["errors"], 2)
+        self.assertEqual({e["bid"] for e in rep["error_cells"]}, {"b2", "x9"})
+        self.assertEqual(rep["regraded"]["C_minus_B"]["dropped_scenarios"], ["S2"])
+
+    def test_cells_out_reads_back_as_a_cache_carrying_its_judge(self):
+        # Round 4: --cells-out wrote {met:{..}} with no judge, which --cache could not read.
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as t:
+            first = os.path.join(t, "first.jsonl")
+            rep1 = self._run_cached("grok", cache_judge="grok-4.5", cells_out=first)
+            with open(first) as f:
+                rows = [json.loads(line) for line in f]
+            self.assertEqual(len(rows), 4)
+            self.assertEqual(set(rows[0]), {"bid", "arm", "scenario", "judge", "expectations"})
+            self.assertEqual({r["judge"] for r in rows}, {"grok-4.5"})
+            self.assertEqual(rows[0]["expectations"][0], {"id": 1, "met": True})
+            rep2 = self._run_cached("both", cache_file=first)
+        self.assertEqual(rep2["judge"], "grok-4.5")
+        self.assertIn("divergence", rep2)
+        self.assertEqual(rep2["regraded"], rep1["regraded"])
+
+    def _run_cached(self, judge_arg, cache_judge=None, drop=(), extra_map="", cells_out=None,
+                    cache_file=None):
         """bench_verdict --cache with stub grok AND claude on PATH that fail if ever called."""
         import json, subprocess, tempfile
         with tempfile.TemporaryDirectory() as d:
             bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID])
+            with open(os.path.join(d, "arm_map.tsv"), "a") as f:
+                f.write(extra_map)
             bindir = os.path.join(d, "bin")
             os.makedirs(bindir)
             for cli in ("grok", "claude"):
                 with open(os.path.join(bindir, cli), "w") as f:
                     f.write("#!/bin/sh\necho live call >&2\nexit 1\n")
                 os.chmod(os.path.join(bindir, cli), 0o755)
-            cache = os.path.join(d, "cache.jsonl")
-            with open(cache, "w") as f:
-                for b, _, _, m in GRID:
+            cache = cache_file or os.path.join(d, "cache.jsonl")
+            with open(cache, "a") as f:
+                for b, _, _, m in ([] if cache_file else GRID):
+                    if b in drop:
+                        continue
                     row = {"bid": b, **exps(m)}
                     if cache_judge:
                         row["judge"] = cache_judge
@@ -478,7 +527,8 @@ class TestLoadDirAndCache(unittest.TestCase):
                    if k not in ("SKILL_BENCH_JUDGE_CMD", "GROK_BIN", "COPILOT_BIN")}
             env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
             r = subprocess.run([sys.executable, os.path.join(HERE, "bench_verdict.py"), "--dir", d,
-                                "--judge", judge_arg, "--cache", cache],
+                                "--judge", judge_arg, "--cache", cache,
+                                *(["--cells-out", cells_out] if cells_out else [])],
                                capture_output=True, text=True, env=env)
             self.assertEqual(r.returncode, 0, r.stderr)
             return json.loads(r.stdout)
