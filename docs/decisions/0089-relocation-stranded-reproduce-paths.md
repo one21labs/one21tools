@@ -46,7 +46,7 @@ restored the stranded paths.
 **Amendment — (b) splits on SHIP-visibility, not only gate-visibility.** (b) assumed the old path
 is repo-internal. Three stubs are not: `skills/building-skills/` ships inside the dev-skills
 plugin (`.claude-plugin/marketplace.json`), so preserving a path there exports repo-internal
-reproduce debt into every adopter install, and each stub points at a `skill-bench/` path absent
+reproduce debt into every adopter install, and each stub points at a `skill-measure/` path absent
 from a dev-skills-only install. Inside a shipped plugin source the remedy is (b)(ii)'s correction
 note, never a stub. Split by what the gate can see:
 
@@ -69,8 +69,8 @@ note, never a stub. Split by what the gate can see:
    (never `main()`-only), including shipped-WITHOUT-marker still FAILing.
 3. Landing is ATOMIC — predicate, correction notes, and the deletion in ONE change; the same
    change repoints the two live shipped references the original enumeration missed:
-   `skill-bench/scripts/run_eval.py:32` and ADR 0013's Decision cite, both to the live
-   `skill-bench` homes. Split across commits, `main` is red in between.
+   `skill-measure/scripts/run_eval.py:32` and ADR 0013's Decision cite, both to the live
+   `skill-measure` homes. Split across commits, `main` is red in between.
 
 Outside shipped plugin sources, (b) stands unchanged, as does the WEAKEST REOPEN-IF — if it
 fires, the correction notes are all that remain to remove, a cheaper cleanup than today's stubs.

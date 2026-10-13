@@ -8,7 +8,7 @@ summary: "Vendor skill-creator's run_eval.py with an extracted pure detection se
 
 # 0033 — vendor the trigger runner as a first-party instrument
 
-- Decision: copy skill-creator's `run_eval.py` in-repo (now `skill-bench/scripts/run_eval.py`),
+- Decision: copy skill-creator's `run_eval.py` in-repo (now `skill-measure/scripts/run_eval.py`),
   extracting stream-detection into a pure, testable function. Fixes: 3 stream patches (the
   unpatched loop hard-fails on non-Skill/Read tool calls and closes detection too early) plus
   **timeout-as-null** (a timed-out query records null, excluded from the rate, never scored
@@ -21,5 +21,5 @@ summary: "Vendor skill-creator's run_eval.py with an extracted pure detection se
 - Reopen-if: upstream `run_eval.py` diverges enough to miss a fix -> manual re-diff, re-vendor.
   Upstream fixes the 3 stream bugs, or ships the runner installable-with-fixes -> un-vendor. A
   second non-WSL consumer appears -> reopen portability.
-- Enforced: `skill-bench/scripts/run_eval.py` + `run_eval_test.py`; method rules in
+- Enforced: `skill-measure/scripts/run_eval.py` + `run_eval_test.py`; method rules in
   `description-ablation.md` (serial execution, timeout-as-null, no absolute rates).

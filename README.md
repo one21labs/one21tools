@@ -17,7 +17,7 @@ hooks, and skills, not prose (autonomy).
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
 /plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS applied to software)
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
-/plugin install skill-bench@one21tools         # /bench — the paired-eval harness that measures the rest
+/plugin install skill-measure@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
 
 Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
@@ -87,7 +87,7 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
    revert follows the measurement; results land under `benchmarks/<date>-*/`.
 5. Description ablation: the always-loaded frontmatter description is trigger-tested separately.
 
-Method home: `skill-bench/skills/bench/references/empirical-evals.md`.
+Method home: `skill-measure/skills/bench/references/empirical-evals.md`.
 
 ## Gates (required CI)
 

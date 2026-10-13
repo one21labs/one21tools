@@ -77,8 +77,8 @@ test("an allowlisted pair is excluded; the same span elsewhere is not", () => {
 test("shipped plugin READMEs may share the Provenance default (ADR 0085 as amended)", () => {
   // Each plugin is installed standalone, so the repo README that would otherwise own this fact is
   // invisible to its audience — the copy in each README is the delivery, not debt.
-  assert.ok(allowed("pdca-workflow/README.md", "skill-bench/README.md"));
-  assert.ok(allowed("skill-bench/README.md", "pdca-workflow/README.md"));  // order-independent
+  assert.ok(allowed("pdca-workflow/README.md", "skill-measure/README.md"));
+  assert.ok(allowed("skill-measure/README.md", "pdca-workflow/README.md"));  // order-independent
   assert.ok(!allowed("pdca-workflow/README.md", "README.md"));             // repo README not exempt
 });
 
@@ -101,6 +101,17 @@ test("walk skips an entry that vanishes between readdir and stat (#282) but thro
     assert.deepEqual(mdFiles(abs).map(p => relative(abs, p)), ["real.md"]);
     // A missing ROOT is caller error, not a race: the gate must not go silently vacuous.
     assert.throws(() => mdFiles(join(abs, "nope")), /ENOENT/);
+  } finally {
+    rmSync(abs, { recursive: true, force: true });
+  }
+});
+
+test("a symlinked directory is an alias, not a second home: it is never walked", () => {
+  const abs = mkdtempSync(join(tmpdir(), "restate-alias-"));
+  try {
+    writeFileSync(join(abs, "real.md"), "# real\n");
+    symlinkSync(abs, join(abs, "alias"));
+    assert.deepEqual(mdFiles(abs).map(p => relative(abs, p)), ["real.md"]);
   } finally {
     rmSync(abs, { recursive: true, force: true });
   }

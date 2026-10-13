@@ -1,7 +1,7 @@
-# skill-bench
+# skill-measure
 
 A public hermetic pipeline for measuring YOUR OWN skill's value — packaged so any skill author
-can measure their own skill: `/plugin install skill-bench@one21tools`. Decision record:
+can measure their own skill: `/plugin install skill-measure@one21tools`. Decision record:
 ADR 0055 (scope) + ADR 0063 (completion set); plan: #170 — all in the source repo's decision log,
 outside this plugin's shipped files, so no link survives an install.
 
@@ -107,7 +107,7 @@ ADR 0058). What a consumer must provide / knows:
   (#170 hard-problem 4).
 - **Method depth ships in-plugin** (ADR 0063 Call 2 as reworked): pre-registration,
   empirical-evals, and description-ablation live under the `/bench` skill's references —
-  skill-bench is standalone.
+  skill-measure is standalone.
 - **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
   (#170 hard-problem 3); without it, grade serially via `claude -p` with the same prompts.
 

@@ -1,8 +1,8 @@
 ---
 id: 0097
-title: "skill-assay is the name of record; the rename executes last, atomically, historical evidence excluded"
+title: "Rename the bench plugin last, atomically, historical evidence excluded; skill-measure after skill-assay collided"
 status: accepted
-summary: "Adopt skill-assay (two independent naming lanes converged; zero collisions found) and execute the rename — cost rises monotonically with installs and is at its global minimum now. Sequenced LAST, after the claim fixes and doc scoping. GLOBAL_TELLS and the marketplace renames map are mandatory members: missing either turns a rename into a silent measurement defect or a plugin-not-found."
+summary: "Rename now (cost only rises with installs), LAST, live surfaces only. skill-assay was chosen; the execution-time check found it taken, so the pre-decided fallback skill-measure shipped. GLOBAL_TELLS and the marketplace renames map are mandatory members."
 ---
 
 # 0097 — rename to skill-assay
@@ -36,28 +36,25 @@ summary: "Adopt skill-assay (two independent naming lanes converged; zero collis
    name and shape; it is not consent to execute.
 
 ## Justification
-The collision costs discoverability permanently and compounds; execution costs one bounded
-mechanical pass, char-neutral in every budgeted file. The real risk is a PARTIAL rename, so the
-decision is mostly a completeness spec.
+The collision costs discoverability permanently; execution is one bounded mechanical pass. The
+real risk is a PARTIAL rename, so the decision is mostly a completeness spec.
 
 ## Assumptions
 - [verified] no functional collision today (installs address name@marketplace; GitHub/npm are
   separate namespaces) — the harm is discoverability, which is why this sequences last.
 - [verified] the installed Claude Code exceeds the renames-field floor (checked live this
-  session); `skill-assay` and `SKILL_ASSAY` are char-identical to what they replace, so
-  budgeted files survive.
+  session).
 - [checkable] **WEAKEST:** `renames` has never been exercised in THIS marketplace — owner:
   owner at merge review; result: pending — named signal: the owner's own install migrates at
   the next session start after the rename lands.
-- [unverifiable] `skill-assay` is still collision-free at execution — REOPEN-IF the re-run
-  check finds one -> fall to `skill-measure`; no new naming lane.
+- [verified] `skill-assay` was NOT collision-free at execution: npm `skillassay` (16-Aug-2026, an
+  agent-context analyzer) — the REOPEN-IF fired; `skill-measure` (npm, PyPI, GitHub free) ships.
 
 ## Rejected alternatives
 - Stay `skill-bench` — the collision is permanent; the product's pitch is credibility.
 - `displayName` only — renames the label, not the thing; recorded as the FALLBACK if the
   acceptance gate proves the rename unsafe.
-- `skill-eval` (owner's first proposal) — the most-collided candidate found.
-  `evaluating-skills` — gerund-correct, HIGH collision.
+- `skill-eval` (owner's first proposal), `evaluating-skills` — both heavily collided.
 - Rename before the claim fixes — forces hand-written name-correctness on every edit.
 - Name-only rename — manufactures the GLOBAL_TELLS under-coverage defect.
 
@@ -66,3 +63,9 @@ decision is mostly a completeness spec.
 - `grep` finds `skill-bench` live outside `benchmarks/` post-gate -> half-rename; fix before
   any further work.
 - Real adoption arrives before execution -> re-price the call.
+
+## Act (12-Oct-2026)
+- Shipped as `skill-measure`. A `skill-bench` symlink is the path shim: frozen dirs cite and
+  import that path (ADR 0089), so it and GLOBAL_TELLS' old-name entry also survive the grep gate.
+- `SKILL_BENCH_*` env vars keep their names: not a decision-5 member, and renaming them would
+  silently drop an adopter's settings.

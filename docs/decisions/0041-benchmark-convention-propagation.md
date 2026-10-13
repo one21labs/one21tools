@@ -2,7 +2,7 @@
 id: 0041
 title: "Propagate benchmark conventions by deriving from lib, not copying stale dirs"
 status: accepted
-summary: "Fix the stale-benchmark-copy vector at its root: new harnesses DERIVE shared helpers (bench_io, verdict) from skill-bench/scripts/lib and read its one dual-language deny-list home (deny_tools.txt). Add a top-level benchmarks/README scaffold note. Reject a new benchmark gate and reject rewriting pre-ADR-0026 dated dirs (append-only; the frozen literal is the record)."
+summary: "Fix the stale-benchmark-copy vector at its root: new harnesses DERIVE shared helpers (bench_io, verdict) from skill-measure/scripts/lib and read its one dual-language deny-list home (deny_tools.txt). Add a top-level benchmarks/README scaffold note. Reject a new benchmark gate and reject rewriting pre-ADR-0026 dated dirs (append-only; the frozen literal is the record)."
 ---
 
 # 0041 — propagate benchmark conventions by deriving from lib, not copying stale dirs
@@ -11,7 +11,7 @@ summary: "Fix the stale-benchmark-copy vector at its root: new harnesses DERIVE 
 
 ## Decision
 1. **Poka-yoke — new harnesses DERIVE shared helpers from the harness lib, not redefine them.**
-   Delete duplicated helper mirrors; import `bench_io`/`verdict` from `skill-bench/scripts/lib`,
+   Delete duplicated helper mirrors; import `bench_io`/`verdict` from `skill-measure/scripts/lib`,
    also the ONE dual-language deny-list home (`deny_tools.txt`, read by python and bash).
 2. **Durable scaffold note at the copy source.** Add a top-level `benchmarks/README.md`: scaffold
    from lib, follow ADR 0026 artifact formats, do NOT blind-copy the latest dated dir — one home

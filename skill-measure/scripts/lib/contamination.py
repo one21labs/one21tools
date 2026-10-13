@@ -27,7 +27,7 @@ import subprocess
 from pathlib import Path
 
 GLOBAL_TELLS = [r"one21tools-route-i2", r"one21tools-wt", r"judge-sensitiv",
-                r"skill-bench", r"hermetic_driver", r"cost_gate"]
+                r"skill-measure", r"skill-bench", r"hermetic_driver", r"cost_gate"]
 ARCHIVE_SUFFIXES = (".zip", ".tgz", ".tar.gz", ".tar")
 PLUGIN_DOC_SURFACE = ("README.md", "README", "CHANGELOG.md", "docs")
 

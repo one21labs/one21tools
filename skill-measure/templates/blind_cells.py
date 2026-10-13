@@ -26,8 +26,8 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# ADAPT: path to skill-bench/scripts/lib (see grid.py note for the installed-plugin form)
-sys.path.insert(0, str(HERE.parents[1] / "skill-bench" / "scripts" / "lib"))
+# ADAPT: path to skill-measure/scripts/lib (see grid.py note for the installed-plugin form)
+sys.path.insert(0, str(HERE.parents[1] / "skill-measure" / "scripts" / "lib"))
 import bench_io  # noqa: E402
 from artifact_check import classify_cells  # noqa: E402
 from blind import capture_symmetry, write_blinded  # noqa: E402

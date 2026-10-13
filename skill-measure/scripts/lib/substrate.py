@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execution substrate adapters for skill-bench (ADR 0055).
+"""Execution substrate adapters for skill-measure (ADR 0055).
 
 The bench layer (arms, blind grading, prosecutor, cross-family judge, cost gate, pre-registration)
 is the in-repo asset. GENERATION — running each prompt under each arm — is rented: promptfoo drives
@@ -35,7 +35,7 @@ def build_promptfoo_config(prompts, providers):
     through our own CLI calls; promptfoo owns the matrix, not the model. prompt_id rides in vars so
     it is echoed back per result row (robust across promptfoo versions). Pure (no fs)."""
     return {
-        "description": "skill-bench generation matrix",
+        "description": "skill-measure generation matrix",
         "prompts": ["{{text}}"],
         "providers": [{"id": "exec: " + p["exec"], "label": p["name"]} for p in providers],
         "tests": [{"vars": {"text": t, "prompt_id": i}} for i, t in enumerate(prompts)],
@@ -108,7 +108,7 @@ class PromptfooSubstrate:
         self.argv = [bin] if bin else ["npx", "--yes", self.PIN]
 
     def run(self, prompts, arms, workdir=None):
-        workdir = workdir or tempfile.mkdtemp(prefix="skillbench-pf-")
+        workdir = workdir or tempfile.mkdtemp(prefix="skillmeasure-pf-")
         providers = [{"name": a["name"], "exec": "bash " + _write_arm_wrapper(workdir, a)} for a in arms]
         cfg = os.path.join(workdir, "promptfooconfig.json")
         out = os.path.join(workdir, "results.json")
