@@ -50,6 +50,20 @@ class UnreachableClasses(unittest.TestCase):
         """))
         self.assertEqual(found, [])
 
+    def test_test_class_without_unittest_main_is_unwired(self):
+        # Script mode runs the file, defines the class, and exits 0 having run nothing.
+        found = unreachable_classes(src("""\
+            import unittest
+
+            class Helper:
+                pass
+
+            class Orphan(unittest.TestCase):
+                def test_x(self):
+                    self.fail()
+        """))
+        self.assertEqual(found, [(6, "Orphan")])
+
     def test_nested_class_below_main_not_flagged(self):
         found = unreachable_classes(src("""\
             import unittest

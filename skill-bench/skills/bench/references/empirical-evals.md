@@ -74,9 +74,9 @@ Disciplines:
 
 Run skill-creator's benchmark mode over the eval set with **at least 3 runs per
 configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation.
-Escalate sequentially (ADR 0019): after aggregating, add replicates or evals ONLY where the
-eval-level CI straddles the verdict boundary (0.5 win rate / zero delta) — never spend runs
-on an already-unambiguous cell.
+Escalated looks (replicates added where the CI straddles the bar) are DIAGNOSTIC: re-reading
+inflates false KEEPs (optional stopping). A confirmatory verdict needs a
+fresh pre-registered grid (ADR 0095 decision 4 shape).
 
 Pre-screen task selection for a NEW comparison type: discriminative power is
 comparison-specific — a battery built for skill-presence ablation can floor on a model-tier
@@ -99,9 +99,9 @@ Grading disciplines:
 - One blind pool per unit (session/run) — a cross-unit pool lets a grader dedup across units.
 - Grade from the produced output/transcript, never from intent.
 
-### Grading reliability under the Claude-only constraint (ADR 0019)
+### Grading reliability with a same-family judge (ADR 0019)
 
-Only Claude can grade here — a fixed constraint, not a choice. The paired design already
+When the judge is Claude (judging.md routes the choice), the paired design already
 cancels raw self-preference (both arms are Claude output); what survives is style-alignment
 bias, family blind spots, and judge noise. Mitigation stack, in priority order:
 
@@ -128,18 +128,20 @@ bounded by (2)/(4), not eliminated. Treat those verdict components as directiona
 Post-process the harness's `benchmark.json` with the owned layer:
 
 ```
-python "${CLAUDE_PLUGIN_ROOT}/scripts/eval_verdict.py" <benchmark.json> --skill <skill-folder>
+python "${CLAUDE_PLUGIN_ROOT}/scripts/eval_verdict.py" <benchmark.json> --skill <skill-folder> [--practical <bar>]
 ```
 
 It pairs each eval's runs across configurations and reports:
 
 - **Win rate with a Wilson 95% CI, eval-clustered** (ADR 0019): replicates of one eval are
   correlated, so each eval's mean delta becomes one win/loss/tie and the headline interval
-  is over non-tied EVALS — trust the interval, not the point estimate; under 4 non-tied
-  evals (the authoring floor) it prints a width warning. Pair-level W/L/T stays as detail.
+  is over non-tied EVALS — trust the interval, not the point estimate; under 6 non-tied
+  evals (where even a clean sweep fails an exact sign test) it prints a width warning.
+  Pair-level W/L/T stays as detail.
 - **A 0/0 cell (both arms score zero) is a measurement failure, not a verdict** — the eval isn't discriminating the treatment from the baseline. Never read a 0/0 as license to cut the artifact; fix the eval via transcript-level diagnosis + the REWRITE discipline above (never difficulty-raise blind). If diagnosis instead confirms the skill genuinely doesn't help, it's a clean null — see "Keep cleanly-measured nulls."
-- **Mean pass-rate delta** and the mean run-time token delta.
-- **VERDICT — delta per 1k chars of loaded context**: the cost-per-benefit number. The
+- **Mean pass-rate delta** (mean of per-eval means), its VERDICT (`benchstats.keep_verdict` on
+  the eval-clustered interval), and the mean run-time token delta.
+- **Delta per 1k chars of loaded context**: the cost-per-benefit number. The
   denominator (ADR 0019) defaults to SKILL.md body (the always-on cost); `--include-references`
   charges body + all references/*.md (an upper bound — assumes every reference loaded), and
   `--loaded-chars N` takes an exact measured count. For a reference-heavy skill the two bounds
@@ -159,8 +161,7 @@ per-cell verdict records plus a `metadata.json`: executor model, eval-set conten
 protocol/ADR version, blinded (y/n), **hermetic (y/n)**, the denominator basis, and (when raw is
 retained) the `sample_rule`. JSON/JSONL is the SSoT; any markdown view is rendered from it, never
 hand-maintained. Append-only, never edited: a snapshot is a measurement record as of its date, not
-current truth (so it is not a stale mirror). This is what makes `--fail-under` and
-regression-vs-history possible — without a stored baseline there is nothing to regress against.
+current truth. It is the stored baseline `--fail-under` and regression-vs-history need.
 
 **Hermetic executor gates a verdict (ADR 0023).** A run counts toward a keep/cut verdict only if
 the control arm had zero installed plugins and zero repo/skill file read access — a cloud container,

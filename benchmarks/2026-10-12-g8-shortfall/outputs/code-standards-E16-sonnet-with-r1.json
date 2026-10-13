@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E16-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E16",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17916.9,
+  "duration_ms": 17033,
+  "duration_api_ms": 16813,
+  "cost_usd": 0.025570700000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 742,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 2218,
+   "output_tokens_details": {
+    "thinking_tokens": 520
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 742,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2218,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 742,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 742
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:27:15.842262+00:00",
+   "end": "2026-10-12T22:27:33.759188+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.025570700000000002,
+  "charged_usd": 0.025570700000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here is the documented module. Code is unchanged. The only removals are the two old inline comments, which the new docstrings replace. One of them (\"returns total in cents\") was wrong.\n\n```python\n\"\"\"\nARCHITECTURE ROLE:\n    Order pricing: computes an order total from line items, an optional\n    coupon discount, and sales tax. Also owns order sanitizing (is_valid).\n    Does NOT own cart or order persistence; it only touches the coupons\n    collection, through the module-level `db` handle.\n\nDESIGN CONSTRAINTS:\n    - Money is in dollars as floats, not cents. Results are rounded to 2\n      decimals only at the end of calc().\n    - get_discount() has a side effect (it consumes a coupon use), and calc()\n      calls it. calc() is therefore NOT idempotent when the order has a\n      valid coupon.\n    - is_valid() mutates the order passed to it.\n    - `db` is a module-level global that must be provided by the application\n      (a pymongo-style database); this module does not create it.\n\nUSED BY:\n    Cart page (on every refresh) and checkout.\n\"\"\"\n\nTAX = 0.0825  # sales tax rate as a fraction (8.25%)\n\n\ndef calc(o, f=True):\n    \"\"\"Return the order total in dollars, rounded to 2 decimals.\n\n    Computation: sum(price * qty) over items, minus the coupon discount,\n    plus tax if requested.\n\n    Args:\n        o: Order dict. Requires 'items', a list of dicts with float\n            'price' (dollars) and numeric 'qty'. Optional 'coupon' code.\n        f: If True, apply TAX to the discounted subtotal. If False, return\n            the pre-tax total.\n\n    Returns:\n        float: Total in dollars (not cents).\n\n    Side effects:\n        Calls get_discount(), which decrements the coupon's uses_left in the\n        database. Every call with a valid coupon consumes one use, including\n        cart page refreshes.\n\n    Caveats:\n        The discount is not capped at the subtotal, so the total can be\n        negative.\n    \"\"\"\n    t = sum(i['price'] * i['qty'] for i in o['items'])\n    d = get_discount(o)\n    t = t - d\n    if f:\n        t = t + t * TAX\n    return round(t, 2)\n\n\ndef get_discount(o):\n    \"\"\"Look up the order's coupon and consume one use of it.\n\n    Args:\n        o: Order dict. Reads the optional 'coupon' code.\n\n    Returns:\n        The coupon's 'amount' (dollars, flat) if the coupon exists and has\n        uses_left > 0; otherwise 0.\n\n    Side effects:\n        Decrements uses_left by 1 in db.coupons when a discount is granted.\n        The lookup and the decrement are separate operations, so concurrent\n        calls can both succeed on the last remaining use.\n\n    Caveats:\n        If the order has no 'coupon', the query matches on code None, which\n        can match coupon documents that have no 'code' field.\n    \"\"\"\n    c = db.coupons.find_one({'code': o.get('coupon')})\n    if c and c['uses_left'] > 0:\n        db.coupons.update_one({'_id': c['_id']}, {'$inc': {'uses_left': -1}})\n        return c['amount']\n    return 0\n\n\ndef is_valid(o):\n    \"\"\"Drop zero or negative quantity items, then report whether any remain.\n\n    Args:\n        o: Order dict with 'items'. Each item needs a numeric 'qty'.\n\n    Returns:\n        bool: True if at least one item with qty > 0 remains.\n\n    Side effects:\n        Mutates `o` in place: o['items'] is replaced with the filtered list.\n        Despite the name, this is a sanitizer, not a pure predicate.\n    \"\"\"\n    o['items'] = [i for i in o['items'] if i['qty'] > 0]\n    return len(o['items']) > 0\n```\n\nWhile documenting, I found issues the new hire should know about. I left them unfixed because you asked for no behavior changes:\n\n1. **Coupon use is burned on every cart refresh.** `calc()` calls `get_discount()`, which decrements `uses_left` each time. Since `calc()` runs on every refresh and again at checkout, a single-use coupon can be consumed before the customer pays, and the checkout call can then get no discount. This is likely the most serious one.\n2. **The old comment said \"returns total in cents\", but the function returns dollars.** Prices are dollar floats and the result is rounded to 2 decimals. The docstring now says dollars.\n3. **Discounts aren't capped**, so a coupon larger than the subtotal gives a negative total.\n4. **Coupon lookup and decrement aren't atomic**, so concurrent requests can over-redeem the last use.\n5. **A missing `coupon` queries `{'code': None}`**, which can match coupons that lack a code field.\n6. **Float arithmetic for money** can cause rounding drift. Integer cents or `Decimal` would be safer.\n\nI can follow up with fixes for these. For the biggest one, I'd split a read-only discount lookup from a redeem step that runs only at order placement."
+}

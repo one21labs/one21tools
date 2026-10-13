@@ -31,7 +31,8 @@ projects above it (realized in
 `one21labs/one21tools:benchmarks/2026-07-17-thirdparty-writing-plans/`); the stop rule and the
 mechanical gate must be the same number.
 
-**Usage-limit pause (ADR 0099):** every paid call goes through `usage_guard`: at 80% of any
+**Usage-limit pause (ADR 0099):** every hermetic-driver generation and Claude-judge call goes
+through `usage_guard` (native `/bench skill` generation and `/bench trigger` do not): at 80% of any
 subscription window (`$SKILL_BENCH_PAUSE_AT`) new calls wait for the reset, and a call the limit
 rejected waits and re-issues rather than recording an ERROR cell. A long run can therefore sit
 idle for hours; that is the policy working, not a hang — the pause and resume times print to
@@ -46,8 +47,11 @@ skill-eval rubrics both work.
 
 ## The verdict
 
-Arm means are the mean fraction-met per arm. The headline contrast is clustered by scenario: the
-mean of the per-scenario deltas, with a 95% CI over those clusters. **The interval decides the
+The headline contrast is clustered by scenario: the mean of the per-scenario deltas, with a 95%
+CI over those clusters. Arm means are scenario-weighted over the scenarios both arms reached, so
+with − without equals the delta; a scenario only one arm reached is named in `dropped_scenarios`.
+Identical cluster deltas give a zero-width interval: the verdict stands, `spread` says so, and
+`mde80` is null. **The interval decides the
 verdict; the point estimate never does.**
 
 | Verdict | Condition | What you may claim |

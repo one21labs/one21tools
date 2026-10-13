@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E9-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14501.1,
+  "duration_ms": 13793,
+  "duration_api_ms": 13575,
+  "cost_usd": 0.021408700000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 799,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 1779,
+   "output_tokens_details": {
+    "thinking_tokens": 428
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 799,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1779,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 799,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 799
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:50.200078+00:00",
+   "end": "2026-10-12T22:27:04.701157+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.021408700000000003,
+  "charged_usd": 0.021408700000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The 500s are vague because the code throws away the information you need:\n\n- `GetOrder` replaces the real DB error with `errors.New(\"db error\")`, so the cause (timeout, connection failure, scan/type mismatch) is never recorded.\n- The handler's `not found` branch returns 500, same as real failures, so missing orders look like outages.\n- Errors are compared by string and the `Encode` error is ignored.\n\nRather than logging everywhere, I wrapped errors with `%w` in the store and log once at the handler boundary. That gives one log line per failure with the full cause chain and no duplicates.\n\n```go\nvar ErrOrderNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n\trow := s.db.QueryRowContext(ctx, `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n\tvar o Order\n\tif err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n\t\tif errors.Is(err, sql.ErrNoRows) {\n\t\t\treturn nil, ErrOrderNotFound\n\t\t}\n\t\treturn nil, fmt.Errorf(\"scan order %q: %w\", id, err)\n\t}\n\treturn &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n\tid := r.URL.Query().Get(\"id\")\n\tif id == \"\" {\n\t\tslog.WarnContext(r.Context(), \"order request missing id\", \"path\", r.URL.Path)\n\t\thttp.Error(w, \"missing id\", http.StatusBadRequest)\n\t\treturn\n\t}\n\n\to, err := h.store.GetOrder(r.Context(), id)\n\tif err != nil {\n\t\tif errors.Is(err, ErrOrderNotFound) {\n\t\t\tslog.InfoContext(r.Context(), \"order not found\", \"order_id\", id)\n\t\t\thttp.Error(w, \"order not found\", http.StatusNotFound)\n\t\t\treturn\n\t\t}\n\t\tslog.ErrorContext(r.Context(), \"get order failed\",\n\t\t\t\"order_id\", id,\n\t\t\t\"ctx_err\", r.Context().Err(),\n\t\t\t\"error\", err,\n\t\t)\n\t\thttp.Error(w, \"internal error\", http.StatusInternalServerError)\n\t\treturn\n\t}\n\n\t// Headers are already sent at this point, so a failed encode can only be logged.\n\tif err := json.NewEncoder(w).Encode(o); err != nil {\n\t\tslog.ErrorContext(r.Context(), \"encode order response failed\", \"order_id\", id, \"error\", err)\n\t}\n}\n```\n\nWhat this gives you:\n- **Real cause in logs**: `ctx_err` distinguishes client cancellations and deadline timeouts (`context canceled` / `deadline exceeded`) from genuine DB failures. These are common sources of unexplained 500s.\n- **Correct status codes**: not found returns 404 and a missing id returns 400, so the 500 count reflects only real failures.\n- **No sensitive data in logs**: I log the order ID, never the `Order` struct or `card_number`.\n\nThings to do beyond this snippet:\n1. **Card numbers in the response**: the handler JSON-encodes `CardNumber` back to the client. Unless it's already masked or tokenized, drop it from the response (e.g. `json:\"-\"`) or return only the last 4 digits. This is a PCI problem independent of the logging.\n2. **Correlation IDs**: for traces across services, add request-ID middleware that puts the ID in the context and have your `slog` handler include it. `slog.*Context` will then carry it automatically.\n3. **Logger setup**: I used the default `slog` logger. Configure a JSON handler at startup (`slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))`) so logs are structured and you can set the level via config.\n4. **Other handlers**: if they share this pattern (`errors.New` discarding causes), they have the same blind spot. The same sentinel-plus-`%w` approach applies."
+}

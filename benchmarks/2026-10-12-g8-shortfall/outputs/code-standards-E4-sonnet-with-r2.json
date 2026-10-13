@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E4-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E4",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 9692.4,
+  "duration_ms": 9012,
+  "duration_api_ms": 8766,
+  "cost_usd": 0.010890100000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4761,
+   "output_tokens": 1041,
+   "output_tokens_details": {
+    "thinking_tokens": 424
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1041,
+     "cache_read_input_tokens": 4761,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:06.325311+00:00",
+   "end": "2026-10-12T22:26:16.017720+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.010890100000000002,
+  "charged_usd": 0.010890100000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "I didn't write `price_feed.py` because you asked me not to use tools. Here is the module to save as `price_feed.py`:\n\n```python\n\"\"\"\nprice_feed.py - vendor price feed ingestion\n\nARCHITECTURE ROLE:\n    Applies vendor feed lines to an in-memory price map. Owns line parsing only;\n    fetching the feed and persisting prices belong to the caller.\n\nDESIGN CONSTRAINTS:\n    - Malformed lines are skipped with a WARNING and never abort the batch.\n    - A line updates `prices` only if it parses fully.\n\"\"\"\n\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef apply_updates(prices, feed_lines):\n    for line in feed_lines:\n        try:\n            sku, price = line.split(\",\")\n            parsed_price = float(price)\n        except ValueError as err:\n            logger.warning(\"Skipping malformed feed line %r: %s\", line, err)\n            continue\n        prices[sku] = parsed_price\n    return prices\n```\n\n- **Cause:** a line with the wrong number of fields makes the tuple unpack raise `ValueError`. A non-numeric price makes `float()` raise `ValueError` too. Both are now caught per line, so one bad line no longer kills the batch.\n- **Logging:** skipped lines are logged at `WARNING` with the raw line and the error, so they are not silently dropped. Alert on that log if you want to catch a bad vendor feed.\n- **State:** the parse happens before the assignment, so a bad line never leaves a partial update in `prices`.\n\nFollow-ups for next sprint, which I left out to keep the fix minimal:\n- `float()` accepts `\"nan\"` and `\"inf\"`, so those would still get through as prices.\n- An empty SKU, such as `\",1.00\"`, is also accepted.\n- Both would need explicit validation."
+}

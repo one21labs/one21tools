@@ -5,8 +5,8 @@ eval_verdict.py - cost-per-benefit verdict over a skill-creator benchmark.json (
 Execution is DELEGATED to Anthropic's skill-creator harness (benchmark mode: paired
 with_skill/without_skill runs, graded assertions, aggregate_benchmark.py). This script owns
 only the thin layer upstream lacks: pairs each eval's runs across the two configurations,
-computes the win rate with a Wilson 95% CI, the mean pass-rate delta, and the verdict metric
-- mean delta per 1,000 chars of loaded context (default SKILL.md body; --include-references /
+computes the win rate with a Wilson 95% CI, the eval-clustered delta with its keep_verdict
+(benchstats, the interval decides), and the cost metric - mean delta per 1,000 chars of loaded context (default SKILL.md body; --include-references /
 --loaded-chars vary the basis, ADR 0019 - does the content EARN its context cost?).
 
 NOT a CI gate (upstream runs are non-deterministic; this only post-processes their output).
@@ -17,15 +17,19 @@ metadata.json sample_rule and asserts every selected cell's transcript is presen
 silent-drop tripwire) - independent of the verdict computation above.
 
 Usage:
-    python eval_verdict.py <benchmark.json> --skill <skill-folder> [--fail-under DELTA]
+    python eval_verdict.py <benchmark.json> --skill <skill-folder> [--practical BAR] [--fail-under DELTA]
     python eval_verdict.py --check-audit-sample <benchmark-dir>
 """
 import argparse
 import json
 import math
+import os
 import re
 import sys
 from pathlib import Path
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+import benchstats  # noqa: E402
 
 
 def strip_frontmatter(text: str) -> str:
@@ -78,21 +82,27 @@ def pairs_by_eval(runs: list) -> dict:
     return grouped
 
 
-def eval_level(by_eval: dict) -> dict:
+def eval_level(by_eval: dict, practical: float = 0.0) -> dict:
     """Cluster replicates per eval (ADR 0019): an eval's mean delta > 0 is a win,
     < 0 a loss, 0 a tie. The headline Wilson CI is over non-tied EVALS - replicates
-    within an eval are correlated and must not inflate n."""
+    within an eval are correlated and must not inflate n. `mean_delta` is the mean of
+    per-eval means (an eval with 6 reps weighs what one with 1 rep does) and `verdict`
+    is benchstats.keep_verdict on the same clusters at the pre-registered `practical` bar."""
     wins = losses = ties = 0
-    for pairs in by_eval.values():
-        mean_delta = sum(wi - wo for wo, wi in pairs) / len(pairs)
+    per = {}
+    for eval_id, pairs in by_eval.items():
+        mean_delta = per[eval_id] = sum(wi - wo for wo, wi in pairs) / len(pairs)
         if mean_delta > 0:
             wins += 1
         elif mean_delta < 0:
             losses += 1
         else:
             ties += 1
+    delta = benchstats.cluster_interval(per)
     return {"evals": len(by_eval), "wins": wins, "losses": losses, "ties": ties,
-            "win_ci": wilson_ci(wins, wins + losses)}
+            "win_ci": wilson_ci(wins, wins + losses),
+            "mean_delta": delta["mean"] if per else 0.0,
+            "verdict": benchstats.keep_verdict(delta, practical)}
 
 
 def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
@@ -107,15 +117,14 @@ def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
 
 
 def aggregate(pairs: list) -> dict:
-    """pairs = [(without_rate, with_rate), ...]. Wins = with_skill strictly better;
-    the Wilson CI is over wins among non-ties (ties carry no direction)."""
+    """pairs = [(without_rate, with_rate), ...] -> pair-level DETAIL only. Wins = with_skill
+    strictly better; the Wilson CI is over wins among non-ties (ties carry no direction). No
+    mean here: a rep-weighted mean lets one heavily-replicated eval outvote the rest."""
     wins = sum(1 for wo, wi in pairs if wi > wo)
     losses = sum(1 for wo, wi in pairs if wi < wo)
     ties = len(pairs) - wins - losses
-    deltas = [wi - wo for wo, wi in pairs]
-    mean_delta = sum(deltas) / len(deltas) if deltas else 0.0
     return {"pairs": len(pairs), "wins": wins, "losses": losses, "ties": ties,
-            "mean_delta": mean_delta, "win_ci": wilson_ci(wins, wins + losses)}
+            "win_ci": wilson_ci(wins, wins + losses)}
 
 
 class AuditSampleError(Exception):
@@ -218,23 +227,31 @@ def token_cost(run_summary: dict) -> float:
 
 def fmt_report(agg: dict, evals: dict, content_chars: int, tok_delta: float,
                basis: str = "SKILL.md body") -> str:
-    per_1k = (agg["mean_delta"] / content_chars * 1000) if content_chars else 0.0
+    per_1k = (evals["mean_delta"] / content_chars * 1000) if content_chars else 0.0
     lo, hi = evals["win_ci"]
+    v = evals["verdict"]
+    ci = v.get("ci95") or [None, None]
+    ci_txt = f"[{ci[0]:+.3f}, {ci[1]:+.3f}]" if ci[0] is not None else "no interval"
+    if v.get("practical") is not None:
+        ci_txt += f", practical bar {v['practical']:+.3f}"
     lines = [
         f"paired runs: {agg['pairs']}  wins: {agg['wins']}  losses: {agg['losses']}  "
         f"ties: {agg['ties']}",
         f"evals: {evals['evals']}  wins: {evals['wins']}  losses: {evals['losses']}  "
         f"ties: {evals['ties']}",
         f"win rate (eval-clustered, excl. ties): {lo:.2f}-{hi:.2f} (Wilson 95% CI)",
-        f"mean pass-rate delta: {agg['mean_delta']:+.3f}",
+        f"mean pass-rate delta (mean of per-eval means): {evals['mean_delta']:+.3f}",
+        f"VERDICT (eval-clustered 95% CI {ci_txt}): {v['verdict']}"
+        + (f" - {v['why']}" if v.get("why") else ""),
         f"context cost: {content_chars} chars ({basis}); "
         f"mean run-time token delta: {tok_delta:+.0f}",
-        f"VERDICT - delta per 1k chars of context: {per_1k:+.4f}",
+        f"cost - delta per 1k chars of context: {per_1k:+.4f}",
     ]
-    # The headline CI is over non-tied EVALS (replicates are correlated - ADR 0019),
-    # so the width guard counts them; 4 matches the authoring floor of 4+ cases.
-    if evals["wins"] + evals["losses"] < 4:
-        lines.append("[WARN] under 4 non-tied evals - the CI is wide; add evals "
+    # The headline CI is over non-tied EVALS (replicates are correlated - ADR 0019), so the
+    # width guard counts them. 6 is the smallest n at which even a clean sweep is significant
+    # (exact sign test: 6/6 two-sided p=0.031; 5/5 p=0.063), where Wilson reads it as decisive.
+    if evals["wins"] + evals["losses"] < 6:
+        lines.append("[WARN] under 6 non-tied evals - the CI is wide; add evals "
                      "before trusting the verdict")
     return "\n".join(lines)
 
@@ -271,6 +288,9 @@ def main() -> int:
     parser.add_argument("--loaded-chars", type=int, default=None,
                         help="exact measured chars loaded per with_skill run; overrides the "
                              "body/references estimate (ADR 0019)")
+    parser.add_argument("--practical", type=float, default=0.0,
+                        help="pre-registered minimum difference worth having; KEEP needs the CI's "
+                             "lower bound above it (benchstats.keep_verdict)")
     parser.add_argument("--fail-under", type=float, default=None,
                         help="exit 1 if the mean pass-rate delta falls below this")
     parser.add_argument("--check-audit-sample", type=Path, default=None, metavar="BENCHMARK_DIR",
@@ -301,11 +321,11 @@ def main() -> int:
               "run skill-creator's benchmark mode with both configurations")
         return 1
     chars, basis = denominator(args.skill, args.loaded_chars, args.include_references)
-    agg = aggregate(pairs)
-    print(fmt_report(agg, eval_level(by_eval), chars,
+    evals = eval_level(by_eval, args.practical)
+    print(fmt_report(aggregate(pairs), evals, chars,
                      token_cost(benchmark.get("run_summary", {})), basis))
-    if args.fail_under is not None and agg["mean_delta"] < args.fail_under:
-        print(f"[FAIL] mean delta {agg['mean_delta']:+.3f} < --fail-under {args.fail_under}")
+    if args.fail_under is not None and evals["mean_delta"] < args.fail_under:
+        print(f"[FAIL] mean delta {evals['mean_delta']:+.3f} < --fail-under {args.fail_under}")
         return 1
     return 0
 

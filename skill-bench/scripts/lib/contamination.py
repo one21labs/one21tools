@@ -28,6 +28,7 @@ from pathlib import Path
 
 GLOBAL_TELLS = [r"one21tools-route-i2", r"one21tools-wt", r"judge-sensitiv",
                 r"skill-bench", r"hermetic_driver", r"cost_gate"]
+ARCHIVE_SUFFIXES = (".zip", ".tgz", ".tar.gz", ".tar")
 PLUGIN_DOC_SURFACE = ("README.md", "README", "CHANGELOG.md", "docs")
 
 
@@ -37,14 +38,15 @@ def _record_text(rec):
             + json.dumps(rec.get("probes") or {}))
 
 
-def sweep_records(records, tells, global_tells=None):
-    """records: iterable of cell dicts (needs 'scenario'; 'cell' names the hit).
+def sweep_records(records, tells, extra_tells=()):
+    """records: iterable of cell dicts (needs 'scenario'; 'cell' names the hit). GLOBAL_TELLS
+    always apply; `extra_tells` adds to them and can never switch them off.
     Returns [(cell, pattern), ...] — empty means clean."""
     hits = []
-    gt = GLOBAL_TELLS if global_tells is None else global_tells
+    gt = list(dict.fromkeys([*GLOBAL_TELLS, *extra_tells]))
     for rec in records:
         text = _record_text(rec)
-        for pat in list(tells.get(rec.get("scenario"), [])) + list(gt):
+        for pat in list(tells.get(rec.get("scenario"), [])) + gt:
             if re.search(pat, text, re.I):
                 hits.append((rec.get("cell") or rec.get("bid") or "?", pat))
     return hits
@@ -52,12 +54,18 @@ def sweep_records(records, tells, global_tells=None):
 
 def sweep_tree(root, tells):
     """Scan a directory tree (excluding .git internals) and each contained git repo's
-    full history for any of `tells` (plain strings). Returns [(where, tell), ...]."""
+    full history for any of `tells` (plain strings). An archive is a hit by itself: its
+    contents are unscanned. Returns [(where, tell), ...]."""
+    if not tells:  # an empty alternation matches everything: a sweep with no tells is a bug
+        raise ValueError("sweep_tree needs at least one tell")
     root = Path(root)
     hits = []
     pat = re.compile("|".join(re.escape(t) for t in tells), re.I)
     for p in root.rglob("*"):
         if p.is_dir() or ".git" in p.parts:
+            continue
+        if p.name.lower().endswith(ARCHIVE_SUFFIXES):
+            hits.append((str(p.relative_to(root)), "archive (contents unscanned)"))
             continue
         try:
             text = p.read_text(encoding="utf-8", errors="ignore")

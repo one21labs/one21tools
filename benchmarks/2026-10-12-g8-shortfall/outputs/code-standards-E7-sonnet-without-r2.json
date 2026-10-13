@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E7-sonnet-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 10820.3,
+  "duration_ms": 9920,
+  "duration_api_ms": 9650,
+  "cost_usd": 0.0145196,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 722,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1142,
+   "output_tokens_details": {
+    "thinking_tokens": 333
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 722,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1142,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 722,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 722
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:40.242614+00:00",
+   "end": "2026-10-12T22:26:51.062965+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0145196,
+  "charged_usd": 0.0145196,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the rename-only version, with no behavior changes:\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef fetch_access_token(username, password, extra_headers=[], timeout_seconds=10):\n    extra_headers.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(header.split(': ') for header in extra_headers),\n                                 timeout=timeout_seconds)\n        token_response = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, token_response)\n        return token_response['access_token']\n    except Exception:\n        return None\n```\n\nRenaming `f` means every caller (`tok = f(svc_user, svc_pass)`) has to change too. Any caller passing `h=` or `t=` by keyword would also break. If you can't update them all at once, add `f = fetch_access_token` temporarily.\n\nI kept everything else as-is, but I don't think the names are the only problem. Two issues are worth knowing about before this goes further:\n\n1. **The log line writes the password and the token to Datadog.** `log.info('auth ok for %s with %s -> %s', u, p, d)` logs the service password and the full token response, including `access_token`. Since that index is searchable company-wide and this runs about once a minute, those credentials have likely been exposed for as long as this has been in prod. I'd treat the service password as compromised and rotate it, and consider purging or restricting the matching log entries. The fix is to log only the username, e.g. `log.info('auth ok for %s', username)`.\n\n2. **The mutable default `h=[]` grows on every call.** The default list is shared across calls, so in a long-running worker it gains one `'X-Client: billing-sync'` entry per minute. `dict()` collapses the duplicates, so requests look fine, but it's a slow memory leak. The fix is `extra_headers=None` and building a fresh list inside the function.\n\nThere's also a smaller one: the bare `except Exception: return None` swallows every failure without logging, so auth failures are invisible. Your callers' \"retry later\" logic does depend on the `None` return, though, so I'd keep that contract and just add a `log.exception(...)` call.\n\nThe first fix is a one-line change and arguably urgent. I can paste back a version with those fixes if you'd like. I left them out since you asked for names only."
+}

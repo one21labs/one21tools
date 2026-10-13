@@ -3,30 +3,35 @@
 instead of a 10th dated-dir copy (the 9 existing copies are frozen snapshots, ADR 0041).
 
 Three jobs (the first two are arm-blinding, ADR 0019 item 5):
-  - assign_bids/write_blinded: deterministic blind ids, per-item payload files WITHOUT the arm
-    field, plus the arm map the aggregator joins back on (flat records -> ADR 0026 formats are
-    the caller's job via bench_io).
+  - assign_bids/write_blinded: secret-salted blind ids, per-item payload files carrying only
+    whitelisted fields, plus the arm map the aggregator joins back on (flat records -> ADR 0026
+    formats are the caller's job via bench_io).
   - NEUTRAL_SCHEMA_PROMPT / NEUTRAL_DECISION_PROMPT: the schema-normalization instructions the
     grading workflow runs as its FIRST stage, because output FORMAT is itself an arm tell
     (a retrospect agent's routed-fragments shape, an ADR-formatted decision) — issue #172's
     pre-registrations; blinding validated per-benchmark by a guess-the-arm audit.
-  - capture_symmetry: pre-blinding per-arm capture-skew sweep (#191 item 2); contract in its
+  - capture_symmetry: pre-blinding per-arm exclusion-skew sweep (#191 item 2); contract in its
     docstring.
 """
 import hashlib
 import json
+import random
+import secrets
 from pathlib import Path
 
 
-def assign_bids(records, key_fn):
-    """[(bid, record)] with bid = sha256(key_fn(record))[:12] — deterministic, arm not
-    inferable from the bid. key_fn must be unique per record — a duplicate key would
-    silently overwrite its item file, so duplicates and hash collisions both raise."""
+def assign_bids(records, key_fn, salt=None):
+    """[(bid, record)] with bid = sha256(salt + key_fn(record))[:12]. The salt is a fresh random
+    secret unless given (tests; a re-run reusing its persisted salt): an unsalted hash of a public key (cell names carry the arm) is
+    recomputable offline, which un-blinds every item. The caller must not write the salt where
+    the grader can read it. key_fn must be unique per record — a duplicate key would silently
+    overwrite its item file, so duplicates and hash collisions both raise."""
+    salt = secrets.token_hex(16) if salt is None else salt
     out = []
     seen = {}
     for r in records:
         key = key_fn(r)
-        bid = hashlib.sha256(key.encode("utf-8")).hexdigest()[:12]
+        bid = hashlib.sha256((salt + key).encode("utf-8")).hexdigest()[:12]
         if bid in seen:
             raise ValueError(f"duplicate key or bid collision: {key!r} vs {seen[bid]!r}")
         seen[bid] = key
@@ -34,39 +39,55 @@ def assign_bids(records, key_fn):
     return out
 
 
-def write_blinded(records, graded_dir, key_fn, payload_fn, arm_key="arm"):
-    """Write graded_dir/items/<bid>.json = payload_fn(record) (MUST NOT contain the arm; a
-    payload carrying arm_key raises) and return the arm-map records
-    [{bid, arm, **whatever key fields the caller adds later}] for bench_io.dump_records."""
+def write_blinded(records, graded_dir, key_fn, payload_fn, arm_key="arm",
+                  allowed=("scenario", "response"), salt=None):
+    """Write graded_dir/items/<bid>.json = {bid, **payload_fn(record)} and return the arm-map
+    records [{bid, arm}] (in input order) for bench_io.dump_records — written by the caller
+    OUTSIDE graded_dir, since the map is the un-blinding key. Payload keys are WHITELISTED
+    (`allowed`): a blacklist of the arm key's one name let `condition`, `cell`, or a renamed arm
+    through. Items are written in shuffled order so file mtimes do not recover the arm order.
+    `salt` as in assign_bids: a re-run that must keep its bids (so existing grades still join)
+    passes the salt it persisted, outside graded_dir, on the first run."""
     items = Path(graded_dir) / "items"
     items.mkdir(parents=True, exist_ok=True)
-    arm_map = []
-    for bid, r in assign_bids(records, key_fn):
-        payload = {"bid": bid, **payload_fn(r)}
-        if arm_key in payload:
-            raise ValueError(f"payload for {bid} leaks {arm_key!r}")
+    bids = assign_bids(records, key_fn, salt)
+    payloads = []
+    for bid, r in bids:
+        payload = payload_fn(r)
+        extra = set(payload) - set(allowed)
+        if extra:
+            raise ValueError(f"payload for {bid} carries non-whitelisted keys {sorted(extra)}")
+        payloads.append((bid, {"bid": bid, **payload}))
+    random.SystemRandom().shuffle(payloads)
+    for bid, payload in payloads:
         (items / f"{bid}.json").write_text(json.dumps(payload, indent=1), encoding="utf-8")
-        arm_map.append({"bid": bid, arm_key: r[arm_key]})
-    return arm_map
+    return [{"bid": bid, arm_key: r[arm_key]} for bid, r in bids]
 
 
-def capture_symmetry(records, response_fn, arm_key="arm", empty_chars=40, skew_threshold=0.1):
-    """Per-arm capture sweep run BEFORE blinding (#191 item 2): arm symmetry (ADR 0023) covers
-    prompts; this extends it to capture. Returns {"arms": {arm: {n, empty_n, empty_rate,
-    median_len}}, "skewed": bool} — skewed when some arm's empty-rate exceeds the minimum arm's
-    by more than skew_threshold. A skewed sweep is an infrastructure defect to fix before
-    grading (in #185 arm P had 3/24 empty captures vs 0/48 elsewhere), never signal."""
+def capture_symmetry(records, response_fn, arm_key="arm", empty_chars=40, skew_threshold=0.1,
+                     excluded_fn=None):
+    """Per-arm EXCLUSION sweep run BEFORE blinding, over ALL records (#191 item 2): arm symmetry
+    (ADR 0023) covers prompts; this extends it to what survives to grading. A record counts as
+    excluded when excluded_fn(record) is truthy (pass the caller's whole exclusion rule: harness
+    ERROR, failed artifact check, ...) or its response is under empty_chars. Returns
+    {"arms": {arm: {n, excluded_n, excluded_rate, median_len}}, "skewed": bool} — skewed when
+    some arm's exclusion rate exceeds the minimum arm's by more than skew_threshold. Run it on
+    the records BEFORE excluding them, or it can never fire. A skewed sweep is an infrastructure
+    defect to fix before grading (in #185 arm P had 3/24 empty captures vs 0/48 elsewhere),
+    never signal."""
     by_arm = {}
     for r in records:
-        by_arm.setdefault(r[arm_key], []).append(len((response_fn(r) or "").strip()))
+        n = len((response_fn(r) or "").strip())
+        by_arm.setdefault(r[arm_key], []).append(
+            (n, bool(excluded_fn and excluded_fn(r)) or n < empty_chars))
     arms = {}
-    for arm, lens in sorted(by_arm.items()):
-        lens.sort()
-        empty_n = sum(1 for n in lens if n < empty_chars)
-        arms[arm] = {"n": len(lens), "empty_n": empty_n,
-                     "empty_rate": round(empty_n / len(lens), 3),
+    for arm, cells in sorted(by_arm.items()):
+        lens = sorted(n for n, _ in cells)
+        excluded_n = sum(1 for _, x in cells if x)
+        arms[arm] = {"n": len(cells), "excluded_n": excluded_n,
+                     "excluded_rate": round(excluded_n / len(cells), 3),
                      "median_len": lens[len(lens) // 2]}
-    rates = [a["empty_rate"] for a in arms.values()]
+    rates = [a["excluded_rate"] for a in arms.values()]
     skewed = bool(rates) and (max(rates) - min(rates)) > skew_threshold
     return {"arms": arms, "skewed": skewed}
 

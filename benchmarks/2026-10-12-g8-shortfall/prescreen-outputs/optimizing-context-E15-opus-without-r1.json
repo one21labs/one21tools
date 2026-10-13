@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E15-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E15",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 23259.6,
+  "duration_ms": 22551,
+  "duration_api_ms": 22313,
+  "cost_usd": 0.046116,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 739,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1989,
+   "output_tokens_details": {
+    "thinking_tokens": 603
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 739,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1989,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 739,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 739
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:36.964259+00:00",
+   "end": "2026-10-12T22:16:00.223833+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.046116,
+  "charged_usd": 0.046116,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Short answer: no, probably not\n\nA bigger window would delay the symptoms a little, but your setup fills context much faster than normal work would. Long contexts also degrade on their own: rules near the start get less attention as hundreds of thousands of tokens pile up after them. The fix is to put less in context, not to make room for more.\n\n## Where your context is going\n\nRough estimates, but the proportions are what matter:\n\n| Source | Approx. cost | When |\n|---|---|---|\n| 190 MCP tool definitions | Tens of thousands of tokens | Every session, before you type anything |\n| CLAUDE.md + 2 @-imports (~3,350 lines) | ~40\u201360k tokens | Every session, always loaded |\n| One `get_logs` call (2\u20135 MB) | ~500k\u20131.5M+ tokens | Per call; larger than any context window |\n| A day of tickets in one session | Everything above, plus every file read and diff | Accumulates until auto-compaction |\n\nThe symptoms you describe fit **auto-compaction**. Once context fills, older conversation gets summarized. Details like \"we already read this file,\" specific CLAUDE.md nuances, and *which service the current ticket is about* get lost or blurred. Editing the wrong service is a typical result of residue from ticket #2 bleeding into ticket #3. A bigger window just moves the compaction point later. You'd still hit it, and you'd hit it with a more diluted context.\n\n## What will actually help, in order of impact\n\n**1. Fix the `logs` tool.** This is probably your biggest problem. No model can usefully take in a 5 MB blob. Change the tool so it filters on the server side:\n- Add parameters such as `level`, `grep`/`pattern`, `since`/`until`, and `limit` (default to something like 200 lines).\n- Or return a summary (counts by level or error signature, plus a sample of lines), with a way to drill down.\n- Or write the full logs to a file and return the path, so Claude can `grep` or `head` it.\n\nClaude Code also caps or warns on very large MCP outputs, so you're likely getting truncated or rejected results anyway, which wastes the call.\n\n**2. Prune MCP servers.**\n- Remove Linear today, since you're no longer using it.\n- Move servers out of global config into project-level `.mcp.json` (or per-user scope) so each repo loads only what it needs. Two Postgres servers, Figma, and browser automation probably aren't needed in every session.\n- Use `/mcp` to turn servers on only when a task needs them.\n\n**3. Cut CLAUDE.md down to rules only.**\n- Aim for about 100\u2013200 lines: commands, conventions, hard \"never do X\" rules, and a map of the repo.\n- Replace the `@docs/ARCHITECTURE.md` and `@docs/API.md` imports with plain-text pointers, e.g. \"For service boundaries, read docs/ARCHITECTURE.md.\" @-imports load eagerly, while pointers let Claude read the docs only when relevant.\n- Put service-specific rules in **per-service CLAUDE.md files** (e.g. `services/billing/CLAUDE.md`). These load when Claude works in that directory, which also helps with the wrong-service problem.\n\n**4. Change the session workflow.**\n- Run `/clear` (or start a new session) between tickets. One ticket per context is the most effective habit change you can make.\n- Hand log-digging and wide codebase searches to **subagents**. They explore in their own context and return a short summary, so your main context stays clean.\n- If you need to keep going within one ticket, run `/compact` with instructions such as \"keep: we're fixing the retry bug in services/payments; files touched: ...\". Don't leave it to auto-compaction.\n\n**5. Measure.** Run `/context` at the start of a session and again after a log fetch. It shows exactly how much space tool definitions, memory files, and messages take up. I'd expect a large share to be gone before any real work begins.\n\n## Bottom line\n\nDo steps 1\u20134 first. If sessions are still degrading after that, a larger-window model is a reasonable next step. At that point you'd be using it for real work, not to absorb log dumps and 190 tool schemas."
+}

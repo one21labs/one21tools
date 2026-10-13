@@ -125,6 +125,78 @@
         "The header comment documents the required environment variables (BUCKET, RELEASE, BUILD_DIR) and how the script is invoked.",
         "The reply handles the 'docs only, no logic changes' instruction by clearly separating the comment-only change from recommended safety fixes, and explains why the rm -rf issue should not wait."
       ]
+    },
+    {
+      "id": 11,
+      "prompt": "Can you review this before I merge some cleanup on it? It runs nightly from cron and has 'worked' for months, but finance says some invoices never show up in the warehouse. The logs just say 'sync complete' and every so often 'error occurred'. The billing API returns {\"invoices\": [...], \"next_cursor\": \"...\"} with at most 100 invoices per response.\n\n```python\nimport requests, logging, time\nfrom datetime import datetime\n\nlog = logging.getLogger(__name__)\nAPI = 'https://billing.example.com/v2'\n\ndef sync_invoices(db, api_key, since, seen=[]):\n    url = f'{API}/invoices?api_key={api_key}&since={since}'\n    log.info(f'fetching {url}')\n    for attempt in range(5):\n        resp = requests.get(url)\n        if resp.status_code == 200:\n            break\n        time.sleep(2 ** attempt)\n    data = resp.json()\n    count = 0\n    for inv in data['invoices']:\n        try:\n            if inv['id'] in seen:\n                continue\n            data2 = {\n                'id': inv['id'],\n                'amount': float(inv['amount']) / 100,\n                'issued': datetime.strptime(inv['issued_at'], '%Y-%m-%dT%H:%M:%S'),\n                'customer': inv['customer']['id'],\n            }\n            db.execute('INSERT INTO invoices VALUES (%(id)s, %(amount)s, %(issued)s, %(customer)s)', data2)\n            seen.append(inv['id'])\n            count += 1\n        except Exception:\n            log.error('error occurred')\n            continue\n    db.commit()\n    log.info('sync complete')\n    return count\n```",
+      "expected_output": "A review that traces the missing invoices to concrete causes (ignored pagination, swallowed per-invoice errors such as timestamp parsing) and also flags the leaked API key, the broken retry loop, and money-as-float, with a restructured version.",
+      "expectations": [
+        "The reply identifies that only the first page is processed because next_cursor is ignored, as a likely cause of the missing invoices.",
+        "The reply identifies that the API key is written to the logs via the logged URL and recommends keeping it out of logs (for example by sending it in a header and not logging it).",
+        "The reply identifies that the retry loop retries non-retryable responses and, after the final failed attempt, proceeds to parse the failed response instead of raising.",
+        "The reply flags that the broad except with a context-free 'error occurred' message hides which invoice failed and why (such as issued_at values the strptime pattern rejects), and recommends logging the invoice id and exception or failing loudly.",
+        "The reply flags converting money to float (or the mutable default `seen` list) as a correctness risk and proposes a concrete fix such as Decimal or integer cents (or a None default)."
+      ]
+    },
+    {
+      "id": 12,
+      "prompt": "Support escalated an order that was charged but never shipped. All we have in the logs for that window is below. My lead says 'add more logging'. Can you add logging to this handler so next time we can actually debug it?\n\nLogs (CloudWatch, 14:02:11-14:02:13):\n```\nINFO Processing order\nINFO Processing item\nINFO Processing item\nINFO Processing item\nINFO Order done\nERROR Error: undefined\n```\n\nCode:\n```ts\nexport async function handleOrder(event: OrderEvent) {\n  logger.info('Processing order');\n  logger.debug(JSON.stringify(event));\n  const order = await chargeCard(event.customer, event.payment);\n  event.items.forEach(async (item) => {\n    logger.info('Processing item');\n    try {\n      await reserveStock(item.sku, item.qty);\n      await createShipment(order.id, item);\n    } catch (e: any) {\n      logger.error('Error: ' + e.message);\n    }\n  });\n  logger.info('Order done');\n  return { ok: true };\n}\n\n// inventory-client.ts\nexport async function reserveStock(sku: string, qty: number) {\n  const res = await fetch(`${INV_URL}/reserve`, { method: 'POST', body: JSON.stringify({ sku, qty }) });\n  if (!res.ok) throw `reserve failed: ${res.status}`;\n}\n```\n\nFor reference, event.payment contains the card number and CVV from the checkout form, and event.customer has name, email and address.",
+      "expected_output": "An answer that explains why the logs are useless and misordered (unawaited async forEach, thrown string, no identifiers), fixes those defects, adds structured contextual logging without PII, and flags the charge-before-reserve flow that produced a charged-but-unshipped order.",
+      "expectations": [
+        "The reply identifies that `forEach(async ...)` is not awaited, so the handler logs 'Order done' and returns success before item processing finishes (explaining the log ordering), and replaces it with awaited iteration such as for...of or Promise.all/allSettled.",
+        "The reply identifies that reserveStock throws a string, so `e.message` is undefined, and fixes it by throwing an Error (or by logging the thrown value safely).",
+        "The reply adds identifying context to log lines (order id and/or request/correlation id, sku, which step failed, HTTP status) rather than only adding more generic messages.",
+        "The reply flags that the debug log of the full event would write card number, CVV, and personal data to logs, and removes or redacts it.",
+        "The reply points out that the card is charged before stock is reserved and that item failures are swallowed while success is returned, and recommends propagating the failure and/or compensating (refund, retry, alert)."
+      ]
+    },
+    {
+      "id": 13,
+      "prompt": "Small cleanup PR: I want to make the error handling in this repository file consistent. Plan is to wrap every error with fmt.Errorf(\"...: %v\", err) so messages have context. Can you do that pass and point out anything else? For context, our HTTP handler does `if errors.Is(err, sql.ErrNoRows) { return 404 }` on whatever GetUser returns, and we've had a ticket open for a while that missing users return 500.\n\n```go\nfunc (r *Repo) GetUser(ctx context.Context, id int64) (*User, error) {\n    var u User\n    err := r.db.QueryRowContext(ctx, `SELECT id, email, created_at FROM users WHERE id = $1`, id).Scan(&u.ID, &u.Email, &u.CreatedAt)\n    if err != nil {\n        return nil, errors.New(\"get user failed\")\n    }\n    return &u, nil\n}\n\nfunc (r *Repo) ListOrders(ctx context.Context, userID int64) ([]Order, error) {\n    rows, err := r.db.QueryContext(ctx, `SELECT id, total_cents FROM orders WHERE user_id = $1`, userID)\n    defer rows.Close()\n    if err != nil {\n        return nil, err\n    }\n    var out []Order\n    for rows.Next() {\n        var o Order\n        if err := rows.Scan(&o.ID, &o.TotalCents); err != nil {\n            log.Printf(\"scan error: %v\", err)\n            continue\n        }\n        out = append(out, o)\n    }\n    return out, nil\n}\n\nfunc (r *Repo) UpdateEmail(ctx context.Context, id int64, email string) error {\n    tx, err := r.db.BeginTx(ctx, nil)\n    if err != nil {\n        return err\n    }\n    if _, err := tx.ExecContext(ctx, `UPDATE users SET email = $1 WHERE id = $2`, email, id); err != nil {\n        tx.Rollback()\n        return err\n    }\n    if _, err = tx.ExecContext(ctx, `INSERT INTO audit (user_id, action) VALUES ($1, 'email_change')`, id); err != nil {\n        return nil\n    }\n    return tx.Commit()\n}\n```",
+      "expected_output": "A pass that wraps with %w rather than %v (explaining the errors.Is interaction and the 404 ticket), and fixes the buried defects: defer before the error check, unchecked rows.Err and skipped scan errors, and the swallowed audit failure that leaves the transaction open.",
+      "expectations": [
+        "The reply uses %w rather than the requested %v and explains that %v, like the current errors.New in GetUser, breaks the handler's errors.Is(err, sql.ErrNoRows) check, which is why missing users return 500 instead of 404.",
+        "The reply identifies that `defer rows.Close()` comes before the error check in ListOrders and can panic when QueryContext fails and rows is nil.",
+        "The reply identifies that ListOrders never checks rows.Err() and silently skips rows that fail to scan, returning partial results as success.",
+        "The reply identifies that UpdateEmail returns nil when the audit insert fails, reporting success while the transaction is neither committed nor rolled back.",
+        "The reply's rewritten code adds context that includes identifying values (such as the user id or operation) while preserving the underlying error."
+      ]
+    },
+    {
+      "id": 14,
+      "prompt": "This is the query behind our 'Monthly Engagement' dashboard tile. Product thinks the numbers look off and wants me to just rename the columns so it's clearer what each one means. Can you clean up the naming? Postgres 15.\n\n```sql\nSELECT\n  date_trunc('month', u.created_at) AS m,\n  COUNT(*) AS active_users,\n  COUNT(e.user_id) AS cnt2,\n  SUM(CASE WHEN e.event_type = 'purchase' THEN 1 ELSE 0 END) / COUNT(*) * 100 AS pct\nFROM users u\nLEFT JOIN events e ON e.user_id = u.id\nWHERE e.created_at BETWEEN '2026-09-01' AND '2026-09-30'\n  AND u.id NOT IN (SELECT user_id FROM internal_accounts)\nGROUP BY 1\nORDER BY 1;\n```\n\nevents.created_at is timestamptz. Heads up: next sprint we're adding contractor rows to internal_accounts, and contractors without a user account will have user_id = NULL.",
+      "expected_output": "An answer that does the renaming but makes clear renaming cannot fix the numbers, identifying the join-semantics, integer-division, date-range, NOT IN/NULL, and row-counting defects with a corrected query.",
+      "expectations": [
+        "The reply identifies that filtering e.created_at in the WHERE clause turns the LEFT JOIN into an effective inner join and moves the condition into the ON clause or restructures the query deliberately.",
+        "The reply identifies that integer division makes the percentage truncate (typically to 0) and fixes it with a numeric cast or by multiplying before dividing.",
+        "The reply identifies that BETWEEN with '2026-09-30' on a timestamp excludes events after midnight on September 30 and recommends a half-open range such as >= '2026-09-01' AND < '2026-10-01'.",
+        "The reply warns that NOT IN against a subquery that can return NULL will return no rows once the NULL contractor user_ids are added, and recommends NOT EXISTS or filtering out NULLs.",
+        "The reply points out that COUNT(*) after joining events counts event rows rather than distinct users (and/or that grouping by signup month does not match an engagement metric), so the active_users figure is wrong regardless of its name."
+      ]
+    },
+    {
+      "id": 15,
+      "prompt": "Our deploys fail maybe once a week and the CI log gives us nothing to go on. I want to add `set -x` at the top so we see every command, plus some logging. Can you update this script?\n\n```bash\n#!/bin/bash\nBUILD_DIR=$WORKSPACE/build\necho Deploying\ncd $WORKSPACE/app\nnpm ci && npm run build | tee build.log\nrm -rf $BUILD_DIR/*\ncp -r dist/* $BUILD_DIR/\ncurl -s -X POST -H \"Authorization: Bearer $DEPLOY_TOKEN\" https://deploy.internal/api/release -d @release.json\nssh deploy@$HOST <<EOF\n  cd /srv/app && ./switch.sh $RELEASE_ID && echo done at $(date)\nEOF\necho Deployed\n```\n\nIt runs on a shared CI runner, and every job's log is visible to the whole org.",
+      "expected_output": "An updated script that adds fail-fast behavior and step-level, timestamped logging, but declines blanket set -x because it would leak the deploy token into org-visible logs, and fixes the silent-failure points (piped build, curl without --fail, unset variables).",
+      "expectations": [
+        "The reply warns that `set -x` would print the DEPLOY_TOKEN bearer header into logs visible to the whole org, and either avoids blanket tracing or disables it around secret-bearing commands.",
+        "The reply adds fail-fast behavior including pipefail, noting that `npm run build | tee build.log` masks a failed build without it.",
+        "The reply identifies that `curl -s` without --fail (or an explicit status check) treats HTTP error responses from the deploy API as success.",
+        "The reply guards against unset or empty variables (such as WORKSPACE, HOST, RELEASE_ID) and quotes expansions, citing the risk of `cd` failing silently and `rm -rf` or `cp` acting on the wrong path.",
+        "The reply's logging identifies each step with timestamps and reports which step failed (for example via a trap on ERR or EXIT), rather than only adding more echo lines."
+      ]
+    },
+    {
+      "id": 16,
+      "prompt": "Please add header comments / docstrings to every function in this module so it's properly documented for the new hire starting Monday. Don't change behavior, just document.\n\n```python\nTAX = 0.0825\n\ndef calc(o, f=True):\n    # returns total in cents\n    t = sum(i['price'] * i['qty'] for i in o['items'])\n    d = get_discount(o)\n    t = t - d\n    if f:\n        t = t + t * TAX\n    return round(t, 2)\n\ndef get_discount(o):\n    # get the discount\n    c = db.coupons.find_one({'code': o.get('coupon')})\n    if c and c['uses_left'] > 0:\n        db.coupons.update_one({'_id': c['_id']}, {'$inc': {'uses_left': -1}})\n        return c['amount']\n    return 0\n\ndef is_valid(o):\n    o['items'] = [i for i in o['items'] if i['qty'] > 0]\n    return len(o['items']) > 0\n```\n\nItem prices are stored in dollars as floats. calc() is called from the cart page on every refresh and again at checkout.",
+      "expected_output": "Documentation that is accurate rather than restating code, which corrects the false cents comment and, kept separate from the doc changes, raises the real bugs the user should know about (coupon uses consumed on every refresh, is_valid mutating its input, opaque names and boolean flag).",
+      "expectations": [
+        "The reply flags that the existing '# returns total in cents' comment is false (the value is in dollars) and does not carry that claim into the new documentation.",
+        "The reply identifies that get_discount decrements the coupon's uses_left as a side effect, so calling calc on every cart refresh consumes coupon uses, and raises this as a bug rather than only documenting it.",
+        "The reply notes that is_valid mutates the caller's order by removing items, which its name does not suggest.",
+        "The reply recommends clearer names or interfaces (for example replacing the bare boolean `f` with a named parameter or separate function, and descriptive names instead of calc/o/t/c) rather than relying on comments that restate the code.",
+        "The reply respects the 'don't change behavior' request by keeping proposed behavior fixes separate from the documentation change (or asking before applying them) rather than silently altering logic."
+      ]
     }
   ]
 }

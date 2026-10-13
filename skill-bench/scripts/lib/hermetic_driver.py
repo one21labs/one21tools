@@ -56,12 +56,18 @@ KEEP = ("CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_V
         "CLAUDE_ENABLE_STREAM_WATCHDOG")
 
 
+def detached_env():
+    """The caller's environment minus any parent Claude Code session (PARENT_SESSION_* above);
+    auth/provider keys in KEEP survive. The one home of that filter."""
+    return {k: v for k, v in os.environ.items()
+            if k in KEEP or not (k in PARENT_SESSION_NAMES
+                                      or k.startswith(PARENT_SESSION_PREFIXES))}
+
+
 def build_env(effort="medium"):
-    """Per-call environment, identical across arms (protocol symmetry), detached from any parent
-    Claude Code session (PARENT_SESSION_* above)."""
-    env = {k: v for k, v in os.environ.items()
-           if k in KEEP or not (k in PARENT_SESSION_NAMES
-                                     or k.startswith(PARENT_SESSION_PREFIXES))}
+    """Per-call environment, identical across arms (protocol symmetry): detached_env() plus the
+    hermetic overrides below."""
+    env = detached_env()
     home = os.path.expanduser("~")
     env["PATH"] = os.path.join(home, ".local", "bin") + os.pathsep + env.get("PATH", "")
     # Clean auth-only config dir. Override with $SKILL_BENCH_CONFIG_DIR when installed elsewhere;
@@ -83,10 +89,13 @@ def neutral_cwd(outdir):
     return cwd
 
 
-def fresh_copy(src, tag, prefix="cell"):
+def fresh_copy(src, tag=None):
     """A private temp copy of a scenario bundle for ONE call — per-cell fresh-copy hermetics:
-    no cell ever sees another cell's writes. Caller removes it (shutil.rmtree) after capture."""
-    workdir = tempfile.mkdtemp(prefix=f"{prefix}-{tag}-")
+    no cell ever sees another cell's writes. Caller removes it (shutil.rmtree) after capture.
+
+    The dir name is neutral: a cell tag in it (cell-S1-C-r1-...) told a subject with a cwd
+    which arm it was in. `tag` is ignored, kept only so frozen benchmark callers still run."""
+    workdir = tempfile.mkdtemp(prefix="cell-")
     shutil.rmtree(workdir)
     shutil.copytree(src, workdir, symlinks=True)
     return workdir
@@ -185,9 +194,16 @@ def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.r
     return retry
 
 
-def summarize_call(call):
-    """Per-call record for a cell file: envelope figures + wall-clock + timestamps."""
+def summarize_call(call, requested_model=None):
+    """Per-call record for a cell file: envelope figures + wall-clock + timestamps. With an exact
+    `claude-*` requested_model, a call the envelope says another model served is an ERROR cell: a
+    silently substituted model would measure the wrong arm (an alias cannot be checked)."""
     env = call.get("envelope")
+    served = sorted(((env or {}).get("modelUsage") or {}).keys())
+    error = call.get("error")
+    if (not error and served and requested_model and requested_model.startswith("claude-")
+            and requested_model not in served):
+        error = f"requested {requested_model}, envelope served {served}"
     return {
         "duration_ms_wall": round(call.get("duration_s", 0.0) * 1000, 1),
         "duration_ms": safe_get(env, "duration_ms"),
@@ -196,6 +212,7 @@ def summarize_call(call):
         "usage": (env or {}).get("usage") if env else None,
         "stop_reason": safe_get(env, "stop_reason"),
         "timestamps": call.get("timestamps"),
-        "error": call.get("error"),
+        "error": error,
+        "served_models": served,
         "retried": call.get("retried", False),
     }

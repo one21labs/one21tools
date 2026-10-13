@@ -17,17 +17,18 @@ the judge. The only cost is judge calls (`--cache` needs no CLI at all).
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_verdict.py" --dir <benchmark-dir> \
   --judge auto|<backend>|both [--cache <prior.jsonl>] [--cells-out <cells.jsonl>] \
-  [--out report.json]
+  [--practical <bar>] [--out report.json]
 ```
 
-- `--dir` must hold `graded/{verdicts.jsonl,arm_map.tsv,keys.json}` (ADR 0025/0026 layout).
+- `--dir` must hold `graded/{verdicts.jsonl,keys.json}` and `arm_map.tsv` at the dir root, outside
+  what the grader sees (`graded/arm_map.tsv` is still read for older dirs).
 - `--judge auto` (default) resolves a backend per [judging.md](references/judging.md); `both` adds
   the judge-divergence diagnostic (agreement, kappa, verdict flip).
 - Emits arm means, clustered C-B with 95% CI, KEEP/CUT, per-expectation, and `notional_cost_usd`.
   See [cost-and-verdict.md](references/cost-and-verdict.md).
-- `--cells-out` also writes per-cell re-graded verdicts (jsonl) — the substrate for computing a
-  pre-registered bar set on the second judge's basis so a judge-disagreement rule (disagree =>
-  bar NOT MET) is mechanical, never a manual comparison.
+- `--cells-out` also writes per-cell re-graded verdicts (jsonl, readable back as `--cache`) — the
+  substrate for computing a pre-registered bar set on the second judge's basis so a
+  judge-disagreement rule (disagree => bar NOT MET) is mechanical, never a manual comparison.
 
 ## `skill` — with/without value benchmark (paid generation)
 
@@ -37,11 +38,14 @@ bare, grade both against pre-registered expectations, report the with-without de
 ```
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bench_skill.py" --evals <evals.json> \
   --with-cmd '<json argv, skill loaded>' --without-cmd '<json argv, bare>' \
-  [--judge auto] [--substrate native|promptfoo] [--reps 3] --yes
+  [--judge auto] [--substrate native|promptfoo] [--reps 3] [--practical <bar>] --yes
 ```
 
 - `--evals`: JSON list of `{id, task, expectations:[...]}`. Arms differ ONLY in skill loading (arm
-  symmetry) — the task is appended as the final CLI arg.
+  symmetry) — the task is appended as the final CLI arg. Arms run from an empty temp dir, so every
+  path in `--with-cmd`/`--without-cmd` must be absolute. Both arms still see your installed
+  plugins and user skills: point both at a credentials-only `CLAUDE_CONFIG_DIR` and load the
+  skill in the with-arm via `--append-system-prompt`, or the result is a confounded null.
 - Prints a cost estimate and **refuses to spend without `--yes`** (spend guard).
 - `--substrate` selects the generation runner; see [substrate.md](references/substrate.md).
 - `--reps` (default 3): generations per task x arm — a single pass cannot separate reliably-good

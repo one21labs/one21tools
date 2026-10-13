@@ -1,0 +1,63 @@
+{
+ "cell": "building-skills-E1-sonnet-without-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35858.5,
+  "duration_ms": 35204,
+  "duration_api_ms": 34976,
+  "cost_usd": 0.0524926,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2686,
+   "output_tokens": 5222,
+   "output_tokens_details": {
+    "thinking_tokens": 977
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5222,
+     "cache_read_input_tokens": 2686,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:23:41.964306+00:00",
+   "end": "2026-10-12T22:24:17.822839+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0524926,
+  "charged_usd": 0.0524926,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "I didn't write anything to `outputs/`, because this request told me not to use tools. The complete skill is below, ready to save under `outputs/sanitizing-customer-exports/`. Say the word and I'll write the files and run the tests.\n\n## `sanitizing-customer-exports/SKILL.md`\n\n````markdown\n---\nname: sanitizing-customer-exports\ndescription: Redacts PII from customer CSV exports before they are shared outside the company. Use whenever a customer CSV (support export, ticket dump, account list) is about to be sent to a vendor, partner, contractor, or any external party, or when the user asks to anonymize, scrub, sanitize, or redact a customer CSV.\n---\n\n# Sanitizing customer exports\n\nRun the bundled script on every customer CSV before it leaves the company. Never hand-edit the CSV or reimplement the rules inline.\n\n## Fixed rules (not negotiable per request)\n\n| Column (case-insensitive) | Action |\n|---|---|\n| `email`, `phone`, `ssn` | Dropped entirely |\n| `name` | Replaced with an opaque id (`cust_` + 10 hex chars) |\n| `notes`, `comments` | Emails and phone numbers inside the text are masked (`[EMAIL]`, `[PHONE]`) |\n| everything else | Passed through unchanged |\n\n- Output is written next to the input as `<original-stem>.redacted.csv` (`tickets.csv` -> `tickets.redacted.csv`).\n- The original file is never modified. The script refuses to run if the output path would equal the input path, or if the input already ends in `.redacted.csv`.\n- The script refuses to overwrite an existing redacted file unless `--force` is passed.\n- Ids are derived from a random per-run salt that is never saved. The same name gets the same id within one file, but ids do not match across separate runs, and they cannot be reversed.\n\n## Workflow\n\n1. Confirm the path of the CSV with the user if it is ambiguous.\n2. Run:\n   ```bash\n   python3 -I <skill-dir>/scripts/redact_csv.py /path/to/export.csv\n   ```\n3. Read the summary the script prints (columns dropped, ids issued, masks applied, and any **unreviewed columns**).\n4. Tell the user about every unreviewed column. Columns such as `address`, `dob`, `ip_address`, or `account_number` may also be PII but are outside the fixed rules. Do not drop or alter them on your own; ask the user whether they are safe to share.\n5. Report the output path. Remind the user to share only the `.redacted.csv`.\n\n## Options\n\n- `--text-columns notes,comments,description`: additional free-text columns to scan. This only adds columns; the fixed rules above still apply.\n- `--force`: overwrite an existing `.redacted.csv`.\n\n## Limits to state when relevant\n\n- Masking is pattern-based. Names, street addresses, or ids written inside free text are not detected. For high-sensitivity exports, suggest a spot check of the `notes` and `comments` columns.\n- Phone detection is deliberately aggressive (7-15 digits with common separators), so some long numbers such as order ids may be masked too. Over-masking is the accepted trade-off.\n- Never print or quote raw PII values from the original file while reporting results.\n\nSee `reference/rules.md` for the rationale and `tests/test_redact_csv.py` for behavior checks.\n````\n\n## `sanitizing-customer-exports/scripts/redact_csv.py`\n\n```python\n#!/usr/bin/env python3\n\"\"\"Redact PII from a customer CSV. See ../SKILL.md for the fixed rules.\"\"\"\nimport argparse\nimport csv\nimport hashlib\nimport hmac\nimport re\nimport secrets\nimport sys\nfrom pathlib import Path\n\nDROP = {\"email\", \"phone\", \"ssn\"}\nNAME = \"name\"\nTEXT = {\"notes\", \"comments\"}\n\nEMAIL_RE = re.compile(r\"[A-Za-z0-9._%+\\-]+@[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)+\")\nPHONE_RE = re.compile(r\"(?<![\\w])\\+?\\(?\\d[\\d\\s().\\-]{5,}\\d(?!\\w)\")\n\n\ndef mask_text(text, counts):\n    def email(_m):\n        counts[\"email\"] += 1\n        return \"[EMAIL]\"\n\n    def phone(m):\n        digits = sum(c.isdigit() for c in m.group(0))\n        if 7 <= digits <= 15:\n            counts[\"phone\"] += 1\n            return \"[PHONE]\"\n        return m.group(0)\n\n    # Emails first so digits inside addresses are not treated as phones.\n    return PHONE_RE.sub(phone, EMAIL_RE.sub(email, text))\n\n\ndef output_path(src):\n    return src.with_name(src.stem + \".redacted.csv\")\n\n\ndef redact(src, dst, text_cols, force=False):\n    if src.name.endswith(\".redacted.csv\"):\n        sys.exit(\"error: input is already a redacted file\")\n    if dst.resolve() == src.resolve():\n        sys.exit(\"error: output path equals input path\")\n    if dst.exists() and not force:\n        sys.exit(f\"error: {dst} exists (use --force to overwrite)\")\n\n    salt = secrets.token_bytes(32)\n    ids = {}\n    counts = {\"email\": 0, \"phone\": 0}\n\n    def opaque(value):\n        if value not in ids:\n            digest = hmac.new(salt, value.encode(\"utf-8\"), hashlib.sha256)\n            ids[value] = \"cust_\" + digest.hexdigest()[:10]\n        return ids[value]\n\n    with open(src, newline=\"\", encoding=\"utf-8-sig\") as fin:\n        reader = csv.reader(fin)\n        header = next(reader, None)\n        if header is None:\n            sys.exit(\"error: input CSV is empty\")\n        norm = [h.strip().lower() for h in header]\n        keep = [i for i, h in enumerate(norm) if h not in DROP]\n        dropped = [header[i] for i, h in enumerate(norm) if h in DROP]\n        unreviewed = [header[i] for i in keep\n                      if norm[i] != NAME and norm[i] not in text_cols]\n\n        tmp = dst.with_name(dst.name + \".tmp\")\n        try:\n            with open(tmp, \"w\", newline=\"\", encoding=\"utf-8\") as fout:\n                writer = csv.writer(fout)\n                writer.writerow([header[i] for i in keep])\n                for row in reader:\n                    row = row + [\"\"] * (len(header) - len(row))\n                    out = []\n                    for i in keep:\n                        v = row[i]\n                        if norm[i] == NAME:\n                            v = opaque(v.strip()) if v.strip() else \"\"\n                        elif norm[i] in text_cols:\n                            v = mask_text(v, counts)\n                        out.append(v)\n                    writer.writerow(out)\n            tmp.replace(dst)\n        finally:\n            if tmp.exists():\n                tmp.unlink()\n\n    print(f\"Wrote: {dst}\")\n    print(f\"Dropped columns: {', '.join(dropped) or 'none present'}\")\n    print(f\"Name column: {'replaced with ' + str(len(ids)) + ' opaque ids' if NAME in norm else 'not present'}\")\n    print(f\"Masked in free text: {counts['email']} email(s), {counts['phone']} phone(s)\")\n    if unreviewed:\n        print(\"UNREVIEWED columns passed through unchanged (check for PII): \"\n              + \", \".join(unreviewed))\n\n\ndef main():\n    p = argparse.ArgumentParser(description=__doc__)\n    p.add_argument(\"csv_path\", type=Path)\n    p.add_argument(\"--text-columns\", default=\"\",\n                   help=\"extra comma-separated free-text columns to scan\")\n    p.add_argument(\"--force\", action=\"store_true\")\n    a = p.parse_args()\n    if not a.csv_path.is_file():\n        sys.exit(f\"error: {a.csv_path} not found\")\n    extra = {c.strip().lower() for c in a.text_columns.split(\",\") if c.strip()}\n    redact(a.csv_path, output_path(a.csv_path), TEXT | extra, a.force)\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n## `sanitizing-customer-exports/reference/rules.md`\n\n```markdown\n# Redaction rules: rationale\n\n- **Drop email/phone/ssn**: direct identifiers with no analytic value to external parties; dropping is safer than masking.\n- **Name -> opaque id**: lets recipients group rows by customer without learning who they are. HMAC-SHA256 with a random per-run salt that is discarded, so ids can't be reversed or brute-forced from a name list, and can't be linked across exports.\n- **Free text**: agents paste contact details into notes. Pattern masking catches the common cases (emails, phone numbers) but not names or addresses; see limits in SKILL.md.\n- **Never in place**: the original is the system of record. Output goes to `<stem>.redacted.csv`, written via a temp file and renamed so a failed run never leaves a partial file.\n- **Unreviewed columns**: the rules are fixed, so unknown columns are passed through but always surfaced to a human.\n\nChanging any rule requires sign-off from whoever owns the data-sharing policy; do not alter the script on a per-request basis.\n```\n\n## `sanitizing-customer-exports/tests/test_redact_csv.py`\n\n```python\nimport csv\nimport subprocess\nimport sys\nimport tempfile\nimport unittest\nfrom pathlib import Path\n\nSCRIPT = Path(__file__).resolve().parent.parent / \"scripts\" / \"redact_csv.py\"\n\nSAMPLE = (\n    \"id,Name,Email,phone,SSN,notes,comments,plan\\n\"\n    '1,Ada Lovelace,ada@x.com,555-123-4567,123-45-6789,\"call +1 (555) 987-6543 or bob@y.org\",ok,pro\\n'\n    \"2,Ada Lovelace,ada@x.com,555-123-4567,123-45-6789,none,mail me: c.d@e.co.uk,free\\n\"\n)\n\n\ndef run(path, *args):\n    return subprocess.run([sys.executable, \"-I\", str(SCRIPT), str(path), *args],\n                          capture_output=True, text=True)\n\n\nclass RedactTests(unittest.TestCase):\n    def setUp(self):\n        self.d = Path(tempfile.mkdtemp())\n        self.src = self.d / \"export.csv\"\n        self.src.write_text(SAMPLE)\n\n    def test_rules(self):\n        r = run(self.src)\n        self.assertEqual(r.returncode, 0, r.stderr)\n        out = self.d / \"export.redacted.csv\"\n        rows = list(csv.DictReader(out.open()))\n        self.assertEqual(list(rows[0]), [\"id\", \"Name\", \"notes\", \"comments\", \"plan\"])\n        self.assertEqual(rows[0][\"Name\"], rows[1][\"Name\"])\n        self.assertTrue(rows[0][\"Name\"].startswith(\"cust_\"))\n        self.assertNotIn(\"Ada\", out.read_text())\n        self.assertEqual(rows[0][\"notes\"], \"call [PHONE] or [EMAIL]\")\n        self.assertEqual(rows[1][\"comments\"], \"mail me: [EMAIL]\")\n\n    def test_original_untouched(self):\n        run(self.src)\n        self.assertEqual(self.src.read_text(), SAMPLE)\n\n    def test_no_overwrite_without_force(self):\n        run(self.src)\n        self.assertNotEqual(run(self.src).returncode, 0)\n        self.assertEqual(run(self.src, \"--force\").returncode, 0)\n\n    def test_refuses_redacted_input(self):\n        run(self.src)\n        self.assertNotEqual(run(self.d / \"export.redacted.csv\").returncode, 0)\n\n    def test_reports_unreviewed(self):\n        self.assertIn(\"plan\", run(self.src).stdout.split(\"UNREVIEWED\")[1])\n\n\nif __name__ == \"__main__\":\n    unittest.main()\n```\n\nTwo choices to check:\n- **Output name:** I read `<original>.redacted.csv` as `export.csv` -> `export.redacted.csv`. If you meant `export.csv.redacted.csv`, it's a one-line change in `output_path`.\n- **Opaque ids:** they use a random per-run salt, so they don't match across separate exports. If support needs consistent ids across exports, that needs a stored secret, which is a policy decision."
+}

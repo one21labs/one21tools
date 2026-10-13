@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E10-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E10",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 43792.6,
+  "duration_ms": 43124,
+  "duration_api_ms": 42895,
+  "cost_usd": 0.0227787,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 749,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 1936,
+   "output_tokens_details": {
+    "thinking_tokens": 417
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 749,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1936,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 749,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 749
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:27:03.068437+00:00",
+   "end": "2026-10-12T22:27:46.861087+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0227787,
+  "charged_usd": 0.0227787,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here is the script with docs only. Every executable line is unchanged.\n\n```bash\n#!/usr/bin/env bash\n#\n# deploy.sh - build the web app and publish it to S3\n#\n# PURPOSE:\n#   Builds the site and syncs dist/ to s3://$BUCKET/$RELEASE.\n#   Run from CI for normal releases; also used manually for hotfixes.\n#\n# ARGUMENTS (environment variables, no CLI args):\n#   BUCKET     S3 bucket name, e.g. web-prod (required)\n#   RELEASE    Key prefix for this release, e.g. a git SHA (required)\n#   BUILD_DIR  Directory the build output is copied into (required;\n#              set in the CI env, must be exported manually elsewhere)\n#\n# USAGE:\n#   CI:      BUCKET=web-prod RELEASE=$GITHUB_SHA ./deploy.sh\n#   Hotfix:  BUILD_DIR=/path/to/build BUCKET=web-prod \\\n#            RELEASE=$(git rev-parse HEAD) ./deploy.sh\n#   Run from the repository root: npm and the upload read ./dist\n#   relative to the working directory. AWS credentials must already\n#   be available to the aws CLI.\n#\n# WORKFLOW:\n#   clean -> build -> upload -> print confirmation\n#\n# DESIGN CONSTRAINTS:\n#   - Inputs are not validated and there is no `set -e`. Steps run in\n#     sequence regardless of earlier failures.\n#   - clean() deletes everything inside $BUILD_DIR. In CI that\n#     directory is on the shared build cache mount, so the cache is\n#     wiped on every run. CI runs as root.\n#   - Upload is additive (no --delete): stale objects under the same\n#     $RELEASE prefix are left in place.\n#\n# EXIT CODES:\n#   The script's status is that of its final `echo`, so it is\n#   currently 0 even if build or upload failed. Do not rely on the\n#   exit code or the \"deployed\" message to confirm success.\n#\n# SEE ALSO:\n#   CI workflow that invokes this script\n\n# Empties $BUILD_DIR (contents only, not the directory itself).\n# Precondition: BUILD_DIR is set and non-empty; if unset, the glob\n# expands to /* and this removes the filesystem root's contents.\nclean() {\n  rm -rf \"$BUILD_DIR\"/*\n}\n\n# Syncs dist/ to s3://$BUCKET/$RELEASE, retrying up to 5 times with\n# linearly increasing backoff (2s, 4s, 6s, 8s between attempts).\n# Returns 0 on first success, 1 if every attempt fails.\nupload() {\n  for i in 1 2 3 4 5; do\n    aws s3 sync dist/ \"s3://$BUCKET/$RELEASE\" && return 0\n    sleep $((i * 2))\n  done\n  return 1\n}\n\n# Installs locked dependencies, produces dist/, and copies it into\n# $BUILD_DIR. Precondition: cwd is the repo root with package.json\n# and package-lock.json.\nbuild() {\n  npm ci\n  npm run build\n  cp -r dist \"$BUILD_DIR\"\n}\n\nclean\nbuild\nupload\necho \"deployed $RELEASE\"\n```\n\nBefore you ship, note these issues, which I left alone because you asked for no logic changes:\n\n1. **The old comment was wrong.** It said \"3 times\", but the loop runs 5 attempts. I corrected it.\n2. **A failed deploy reports success.** The script has no `set -e` and ignores `upload`'s return value, so a failed upload still prints \"deployed\" and exits 0. CI will go green on a broken deploy. A fix is `set -euo pipefail` at the top, or `upload || exit 1`.\n3. **`clean` is dangerous if `BUILD_DIR` is unset.** On a laptop, a forgotten `BUILD_DIR` makes it run `rm -rf /*`. In the CI container it runs as root, so the damage could be much worse. `: \"${BUILD_DIR:?}\"` at the top of the script, or `\"${BUILD_DIR:?}\"/*` in `clean`, would prevent it. I'd make that change even this close to shipping.\n4. **`clean` wipes the shared build cache** in CI, since `BUILD_DIR` is on that mount. That may not be what you intend.\n\nI can make the logic fixes as a separate change if you want them."
+}

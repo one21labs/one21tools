@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E9-sonnet-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12294.7,
+  "duration_ms": 11391,
+  "duration_api_ms": 11169,
+  "cost_usd": 0.0190376,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 799,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1563,
+   "output_tokens_details": {
+    "thinking_tokens": 137
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 799,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1563,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 799,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 799
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:51.063452+00:00",
+   "end": "2026-10-12T22:27:03.358219+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0190376,
+  "charged_usd": 0.0190376,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The 500s are vague mainly because the code throws away the information you need. Piling on log lines won't fix that, so I changed a few things.\n\n- `GetOrder` replaces the real DB error with `errors.New(\"db error\")`, so the cause (timeout, connection refused, scan type mismatch, and so on) is lost.\n- The handler's `\"not found\"` branch returns 500, the same as everything else. A missing order is indistinguishable from a real failure, which probably inflates your 500 count.\n- Nothing is logged, and `json.Encode` errors are ignored.\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx,\n        `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        // keep the cause so callers can log it and use errors.Is/As\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    start := time.Now()\n    id := r.URL.Query().Get(\"id\")\n    log := h.log.With(\n        \"handler\", \"Order\",\n        \"order_id\", id,\n        \"method\", r.Method,\n        \"path\", r.URL.Path,\n        \"request_id\", r.Header.Get(\"X-Request-ID\"),\n    )\n\n    if id == \"\" {\n        log.Warn(\"missing order id\")\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        switch {\n        case errors.Is(err, ErrNotFound):\n            log.Info(\"order not found\", \"duration\", time.Since(start))\n            http.Error(w, \"not found\", http.StatusNotFound)\n        case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):\n            log.Warn(\"request ended early\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"request timeout\", http.StatusGatewayTimeout)\n        default:\n            log.Error(\"get order failed\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"internal error\", http.StatusInternalServerError)\n        }\n        return\n    }\n\n    w.Header().Set(\"Content-Type\", \"application/json\")\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        log.Error(\"encode response failed\", \"err\", err)\n        return\n    }\n    log.Info(\"order served\", \"duration\", time.Since(start))\n}\n```\n\n`h.log` is a `*slog.Logger` (Go 1.21+). Create it with `slog.New(slog.NewJSONHandler(os.Stdout, nil))` and inject it into `Handler`.\n\n**Notes**\n\n- **Log each error once, at the handler.** The store wraps with context, and the handler logs. Logging at every layer produces duplicate noise.\n- **Never log `card_number`.** I only log the order ID. Also consider whether `Order` should serialize the full card number in the JSON response at all. If it does, mask it (last 4 digits) or drop it with `json:\"-\"`. That is a PCI problem regardless of the 500s.\n- **Add request-level middleware** that logs status code, latency, and a request ID for every request, and recovers from panics with a stack trace. Panics are another common source of unexplained 500s. I haven't seen your router, so I left that out. I can write it if you share how routes are registered.\n- **Check DB pool health** with `db.Stats()` (open, in-use, wait count) logged periodically or exposed as metrics. If the cause turns out to be pool exhaustion or timeouts, the new error logs will show it as `context deadline exceeded` or connection errors.\n\nAfter deploying, group the `get order failed` logs by `err`. That should show whether you have a single root cause or several."
+}

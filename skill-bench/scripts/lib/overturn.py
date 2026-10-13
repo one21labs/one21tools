@@ -13,13 +13,18 @@ the same scenario with equal signatures, different arms, and a different verdict
 same expectation are overturn candidates.
 
 Usage: python3 overturn.py --dir <benchmark dir> --pattern <regex> [--out <path>]
-Reads graded/verdicts.jsonl + graded/arm_map.tsv read-only; always exits 0 with a report.
+Reads graded/verdicts.jsonl + arm_map.tsv (located by bench_io.load_arm_map) read-only; always
+exits 0 with a report.
 """
+import json
 import re
 
 
 def decision_signature(norm, pattern):
-    """First match of the pre-registered regex in the normalized text, or None."""
+    """First match of the pre-registered regex in the normalized cell, or None. A dict norm (the
+    template's and every committed dict-norm dir's shape) is searched as its sorted-key JSON."""
+    if norm is not None and not isinstance(norm, str):
+        norm = json.dumps(norm, sort_keys=True)
     m = re.search(pattern, norm or "")
     return m.group(0) if m else None
 
@@ -52,9 +57,9 @@ def overturn_candidates(cells, norms, pattern):
 
 def main(argv):
     import argparse
-    import json
     import os
     import sys
+    from bench_io import load_arm_map
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", required=True)
     ap.add_argument("--pattern", required=True,
@@ -62,13 +67,7 @@ def main(argv):
     ap.add_argument("--out", default="-")
     a = ap.parse_args(argv[1:])
 
-    amap = {}
-    with open(os.path.join(a.dir, "graded/arm_map.tsv")) as f:
-        for line in f:
-            if line.startswith("bid"):
-                continue
-            b, arm, scn, _ = line.strip().split("\t")
-            amap[b] = (arm, scn)
+    amap = load_arm_map(a.dir)
     cells, norms = [], {}
     with open(os.path.join(a.dir, "graded/verdicts.jsonl")) as f:
         for line in f:

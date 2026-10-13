@@ -17,8 +17,8 @@ is `substrate.py:PromptfooSubstrate.PIN`, ADR 0058 — or `$SKILL_BENCH_PROMPTFO
 promptfoo is a declarative harness: it takes prompts, providers, and test rows, runs the product,
 and reports per-cell results with caching, a web viewer, and CI gating. Here it is used ONLY for the
 execution matrix — each arm becomes an `exec` provider driving the same grok/claude CLI. Its own
-assertion graders are bypassed, because this plugin's cross-family judge, prosecutor, and verdict
-math replace them. So promptfoo buys observability, dataset/config versioning, and CI regression
+assertion graders are bypassed, because this plugin's cross-family judge and verdict math replace
+them. So promptfoo buys observability, dataset/config versioning, and CI regression
 gating — not the grading. Reach for it when a consumer already runs promptfoo or wants those.
 
 Version note: promptfoo's `exec` provider passes the rendered prompt as the first argument and a

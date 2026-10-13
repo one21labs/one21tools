@@ -1,0 +1,63 @@
+{
+ "cell": "building-skills-E11-sonnet-without-r1",
+ "skill": "building-skills",
+ "scenario": "building-skills:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 19103.2,
+  "duration_ms": 18141,
+  "duration_api_ms": 17959,
+  "cost_usd": 0.0309895,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2288,
+   "cache_read_input_tokens": 535,
+   "output_tokens": 2178,
+   "output_tokens_details": {
+    "thinking_tokens": 664
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2288,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2178,
+     "cache_read_input_tokens": 535,
+     "cache_creation_input_tokens": 2288,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2288
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:17:13.900764+00:00",
+   "end": "2026-10-12T22:17:33.004057+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0309895,
+  "charged_usd": 0.0309895,
+  "prior_attempts_usd": 0.0283835
+ },
+ "response": "Two root causes: the skill's description is too vague for Claude to match your request, and it has Claude write a new script every run, so the charts are never the same twice.\n\n## What's wrong\n\n1. **The description never matches.** \"This skill helps with reports.\" has no trigger words. Claude decides whether to load a skill mostly from the description, so it should name the task, the output format, and the phrases you'd actually say (\"sales PDF\", \"regional\", \"quarterly\").\n2. **The charts vary because the code is regenerated each time.** Step 1 asks Claude to write a fresh reportlab script per request, and the chart styling sits in 420 lines of prose it may or may not apply. Put the chart code in a checked-in script with fixed colors, sizes, ordering, and axis rules, and have the skill run it.\n3. **Hardcoded paths break for teammates.** `/Users/USER/brand/fonts/` exists only on your machine, and `~/Desktop/report.pdf` silently overwrites the previous report. Bundle the fonts (if the license allows) and take the output path as an argument.\n4. **\"Always... when the user wants a report\" is too broad.** It would also fire on unrelated reports, and it never mentions quarters, so \"Q3\" has nowhere to go.\n5. **The skill is bloated.** About 570 lines of guidelines and examples load every time. Move them to separate reference files that are read only when needed.\n6. **The `name` is probably invalid.** It should be lowercase with hyphens and match the directory: `pdf-report-gen`.\n\n## Suggested layout\n\n```\n.claude/skills/pdf-report-gen/\n\u251c\u2500\u2500 SKILL.md\n\u251c\u2500\u2500 scripts/build_report.py      # deterministic chart + PDF code\n\u251c\u2500\u2500 assets/fonts/                # bundled brand fonts\n\u2514\u2500\u2500 references/\n    \u251c\u2500\u2500 brand-guidelines.md      # the 420 lines\n    \u2514\u2500\u2500 example-reports.md       # the 3 examples\n```\n\n## Revised SKILL.md\n\n```markdown\n---\nname: pdf-report-gen\ndescription: Generates a branded PDF sales report from a CSV, with monthly totals per region and standard charts. Use when the user asks for a quarterly or regional sales PDF or report (e.g. \"make the Q3 regional sales PDF\"), or wants CSV sales data turned into a PDF.\n---\n\n# PDF Report Generator\n\nBuilds the regional sales PDF by running a fixed script. Do not write your own\nchart or PDF code; the script is what keeps output consistent between runs.\n\n## Steps\n\n1. Identify the input CSV and the quarter (e.g. Q3). If either is missing, ask.\n2. Make sure reportlab and matplotlib are installed (`pip install reportlab matplotlib`).\n3. Run, with paths relative to this skill's directory:\n\n   python scripts/build_report.py --csv <csv_path> --quarter Q3 --year <YYYY> --out <output_path>\n\n   Default `--out` to `./reports/<year>-<quarter>-regional-sales.pdf`. Do not\n   overwrite an existing file without asking.\n4. Open or check the PDF's page count, and tell the user where it was saved.\n   If the script errors (missing columns, bad dates), report the error rather\n   than patching the script.\n\n## Expected CSV columns\n`date`, `region`, `amount` (adjust to match your real schema).\n\n## Reference (read only when needed)\n- Changing colors, fonts, or chart styling: see references/brand-guidelines.md\n- Matching the expected look and tone of captions: see references/example-reports.md\n```\n\n## Making the charts deterministic (in `build_report.py`)\n\n- Hardcode the chart type per section, the color per region (a dict keyed by region name, not by order of appearance), figure size, DPI, and font.\n- Sort regions and months explicitly, since CSV row order or dict ordering is a common source of drift.\n- Fix axis limits and number formatting rules, or compute them by a stated rule.\n- Load fonts from `assets/fonts/` using a path based on `__file__`.\n- Keep only the chart types you use in the script. The other 9 of the 12 chart styles can stay in the reference file.\n\n## Open items for you\n- I haven't seen your repo, so `build_report.py` doesn't exist yet. I can write it if you share a sample CSV header and which charts you want.\n- Confirm the fonts' license allows committing them. If not, document an install step instead.\n- After editing, test with prompts like \"make the Q3 regional sales PDF\" and \"turn this sales CSV into a PDF\", plus one unrelated \"report\" request that should not trigger the skill."
+}

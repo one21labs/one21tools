@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E14-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E14",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16579.4,
+  "duration_ms": 15966,
+  "duration_api_ms": 15777,
+  "cost_usd": 0.025664000000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 758,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2242,
+   "output_tokens_details": {
+    "thinking_tokens": 1015
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 758,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2242,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 758,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 758
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:37.570563+00:00",
+   "end": "2026-10-12T22:14:54.149974+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.025664000000000003,
+  "charged_usd": 0.025664000000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Renaming alone won't fix this. The numbers look off because the query has real bugs, and clearer names would make the wrong numbers look more authoritative. Here's what's wrong:\n\n1. **`active_users` is not users.** `COUNT(*)` counts joined rows, so it's really the event count. A user with 50 events counts 50 times.\n2. **The `WHERE e.created_at ...` turns the LEFT JOIN into an inner join.** Users with no events get dropped. That's fine if \"active\" means \"had at least one event\", but then the LEFT JOIN is misleading. I've made it an explicit inner join.\n3. **`m` is the user's signup month, not the activity month.** It groups by `u.created_at`, so one September window can produce several rows, one per signup cohort. It should be the event month.\n4. **`pct` is integer division.** `SUM(...) / COUNT(*)` truncates to 0 for almost everything, and the denominator is events, not users.\n5. **`BETWEEN '2026-09-01' AND '2026-09-30'` drops most of Sept 30.** The upper bound is midnight at the start of that day. The literals are also interpreted in the session time zone, since `created_at` is timestamptz. Use a half-open range with explicit UTC.\n6. **`NOT IN (subquery)` will break when you add contractors.** If `internal_accounts.user_id` contains any NULL, `NOT IN` evaluates to NULL for every row and the tile returns zero rows. Use `NOT EXISTS`, which is NULL-safe.\n\nHere is a corrected version with clearer names:\n\n```sql\nSELECT\n  date_trunc('month', e.created_at, 'UTC')                        AS event_month,\n  COUNT(DISTINCT u.id)                                            AS active_users,\n  COUNT(*)                                                        AS total_events,\n  COUNT(DISTINCT u.id) FILTER (WHERE e.event_type = 'purchase')   AS purchasing_users,\n  ROUND(\n    100.0 * COUNT(DISTINCT u.id) FILTER (WHERE e.event_type = 'purchase')\n          / COUNT(DISTINCT u.id), 1\n  )                                                               AS pct_active_users_purchasing\nFROM users u\nJOIN events e ON e.user_id = u.id\nWHERE e.created_at >= TIMESTAMPTZ '2026-09-01 00:00:00+00'\n  AND e.created_at <  TIMESTAMPTZ '2026-10-01 00:00:00+00'\n  AND NOT EXISTS (\n    SELECT 1 FROM internal_accounts ia WHERE ia.user_id = u.id\n  )\nGROUP BY 1\nORDER BY 1;\n```\n\nDecisions for you or Product to confirm:\n- **Definition of \"active\":** I assumed at least one event in the month. If it should mean something else (such as any login), the filter needs to change.\n- **What the percentage means:** I used the share of active users who purchased. If they meant purchases as a share of all events, which is what the original was trying to compute, use `100.0 * COUNT(*) FILTER (WHERE e.event_type = 'purchase') / COUNT(*)` instead.\n- **Time zone:** I used UTC. Swap in your reporting zone if it's different.\n\nExpect the new numbers to differ noticeably from the old tile. That's the bugs being fixed, not a regression, so it's worth telling Product up front.\n\nSince contractors with `user_id = NULL` can't be matched to a user, `NOT EXISTS` will simply ignore them. If you need to exclude contractors some other way, such as by email, that would need a separate key."
+}

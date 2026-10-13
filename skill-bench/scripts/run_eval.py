@@ -17,14 +17,17 @@ VENDORED from anthropics/skills (skill-creator/scripts/run_eval.py), clone dated
      watching instead of returning. Fix (4) is TIMEOUT-AS-NULL: a query run that times out
      records None -- excluded from trigger_rate's denominator and from pass/fail, surfaced as a
      `timeouts` count per query and in the summary -- never a False (upstream scored a timeout
-     as not-triggered, silently deflating rates under load). Fix (5) applies fixes 1+3 to the
+     as not-triggered, silently deflating rates under load); a session that exits nonzero, never
+     emits a result event, or raises is the same null (a usage-limited run is no measurement of
+     the description) -- `timeouts` counts every null run. Fix (5) applies fixes 1+3 to the
      full-assistant-message FALLBACK branch too (issue #104): an unrelated tool_use no longer
      returns a terminal verdict -- only a positive match ends detection early.
   2. Pure, subprocess-free extractions so the fixed behavior is unit-testable
      (run_eval_test.py) without spawning `claude -p`: the per-line stream detection into
      `detect_trigger_line()`, the per-query/summary aggregation into `summarize_query()` /
-     `summarize_results()`. `run_single_query()`/`run_eval()` call them with control flow
-     otherwise unchanged.
+     `summarize_results()`, the end-of-session null decision into `session_verdict()`.
+     `run_single_query()`/`run_eval()` call them; the stream loop also parses the lines that
+     arrive with the exit (fix 4).
   3. `parse_skill_md` vendored inline from skill-creator/scripts/utils.py -- this file has no
      package-relative import and runs standalone: `python3 run_eval.py ...`.
 
@@ -208,8 +211,8 @@ def run_single_query(
     stream events (content_block_start) rather than waiting for the
     full assistant message, which only arrives after tool execution.
 
-    VENDORED (fix 4 of 5): returns None -- not False -- when the query TIMES OUT, so a
-    timeout is a null measurement, never a not-triggered verdict.
+    VENDORED (fix 4 of 5): returns None -- not False -- when the query TIMES OUT or the
+    session fails (see session_verdict), so neither is ever a not-triggered verdict.
     """
     unique_id = uuid.uuid4().hex[:8]
     clean_name = f"{skill_name}-skill-{unique_id}"
@@ -260,52 +263,69 @@ def run_single_query(
         # VENDORED (fix 4 of 5): True only when the clock expires; every completed exit
         # (process ended, stream EOF, verdict returned) clears it.
         timed_out = True
+        saw_result = False
 
         try:
             while time.time() - start_time < timeout:
-                if process.poll() is not None:
-                    remaining = process.stdout.read()
-                    if remaining:
-                        buffer += remaining.decode("utf-8", errors="replace")
-                    timed_out = False  # VENDORED (fix 4 of 5): process completed
-                    break
-
-                ready, _, _ = select.select([process.stdout], [], [], 1.0)
-                if not ready:
-                    continue
-
-                chunk = os.read(process.stdout.fileno(), 8192)
-                if not chunk:
-                    timed_out = False  # VENDORED (fix 4 of 5): stream EOF, a completed run
-                    break
-                buffer += chunk.decode("utf-8", errors="replace")
+                # VENDORED (fix 4 of 5): an exit or EOF still parses the lines that came with
+                # it (the result event is often the last), then ends the loop as completed
+                done = process.poll() is not None
+                if done:
+                    chunk = process.stdout.read() or b""
+                else:
+                    ready, _, _ = select.select([process.stdout], [], [], 1.0)
+                    if not ready:
+                        continue
+                    chunk = os.read(process.stdout.fileno(), 8192)
+                    if not chunk:
+                        done = True
+                        try:  # reap it so its exit code is known; still running -> killed -> null
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            pass
+                buffer += chunk.decode("utf-8", errors="replace") + ("\n" if done else "")
 
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1)
                     # VENDORED: per-line detection extracted to detect_trigger_line() (pure,
                     # unit-tested in run_eval_test.py) -- this loop only threads state/verdict.
                     state, verdict = detect_trigger_line(line, clean_name, state)
-                    if verdict is not None:
+                    if verdict is True:
                         return verdict
+                    # VENDORED (fix 4 of 5): False comes only from the result event; read on to
+                    # exit so session_verdict can see the code (a usage-limited run exits 1)
+                    saw_result = saw_result or verdict is False
+                if done:
+                    timed_out = False  # VENDORED (fix 4 of 5): process completed / stream EOF
+                    break
         finally:
             # Clean up process on any exit path (return, exception, timeout)
             if process.poll() is None:
                 process.kill()
                 process.wait()
 
-        if timed_out:
-            return None  # VENDORED (fix 4 of 5): timeout -> null, excluded from the rate
-        return state.triggered
+        return session_verdict(timed_out, saw_result, process.returncode, state.triggered)
     finally:
         if command_file.exists():
             command_file.unlink()
+
+
+def session_verdict(timed_out: bool, saw_result: bool, returncode: int | None,
+                    triggered: bool) -> bool | None:
+    """VENDORED (fix 4 of 5): the verdict of a session that ended without a positive match.
+    None (null, excluded from the rate) unless it completed cleanly: timed out, no result event,
+    or a nonzero exit is a failed session, not evidence the description stayed quiet."""
+    if timed_out or not saw_result or returncode != 0:
+        return None
+    return triggered
 
 
 def summarize_query(
     query: str, triggers: list, should_trigger: bool, trigger_threshold: float
 ) -> dict:
     """VENDORED (fix 4 of 5): the per-query record, extracted pure from run_eval's aggregation
-    loop so timeout-as-null is unit-testable. A None entry in `triggers` is a TIMED-OUT run:
+    loop so timeout-as-null is unit-testable. A None entry in `triggers` is a NULL run (timed out
+    or failed):
     excluded from trigger_rate's denominator and from pass/fail, counted in `timeouts` (upstream
     scored it False, deflating the rate). If every run timed out there is NO measurement:
     trigger_rate and pass are None, never a fail-by-default."""
@@ -334,8 +354,8 @@ def summarize_query(
 
 def summarize_results(results: list[dict]) -> dict:
     """VENDORED (fix 4 of 5): the summary block, extracted pure. An all-timeout query
-    (pass None) counts as neither passed nor failed; `timeouts` totals every timed-out run so
-    a load-compromised run is loudly visible."""
+    (pass None) counts as neither passed nor failed; `timeouts` totals every null run (timed out
+    or failed) so a load- or limit-compromised run is loudly visible."""
     return {
         "total": len(results),
         "passed": sum(1 for r in results if r["pass"] is True),
@@ -373,7 +393,7 @@ def run_eval(
                 )
                 future_to_info[future] = (item, run_idx)
 
-        query_triggers: dict[str, list[bool | None]] = {}  # VENDORED (fix 4 of 5): None = timeout
+        query_triggers: dict[str, list[bool | None]] = {}  # VENDORED (fix 4 of 5): None = null run
         query_items: dict[str, dict] = {}
         for future in as_completed(future_to_info):
             item, _ = future_to_info[future]
@@ -385,7 +405,7 @@ def run_eval(
                 query_triggers[query].append(future.result())
             except Exception as e:
                 print(f"Warning: query failed: {e}", file=sys.stderr)
-                query_triggers[query].append(False)
+                query_triggers[query].append(None)  # VENDORED (fix 4 of 5): null, not False
 
     for query, triggers in query_triggers.items():
         # VENDORED (fix 4 of 5): aggregation extracted to summarize_query() (pure, unit-tested
@@ -457,11 +477,11 @@ def main():
         # VENDORED (fix 4 of 5): timeouts reported loudly; a null pass (all runs timed out)
         # prints NULL, and the rate denominator is completed runs, not submitted runs.
         print(f"Results: {summary['passed']}/{summary['total']} passed"
-              f" ({summary['timeouts']} timeouts)", file=sys.stderr)
+              f" ({summary['timeouts']} null runs: timed out or failed)", file=sys.stderr)
         for r in output["results"]:
             status = "PASS" if r["pass"] is True else ("FAIL" if r["pass"] is False else "NULL")
             rate_str = f"{r['triggers']}/{r['completed_runs']}"
-            timeout_str = f" timeouts={r['timeouts']}" if r["timeouts"] else ""
+            timeout_str = f" nulls={r['timeouts']}" if r["timeouts"] else ""
             print(f"  [{status}] rate={rate_str}{timeout_str} expected={r['should_trigger']}: {r['query'][:70]}", file=sys.stderr)
 
     print(json.dumps(output, indent=2))

@@ -83,29 +83,39 @@ Guess the arm and say why. If nothing distinguishes them, still pick one and say
 const results = await pipeline(
   items,
   (it) => agent(normalize(it.bid), { label: `norm:${it.bid}`, phase: 'Normalize', schema: NORM_SCHEMA, model: 'sonnet' })
-    .then((n) => ({ ...it, norm: n || { decision: '', options: [], criterion: 'none', risks: [], assumptions: [] }, key: KEYS[it.scenario] })),
-  (it) => agent(gradeP(it.norm, it.key), { label: `grade:${it.bid}`, phase: 'Grade', schema: GRADE_SCHEMA, model: 'opus' })
+    .then((n) => ({ ...it, norm: n, key: KEYS[it.scenario] })),
+  // A null normalize skips both judges and takes the error exit below (an empty artifact graded
+  // would read as quality 0).
+  (it) => Promise.resolve(it.norm && agent(gradeP(it.norm, it.key), { label: `grade:${it.bid}`, phase: 'Grade', schema: GRADE_SCHEMA, model: 'opus' }))
     .then((v) => ({ ...it, grader: v })),
-  (it) => agent(prosecute(it.norm, it.key, it.grader), { label: `pros:${it.bid}`, phase: 'Prosecute', schema: GRADE_SCHEMA, model: 'opus' })
+  (it) => Promise.resolve(it.norm && agent(prosecute(it.norm, it.key, it.grader), { label: `pros:${it.bid}`, phase: 'Prosecute', schema: GRADE_SCHEMA, model: 'opus' }))
     .then((p) => {
-      const g = (it.grader && it.grader.expectations) || []
-      const pr = (p && p.expectations) || []
+      // A reply that is not a full grade (null, missing ids, non-boolean met) is a judge failure:
+      // the cell is EXCLUDED and reported, never scored as every expectation unmet (judge.met_map).
+      const full = (v) => v && Array.isArray(v.expectations) && EXP_IDS.every((id) =>
+        v.expectations.filter((e) => e.id === id && typeof e.met === 'boolean').length === 1)
+      if (!it.norm) return { bid: it.bid, scenario: it.scenario, error: 'normalize returned null' }
+      if (!full(it.grader) || !full(p)) return { bid: it.bid, scenario: it.scenario, error: 'grader or prosecutor reply is not a full grade' }
       const finalExp = EXP_IDS.map((id) => {
-        const gv = g.find((e) => e.id === id), pv = pr.find((e) => e.id === id)
-        const met = !!(gv && gv.met) && !!(pv && pv.met)
-        const src = met ? gv : (pv && !pv.met ? pv : gv)
-        return { id, met, why: src ? src.why : 'NULL verdict' }
+        const gv = it.grader.expectations.find((e) => e.id === id), pv = p.expectations.find((e) => e.id === id)
+        const met = gv.met && pv.met
+        return { id, met, why: (met || !pv.met ? pv : gv).why }
       })
       return { bid: it.bid, scenario: it.scenario, norm: it.norm, expectations: finalExp }
     })
 )
 
+// Error rows carry no norm: auditing one guesses on `undefined` and drags accuracy toward chance.
 const byBid = {}
-for (const r of results.filter(Boolean)) byBid[r.bid] = r
+for (const r of results.filter(Boolean)) if (!r.error) byBid[r.bid] = r
 const audits = await parallel(auditBids.map((bid) => () =>
   byBid[bid]
     ? agent(audit(byBid[bid].norm), { label: `audit:${bid}`, phase: 'Audit', schema: AUDIT_SCHEMA, model: 'sonnet' })
-        .then((a) => ({ bid, ...(a || { guess: 'A', why: 'NULL auditor' }) }))
+        .then((a) => a && { bid, ...a })
     : null))
 
-return { cells: results.filter(Boolean), audit: audits.filter(Boolean) }
+// Every agent call here is a Claude model, the generators' family: the grades are FRAME-UNCHECKED
+// (ADR 0093) until a cross-family judge (bench_verdict.py --judge grok) re-grades the same cells.
+const graded = results.filter(Boolean)
+return { frame: 'FRAME-UNCHECKED (Claude-family grader and prosecutor, ADR 0093)',
+  cells: graded.filter((r) => !r.error), errors: graded.filter((r) => r.error), audit: audits.filter(Boolean) }

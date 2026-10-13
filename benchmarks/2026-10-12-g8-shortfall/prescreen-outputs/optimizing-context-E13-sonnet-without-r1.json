@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E13-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E13",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 21640.5,
+  "duration_ms": 21000,
+  "duration_api_ms": 20683,
+  "cost_usd": 0.026748,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 719,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2366,
+   "output_tokens_details": {
+    "thinking_tokens": 856
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 719,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2366,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 719,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 719
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:15.323282+00:00",
+   "end": "2026-10-12T22:15:36.963756+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.026748,
+  "charged_usd": 0.026748,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Your three symptoms share one cause: the LLM is doing work that code should do (splitting, routing, dedupe, line mapping), and the interfaces between stages are unstructured. Here is how I'd restructure.\n\n## 1. Preprocess the diff in code, not in the orchestrator\n\n- Parse the diff deterministically into a per-file, per-hunk manifest: path, language, added/removed counts, and the new-file line ranges that are commentable.\n- Drop noise before any model sees it: lockfiles, generated code, vendored dirs, snapshots, minified files, and pure renames.\n- Write shards to disk and give agents paths, not pasted text. The orchestrator should only see the manifest (file list and stats), never the 60k-line diff.\n\n## 2. Shard by file group, and route by concern\n\nEight agents each reading everything is why you get context errors and shallow coverage of the first few files.\n\n- Route deterministically by path and type. Accessibility only sees UI files, docs only sees markdown and doc comments, tests looks at test files plus the source they cover, and API compat looks at public interfaces and schemas.\n- Split each concern's files into shards under a token budget, for example 15-25k tokens of diff. Spawn one subagent per concern and shard, in parallel with a concurrency cap.\n- Consider fewer, broader specialists: security, correctness/error handling, performance, API compat, and tests/docs. Handle style with linters and formatters, not an LLM. It's the main source of low-value noise.\n- Cross-file issues, such as a changed signature whose callers lie elsewhere, need a second pass. Feed that pass a compact per-file summary of changes, plus Grep/Read access to the repo, instead of the full diff.\n\n## 3. Stop inlining CLAUDE.md\n\n- Split it by concern, and give each specialist only its relevant sections: security rules to security, test conventions to tests.\n- Put the stable part in the system prompt so prompt caching works across shards.\n- For the rest, tell the agent where the file is and let it Read or Grep on demand.\n\n## 4. Require structured output\n\nHave each subagent return JSON validated against a schema, and retry or reject on failure. For each finding:\n\n```json\n{\n  \"file\": \"...\", \"line\": 123, \"end_line\": 130, \"side\": \"RIGHT\",\n  \"category\": \"security\", \"severity\": \"high\", \"confidence\": 0.85,\n  \"title\": \"...\", \"explanation\": \"...\", \"suggested_fix\": \"...\",\n  \"files_reviewed\": [\"...\"]\n}\n```\n\n- Validate in code that `file:line` falls inside a commentable hunk. Reject or re-prompt otherwise. This fixes inline posting.\n- Have each shard report `files_reviewed` so you can compute coverage.\n\n## 5. Aggregate with code first, then a small LLM pass\n\n- Dedupe in code by file, overlapping line range, and category or fingerprint.\n- Run an LLM consolidator only over clusters of overlapping findings, as JSON with no diff. It merges them into one finding and notes the cross-category angle.\n- Filter by confidence threshold, rank by severity \u00d7 confidence, and cap the total, say the top 15-20. Collapse or drop nits.\n\n## 6. Post as a review, not a wall of text\n\n- Submit one GitHub review: inline comments for each finding, plus a short summary with counts by severity, the top issues, and coverage (\"reviewed 372/400 files; skipped 28 generated/vendored\").\n- Use a fingerprint per finding so re-runs on new commits update or skip existing comments instead of duplicating them.\n\n## 7. Make failure visible\n\n- Set a per-shard timeout and retry once, and shrink the shard on a context error.\n- If a shard still fails, say so in the summary. A silent shallow review is worse than an acknowledged gap.\n\n## Pipeline\n\n```\ndiff \u2192 parse/filter/shard (code) \u2192 route to (concern \u00d7 shard) \u2192 parallel subagents (JSON)\n     \u2192 validate + coverage check (code) \u2192 dedupe (code) \u2192 consolidate clusters (small LLM)\n     \u2192 rank/cap \u2192 post inline review + short summary\n```\n\n## Evaluate before rollout\n\nBuild a set of 10-20 past PRs with known issues, including a couple of huge ones. Track precision (how many comments reviewers accept), duplicate rate, coverage, cost, and latency. Tune thresholds and shard sizes against those numbers.\n\nIf you do only two things first, make them sharding with routing (fixes context errors and shallow reviews) and the JSON schema with code-side line validation (fixes inline posting and enables dedupe)."
+}

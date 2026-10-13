@@ -8,9 +8,9 @@ the measurement protocol itself.
 ## Pre-registration cites the settled methodology
 
 A pre-registration CITES the verdict methodology — fraction-met headline with binary
-all-expectations-met as secondary (ADR 0025), the eval-clustered CI unit (ADR 0019), the
-sequential-escalation rule, cost accounting (ADR 0024) — instead of restating any of it, and
-never names a metric the ADRs have superseded. A pre-reg whose stated metric predictably
+all-expectations-met as secondary (ADR 0025), the eval-clustered CI unit (ADR 0019), cost
+accounting (ADR 0024) — instead of restating any of it, and never names a metric the ADRs have
+superseded. A pre-reg whose stated metric predictably
 floors (binary pass-rate floored three benchmarks running) invites exactly the fishing
 accusation pre-registration exists to prevent.
 
@@ -49,8 +49,8 @@ Advocacy wording is itself a contamination channel: agents read it.
 Every generative step in an arm carries an output contract with one retry, or a pre-registered
 ERROR-cell rule — above all the step producing the graded artifact. A cell whose graded artifact
 fails the mechanical shape check (`lib/artifact_check.py`) is an ERROR cell, never a quality 0.
-Before blinding, run the capture-symmetry sweep (`blind.capture_symmetry`) — arm-skewed emptiness
-is an infrastructure defect to fix before grading, not signal.
+Before blinding, run the capture-symmetry sweep (`blind.capture_symmetry`) — an arm-skewed
+exclusion rate is an infrastructure defect to fix before grading, not signal.
 
 ## Design for signal (retired ADR 0065)
 

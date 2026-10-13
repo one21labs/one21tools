@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E15-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E15",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 14845.1,
+  "duration_ms": 14151,
+  "duration_api_ms": 13854,
+  "cost_usd": 0.020370000000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 702,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1735,
+   "output_tokens_details": {
+    "thinking_tokens": 542
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 702,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1735,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 702,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 702
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:41.213928+00:00",
+   "end": "2026-10-12T22:14:56.059003+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.020370000000000003,
+  "charged_usd": 0.020370000000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The catch with a plain `set -x` is that it would print the `curl` line with `$DEPLOY_TOKEN` expanded, and since every job's log is visible to the whole org, that would leak your deploy token. The script below turns tracing off around that one command.\n\n```bash\n#!/bin/bash\nset -Eeuo pipefail\n\n# Timestamped, line-numbered trace output\nexport PS4='+ [$(date -u +%H:%M:%S)] ${BASH_SOURCE##*/}:${LINENO}: '\nset -x\n\nlog() { printf '[%s] %s\\n' \"$(date -u +%FT%TZ)\" \"$*\"; }\ntrap 'rc=$?; log \"FAILED (exit $rc) at line $LINENO: $BASH_COMMAND\"' ERR\n\nBUILD_DIR=\"$WORKSPACE/build\"\n\nlog \"Deploying release ${RELEASE_ID} to ${HOST}\"\ncd \"$WORKSPACE/app\"\n\nnpm ci\nnpm run build 2>&1 | tee build.log\n\nlog \"Replacing contents of $BUILD_DIR\"\nrm -rf \"${BUILD_DIR:?}\"/*\ncp -r dist/* \"$BUILD_DIR/\"\n\nlog \"Registering release\"\n# Tracing off so the bearer token is not printed to the shared log\n{ set +x; } 2>/dev/null\ncurl -sS --fail-with-body -X POST \\\n  -H \"Authorization: Bearer $DEPLOY_TOKEN\" \\\n  https://deploy.internal/api/release -d @release.json\nset -x\n\nlog \"Switching release on $HOST\"\nssh -o BatchMode=yes \"deploy@$HOST\" <<EOF\n  set -e\n  cd /srv/app && ./switch.sh $RELEASE_ID && echo \"done at \\$(date)\"\nEOF\n\nlog \"Deployed\"\n```\n\nWhat changed:\n\n- **Token protection:** `set +x` around the `curl` keeps the token out of the trace. If your CI masks bound credentials, that helps, but don't rely on it alone. Also make sure `release.json` and `build.log` contain nothing sensitive, because `-d @release.json` isn't traced but `npm` output is.\n- **`pipefail`:** in the original, `npm run build | tee build.log` returned `tee`'s exit status, so a failed build was ignored and the script went on to wipe `$BUILD_DIR` and deploy broken output. That is a plausible cause of your weekly failures.\n- **`set -e` and `set -u`:** the original kept going after errors. `-u` also guards `rm -rf $BUILD_DIR/*`, which would otherwise expand to `/build/*` if `WORKSPACE` were unset. I added `${BUILD_DIR:?}` as well.\n- **`curl -sS --fail-with-body`:** the original `-s` swallowed errors and ignored HTTP 4xx/5xx responses. Now an HTTP error fails the job and prints the response body. This needs curl 7.76 or later, so use `--fail` on older versions.\n- **`ERR` trap:** it logs the failing command and line, so the failure is obvious in the log.\n- **Quoting:** variables are quoted throughout.\n- **Remote command:** `$(date)` is now escaped (`\\$(date)`) so it runs on the remote host, not the runner. `$RELEASE_ID` still expands locally, as before.\n\nIf the failures turn out to be on the remote side, adding `set -x` inside the heredoc would show them, as long as `switch.sh` doesn't handle secrets."
+}

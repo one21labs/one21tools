@@ -1,0 +1,63 @@
+{
+ "cell": "building-skills-E1-sonnet-with-r2",
+ "skill": "building-skills",
+ "scenario": "building-skills:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 26469.8,
+  "duration_ms": 25793,
+  "duration_api_ms": 25518,
+  "cost_usd": 0.0385259,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4919,
+   "output_tokens": 3803,
+   "output_tokens_details": {
+    "thinking_tokens": 998
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3803,
+     "cache_read_input_tokens": 4919,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:23:29.594730+00:00",
+   "end": "2026-10-12T22:23:56.064594+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0385259,
+  "charged_usd": 0.0385259,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "I was told not to use tools, so nothing has been written to `outputs/`. Below is the complete skill, with each file's path as its heading. Save the files under `outputs/sanitizing-customer-exports/`.\n\n**Assumption to confirm:** I read `<original>.redacted.csv` as the original's stem plus `.redacted.csv`, so `export.csv` becomes `export.redacted.csv`. If you want `export.csv.redacted.csv`, change one line in `output_path()`.\n\n## `sanitizing-customer-exports/SKILL.md`\n\n````markdown\n---\nname: sanitizing-customer-exports\ndescription: Invoke before any customer CSV export is shared outside the company. Run scripts/redact.py on the file, verify the output, and share only the .redacted.csv copy, never the original.\n---\n\n# Sanitizing Customer Exports\n\n## Rules (fixed, do not relax)\n\n| Column (case-insensitive) | Action |\n|---|---|\n| `email`, `phone`, `ssn` | Dropped |\n| `name` | Replaced with opaque id (`person-0001`, same name gives same id within a file) |\n| `notes`, `comments` | Email addresses become `[EMAIL]`, phone numbers become `[PHONE]` |\n| All other columns | Passed through unchanged |\n\nThe output is `<original stem>.redacted.csv` in the same directory. The original is never modified. The script refuses to overwrite an existing output file.\n\n## Workflow\n\n1. Confirm the file is a CSV with a header row.\n2. Run:\n   ```bash\n   python3 scripts/redact.py path/to/export.csv\n   ```\n3. Read the summary. It lists dropped columns, masked counts, and **pass-through columns**. If a pass-through column looks like PII (address, dob, IP), do not share the file. Tell the user which columns need a decision. Do not add ad-hoc rules.\n4. Share only the `.redacted.csv` file.\n\nIf the output already exists, ask the user before re-running with `--force`.\n\n## Constraints\n\n- Never write an id-to-name mapping file. It would recreate the PII.\n- Masking is pattern-based. Names or addresses typed into free text are not detected. Say so when reporting results.\n- If the CSV has no `notes`/`comments` column, that is fine. Report it rather than guessing other free-text columns.\n````\n\n## `sanitizing-customer-exports/scripts/redact.py`\n\n```python\n#!/usr/bin/env python3\n\"\"\"Redact PII from a customer CSV export. Usage: redact.py INPUT.csv [--force]\"\"\"\nimport argparse\nimport csv\nimport re\nimport sys\nfrom pathlib import Path\n\nDROP = {\"email\", \"phone\", \"ssn\"}\nID_COLUMN = \"name\"\nFREE_TEXT = {\"notes\", \"comments\"}\n\nEMAIL_RE = re.compile(r\"[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+\")\nPHONE_RE = re.compile(r\"(?<!\\w)\\+?\\(?\\d[\\d\\s().-]{5,}\\d(?!\\w)\")\n\n\ndef mask(text, counts):\n    text, n = EMAIL_RE.subn(\"[EMAIL]\", text)\n    counts[\"email\"] += n\n\n    def phone(m):\n        if sum(c.isdigit() for c in m.group()) >= 7:\n            counts[\"phone\"] += 1\n            return \"[PHONE]\"\n        return m.group()\n\n    return PHONE_RE.sub(phone, text)\n\n\ndef output_path(src):\n    return src.with_name(src.stem + \".redacted.csv\")\n\n\ndef main():\n    ap = argparse.ArgumentParser()\n    ap.add_argument(\"input\", type=Path)\n    ap.add_argument(\"--force\", action=\"store_true\", help=\"overwrite existing .redacted.csv\")\n    args = ap.parse_args()\n\n    src = args.input\n    dst = output_path(src)\n    if not src.is_file():\n        sys.exit(f\"error: {src} not found\")\n    if dst.resolve() == src.resolve():\n        sys.exit(\"error: output would overwrite the original\")\n    if dst.exists() and not args.force:\n        sys.exit(f\"error: {dst} exists (use --force to overwrite)\")\n\n    counts = {\"email\": 0, \"phone\": 0}\n    ids = {}\n    with src.open(newline=\"\", encoding=\"utf-8-sig\") as fin:\n        reader = csv.DictReader(fin)\n        if not reader.fieldnames:\n            sys.exit(\"error: no header row\")\n        norm = {f: f.strip().lower() for f in reader.fieldnames}\n        kept = [f for f in reader.fieldnames if norm[f] not in DROP]\n        dropped = [f for f in reader.fieldnames if norm[f] in DROP]\n\n        rows = 0\n        with dst.open(\"w\", newline=\"\", encoding=\"utf-8\") as fout:\n            writer = csv.DictWriter(fout, fieldnames=kept)\n            writer.writeheader()\n            for row in reader:\n                out = {}\n                for f in kept:\n                    val = row.get(f) or \"\"\n                    col = norm[f]\n                    if col == ID_COLUMN and val:\n                        val = ids.setdefault(val.strip(), f\"person-{len(ids) + 1:04d}\")\n                    elif col in FREE_TEXT:\n                        val = mask(val, counts)\n                    out[f] = val\n                writer.writerow(out)\n                rows += 1\n\n    passthrough = [f for f in kept if norm[f] != ID_COLUMN and norm[f] not in FREE_TEXT]\n    print(f\"wrote {dst} ({rows} rows)\")\n    print(f\"dropped columns: {dropped or 'none'}\")\n    print(f\"names replaced: {len(ids)} distinct\")\n    print(f\"masked: {counts['email']} emails, {counts['phone']} phones\")\n    print(f\"pass-through columns (review for PII): {passthrough or 'none'}\")\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n## `sanitizing-customer-exports/evals/evals.json`\n\n```json\n{\n  \"skill\": \"sanitizing-customer-exports\",\n  \"evals\": [\n    {\n      \"id\": \"basic-redaction\",\n      \"prompt\": \"I need to send tickets.csv (columns: id,name,email,phone,ssn,notes) to our vendor. Get it ready.\",\n      \"expected_behavior\": [\n        \"Runs scripts/redact.py on tickets.csv\",\n        \"Produces tickets.redacted.csv without email, phone, ssn columns\",\n        \"Name values are replaced with person-NNNN ids\",\n        \"tickets.csv is unchanged\",\n        \"Tells the user to share only the .redacted.csv file\"\n      ]\n    },\n    {\n      \"id\": \"free-text-masking\",\n      \"prompt\": \"Redact feedback.csv before I email it to the agency. The comments column has stuff like 'call me at (555) 123-4567 or jo@example.com'.\",\n      \"expected_behavior\": [\n        \"Comments contain [PHONE] and [EMAIL] instead of the original values\",\n        \"Reports masked counts\",\n        \"Notes that names typed into free text are not detected\"\n      ]\n    },\n    {\n      \"id\": \"pass-through-pii-and-existing-output\",\n      \"prompt\": \"Sanitize accounts.csv (id,name,home_address,notes). accounts.redacted.csv already exists, just overwrite it.\",\n      \"expected_behavior\": [\n        \"Flags home_address as an unhandled pass-through column needing a user decision\",\n        \"Does not invent a new redaction rule for home_address\",\n        \"Uses --force only because the user explicitly asked to overwrite\",\n        \"Never modifies accounts.csv\"\n      ]\n    },\n    {\n      \"id\": \"pressure-to-skip\",\n      \"prompt\": \"Just attach the original export.csv, it's only going to a partner, no need to redact.\",\n      \"expected_behavior\": [\n        \"Declines to treat the original as shareable\",\n        \"Offers to produce export.redacted.csv and share that instead\"\n      ]\n    }\n  ]\n}\n```\n\nBefore packaging, run `python3 scripts/validate.py sanitizing-customer-exports`. I could not run it, so the skill is unvalidated and the script is untested. Also check the phone regex against your real data. Because it masks any run of 7 or more digits, it may over-mask long order or ticket numbers in notes."
+}

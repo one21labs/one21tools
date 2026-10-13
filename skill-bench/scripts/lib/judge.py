@@ -26,11 +26,11 @@ Adding a family is a registry entry, not a new branch in the resolver — see BA
 import json, os, re, shutil, subprocess, tempfile
 import costing
 import usage_guard
+from hermetic_driver import build_env, neutral_cwd
 
 # Known-good pure-text sandbox. NOTE (grok 0.2.99): longer deny lists or --disable-web-search trip a
 # run_terminal_cmd tool-config validation bug — keep this exact set.
 GROK_DENY = "Bash,Read,Write,Edit,WebSearch,WebFetch"
-CLAUDE_DENY = "Bash,Read,Write,Edit,WebSearch,WebFetch,Glob,Grep,Task"
 
 # The generator's family. A "cross-family" judge is only cross-family if we know WHO answered, and
 # a router that picks per call may pick this family: GitHub Copilot's `auto` was measured listing
@@ -114,19 +114,28 @@ class _CostTracking:
     def cost_usd(self):
         """Notional (shadow) cost of all grade() calls at published API rates — real usage priced
         even though the subscription made it marginally free."""
-        return round(costing.notional_cost(self.name, self.usage), 4) if self.usage else 0.0
+        if not self.usage:
+            return 0.0
+        try:
+            return round(costing.notional_cost(self.name, self.usage), 4)
+        except KeyError:  # a served model id with no price row: price at the backend's default
+            return round(costing.notional_cost(type(self).name, self.usage), 4)
 
 
 class GrokJudge(_CostTracking):
+    """grok CLI. No model flag is passed (none is known to this repo), so the model is NOT pinned:
+    every call reads back who served it (the envelope's `modelUsage` keys), `name` becomes that
+    model, and a call served by the generator's family or by no placeable model raises — the same
+    per-call check as CopilotJudge. `name` starts as the price key for the default model."""
     name = "grok-4.5"
 
-    def __init__(self, bin=None, model="grok-4.5", timeout=300):
+    def __init__(self, bin=None, timeout=300):
         # Portable resolution: explicit arg, then $GROK_BIN, then PATH, then the default installer
         # location. Works when skill-bench is installed as a plugin on any machine.
         self.bin = (bin or os.environ.get("GROK_BIN") or shutil.which("grok")
                     or os.path.expanduser("~/.grok/bin/grok"))
-        self.model = model
         self.timeout = timeout
+        self.cwd = tempfile.mkdtemp(prefix="grok-judge-")  # empty: no project context to discover
         self._init_usage()
 
     def grade(self, prompt, schema):
@@ -137,7 +146,7 @@ class GrokJudge(_CostTracking):
                 r = subprocess.run(
                     [self.bin, "--prompt-file", pf, "--output-format", "json",
                      "--json-schema", json.dumps(schema), "--disallowed-tools", GROK_DENY],
-                    capture_output=True, text=True, timeout=self.timeout)
+                    capture_output=True, text=True, timeout=self.timeout, cwd=self.cwd)
             except subprocess.TimeoutExpired:
                 # Contract consistency: timeout is a JudgeError like every other failure mode —
                 # a caller's per-cell handler must be able to catch ONE exception type (a raw
@@ -147,6 +156,14 @@ class GrokJudge(_CostTracking):
                 raise JudgeError(f"grok exit {r.returncode}: {r.stderr[-300:]}")
             env = json.loads(r.stdout)
             self._record(env)
+            served = sorted((env.get("modelUsage") or {}).keys())
+            fams = {family_of(m) for m in served}
+            if not served or fams & {GENERATOR_FAMILY, "unknown"}:
+                raise JudgeError(
+                    f"grok reported {served or 'no model'} ({sorted(fams)}) as serving this "
+                    f"grade, so it cannot be shown to be cross-family. Re-run, use --judge "
+                    f"copilot, or pin one via $SKILL_BENCH_JUDGE_CMD.")
+            self.name = "+".join(served)
             so = env.get("structuredOutput")
             if not so:
                 raise JudgeError("grok returned no structuredOutput")
@@ -156,21 +173,46 @@ class GrokJudge(_CostTracking):
 
 
 class ClaudeJudge(_CostTracking):
+    """claude -p with the generation-side isolation (ADR 0023): detached from any parent Claude
+    Code session (build_env), a neutral cwd outside the checkout, every tool stripped. Without it
+    a judge run inside a session shared that session's id and loaded the repo CLAUDE.md into the
+    grader. Config dir: `config_dir` when passed, else $SKILL_BENCH_CONFIG_DIR, else the caller's
+    own login (their $CLAUDE_CONFIG_DIR, or the CLI default when unset) — never build_env's
+    fallback, a path only this repo's machine has (an adopter's every call failed
+    unauthenticated). `name` starts as the price key for the alias and becomes the model the
+    envelope says served the last call; an exact `claude-*` model id is a pin, and a call served
+    by anything else raises."""
     name = "claude-opus-4-8"
 
-    def __init__(self, bin="claude", model="opus", timeout=300):
+    def __init__(self, bin="claude", model="opus", timeout=300, effort="medium", config_dir=None):
         self.bin = bin
         self.model = model
         self.timeout = timeout
+        self.effort = effort
+        self.config = (config_dir or os.environ.get("SKILL_BENCH_CONFIG_DIR")
+                       or os.environ.get("CLAUDE_CONFIG_DIR"))
+        self.cwd = neutral_cwd("judge")
+        self.real_cost_usd = 0.0  # billed envelope cost; cost_usd() is the notional price table
         self._init_usage()
 
     def grade(self, prompt, schema):
         # claude -p has no --json-schema; ask for JSON-only and parse, retrying tolerant of fences.
         p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
+        call_env = build_env(self.effort)
+        call_env.pop("CLAUDE_CONFIG_DIR")
+        if self.config:
+            call_env["CLAUDE_CONFIG_DIR"] = self.config
         env = usage_guard.guarded_run(
-            [self.bin, "-p", p, "--output-format", "json", "--model", self.model,
-             "--disallowedTools", CLAUDE_DENY], timeout=self.timeout, error=JudgeError)
+            [self.bin, "-p", "--output-format", "json", "--model", self.model, "--tools", "",
+             "--disable-slash-commands", "--strict-mcp-config", "--effort", self.effort],
+            timeout=self.timeout, error=JudgeError, input=p, cwd=self.cwd, env=call_env)
         self._record(env)
+        self.real_cost_usd += env.get("total_cost_usd") or 0.0
+        served = sorted((env.get("modelUsage") or {}).keys())
+        if self.model.startswith("claude-") and self.model not in served:
+            raise JudgeError(f"judge requested {self.model}, envelope served {served}")
+        if served:
+            self.name = "+".join(served)
         return json.loads(strip_json_fence(env.get("result", "")))
 
 
@@ -265,10 +307,11 @@ class CommandJudge(_CostTracking):
 
 class CachedJudge(_CostTracking):
     """Placeholder for offline --cache re-analysis: no live CLI needed, 0 calls, $0 cost. Lets
-    bench-verdict recompute a verdict from a prior judge run on a machine with no grok/claude."""
+    bench-verdict recompute a verdict from a prior judge run on a machine with no grok/claude.
+    `name` is whatever the cache says graded it ("cached" when it says nothing) — never mapped
+    onto a backend, so a cache cannot read as cross-family unless it says so."""
     def __init__(self, name="cached"):
-        self.name = name if name in costing.PRICES else "grok-4.5"
-        self.display_name = name
+        self.name = name
         self._init_usage()
         self.fallback_note = None
 
@@ -341,5 +384,21 @@ def make_judge(name, which=None, env=None):
     return j
 
 
-def met_map(verdict):
-    return {e["id"]: bool(e.get("met")) for e in (verdict.get("expectations") or [])}
+def met_map(verdict, n=None):
+    """Judge verdict -> {id: met}. With `n` (the number of expectations graded) it is strict:
+    anything but a dict whose expectations carry ids exactly 1..n (ints), each with a boolean
+    `met`, raises JudgeError, so an empty, partial, or string-typed reply is a judge failure the
+    caller retries or records, never a row of silent falses (`"met": "false"` was truthy).
+    Without `n` (frozen dated-dir callers) it keeps the old lenient shape, but only a literal
+    True counts as met."""
+    if n is None:
+        return {e["id"]: e.get("met") is True for e in (verdict.get("expectations") or [])}
+    exps = verdict.get("expectations") if isinstance(verdict, dict) else None
+    if not isinstance(exps, list) or not all(isinstance(e, dict) for e in exps):
+        raise JudgeError(f"verdict has no expectations list: {str(verdict)[:200]}")
+    ids = [e.get("id") for e in exps]
+    if (any(type(i) is not int for i in ids) or sorted(ids) != list(range(1, n + 1))
+            or any(type(e.get("met")) is not bool for e in exps)):
+        raise JudgeError(f"verdict must carry ids 1..{n} each with a boolean met, got "
+                         f"{[(e.get('id'), e.get('met')) for e in exps]}")
+    return {e["id"]: e["met"] for e in exps}

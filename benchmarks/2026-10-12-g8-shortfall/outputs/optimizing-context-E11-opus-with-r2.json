@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E11-opus-with-r2",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E11",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18161.9,
+  "duration_ms": 17422,
+  "duration_api_ms": 17199,
+  "cost_usd": 0.034431800000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4819,
+   "output_tokens": 1673,
+   "output_tokens_details": {
+    "thinking_tokens": 150
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1673,
+     "cache_read_input_tokens": 4819,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:23:11.432050+00:00",
+   "end": "2026-10-12T22:23:29.593969+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.034431800000000005,
+  "charged_usd": 0.034431800000000005,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# CLAUDE.md audit\n\n## \ud83d\udea8 Fix first: a live credential is committed\n\n```\nStaging DB: postgres://admin:Tr0ub4dor@staging-db.acme.internal:5432/store\n```\n\nThis password is in git history, so removing the line doesn't revoke it. Everyone with repo access has it, and so does any tool or service the repo is sent to.\n\n1. **Rotate the staging DB password now.** Treat the old one as leaked.\n2. Move the connection string to `.env` or a secrets manager, and refer to it by variable name (e.g. `STAGING_DATABASE_URL`).\n3. Optionally scrub history with `git filter-repo` or BFG. Rotation is the actual fix, though, since clones and forks already have the password.\n\n## Why Claude ignores half of it\n\n| Section | Problem | Action |\n|---|---|---|\n| Persona / \"take a deep breath\" / \"quality matters!\" | No behavioral signal. It uses tokens and dilutes the real rules. | Delete |\n| Setup: `npm install` | **Conflicts** with `pnpm` everywhere else. Claude will pick one inconsistently. | Fix to `pnpm install` |\n| Code style (6 rules) | Prettier and ESLint already enforce these in pre-commit, so this is a second source of truth that can drift. | Replace with one line pointing to the tools |\n| Architecture: `app/`, `lib/` | Claude can see these by listing the directory. | Delete. Keep only the non-obvious `src/legacy/` rule. |\n| Payments API reference (~40 lines) | Biggest bloat. It loads on every task, even ones that never touch payments. | Move to `payments/CLAUDE.md` (loads only when working in that directory), a skill, or docs Claude reads on demand |\n| \"Be careful with the database\", \"Write good tests\" | Too vague to act on | Delete, or replace with a specific rule |\n| Two `IMPORTANT:` rules | Fine, but emphasis loses value when overused | Keep and state concretely |\n| Jenkinsfile note | Useful: it stops Claude from editing a dead CI config | Keep, shortened |\n| `--runInBand` + reason | Exactly the kind of content that belongs here: non-obvious, with the why included | Keep |\n\n## Trimmed version\n\n```markdown\n# Acme Storefront\n\n## Commands\n- Install: `pnpm install` (Node 18)\n- Dev: `pnpm dev`\n- Test: `pnpm test -- --runInBand` (tests share one Postgres schema and flake in parallel)\n- Typecheck: `pnpm tsc --noEmit`\n\nRun typecheck and tests before committing.\n\n## Style\nPrettier + ESLint enforce formatting in pre-commit (`.prettierrc`, `.eslintrc`). Don't hand-format; run the tools.\n\n## Architecture\n- New pages go in `app/` (Next.js app router). `src/legacy/` is the old pages router: don't add code there.\n- Payments (Stripe) live in `payments/`; see `payments/CLAUDE.md` for its API.\n\n## Rules\n- Never commit `.env` files. DB credentials come from env vars (e.g. `STAGING_DATABASE_URL`), never hardcode them.\n- CI is GitHub Actions (`.github/workflows/`). The `Jenkinsfile` is dead; don't edit it.\n```\n\nThat cuts it from roughly 80 lines to about 20, and the payments reference now loads only when it's relevant.\n\n## Follow-ups\n\n- **Create `payments/CLAUDE.md`** with the API reference. While you're at it, cut anything Claude could get by reading the TypeScript signatures. Keep the gotchas: idempotency keys, webhook ordering, test-mode keys, and similar.\n- **Delete the Jenkinsfile** if nothing uses it. Then you can drop that rule entirely.\n- **Node 18 has been end-of-life since April 2025.** Consider upgrading, and pin the version in `.nvmrc` or `engines`, which tools actually enforce. Then you can drop it from CLAUDE.md too.\n- **Make the database rule specific if there is a real risk**, e.g. \"Never run migrations against staging from a local machine.\" Otherwise leave it out.\n- **Enforce \"run tests before committing\" with a hook** (a pre-commit hook or a Claude Code `PreToolUse` hook on `git commit`) if you need it guaranteed. CLAUDE.md is advisory; hooks are deterministic."
+}

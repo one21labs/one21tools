@@ -36,8 +36,9 @@ Only matched-protocol A/B deltas are. An absolute trigger rate is bound to its f
   SHARED project root; the model sees N near-identical planted skills and invokes at most one,
   so rates collapse toward 1/N. `--num-workers 1` is therefore MANDATORY, not a tuning choice.
 - **Timeout scoring.** Under load, a genuine trigger's stream event can arrive after the
-  query's clock expires. The runner records a timeout as null — excluded from the rate's
-  denominator and from pass/fail, surfaced as a `timeouts` count — never a False. Treat any
+  query's clock expires. The runner records a timeout, a nonzero exit, or a session with no result
+  event as null — excluded from the rate's denominator and from pass/fail, surfaced as a
+  `timeouts` count (it counts every null run) — never a False. Treat any
   run with `timeouts > 0` as SUSPECT (something contended for the machine); prefer re-running
   to reading around it.
 
@@ -77,8 +78,9 @@ Keep the SHORTEST description that holds the true-positive rate without raising 
 false-positive rate — a longer description that buys no additional trigger accuracy is pure
 context cost (the same "every char earns its place" bar as
 [section-ablation.md](section-ablation.md)). Run 1 replicate per query first; escalate to 3
-replicates ONLY for a query whose pass/fail flips between candidate descriptions — the
-sequential-escalation discipline (ADR 0019), applied here to ambiguous flips instead of CI width.
+replicates ONLY for a query whose pass/fail flips between candidate descriptions. Escalated
+looks are diagnostic (empirical-evals.md): a description choice that rests on them is confirmed by
+a fresh pre-registered run, not by the escalation itself.
 
 ## Result snapshots
 

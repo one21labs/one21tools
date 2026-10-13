@@ -87,5 +87,6 @@ averaged away — the disagreement is itself the finding. `both` needs ONE reach
 judge: the baseline half is read off the committed cells, never re-graded, so no second CLI is
 involved. With no cross-family lane reachable it degrades to a single-judge verdict and says so.
 
-Offline re-analysis (`--cache <prior.jsonl>`) reuses a prior judge run and needs no CLI at all — the
-placeholder judge makes zero calls and reports zero cost.
+Offline re-analysis (`--cache <prior.jsonl>`) reuses a prior `--cells-out` file and needs no CLI at
+all: zero calls, zero cost, reported under the judge name the file carries. A cell with no cached
+row is counted as missing, never silently skipped.

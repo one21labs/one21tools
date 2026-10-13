@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E3-opus-without-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 104536.0,
+  "duration_ms": 103745,
+  "duration_api_ms": 103540,
+  "cost_usd": 0.23430340000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2777,
+   "output_tokens": 11687,
+   "output_tokens_details": {
+    "thinking_tokens": 8365
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 11687,
+     "cache_read_input_tokens": 2777,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:19:56.079894+00:00",
+   "end": "2026-10-12T22:21:40.615878+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.23430340000000002,
+  "charged_usd": 0.23430340000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# ingest.py\n\n```python\nimport argparse\nimport json\nimport logging\nimport sys\nimport time\nimport uuid\nfrom collections import Counter\nfrom contextvars import ContextVar\nfrom datetime import datetime, timezone\n\nfrom enrich import enrich_record\n\nlog = logging.getLogger(\"pipeline.ingest\")\n\nOUT_PATH = \"out.jsonl\"\n\n# Correlation context. Set here and stamped onto every log line by\n# ContextFilter, so lines emitted from enrich carry the same IDs.\n_run_id = ContextVar(\"run_id\", default=None)\n_record_ref = ContextVar(\"record_ref\", default=None)  # \"<path>:<lineno>\", always present\n_record_id = ContextVar(\"record_id\", default=None)    # rec[\"id\"], if the record has one\n\n\nclass ContextFilter(logging.Filter):\n    def filter(self, record):\n        record.run_id = _run_id.get()\n        record.record_ref = _record_ref.get()\n        record.record_id = _record_id.get()\n        return True\n\n\nclass JsonFormatter(logging.Formatter):\n    def format(self, record):\n        entry = {\n            \"ts\": datetime.fromtimestamp(record.created, timezone.utc).isoformat(timespec=\"milliseconds\"),\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"msg\": record.getMessage(),\n            \"run_id\": getattr(record, \"run_id\", None),\n            \"record_ref\": getattr(record, \"record_ref\", None),\n            \"record_id\": getattr(record, \"record_id\", None),\n        }\n        entry.update(getattr(record, \"fields\", {}))\n        if record.exc_info:\n            entry[\"exc_type\"] = record.exc_info[0].__name__\n            entry[\"exc\"] = self.formatException(record.exc_info)\n        return json.dumps(entry, default=str)\n\n\ndef configure_logging(level=\"INFO\"):\n    handler = logging.StreamHandler(sys.stderr)\n    handler.addFilter(ContextFilter())\n    handler.setFormatter(JsonFormatter())\n    root = logging.getLogger(\"pipeline\")\n    root.setLevel(level)\n    root.addHandler(handler)\n    root.propagate = False\n\n\ndef run(path, strict=True):\n    \"\"\"Process every line of path. With strict=True (the original behavior),\n    the first failed record aborts the run; otherwise it is logged and skipped.\"\"\"\n    run_token = _run_id.set(uuid.uuid4().hex[:12])\n    stats = Counter()\n    started = time.monotonic()\n    status = \"ok\"\n    log.info(\"run started\", extra={\"fields\": {\n        \"event\": \"run_start\", \"path\": path, \"out_path\": OUT_PATH, \"strict\": strict}})\n    try:\n        with open(path, encoding=\"utf-8\") as f:\n            for lineno, line in enumerate(f, start=1):\n                stats[\"read\"] += 1\n                outcome, exc = _process_line(path, lineno, line)\n                stats[outcome] += 1\n                if exc is not None and strict:\n                    status = \"aborted\"  # failure already logged with full context\n                    raise exc\n    except Exception:\n        if status != \"aborted\":\n            status = \"aborted\"\n            log.exception(\"run aborted\", extra={\"fields\": {\"event\": \"run_aborted\", \"path\": path}})\n        raise\n    finally:\n        if status == \"aborted\":\n            level = logging.ERROR\n        elif stats[\"failed\"]:\n            level = logging.WARNING\n        else:\n            level = logging.INFO\n        log.log(level, \"run finished\", extra={\"fields\": {\n            \"event\": \"run_end\",\n            \"status\": status,\n            \"path\": path,\n            \"duration_s\": round(time.monotonic() - started, 3),\n            \"read\": stats[\"read\"],\n            \"saved\": stats[\"saved\"],\n            \"dropped\": stats[\"dropped\"],\n            \"failed\": stats[\"failed\"],\n        }})\n        _run_id.reset(run_token)\n    return stats\n\n\ndef _process_line(path, lineno, line):\n    \"\"\"Process one input line, logging exactly one record_outcome event.\n    Returns (outcome, exception_or_None).\"\"\"\n    ref_token = _record_ref.set(f\"{path}:{lineno}\")\n    id_token = _record_id.set(None)\n    started = time.monotonic()\n    stage = \"parse\"\n    try:\n        try:\n            rec = json.loads(line)\n            if isinstance(rec, dict):\n                _record_id.set(rec.get(\"id\"))\n            stage = \"enrich\"\n            out = enrich_record(rec)\n            if out is None:\n                _log_outcome(\"dropped\", stage, started)\n                return \"dropped\", None\n            stage = \"save\"\n            save(out)\n        except Exception as exc:\n            if stage == \"parse\":\n                log.debug(\"unparseable line\", extra={\"fields\": {\n                    \"line_len\": len(line), \"line_preview\": line[:200]}})\n            _log_outcome(\"failed\", stage, started, exc=exc)\n            return \"failed\", exc\n        _log_outcome(\"saved\", stage, started)\n        return \"saved\", None\n    finally:\n        _record_id.reset(id_token)\n        _record_ref.reset(ref_token)\n\n\ndef _log_outcome(outcome, stage, started, exc=None):\n    fields = {\n        \"event\": \"record_outcome\",\n        \"outcome\": outcome,\n        \"stage\": stage,\n        \"duration_ms\": round((time.monotonic() - started) * 1000, 2),\n    }\n    if exc is None:\n        log.info(\"record %s\", outcome, extra={\"fields\": fields})\n    else:\n        fields[\"error\"] = f\"{type(exc).__name__}: {exc}\"\n        log.error(\"record failed at %s\", stage, exc_info=exc, extra={\"fields\": fields})\n\n\ndef save(rec):\n    with open(OUT_PATH, \"a\", encoding=\"utf-8\") as f:\n        f.write(json.dumps(rec) + \"\\n\")\n\n\ndef main(argv=None):\n    p = argparse.ArgumentParser(description=\"Ingest and enrich a JSONL file.\")\n    p.add_argument(\"path\")\n    p.add_argument(\"--log-level\", default=\"INFO\")\n    p.add_argument(\"--keep-going\", action=\"store_true\",\n                   help=\"log and skip failed records instead of aborting the run\")\n    args = p.parse_args(argv)\n    configure_logging(args.log_level)\n    stats = run(args.path, strict=not args.keep_going)\n    sys.exit(1 if stats[\"failed\"] else 0)\n\n\nif __name__ == \"__main__\":\n    main()\n```\n\n# enrich.py\n\n```python\nimport logging\n\nlog = logging.getLogger(\"pipeline.enrich\")\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec):\n    if not isinstance(rec, dict):\n        raise TypeError(f\"expected JSON object, got {type(rec).__name__}\")\n    if \"region\" not in rec:\n        raise KeyError(f\"'region' missing; keys present: {sorted(rec)}\")\n    raw = rec[\"region\"]\n    region = GEO.get(raw)\n    if region is None:\n        log.warning(\"unknown region; record dropped\", extra={\"fields\": {\n            \"event\": \"record_dropped\", \"reason\": \"unknown_region\", \"region\": repr(raw)[:64]}})\n        return None\n    rec[\"zone\"] = region\n    log.debug(\"record enriched\", extra={\"fields\": {\"region\": raw, \"zone\": region}})\n    return rec\n```\n\n## How to trace a record\n\nEvery line is JSON on stderr and includes `run_id`, `record_ref` (`<path>:<lineno>`, always present), and `record_id` (the record's `id` field, if it has one). Every input line produces **exactly one** `record_outcome` event, with outcome `saved`, `dropped`, or `failed`. To follow a single record, filter on `run_id` plus `record_ref`. Enrich's log lines carry the same IDs because of contextvars, so `enrich_record`'s signature did not change.\n\nAn example failure:\n\n```json\n{\"ts\":\"2026-10-12T09:14:02.381+00:00\",\"level\":\"ERROR\",\"logger\":\"pipeline.ingest\",\"msg\":\"record failed at enrich\",\"run_id\":\"3f9c1a7b2e04\",\"record_ref\":\"in.jsonl:4182\",\"record_id\":\"ord-99121\",\"event\":\"record_outcome\",\"outcome\":\"failed\",\"stage\":\"enrich\",\"duration_ms\":0.04,\"error\":\"KeyError: \\\"'region' missing; keys present: ['id', 'qty']\\\"\",\"exc_type\":\"KeyError\",\"exc\":\"Traceback ...\"}\n```\n\nEach run also ends with a `run_end` summary that shows the status, the counts, and the duration.\n\n## Things to be aware of\n\n- **Default behavior is preserved.** As before, a bad record still aborts the run, but now it is logged with its location and stage first. `--keep-going` (or `run(path, strict=False)`) logs and skips failures instead. With that option, the process exits 1 if any record failed.\n- **Previously silent drops are now visible.** Unknown regions log a WARNING that includes the offending value.\n- **Small changes beyond logging:**\n  - The input file is now closed properly.\n  - A missing `region` or a non-object line raises the same exception types as before (`KeyError`/`TypeError`), but the messages are clearer.\n- **Assumption:** I used `rec[\"id\"]` as the business identifier. If your records use a different key, change it in `_process_line`.\n- **Payload safety:** Raw line contents are only logged at DEBUG, truncated to 200 chars, and only for unparseable lines. This keeps record payloads (possibly PII) out of production logs by default.\n- **Embedding:** `configure_logging()` is only called from `main()`. If you embed `run()` in another process with its own logging setup, attach `ContextFilter` to your handler, or the correlation fields will be missing.\n- **Volume:** INFO produces one line per record plus run start/end, which should be fine at thousands of records per run. If it gets too noisy, demote the `saved` outcome to DEBUG."
+}

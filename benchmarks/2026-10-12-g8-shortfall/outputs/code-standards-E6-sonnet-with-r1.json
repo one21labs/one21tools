@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E6-sonnet-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E6",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 13923.2,
+  "duration_ms": 13240,
+  "duration_api_ms": 13002,
+  "cost_usd": 0.021116700000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 696,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 1791,
+   "output_tokens_details": {
+    "thinking_tokens": 551
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 696,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1791,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 696,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 696
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:25.860261+00:00",
+   "end": "2026-10-12T22:26:39.783502+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.021116700000000002,
+  "charged_usd": 0.021116700000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the full `user_store.py`. The three existing functions are unchanged. I put the new function's logic to current standards instead of copying the bare `except:` pattern, since that pattern silently hides failures.\n\n```python\n\"\"\"\nuser_store.py - SQLite persistence for users\n\nARCHITECTURE ROLE:\n    Query and insert helpers over the `users` table. Callers own the\n    connection lifecycle; nothing here opens or closes `db`.\n\nDESIGN CONSTRAINTS:\n    - List queries are capped at one page (50 rows); no pagination offset.\n\"\"\"\nimport logging\nimport sqlite3\n\nlogger = logging.getLogger(__name__)\n\nPAGE_SIZE = 50\nLIKE_ESCAPE_CHAR = \"\\\\\"\n\ndef add_user(db, name, email):\n    try:\n        db.execute(\"insert into users (name, email) values (?, ?)\", (name, email))\n        db.commit()\n        print(\"ok\")\n        return 1\n    except:\n        return 0\n\ndef recent_users(db):\n    try:\n        return db.execute(\"select * from users order by created desc limit 50\").fetchall()\n    except:\n        return []\n\ndef search_users(db, q):\n    try:\n        # search the users\n        return db.execute(\"select * from users where name like ? limit 50\", (\"%\" + q + \"%\",)).fetchall()\n    except:\n        return []\n\ndef _escape_like(value):\n    \"\"\"Neutralize LIKE wildcards so `value` matches literally.\"\"\"\n    return (value.replace(LIKE_ESCAPE_CHAR, LIKE_ESCAPE_CHAR * 2)\n                 .replace(\"%\", LIKE_ESCAPE_CHAR + \"%\")\n                 .replace(\"_\", LIKE_ESCAPE_CHAR + \"_\"))\n\ndef find_users_by_domain(db, domain):\n    if not isinstance(domain, str) or not domain.strip():\n        logger.warning(\"find_users_by_domain: invalid domain %r\", domain)\n        return []\n\n    pattern = \"%@\" + _escape_like(domain.strip())\n    try:\n        return db.execute(\n            \"select * from users where email like ? escape ? limit ?\",\n            (pattern, LIKE_ESCAPE_CHAR, PAGE_SIZE),\n        ).fetchall()\n    except sqlite3.Error:\n        logger.exception(\"find_users_by_domain failed: domain=%r\", domain)\n        return []\n```\n\nNotes on the choices:\n\n- **Wildcard escaping:** `domain` is user-supplied, and `_` and `%` are LIKE wildcards. Without escaping, `a_b.com` would also match `axb.com`, and `%` would match everything. `_escape_like` plus `ESCAPE` makes the match literal.\n- **Suffix match:** the pattern is `%@<domain>`, so `example.com` matches `bob@example.com` but not `bob@notexample.com` or `bob@example.com.evil.org`.\n- **Case:** SQLite's `LIKE` is case-insensitive for ASCII by default, so `Example.COM` matches too.\n- **Failure behavior:** it returns `[]` on error, like the sibling queries, so callers see the same contract. Unlike them, it logs the domain and traceback instead of swallowing the error.\n- **Left alone:** the existing functions still have bare `except:` clauses, a `print` in `add_user`, and hardcoded `50`s. I didn't touch them, per your request. If you ever do a cleanup pass, they could use `PAGE_SIZE`, which I added for the new function, and `except sqlite3.Error` with logging.\n- **Not written to disk:** I couldn't save the file, since you asked me not to use tools. Copy the block above into `user_store.py`."
+}

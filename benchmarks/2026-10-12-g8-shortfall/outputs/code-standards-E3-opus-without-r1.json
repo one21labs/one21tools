@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E3-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 58802.1,
+  "duration_ms": 58167,
+  "duration_api_ms": 57929,
+  "cost_usd": 0.1286312,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 701,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 6130,
+   "output_tokens_details": {
+    "thinking_tokens": 3583
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 701,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6130,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 701,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 701
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:19:45.043307+00:00",
+   "end": "2026-10-12T22:20:43.845396+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.1286312,
+  "charged_usd": 0.1286312,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Both modules are below. The design choices and one behavior choice you should confirm come after the code.\n\n### ingest.py\n\n```python\nimport json\nimport logging\nimport os\nimport sys\nimport time\nimport uuid\nfrom datetime import datetime, timezone\n\nfrom enrich import enrich_record\n\nlog = logging.getLogger(__name__)\n\nOUT_PATH = \"out.jsonl\"\nPROGRESS_EVERY = 1000\n\n\ndef run(path, fail_fast=True):\n    run_id = uuid.uuid4().hex[:12]\n    stats = {\"read\": 0, \"saved\": 0, \"skipped\": 0, \"failed\": 0}\n    status = \"aborted\"\n    error_logged = False\n    started = time.monotonic()\n    log.info(\"run started\", extra={\"run_id\": run_id, \"input_path\": path,\n                                   \"output_path\": OUT_PATH, \"fail_fast\": fail_fast})\n    try:\n        with open(path, encoding=\"utf-8\") as f:\n            for lineno, line in enumerate(f, start=1):\n                stats[\"read\"] += 1\n                ctx = {\"run_id\": run_id, \"input_path\": path, \"line\": lineno}\n\n                try:\n                    rec = json.loads(line)\n                except json.JSONDecodeError as e:\n                    stats[\"failed\"] += 1\n                    # Raw line is not logged at ERROR: it may contain PII.\n                    log.error(\"invalid json; record not processed\",\n                              extra={**ctx, \"error\": str(e), \"line_length\": len(line)})\n                    log.debug(\"invalid json raw line\", extra={**ctx, \"raw\": line[:500]})\n                    if fail_fast:\n                        error_logged = True\n                        raise\n                    continue\n\n                ctx[\"record_id\"] = _record_id(rec)\n                log.debug(\"record read\", extra=ctx)\n\n                try:\n                    out = enrich_record(rec, log_ctx=ctx)\n                except Exception:\n                    stats[\"failed\"] += 1\n                    log.exception(\"enrich failed; record not processed\",\n                                  extra={**ctx, \"record_keys\": _keys(rec)})\n                    if fail_fast:\n                        error_logged = True\n                        raise\n                    continue\n\n                if out is None:\n                    stats[\"skipped\"] += 1  # enrich_record logged the reason\n                else:\n                    save(out, log_ctx=ctx)\n                    stats[\"saved\"] += 1\n\n                if lineno % PROGRESS_EVERY == 0:\n                    log.info(\"run progress\", extra={\"run_id\": run_id, **stats})\n        status = \"completed\"\n    except Exception:\n        if not error_logged:\n            log.exception(\"run failed\", extra={\"run_id\": run_id, \"input_path\": path})\n        raise\n    finally:\n        level = logging.INFO if status == \"completed\" and not stats[\"failed\"] else logging.ERROR\n        log.log(level, \"run finished\", extra={\n            \"run_id\": run_id, \"status\": status,\n            \"duration_s\": round(time.monotonic() - started, 3), **stats,\n        })\n    return stats\n\n\ndef save(rec, log_ctx=None):\n    ctx = log_ctx or {}\n    try:\n        with open(OUT_PATH, \"a\", encoding=\"utf-8\") as f:\n            f.write(json.dumps(rec) + \"\\n\")\n    except (OSError, TypeError, ValueError):\n        # Disk/serialization errors are fatal; the run-level handler logs the abort.\n        log.exception(\"save failed\", extra={**ctx, \"output_path\": OUT_PATH})\n        raise\n    log.debug(\"record saved\", extra={**ctx, \"output_path\": OUT_PATH})\n\n\ndef _record_id(rec):\n    if isinstance(rec, dict) and rec.get(\"id\") is not None:\n        return str(rec[\"id\"])\n    return None\n\n\ndef _keys(rec):\n    return sorted(rec) if isinstance(rec, dict) else type(rec).__name__\n\n\n_STD_ATTRS = set(vars(logging.LogRecord(\"\", 0, \"\", 0, \"\", (), None))) | {\"message\", \"asctime\"}\n\n\nclass JsonFormatter(logging.Formatter):\n    def format(self, record):\n        payload = {\n            \"ts\": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),\n            \"level\": record.levelname,\n            \"logger\": record.name,\n            \"msg\": record.getMessage(),\n        }\n        payload.update({k: v for k, v in vars(record).items() if k not in _STD_ATTRS})\n        if record.exc_info:\n            payload[\"exc\"] = self.formatException(record.exc_info)\n        return json.dumps(payload, default=str)\n\n\ndef configure_logging():\n    handler = logging.StreamHandler()\n    handler.setFormatter(JsonFormatter())\n    root = logging.getLogger()\n    root.addHandler(handler)\n    root.setLevel(os.environ.get(\"LOG_LEVEL\", \"INFO\").upper())\n\n\nif __name__ == \"__main__\":\n    configure_logging()\n    run(sys.argv[1])\n```\n\n### enrich.py\n\n```python\nimport logging\n\nlog = logging.getLogger(__name__)\n\nGEO = {\"us\": \"US-EAST\", \"eu\": \"EU-WEST\"}\n\n\ndef enrich_record(rec, log_ctx=None):\n    ctx = log_ctx or {}\n    raw = rec[\"region\"]\n    region = GEO.get(raw)\n    if region is None:\n        log.warning(\"unknown region; record skipped\",\n                    extra={**ctx, \"region\": repr(raw)[:50], \"known_regions\": sorted(GEO)})\n        return None\n    rec[\"zone\"] = region\n    log.debug(\"record enriched\", extra={**ctx, \"region\": raw, \"zone\": region})\n    return rec\n```\n\n### How to trace a record\n\nEvery per-record log line carries `run_id`, `input_path`, `line`, and `record_id` when available. Filtering on `run_id` plus `line` (or `record_id`) gives one record's path: `record read`, then `record enriched` or `unknown region; record skipped` or `enrich failed`, then `record saved`. The read, enriched, and saved lines are DEBUG, so set `LOG_LEVEL=DEBUG` to see the full path. At INFO you still get every skip and failure, a progress line every 1000 records, and a `run finished` summary with counts, duration, and status.\n\n### Notes\n\n- **Failure behavior is unchanged by default.** With `fail_fast=True`, a bad JSON line or a record missing `region` still aborts the run, as before, but it now gets logged with full context first. With thousands of records, you may prefer `run(path, fail_fast=False)`: bad records are logged with tracebacks, counted, and skipped, and the run continues. I didn't make that the default because it changes semantics, so that decision is yours.\n- **Skips were silent before.** Unknown regions are now WARNING lines that include the offending value. That value is truncated, and the record body is never logged.\n- **PII:** Record bodies and raw lines are never logged at INFO or above. A malformed line's raw text appears only at DEBUG, capped at 500 characters. Drop that line if even DEBUG output must be PII-free.\n- **`record_id` assumes an `id` field.** I don't know your schema. If the field has a different name, change `_record_id`. The source line number always works as a fallback key.\n- **Signatures stay compatible.** `enrich_record` and `save` gain an optional `log_ctx` keyword, so existing callers still work. `enrich.py` doesn't configure logging, so the entry point controls format and level.\n- **Not changed:** `save` still reopens `out.jsonl` for every record. Opening it once per run would be faster, but it's outside the scope of a logging change."
+}

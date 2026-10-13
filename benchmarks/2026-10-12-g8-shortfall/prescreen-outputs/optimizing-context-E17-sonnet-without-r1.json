@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E17-sonnet-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E17",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 22627.7,
+  "duration_ms": 21958,
+  "duration_api_ms": 21689,
+  "cost_usd": 0.030740000000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 657,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 2790,
+   "output_tokens_details": {
+    "thinking_tokens": 1085
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 657,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2790,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 657,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 657
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:16:03.297867+00:00",
+   "end": "2026-10-12T22:16:25.925571+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.030740000000000003,
+  "charged_usd": 0.030740000000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "## Recommended structure\n\n```\nCLAUDE.md                     # ~50-100 lines, cross-cutting only\nCLAUDE.local.md               # gitignored, personal\n.claude/\n  settings.json               # shared permissions, including the terraform deny\n  rules/                      # optional path-scoped rules\nweb/CLAUDE.md                 # web team owns\napi/CLAUDE.md                 # api team owns\ninfra/CLAUDE.md               # infra team owns\ndocs/engineering-handbook.md  # reference doc, not auto-loaded\n.github/CODEOWNERS\n```\n\n### 1. Stop importing everything from the root\n\n`@path` imports are expanded eagerly at launch. Today every session, whether web, api, or infra, loads the 600-line root plus the 2,000-line handbook plus all three convention files. That costs context and dilutes the instructions that matter.\n\n- **Root CLAUDE.md:** repo layout, how to build and test, and a few rules that truly apply everywhere. Mention the handbook by path in prose (e.g. \"see docs/engineering-handbook.md for the release process; read it when relevant\") instead of `@`-importing it.\n- **Per-team CLAUDE.md files:** `web/CLAUDE.md`, `api/CLAUDE.md` and `infra/CLAUDE.md` load when Claude works in those subtrees. Move each `CONVENTIONS.md` into the matching file. If humans also read the conventions files, keep them and have the team's CLAUDE.md do a single `@CONVENTIONS.md`.\n- **Handbook:** split it by topic and link to the pieces from the root or team files. Procedural parts such as release or incident runbooks work well as skills, which load on demand.\n- **Path-scoped rules:** for cross-cutting conventions tied to file types (e.g. `**/*.tf`), `.claude/rules/*.md` with `paths:` frontmatter is a good fit.\n\n### 2. Ownership\n\nAdd CODEOWNERS entries so each team approves changes to its own file:\n\n```\n/CLAUDE.md          @org/platform-leads\n/web/CLAUDE.md      @org/web\n/api/CLAUDE.md      @org/api\n/infra/CLAUDE.md    @org/infra\n/.claude/           @org/platform-leads @org/infra\n```\n\nMost merge conflicts disappear once each team edits only its own file, and \"who wrote this\" becomes a CODEOWNERS question. Keep the root deliberately small and gate it, so it doesn't become a dumping ground again.\n\n### 3. The terraform guarantee: use permissions, not CLAUDE.md\n\nCLAUDE.md is advisory, so it can't be a guarantee. Use deny rules in checked-in `.claude/settings.json`:\n\n```json\n{\n  \"permissions\": {\n    \"deny\": [\n      \"Bash(terraform apply:*)\",\n      \"Bash(terraform destroy:*)\",\n      \"Bash(terraform * apply:*)\",\n      \"Bash(terraform * destroy:*)\",\n      \"Bash(tofu apply:*)\",\n      \"Bash(tofu destroy:*)\"\n    ]\n  }\n}\n```\n\nDeny rules take precedence over allow rules and don't depend on the working directory. Check the exact pattern syntax against the current permissions docs.\n\nBe honest with infra about the limits, though. Shell-command pattern matching is best-effort. Wrappers like `bash -c \"...\"`, `terraform -chdir=infra apply`, scripts that call terraform, or `make deploy` can slip past prefix matches. To get closer to a real guarantee, layer these:\n\n- **Managed settings:** put the deny rules in organization-managed settings so individuals can't override them.\n- **A PreToolUse hook:** have it parse the command more carefully and block anything that resolves to apply or destroy, including via `make` or scripts.\n- **Credentials:** the actual guarantee. Developer and agent credentials should lack permission to apply, so only CI with a protected role can. Then even a bypass fails.\n\n### 4. Personal tweaks\n\n- **Per-repo preferences:** `CLAUDE.local.md` at the repo root, added to `.gitignore`. It's loaded alongside CLAUDE.md but never committed.\n- **All repos:** `~/.claude/CLAUDE.md`.\n\nAdd a line to the PR template or contributing doc: \"Personal preferences go in `CLAUDE.local.md`; shared CLAUDE.md files are for team-wide rules.\" Vim-keybinding examples then have somewhere to live that doesn't touch anyone else.\n\n### Migration order\n\n1. Create the three team files from the existing `CONVENTIONS.md` content.\n2. Sort the 600 lines: team-specific goes to team files, truly global stays at the root (aim for under 100), and reference material goes to the handbook.\n3. Remove the `@` imports from the root.\n4. Add CODEOWNERS, `.gitignore` for `CLAUDE.local.md`, and the settings deny rules.\n5. Ask infra to set up the managed settings and credential restrictions."
+}

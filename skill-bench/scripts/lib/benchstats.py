@@ -70,22 +70,39 @@ def arm_mean(cells, arm):
 
 
 def clustered_delta(cells, x, y):
-    """Mean per-scenario (fraction_met[x] - fraction_met[y]), 95% CI over scenario clusters (ADR 0019)."""
+    """Mean per-scenario (fraction_met[x] - fraction_met[y]), 95% CI over scenario clusters (ADR 0019).
+
+    Only scenarios carrying BOTH arms enter. `dropped_scenarios` names the ones present in one
+    arm only: a scenario that failed in one arm is informative missingness, never silent.
+    `arm_means` are scenario-weighted over those same matched scenarios, so they subtract to
+    `mean`; the all-cells `arm_mean` does not, and is not the number to print beside a verdict."""
     by = defaultdict(lambda: defaultdict(list))
     for c in cells:
         by[c["scenario"]][c["arm"]].append(fraction_met(c["met"]))
-    deltas, per = [], {}
+    per, dropped, sides = {}, [], {x: [], y: []}
     for s in sorted(by):
         if by[s].get(x) and by[s].get(y):
-            d = statistics.mean(by[s][x]) - statistics.mean(by[s][y])
-            deltas.append(d); per[s] = d
+            mx, my = statistics.mean(by[s][x]), statistics.mean(by[s][y])
+            per[s] = mx - my; sides[x].append(mx); sides[y].append(my)
+        elif by[s].get(x) or by[s].get(y):
+            dropped.append(s)
+    out = cluster_interval(per)
+    out["dropped_scenarios"] = dropped
+    out["arm_means"] = {a: statistics.mean(v) if v else float("nan") for a, v in sides.items()}
+    return out
+
+
+def cluster_interval(per):
+    """{cluster: delta} -> mean + 95% t-interval over clusters. The one home of the interval, so a
+    caller holding per-cluster deltas already (eval_verdict) reaches keep_verdict through it."""
+    deltas = list(per.values())
     if not deltas:
         return {"mean": float("nan"), "ci95": [float("nan")] * 2, "per_scenario": {}, "n_clusters": 0}
     m = statistics.mean(deltas)
     se = (statistics.stdev(deltas) / math.sqrt(len(deltas))) if len(deltas) > 1 else float("nan")
     crit = t95(len(deltas) - 1)
     ci = [m - crit * se, m + crit * se] if se == se else [float("nan")] * 2
-    return {"mean": m, "ci95": ci, "per_scenario": per, "n_clusters": len(deltas),
+    return {"mean": m, "ci95": ci, "per_scenario": dict(per), "n_clusters": len(deltas),
             # The multiplier is reported, not implied: at these cluster counts it is the single
             # largest determinant of whether a verdict reads "strong", and a reader who cannot see
             # it cannot tell a wide interval from a wrong one.
@@ -197,12 +214,14 @@ def keep_verdict(delta, practical=0.0):
     m, lo, hi = delta["mean"], delta["ci95"][0], delta["ci95"][1]
     per = list((delta.get("per_scenario") or {}).values())
     win = (sum(1 for d in per if d > 0) / len(per)) if per else None
+    dropped = {"dropped_scenarios": delta["dropped_scenarios"]} if delta.get("dropped_scenarios") else {}
     if m != m:
-        return {"verdict": "NO-DATA"}
+        return {"verdict": "NO-DATA", **dropped}
     if lo != lo:
         return {"verdict": "INCONCLUSIVE", "mean": round(m, 4), "ci95": [None, None],
                 "half_width": None, "mde80": None, "practical": practical, "win_rate": win,
-                "why": "a single cluster carries no interval, so no difference is callable"}
+                "why": "a single cluster carries no interval, so no difference is callable",
+                **dropped}
     if lo > practical:
         verdict = "KEEP"
     elif hi < 0:
@@ -223,43 +242,55 @@ def keep_verdict(delta, practical=0.0):
     g = delta.get("n_clusters") or 0
     se = half / t95(g - 1) if g >= 2 else float("nan")
     mde80 = (t95(g - 1) + t80(g - 1)) * se if se == se else float("nan")
+    # Identical cluster deltas give a zero-width interval. The verdict is kept: it is the limit of
+    # the nearly-identical case, and refusing it made the rule non-monotone (more consistent
+    # evidence read weaker). The power figure is NOT kept: a zero SE says nothing about what the
+    # design can detect.
+    zero_spread = hi - lo <= 1e-12
+    if zero_spread:
+        mde80 = float("nan")
     out = {"verdict": verdict, "mean": round(m, 4), "ci95": [round(lo, 4), round(hi, 4)],
            "half_width": round(half, 4),
            "mde80": None if mde80 != mde80 else round(mde80, 4),
            "practical": practical, "win_rate": None if win is None else round(win, 3)}
+    if zero_spread:
+        out["spread"] = "zero: every cluster delta is identical; mde80 unestimable"
     if verdict == "INCONCLUSIVE":
         bar = "zero" if practical == 0 else f"the practical bar of {practical:+.3f}"
         reach = (f"reliably call a difference of {mde80:.3f} or larger" if mde80 == mde80
+                 else "reach no stated power (zero spread)" if zero_spread
                  else "reach no stated power (cluster count unknown)")
         out["why"] = (f"the 95% interval does not clear {bar}; this design could only {reach}, "
                       f"and the observed mean is {m:+.3f}")
-    return out
+    return {**out, **dropped}
 
 
-def top_cell_attribution(cells, x, y, top_n=3):
+def top_cell_attribution(cells, x, y, top_n=3, practical=0.0):
     """Per-cell leave-one-out attribution on the clustered x-y delta (#191 item 3). Returns the
     top_n cells whose removal moves the mean most, each with its leave-one-out mean and whether
-    removal flips the KEEP/CUT direction or halves the magnitude — either sets inspect=True:
-    inspect those cells for infrastructure failure BEFORE interpreting the bar."""
-    base = clustered_delta(cells, x, y)["mean"]
+    removal flips the VERDICT (keep_verdict at the same `practical`; the verdict is the interval,
+    so a mean-sign flip is not one) or halves the magnitude. `inspect` is True if ANY cell does,
+    shown or not: inspect those cells for infrastructure failure BEFORE interpreting the bar."""
+    base_d = clustered_delta(cells, x, y)
+    base, base_v = base_d["mean"], keep_verdict(base_d, practical)["verdict"]
     rows = []
     for i, c in enumerate(cells):
         if c["arm"] not in (x, y):
             continue
-        loo = clustered_delta(cells[:i] + cells[i + 1:], x, y)["mean"]
+        loo_d = clustered_delta(cells[:i] + cells[i + 1:], x, y)
+        loo = loo_d["mean"]
         if math.isnan(loo):  # cluster vanished — removal is maximally load-bearing
             flips, halves = True, True
         else:
-            flips = (loo > 0) != (base > 0)
+            flips = keep_verdict(loo_d, practical)["verdict"] != base_v
             halves = abs(loo) < abs(base) / 2
         rows.append({"bid": c.get("bid"), "arm": c["arm"], "scenario": c["scenario"],
                      "loo_mean": None if math.isnan(loo) else round(loo, 4),
                      "delta_vs_base": None if math.isnan(loo) else round(base - loo, 4),
                      "flips_or_halves": flips or halves})
     rows.sort(key=lambda r: (r["delta_vs_base"] is not None, -(abs(r["delta_vs_base"] or 0))))
-    top = rows[:top_n]
-    return {"base_mean": None if math.isnan(base) else round(base, 4), "top": top,
-            "inspect": any(r["flips_or_halves"] for r in top)}
+    return {"base_mean": None if math.isnan(base) else round(base, 4), "top": rows[:top_n],
+            "inspect": any(r["flips_or_halves"] for r in rows)}
 
 
 def divergence(cells_a, cells_b, label_a="A", label_b="B"):
@@ -287,8 +318,8 @@ def divergence(cells_a, cells_b, label_a="A", label_b="B"):
             f"{label_a}_stricter_n": a_stricter, f"{label_b}_stricter_n": b_stricter}
 
 
-def verdict_flip(delta_a, delta_b):
-    """Did the KEEP/CUT direction change between two judges? The load-bearing #172 finding."""
-    va, vb = keep_verdict(delta_a)["verdict"], keep_verdict(delta_b)["verdict"]
+def verdict_flip(delta_a, delta_b, practical=0.0):
+    """Did the verdict change between two judges? The load-bearing #172 finding."""
+    va, vb = keep_verdict(delta_a, practical)["verdict"], keep_verdict(delta_b, practical)["verdict"]
     return {"judge_a_verdict": va, "judge_b_verdict": vb, "flipped": va != vb,
             "delta_a": round(delta_a["mean"], 4), "delta_b": round(delta_b["mean"], 4)}

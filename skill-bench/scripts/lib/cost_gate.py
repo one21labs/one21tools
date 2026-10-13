@@ -12,12 +12,34 @@ the pilot as the artifact, route to a fresh /decide per ADR 0052's revisit trigg
 """
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
 
+# Charged for a failed call (no envelope, so no measured cost) when no pilot estimate exists yet
+# (prescreen, pilot). A metadata.json cost block may override it as failed_call_charge_usd.
+DEFAULT_FAILED_CALL_CHARGE_USD = 0.15
+
+
+def charged_usd(cost_usd, estimate_usd):
+    """What a finished call is charged: its measured cost, or estimate_usd when the call failed
+    and reported none. A timeout or nonzero exit bills real usage with no envelope, so charging
+    $0 let a run of failing calls never reach the backstop."""
+    return estimate_usd if cost_usd is None else cost_usd
+
+
+def cell_spend(rec):
+    """Spend one cell record accounts for: max(cell_cost_usd, charged_usd) for its own attempt
+    plus prior_attempts_usd carried forward from the records it overwrote. ERROR cells count —
+    their calls were billed whether or not the cell is regenerated."""
+    s = rec.get("summary") or {}
+    return (max(s.get("cell_cost_usd") or 0.0, s.get("charged_usd") or 0.0)
+            + (s.get("prior_attempts_usd") or 0.0))
+
+
 def spent_so_far(out_dir):
-    """Cumulative cell_cost_usd of existing NON-ERROR cell records in out_dir.
+    """Cumulative cell_spend of every cell record in out_dir.
 
     Seeds a resumed run's spend counter: a runner that restarts its counter at 0 compares only
     the current invocation's spend against the full ceiling, so a checkpoint/resume sequence
@@ -31,27 +53,38 @@ def spent_so_far(out_dir):
             rec = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        summary = rec.get("summary") or {}
-        if not summary.get("error"):
-            total += summary.get("cell_cost_usd") or 0.0
+        total += cell_spend(rec)
     return total
+
+
+def admit(spent_usd, reserved_usd, estimate_usd, cap_usd):
+    """Pre-launch backstop: True iff one more call at estimate_usd fits under cap_usd beside the
+    recorded spend and the estimates reserved by calls still in flight. Checked (and reserved)
+    BEFORE each launch: a post-hoc check lets every in-flight call overshoot the cap, and a
+    resume re-enters with spend already at the cap."""
+    if not (math.isfinite(cap_usd) and math.isfinite(estimate_usd) and estimate_usd > 0):
+        raise ValueError("cap must be finite and estimate finite and positive")
+    return spent_usd + reserved_usd + estimate_usd <= cap_usd
 
 
 def project_grid_cost(cells_total, pilot_cell_costs):
     """Projected full-grid cost: mean measured per-cell cost x total cells.
 
     The mean (not min) is the projection basis — a pilot's cheapest cell understates arm C's
-    variance, and the gate exists to stop optimistic overruns.
+    variance, and the gate exists to stop optimistic overruns. A zero or non-finite cost is a
+    broken measurement, not a free cell: it would pass any ceiling.
     """
     if cells_total <= 0:
         raise ValueError("cells_total must be positive")
-    if not pilot_cell_costs or any(c < 0 for c in pilot_cell_costs):
-        raise ValueError("pilot_cell_costs must be non-empty and non-negative")
+    if not pilot_cell_costs or not all(math.isfinite(c) and c > 0 for c in pilot_cell_costs):
+        raise ValueError("pilot_cell_costs must be non-empty, finite and positive")
     return cells_total * (sum(pilot_cell_costs) / len(pilot_cell_costs))
 
 
 def gate(cells_total, pilot_cell_costs, ceiling_usd):
     """Returns (ok: bool, projected_usd: float). ok is False when projected > ceiling."""
+    if not math.isfinite(ceiling_usd):
+        raise ValueError("ceiling_usd must be finite")
     projected = project_grid_cost(cells_total, pilot_cell_costs)
     return projected <= ceiling_usd, projected
 

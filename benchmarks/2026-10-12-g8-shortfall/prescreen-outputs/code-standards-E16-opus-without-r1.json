@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E16-opus-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E16",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18968.1,
+  "duration_ms": 18297,
+  "duration_api_ms": 18076,
+  "cost_usd": 0.043660000000000004,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 742,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 1865,
+   "output_tokens_details": {
+    "thinking_tokens": 170
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 742,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1865,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 742,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 742
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:14:53.424218+00:00",
+   "end": "2026-10-12T22:15:12.392341+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.043660000000000004,
+  "charged_usd": 0.043660000000000004,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the module with docstrings added. Behavior is unchanged. The docstrings describe what the code **actually does**, which differs from the existing comments in a couple of places. A new hire should know about those differences, so I've flagged them below.\n\n```python\nTAX = 0.0825  # Sales tax rate (8.25%), applied in calc() when apply_tax is truthy.\n\n\ndef calc(o, f=True):\n    \"\"\"Compute the total for an order, in dollars.\n\n    Sums price * qty across all items, subtracts any coupon discount,\n    optionally applies sales tax, and rounds to 2 decimal places.\n\n    Args:\n        o: Order dict. Must contain 'items', a list of dicts each with\n           'price' (float, dollars) and 'qty' (number). May contain\n           'coupon' (coupon code string).\n        f: If True (default), apply sales tax at the TAX rate after\n           the discount.\n\n    Returns:\n        float: Order total in dollars, rounded to 2 decimal places.\n        Can be negative if the coupon amount exceeds the subtotal.\n\n    Side effects:\n        Calls get_discount(), which DECREMENTS the coupon's remaining\n        uses in the database each time it finds a usable coupon. Every\n        call to calc() consumes a coupon use, including calls from the\n        cart page refresh.\n    \"\"\"\n    # Note: prices are stored in dollars, so the result is in dollars (not cents).\n    t = sum(i['price'] * i['qty'] for i in o['items'])\n    d = get_discount(o)\n    t = t - d\n    if f:\n        t = t + t * TAX\n    return round(t, 2)\n\n\ndef get_discount(o):\n    \"\"\"Look up the order's coupon and return its discount amount.\n\n    If the order's 'coupon' code matches a coupon in db.coupons that has\n    uses_left > 0, this decrements uses_left by 1 and returns the\n    coupon's 'amount'. Otherwise it returns 0.\n\n    Args:\n        o: Order dict. Reads the optional 'coupon' key.\n\n    Returns:\n        The coupon's 'amount' field (a flat amount, assumed to be in\n        dollars to match item prices), or 0 if there is no valid coupon.\n\n    Side effects:\n        Writes to the database. Each successful call consumes one use of\n        the coupon. This is not idempotent. The read-then-update is also\n        not atomic, so concurrent calls can both see uses_left == 1 and\n        both apply the discount.\n\n    Requires:\n        A module-level `db` handle (MongoDB-style) to be available.\n    \"\"\"\n    c = db.coupons.find_one({'code': o.get('coupon')})\n    if c and c['uses_left'] > 0:\n        db.coupons.update_one({'_id': c['_id']}, {'$inc': {'uses_left': -1}})\n        return c['amount']\n    return 0\n\n\ndef is_valid(o):\n    \"\"\"Check whether an order has at least one item with positive quantity.\n\n    Args:\n        o: Order dict containing an 'items' list.\n\n    Returns:\n        bool: True if any item has qty > 0, False otherwise.\n\n    Side effects:\n        MUTATES the order in place. Items with qty <= 0 are removed\n        from o['items'] before the check.\n    \"\"\"\n    o['items'] = [i for i in o['items'] if i['qty'] > 0]\n    return len(o['items']) > 0\n```\n\n**Things I changed in the comments, and why:**\n\n- I removed `# returns total in cents`. You said prices are stored as dollar floats, and nothing converts them, so the function returns dollars. Leaving a wrong comment would mislead the new hire.\n- I replaced `# get the discount` with a full docstring, because the important part is the database write, not the lookup.\n\n**Bugs worth a follow-up. I did not fix these, as you asked:**\n\n1. **Coupons get used up on cart refresh.** `calc()` runs on every cart page refresh and again at checkout. Each run calls `get_discount()`, which decrements `uses_left`. A single-use coupon will likely be used up just by viewing the cart, and the customer won't get the discount at checkout. This is probably the most urgent one. A typical fix is to make the lookup read-only and decrement the coupon only when the order is committed.\n2. **Race condition on coupon use.** The find-then-update isn't atomic. A conditional update such as `find_one_and_update({'code': ..., 'uses_left': {'$gt': 0}}, ...)` would fix it.\n3. **Negative totals.** A coupon larger than the subtotal produces a negative total, and tax is then applied to that negative number.\n4. **Float money.** Dollars stored as floats plus `round()` can produce off-by-a-cent results. `Decimal` or integer cents would be safer.\n5. **`is_valid()` mutates its input.** A function with that name looks like a pure check, so this is surprising.\n6. **Naming.** `o`, `f`, `t`, `d`, and `c` are hard for a newcomer to read. Renaming `f` to `apply_tax` would help, but it changes the keyword-argument API, so callers using `f=` would need updating."
+}

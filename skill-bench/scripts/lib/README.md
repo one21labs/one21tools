@@ -33,7 +33,7 @@ its home is the script that regenerates it, not git.
 
 ## verdict.py — FROZEN, historical
 
-- `verdict_of(mean, lo, hi, n)` — the rule shipped before 2026-07-27, kept unchanged because 11
+- `verdict_of(mean, lo, hi, n)` — the rule shipped before 2026-07-27, kept unchanged because
   append-only dated aggregators import it (ADR 0041) and a re-run must reproduce what was
   published. **Not for new work**: its `|mean| < 0.05` branch names a small effect on data that
   support no effect size. New harnesses call `benchstats.keep_verdict`.
@@ -42,10 +42,8 @@ its home is the script that regenerates it, not git.
   MERGE. CI excludes 0 -> "strong" confidence, merges regardless of cost. CI straddles 0 -> "weak"
   confidence, contingent on the cost prong (ADR 0024 step 2d): `chars_delta` (always-loaded/body
   chars only) `> 0` reverts a weak merge to NO MERGE. Returns `(merge: bool, confidence: "strong" |
-  "weak" | None)`. A new `aggregate.py` computing a merge verdict imports this instead of
-  restating the bar — the bs-iter2 discrepancy (`aggregate.py` printed "MERGE (weak)" where the
-  cost prong says NO MERGE, `benchmarks/2026-07-09-bs-iter2-remeasure/README.md`) was exactly this
-  class of drift.
+  "weak" | None)`. Frozen with `verdict_of`: new version-vs-version work runs
+  `benchstats.keep_verdict` on the delta.
 
 
 ## hermetic_driver.py
@@ -55,7 +53,7 @@ its home is the script that regenerates it, not git.
   reads it too: `mapfile -t DENY < lib/deny_tools.txt`, ADR 0041), `NEUTRAL_FRAME`,
   `build_env(effort)`, `neutral_cwd(outdir)`, `do_call(prompt, model, env, cwd)`
   (one retry on timeout/nonzero exit) and `summarize_call(call)` (envelope figures + wall-clock +
-  start/end timestamps), plus the per-cell grid mechanics `fresh_copy(src, tag)` and
+  start/end timestamps), plus the per-cell grid mechanics `fresh_copy(src)` and
   `capture_artifacts(workdir, src)` (#191: capture for EVERY arm, never pre-existing corpus
   files). New harnesses import this; never copy it — start from `skill-bench/templates/grid.py`.
   The two pre-#110 harnesses keep their copies as append-only snapshots.
@@ -64,11 +62,12 @@ its home is the script that regenerates it, not git.
 
 - `artifact_check.check_artifact/classify_cells` — the ERROR-cell rule: a cell whose graded
   artifact fails the mechanical shape check is infrastructure, never a quality 0.
-- `blind.capture_symmetry(records, response_fn)` — per-arm emptiness/length sweep run BEFORE
-  blinding; `skewed: true` means fix the harness, not grade the skew.
+- `blind.capture_symmetry(records, response_fn, excluded_fn)` — per-arm exclusion-rate sweep (any
+  excluded cell counts, whatever the reason) run BEFORE blinding; `skewed: true` means fix the
+  harness, not grade the skew.
 - `benchstats.top_cell_attribution(cells, x, y)` — leave-one-out per-cell contributors to the
-  clustered delta; `inspect: true` (verdict flips or halves without the top cells) sends the
-  reader to those cells before interpreting the bar.
+  clustered delta; `inspect: true` (the verdict flips or the mean halves without some cell) sends
+  the reader to those cells before interpreting the bar.
 
 ## Workflow-pipeline persist step
 
@@ -78,9 +77,11 @@ array is the workflow's own RETURN VALUE, which lands in the run's task `.output
 `"result"` field — NOT in `journal.jsonl`, which records each step's raw pre-`.then()` return and
 was never meant to carry the enrichment.
 
-Persist convention: read `result` from the task's `.output` JSON and write it straight to the
-benchmark's `graded/*.jsonl` with `bench_io.dump_records(result, "graded/verdicts.jsonl",
-fmt="jsonl")` — never reconstruct it from `journal.jsonl`.
+Persist convention: read `result` from the task's `.output` JSON — never reconstruct it from
+`journal.jsonl`. The template returns `{frame, cells, errors, audit}`: write `result.cells` with
+`bench_io.dump_records(result["cells"], "graded/verdicts.jsonl", fmt="jsonl")`; `result.errors`
+are ungraded cells (regenerate, then re-run `blind_cells.py`, whose `blind_salt.txt` at the bench
+root keeps bids stable); keep `frame` with the grades until a cross-family re-grade.
 
 When a prosecutor stage overrides `pass`/`met`, also overwrite every first-grader field it
 re-judged (`evidence` at minimum) — otherwise the persisted record cites reasoning for the

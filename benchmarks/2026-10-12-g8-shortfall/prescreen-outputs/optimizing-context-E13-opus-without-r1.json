@@ -1,0 +1,63 @@
+{
+ "cell": "optimizing-context-E13-opus-without-r1",
+ "skill": "optimizing-context",
+ "scenario": "optimizing-context:E13",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 41646.5,
+  "duration_ms": 41036,
+  "duration_api_ms": 40844,
+  "cost_usd": 0.070784,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 715,
+   "cache_read_input_tokens": 2080,
+   "output_tokens": 3232,
+   "output_tokens_details": {
+    "thinking_tokens": 906
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 715,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3232,
+     "cache_read_input_tokens": 2080,
+     "cache_creation_input_tokens": 715,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 715
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:15:14.198059+00:00",
+   "end": "2026-10-12T22:15:55.844633+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.070784,
+  "charged_usd": 0.070784,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Restructuring the PR Reviewer\n\nEach pilot symptom has a separate root cause:\n\n| Symptom | Root cause | Fix |\n|---|---|---|\n| Context errors, shallow reviews | Every agent gets 60k lines plus 3k lines of CLAUDE.md | Shard the diff and slice the guidance |\n| Same issue reported 4\u00d7 | No ownership boundaries and no merge step | Structured findings, then dedup |\n| Missing file/line numbers | Free-form markdown output | Enforced JSON schema, validated against the diff |\n\n## 1. Use code for orchestration, not a model\n\nDon't send the full diff to an LLM orchestrator. Parse the diff, build the work plan, and assemble the output with ordinary code. Use models only where judgment is needed.\n\n```\ndiff \u2500\u2500\u25ba [preprocess] \u2500\u2500\u25ba [triage/route] \u2500\u2500\u25ba [shard \u00d7 specialist reviews] \u2500\u2500\u25ba [validate lines]\n                                                                                    \u2502\n         [post inline + summary] \u25c4\u2500\u2500 [rank/cap] \u25c4\u2500\u2500 [dedup/merge] \u25c4\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```\n\n## 2. Preprocess and shard\n\n- **Drop noise first:** lockfiles, generated code, vendored deps, snapshots, minified assets, and pure renames. On big monorepo PRs this often removes a large share of the diff.\n- **Build a hunk map:** `{file \u2192 [(new_start, new_end), ...]}` for changed lines on the RIGHT side. You'll need it later for validation.\n- **Shard by module or directory** into chunks that fit a token budget, roughly 1.5\u20133k diff lines each. Keep related files together, such as a source file with its tests or an API with its callers in the PR.\n- **Pass a manifest instead of the whole diff:** every shard prompt includes a short PR-wide summary (title, description, file list with +/- counts). This lets agents notice cross-file concerns without holding everything.\n\n## 3. Route; don't run all 8 specialists on everything\n\nA cheap triage pass, using Haiku or plain path rules, tags each file:\n\n- **Accessibility:** UI files only (`*.tsx`, templates, CSS)\n- **API compatibility:** public interfaces, proto/OpenAPI, exported symbols\n- **Docs:** public APIs and `docs/`\n- **Security:** auth, input handling, crypto, infra/config, dependencies\n- **Tests:** test files plus the code they cover\n- **Style:** consider dropping it entirely and letting linters/formatters handle it. LLM style comments are the most common source of noise.\n\nWork units become `(shard, specialist)` pairs that are actually relevant, not 8 \u00d7 everything. Run them with bounded concurrency.\n\n## 4. Give subagents tools instead of stuffing prompts\n\nAgent SDK subagents can have tools. Give each one a read-only toolset (Read, Grep, Glob, and possibly a `get_file_diff(path)` helper) scoped to the checked-out PR head. The prompt then contains:\n\n- Its shard's diff\n- The manifest\n- **Only the CLAUDE.md sections relevant to its specialty.** Split the 3k-line file into tagged sections (security rules, API conventions, test standards, etc.) and inject the matching ones.\n- Instructions to pull surrounding code on demand when it needs context\n\nKeep the static part of the system prompt (role, schema, guidance slice) as a stable prefix so prompt caching applies across the many parallel calls.\n\n## 5. Require structured output\n\nEach subagent returns JSON matching a schema. Use the SDK's structured output support, or a `report_finding` tool the agent must call per issue:\n\n```json\n{\n  \"files_reviewed\": [\"services/billing/charge.ts\", \"...\"],\n  \"findings\": [\n    {\n      \"file\": \"services/billing/charge.ts\",\n      \"line_start\": 142,\n      \"line_end\": 147,\n      \"side\": \"RIGHT\",\n      \"category\": \"error_handling\",\n      \"severity\": \"high\",          // blocker | high | medium | low | nit\n      \"confidence\": 0.8,\n      \"title\": \"Unhandled rejection from gateway.charge()\",\n      \"body\": \"\u2026why it matters, concretely\u2026\",\n      \"suggestion\": \"optional replacement code for a GitHub suggestion block\",\n      \"guideline_ref\": \"CLAUDE.md#error-handling\"\n    }\n  ]\n}\n```\n\n**Validate in code:**\n- The file must be in the shard, and the line range must intersect the hunk map. If it fails, retry once with the error message. If it fails again, either demote the finding to the summary comment (if it's real but off-diff) or drop it.\n- **Coverage check:** compare `files_reviewed` against the shard's file list and re-dispatch any files that were skipped. This directly fixes the \"only covered the first few files\" problem. Smaller shards fix most of it on their own.\n\n## 6. Prevent and remove duplicates\n\n**Prevent:** give each specialist explicit ownership rules in its prompt. For example: \"A missing null check is `error_handling` unless it is attacker-reachable, in which case it is `security`. Do not report issues outside your category.\"\n\n**Remove:** after collection:\n1. **Deterministic grouping:** cluster findings with the same file and overlapping or adjacent line ranges.\n2. **LLM merge pass on clusters only:** a small call decides whether they describe the same issue, then keeps the best-written one, takes the highest severity, and records all categories as tags.\n3. **Optional verifier:** for `blocker`/`high` findings, a separate agent with read tools checks each claim against the actual code and discards false positives. This is cheap because it only runs on a handful of findings, and it does a lot for reviewer trust.\n\n## 7. Rank, cap, and post\n\n- **Inline comments:** validated, line-anchored findings at or above a severity/confidence threshold, posted as a single GitHub review (one notification, not 40).\n- **Hard caps:** for example, at most 3 per file and at most 25 total, keeping the top-ranked ones.\n- **One short summary comment:** verdict, counts by severity, the top 3\u20135 issues with links to their inline threads, cross-cutting concerns that don't map to a line, and a collapsed `<details>` block with the low-severity findings.\n- **On re-pushes:** fingerprint findings (`file + normalized title + category`) so you don't re-post issues already raised or resolved.\n\n## Expected effect\n\n- **Context errors:** gone, because no single call sees more than about one shard plus a guidance slice.\n- **Depth:** improves, because each agent reviews about 2k lines in its own specialty instead of skimming 60k.\n- **Noise:** the 3,000-word comment becomes a capped set of inline comments plus a summary of a few hundred words.\n- **Inline posting:** reliable, because line numbers are schema fields checked against the real diff.\n\nIf you want to start incrementally, the highest-leverage changes are the **structured schema with hunk validation** and **sharding**. Dedup and the verifier can come second."
+}

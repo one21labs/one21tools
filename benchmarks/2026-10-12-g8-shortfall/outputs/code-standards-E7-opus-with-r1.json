@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E7-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E7",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 11827.1,
+  "duration_ms": 11165,
+  "duration_api_ms": 10913,
+  "cost_usd": 0.0271694,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 718,
+   "cache_read_input_tokens": 4187,
+   "output_tokens": 1029,
+   "output_tokens_details": {
+    "thinking_tokens": 164
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 718,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1029,
+     "cache_read_input_tokens": 4187,
+     "cache_creation_input_tokens": 718,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 718
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:21:26.646463+00:00",
+   "end": "2026-10-12T22:21:38.473567+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0271694,
+  "charged_usd": 0.0271694,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here's the rename only, with no behavior changes:\n\n```python\nimport logging\nimport requests\n\nlog = logging.getLogger(__name__)\n\ndef fetch_auth_token(username, password, header_lines=[], timeout_seconds=10):\n    header_lines.append('X-Client: billing-sync')\n    try:\n        response = requests.post('https://auth.internal/api/token',\n                                 json={'user': username, 'password': password},\n                                 headers=dict(line.split(': ') for line in header_lines),\n                                 timeout=timeout_seconds)\n        response_body = response.json()\n        log.info('auth ok for %s with %s -> %s', username, password, response_body)\n        return response_body['access_token']\n    except Exception:\n        return None\n```\n\nIf you rename `f`, update the callers too, or add `f = fetch_auth_token` for compatibility.\n\n**The names aren't the only problem.** I left these alone because you asked, but you should know about them:\n\n1. **The service password and access token are being logged to a company-wide Datadog index.** The `log.info` line logs `p` (the password) and `d` (the full response, including `access_token`) about once a minute. After a year in prod, anyone who can search that index can probably see these credentials. I'd treat this as urgent:\n   - Rotate the service account password and revoke any long-lived tokens.\n   - Purge or restrict those log entries in Datadog if you can.\n   - Change the log line to something like `log.info('auth ok for %s', username)`.\n\n2. **The mutable default `h=[]` grows on every call.** The same list is shared across calls, so in a long-running worker it gains another `'X-Client: billing-sync'` entry every minute. That's roughly 500k entries a year, re-split on every request. The request still works because `dict()` dedupes the keys, but it's a slow memory leak and gets more expensive over time. The fix is `header_lines=None` plus `header_lines = list(header_lines or [])`.\n\n3. **All failures are silently swallowed.** Network errors, 401s, non-JSON responses, and a missing `access_token` all return `None` with no log. That fits your \"retry later\" caller, but you have no visibility into why auth fails. Adding `log.exception('auth token fetch failed for %s', username)` in the `except` block (without the password) keeps the caller contract intact.\n\n4. **Minor:** `r.raise_for_status()` is never called, so an error response only fails indirectly, through the JSON parse or the key lookup.\n\nNone of these fixes change what callers see (`token` or `None`). I can write a version with #1\u2013#3 fixed if you'd like, but at minimum please don't let #1 ride."
+}

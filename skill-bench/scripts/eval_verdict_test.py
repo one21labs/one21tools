@@ -9,6 +9,7 @@ main() is a thin IO wrapper over these.
 """
 import unittest
 
+import sys
 import tempfile
 from pathlib import Path
 
@@ -66,6 +67,41 @@ class EvalLevel(unittest.TestCase):
         self.assertEqual(many["win_ci"], few["win_ci"])
 
 
+class EvalClusteredMean(unittest.TestCase):
+    # bm.json repro: one eval with 6 reps at +0.4 and four 1-rep evals at -0.1. Rep-weighted, the
+    # mean read +0.2 and printed as the VERDICT; four of five evals lost.
+    BY = {1: [(0.5, 0.9)] * 6, 2: [(0.6, 0.5)], 3: [(0.6, 0.5)], 4: [(0.6, 0.5)], 5: [(0.6, 0.5)]}
+
+    def test_mean_delta_is_the_mean_of_per_eval_means(self):
+        self.assertAlmostEqual(eval_level(self.BY)["mean_delta"], 0.0)
+
+    def test_report_prints_the_interval_verdict_not_a_rep_weighted_point(self):
+        report = report_for(self.BY)
+        self.assertNotIn("+0.200", report)
+        self.assertIn("VERDICT (eval-clustered 95% CI [", report)
+        self.assertIn("): INCONCLUSIVE", report)
+
+    def test_a_consistent_win_over_six_evals_reaches_keep(self):
+        by = {i: [(0.4, 0.8 + 0.01 * i)] for i in range(6)}
+        self.assertEqual(eval_level(by)["verdict"]["verdict"], "KEEP")
+        self.assertIn("): KEEP", report_for(by))
+
+    def test_practical_bar_is_applied_and_printed(self):
+        # KEEP at bar 0 must not print as KEEP when a pre-registered bar sits above the CI's floor
+        by = {i: [(0.4, 0.8 + 0.01 * i)] for i in range(6)}
+        self.assertIn("practical bar +0.000): KEEP", report_for(by))
+        ev = eval_level(by, practical=0.42)  # CI [0.405, 0.445] straddles it
+        self.assertEqual(ev["verdict"]["verdict"], "INCONCLUSIVE")
+        report = fmt_report(aggregate([p for ps in by.values() for p in ps]), ev, 1000, 0.0)
+        self.assertIn("practical bar +0.420): INCONCLUSIVE", report)
+
+    def test_practical_flag_reaches_the_cli(self):
+        import subprocess
+        r = subprocess.run([sys.executable, str(Path(__file__).with_name("eval_verdict.py")),
+                            "--help"], capture_output=True, text=True)
+        self.assertIn("--practical", r.stdout)
+
+
 class WilsonCI(unittest.TestCase):
     def test_zero_trials_is_the_ignorant_interval(self):
         self.assertEqual(wilson_ci(0, 0), (0.0, 1.0))
@@ -77,6 +113,11 @@ class WilsonCI(unittest.TestCase):
         self.assertGreaterEqual(lo, 0.0)
         self.assertLessEqual(hi, 1.0)
 
+    def test_pinned_95_percent_value(self):
+        lo, hi = wilson_ci(8, 10)  # z=1.96: textbook 0.490-0.943
+        self.assertAlmostEqual(lo, 0.4902, places=3)
+        self.assertAlmostEqual(hi, 0.9433, places=3)
+
     def test_more_trials_narrow_the_interval(self):
         lo_s, hi_s = wilson_ci(8, 10)
         lo_l, hi_l = wilson_ci(80, 100)
@@ -84,10 +125,10 @@ class WilsonCI(unittest.TestCase):
 
 
 class Aggregate(unittest.TestCase):
-    def test_win_loss_tie_and_mean_delta(self):
+    def test_win_loss_tie_counts(self):
         agg = aggregate([(0.4, 0.8), (0.6, 0.5), (0.5, 0.5)])
         self.assertEqual((agg["wins"], agg["losses"], agg["ties"]), (1, 1, 1))
-        self.assertAlmostEqual(agg["mean_delta"], (0.4 - 0.1 + 0.0) / 3)
+        self.assertNotIn("mean_delta", agg)  # pair-level is detail; the mean is eval-level
 
     def test_ties_are_excluded_from_the_win_ci(self):
         # 1 win, 0 losses, 2 ties -> CI over n=1, not n=3.
@@ -127,14 +168,15 @@ class Report(unittest.TestCase):
         self.assertIn(f"win rate (eval-clustered, excl. ties): {lo:.2f}-{hi:.2f}", report)
 
     def test_warning_keys_on_non_tied_evals(self):
-        # 3 winning evals (9 pairs) -> under the 4-eval floor -> warn.
-        small = report_for({i: self.WIN for i in range(3)})
-        self.assertIn("[WARN] under 4 non-tied evals", small)
-        # 4 winning evals -> at the floor -> no warning.
-        ok = report_for({i: self.WIN for i in range(4)})
+        # 5 winning evals -> under the 6-eval floor -> warn: a 5/5 sweep is p=0.063 (sign test).
+        small = report_for({i: self.WIN for i in range(5)})
+        self.assertIn("[WARN] under 6 non-tied evals", small)
+        # 6 winning evals -> at the floor -> no warning (6/6 is p=0.031).
+        ok = report_for({i: self.WIN for i in range(6)})
         self.assertNotIn("[WARN]", ok)
-        # Ties don't count: 4 evals but 3 tie -> warn.
-        tied = report_for({1: self.WIN, 2: [(0.5, 0.5)], 3: [(0.5, 0.5)], 4: [(0.5, 0.5)]})
+        # Ties don't count: 6 evals but 3 tie -> warn.
+        tied = report_for({**{i: self.WIN for i in range(3)},
+                           **{i: [(0.5, 0.5)] for i in range(3, 6)}})
         self.assertIn("[WARN]", tied)
 
     def test_pair_level_detail_is_kept(self):

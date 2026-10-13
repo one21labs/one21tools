@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E1-sonnet-with-r2",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17094.4,
+  "duration_ms": 16120,
+  "duration_api_ms": 15921,
+  "cost_usd": 0.0395484,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4300,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 2229,
+   "output_tokens_details": {
+    "thinking_tokens": 830
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4300,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2229,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4300,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4300
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:18:40.492850+00:00",
+   "end": "2026-10-12T22:18:57.587228+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0395484,
+  "charged_usd": 0.0395484,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "Here is the full `notifier.py`. I didn't run it or read any files, per your instructions.\n\n```python\n\"\"\"\nnotifier.py - HTTP notification delivery with retry and backoff\n\nARCHITECTURE ROLE:\n  Loads delivery settings from a JSON config file and POSTs a payload to a\n  URL with retries. Does NOT build payloads or decide when to notify.\n\nDESIGN CONSTRAINTS:\n  - Config is optional: a missing or malformed file falls back to defaults\n    with a warning, never a crash.\n  - Invalid individual settings fall back to their default with a warning.\n  - backoff_seconds is slept between attempts only, never after the last.\n  - Delivery failure is reported by returning None, not by raising.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\n\n\ndef _setting(config, key, default, minimum):\n    \"\"\"Return config[key] if it is a number >= minimum, else default.\"\"\"\n    value = config.get(key, default)\n    is_number = isinstance(value, (int, float)) and not isinstance(value, bool)\n    if not is_number or value < minimum:\n        logger.warning(\"Invalid config %s=%r (need number >= %s); using %s\",\n                       key, value, minimum, default)\n        return default\n    return value\n\n\ndef load_config(path):\n    \"\"\"Return (retries, timeout_seconds, backoff_seconds) from a JSON file.\"\"\"\n    try:\n        with open(path) as config_file:\n            config = json.load(config_file)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\"Cannot load config %s: %s; using defaults\", path, err)\n        config = {}\n\n    if not isinstance(config, dict):\n        logger.warning(\"Config %s is not a JSON object; using defaults\", path)\n        config = {}\n\n    retries = int(_setting(config, \"retries\", DEFAULT_RETRIES, 1))\n    timeout_seconds = _setting(config, \"timeout\", DEFAULT_TIMEOUT_SECONDS, 0.001)\n    backoff_seconds = _setting(config, \"backoff_seconds\", DEFAULT_BACKOFF_SECONDS, 0)\n    return retries, timeout_seconds, backoff_seconds\n\n\ndef send_notification(url, payload, retries, timeout_seconds, backoff_seconds):\n    \"\"\"POST payload (bytes) to url; return the response body, or None if all attempts fail.\"\"\"\n    for attempt in range(1, retries + 1):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            return urllib.request.urlopen(request, timeout=timeout_seconds).read()\n        except OSError as err:\n            logger.warning(\"Attempt %d/%d to %s failed: %s\",\n                           attempt, retries, url, err)\n            if attempt < retries:\n                time.sleep(backoff_seconds)\n\n    logger.error(\"Notification to %s failed after %d attempts\", url, retries)\n    return None\n```\n\nConfig example:\n\n```json\n{\"retries\": 3, \"timeout\": 10, \"backoff_seconds\": 2}\n```\n\nThings to check on your side:\n\n- **API change:** `ld` and `snd` are now `load_config` and `send_notification`, because the old names were cryptic. The loader now returns a 3-tuple and the sender takes a fifth argument, so existing callers need updating either way. If you'd rather keep the old names, it's a quick revert.\n- **Behavior change:** the bare `except:` clauses are gone. Only `OSError` (which covers `URLError`, `HTTPError`, and timeouts) triggers a retry. A `ValueError` from a malformed URL now raises instead of being retried five times and swallowed.\n- **Removed:** the commented-out old loader.\n- **Default backoff:** it is `0`, so behavior is unchanged unless the config sets `backoff_seconds`.\n- **Fixed backoff:** the wait is the same between every attempt. Exponential backoff would be a small follow-up if you want it."
+}

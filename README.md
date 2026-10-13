@@ -37,25 +37,27 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 - `/decide` runs a PM-led panel and records the call as a linted ADR; `/verify` and `/red-team`
   gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
   (structure, cites, char budgets) — not convention.
-- `/bench` measures any skill with paired with/without runs, blind grading, an adversarial
-  prosecutor pass, and pre-registered cost ceilings.
+- `/bench` measures any skill with paired with/without runs and spend gates; its verdict path
+  adds blind grading and an adversarial prosecutor pass.
 
 ## Measured state (the honest block)
 
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
-below: the harness audit is unconverged (#310) and expectation-authorship coupling is an open
-validity threat (#317). Each verdict measured the skill AS OF its dated dir — the text may have
-changed since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
+below: the harness audit is unconverged (#310) and expectation-authorship coupling is a confirmed,
+unresolved validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's own
+expectations". Each verdict measured the skill AS OF its dated dir — the text may have changed
+since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).
 
-- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure).
+- `code-standards`: KEEP, judge-robust (2026-07-17 re-measure); a 12-Oct re-measure is not
+  promoted, and its Opus 5.5 pair is unmeasured (`benchmarks/2026-10-12-g8-shortfall/`).
 - `building-skills`: unsettled — the 2026-07-18 baseline measured +0.153 [-0.016, +0.321]
   (INCONCLUSIVE) under the grok headline judge, +0.236 [+0.004, +0.469] KEEP under claude; an
   iter-3 revision missed its pre-registered bar and was reverted
-  (`benchmarks/2026-07-18-bs-iter3-remeasure/`).
-- `optimizing-context`: measured once — improvement-loop iteration 1 (2026-07-09) recorded
-  MERGE, d_new +0.269 [+0.123, +0.414] (`benchmarks/2026-07-09-three-skills-remeasure/`); no
-  re-measure since.
+  (`benchmarks/2026-07-18-bs-iter3-remeasure/`); 12-Oct re-measures are not promoted
+  (`benchmarks/2026-10-12-g8-shortfall/`).
+- `optimizing-context`: unmeasured (ADR 0100; `benchmarks/2026-10-12-g8-shortfall/`). The
+  2026-07-09 MERGE ran on an instrument with isolation defects fixed since.
 - `engineering-principles`: what SHIPS is the slim operational core (2026-07-18, #248/#249), and
   it ships on a NON-INFERIORITY bar, not a fresh effect proof — slim +0.170, CI [-0.029, +0.370],
   straddling zero at n=6; slim minus full +0.043, CI [+0.016, +0.069], excluding zero in the
@@ -80,7 +82,7 @@ changed since; `git log --since=<dir-date> -- skills/<name>` lists exactly what 
 1. Each measured skill has `evals/evals.json` (3+ cases, schema-gated).
 2. Paired hermetic runs — with/without the skill, no repo access, no installed plugins; a
    non-hermetic run is a recorded confounded null, never a verdict.
-3. Blind grading + a prosecutor re-examining every PASS.
+3. Blind grading; the verdict path adds a prosecutor re-examining every PASS.
 4. Verdict: eval-clustered mean delta with a 95% CI, read against token cost. Keep, improve, or
    revert follows the measurement; results land under `benchmarks/<date>-*/`.
 5. Description ablation: the always-loaded frontmatter description is trigger-tested separately.

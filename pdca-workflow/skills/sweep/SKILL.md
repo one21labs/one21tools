@@ -42,8 +42,9 @@ applies its own default — that constant is the one home, so this file does not
 3. **Verify each candidate against the real tree before it counts.** An unverified finding is
    not a finding: it inflates the round, and the fix it triggers is pure new risk.
 4. **Fix what is cheap and verified; open an issue for the rest** (ADR 0021 — deferred work
-   tracks in issues, never in a handoff file). Then re-run the project's deterministic gates: a
-   fix that breaks a gate is next round's finding, not this round's success.
+   tracks in issues, never in a handoff file). Each editing fix lane gets its own git worktree (or
+   returns a diff to one coordinator): a harness hook can commit a shared tree mid-edit. Then
+   re-run the project's deterministic gates: a fix that breaks a gate is next round's finding.
    **The loop is SUBTRACTIVE by default and additive only in the rare case.** Delete the
    defective thing, or delete what made it possible; guard it with new machinery only when
    nothing can be removed and the loss is real — and say why, in the round line. Every gate,

@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E1-opus-with-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E1",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 27213.6,
+  "duration_ms": 25879,
+  "duration_api_ms": 25664,
+  "cost_usd": 0.0894048,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4296,
+   "cache_read_input_tokens": 544,
+   "output_tokens": 2746,
+   "output_tokens_details": {
+    "thinking_tokens": 955
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4296,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2746,
+     "cache_read_input_tokens": 544,
+     "cache_creation_input_tokens": 4296,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4296
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:18:40.490698+00:00",
+   "end": "2026-10-12T22:19:07.704308+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0894048,
+  "charged_usd": 0.0894048,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "```python\n\"\"\"\nnotifier.py - HTTP notification delivery with retries\n\nARCHITECTURE ROLE:\n  Loads delivery settings from a JSON config file and POSTs payloads to a\n  URL, retrying on network failure. Does not build payloads or decide\n  recipients; callers own both.\n\nDESIGN CONSTRAINTS:\n  - Config loading never raises. A missing, unreadable, or malformed file,\n    or an invalid individual value, falls back to defaults with a WARN.\n  - send_notification blocks: it sleeps backoff_seconds between attempts\n    (not after the final one). Total worst case is roughly\n    retries * timeout + (retries - 1) * backoff_seconds.\n  - Returns None on exhausted retries instead of raising, so callers must\n    check the result.\n\nUSAGE CONTRACT:\n  ld() returns (retries, timeout, backoff_seconds). Callers that unpacked\n  the previous two-value tuple must be updated.\n\"\"\"\n\nimport json\nimport logging\nimport time\nimport urllib.error\nimport urllib.request\n\nlogger = logging.getLogger(__name__)\n\nDEFAULT_RETRIES = 5\nDEFAULT_TIMEOUT_SECONDS = 30\nDEFAULT_BACKOFF_SECONDS = 0\n\n\ndef _is_number(value):\n    # bool is a subclass of int; \"retries\": true must not be accepted as 1.\n    return isinstance(value, (int, float)) and not isinstance(value, bool)\n\n\ndef _read_setting(config, key, default, is_valid, requirement):\n    if key not in config:\n        return default\n    value = config[key]\n    if not is_valid(value):\n        logger.warning(\n            \"Invalid config value %s=%r (must be %s); using default %r\",\n            key, value, requirement, default,\n        )\n        return default\n    return value\n\n\ndef ld(config_path):\n    try:\n        with open(config_path) as config_file:\n            config = json.load(config_file)\n    except (OSError, json.JSONDecodeError) as err:\n        logger.warning(\n            \"Could not load notifier config %s: %s; using defaults\",\n            config_path, err,\n        )\n        config = {}\n\n    if not isinstance(config, dict):\n        logger.warning(\n            \"Notifier config %s is not a JSON object; using defaults\",\n            config_path,\n        )\n        config = {}\n\n    retries = _read_setting(\n        config, \"retries\", DEFAULT_RETRIES,\n        lambda v: isinstance(v, int) and not isinstance(v, bool) and v >= 1,\n        \"an integer >= 1\",\n    )\n    timeout = _read_setting(\n        config, \"timeout\", DEFAULT_TIMEOUT_SECONDS,\n        lambda v: _is_number(v) and v > 0,\n        \"a number > 0\",\n    )\n    backoff_seconds = _read_setting(\n        config, \"backoff_seconds\", DEFAULT_BACKOFF_SECONDS,\n        lambda v: _is_number(v) and v >= 0,\n        \"a number >= 0\",\n    )\n    return retries, timeout, backoff_seconds\n\n\ndef snd(url, payload, retries, timeout, backoff_seconds=DEFAULT_BACKOFF_SECONDS):\n    if retries < 1:\n        raise ValueError(f\"retries must be >= 1, got {retries!r}\")\n    if backoff_seconds < 0:\n        raise ValueError(f\"backoff_seconds must be >= 0, got {backoff_seconds!r}\")\n\n    for attempt in range(1, retries + 1):\n        try:\n            request = urllib.request.Request(url, data=payload)\n            with urllib.request.urlopen(request, timeout=timeout) as response:\n                return response.read()\n        except (urllib.error.URLError, OSError) as err:\n            logger.warning(\n                \"Notification to %s failed (attempt %d/%d): %s\",\n                url, attempt, retries, err,\n            )\n        if attempt < retries:\n            time.sleep(backoff_seconds)\n\n    logger.error(\"Notification to %s failed after %d attempts\", url, retries)\n    return None\n```\n\nNotes on what changed beyond adding the backoff:\n\n- **Breaking change:** `ld()` now returns three values. Any caller doing `r, to = ld(path)` must become `r, to, backoff = ld(path)`. `snd()` takes `backoff_seconds` as an optional trailing argument (default `0`), so existing calls still work unchanged.\n- **Function names kept** (`ld`, `snd`) so existing callers don't break. Parameter names are now descriptive, so any caller passing them by keyword (`u=`, `pl=`, `r=`, `to=`) would need updating. I couldn't check for that from here.\n- **Bare `except:` removed.** The old version silently swallowed every error, including `KeyboardInterrupt` and programming bugs. Network failures are now caught specifically and logged per attempt, and exhausted retries are logged at ERROR.\n- **Config values are validated.** Bad types or out-of-range values (for example a negative backoff, `\"retries\": 0`, or a string timeout) fall back to the default with a warning.\n- **No sleep after the final attempt.** This avoids a pointless delay before returning `None`.\n- **Other fixes:** the file handle and the HTTP response are now closed via `with`, and the commented-out dead loader was removed."
+}

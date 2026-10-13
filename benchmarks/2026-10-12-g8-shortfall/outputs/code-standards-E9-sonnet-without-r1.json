@@ -1,0 +1,63 @@
+{
+ "cell": "code-standards-E9-sonnet-without-r1",
+ "skill": "code-standards",
+ "scenario": "code-standards:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 12348.7,
+  "duration_ms": 11483,
+  "duration_api_ms": 11254,
+  "cost_usd": 0.0190876,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 799,
+   "cache_read_input_tokens": 2076,
+   "output_tokens": 1568,
+   "output_tokens_details": {
+    "thinking_tokens": 189
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 799,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1568,
+     "cache_read_input_tokens": 2076,
+     "cache_creation_input_tokens": 799,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 799
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-12T22:26:50.719132+00:00",
+   "end": "2026-10-12T22:27:03.067840+00:00"
+  },
+  "error": null,
+  "retried": false,
+  "cell_cost_usd": 0.0190876,
+  "charged_usd": 0.0190876,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The 500s are vague because the code throws away the information you need, so I'd fix that first rather than sprinkle logs everywhere.\n\n- `GetOrder` replaces the real DB error (timeout, connection refused, scan type mismatch, etc.) with the string `\"db error\"`.\n- The handler never logs anything.\n- Both branches in the handler return the same 500, so a plain \"not found\" looks like a server failure.\n- `err.Error() == \"not found\"` string matching is brittle.\n\nHere is a version that logs at the point where the error is handled and preserves the cause:\n\n```go\nvar ErrNotFound = errors.New(\"order not found\")\n\nfunc (s *Store) GetOrder(ctx context.Context, id string) (*Order, error) {\n    row := s.db.QueryRowContext(ctx,\n        `SELECT id, user_id, card_number, total FROM orders WHERE id = $1`, id)\n    var o Order\n    if err := row.Scan(&o.ID, &o.UserID, &o.CardNumber, &o.Total); err != nil {\n        if errors.Is(err, sql.ErrNoRows) {\n            return nil, ErrNotFound\n        }\n        return nil, fmt.Errorf(\"get order %q: %w\", id, err)\n    }\n    return &o, nil\n}\n\nfunc (h *Handler) Order(w http.ResponseWriter, r *http.Request) {\n    start := time.Now()\n    id := r.URL.Query().Get(\"id\")\n    log := h.log.With(\"handler\", \"Order\", \"order_id\", id, \"remote\", r.RemoteAddr)\n\n    if id == \"\" {\n        log.Warn(\"missing id\")\n        http.Error(w, \"missing id\", http.StatusBadRequest)\n        return\n    }\n\n    o, err := h.store.GetOrder(r.Context(), id)\n    if err != nil {\n        switch {\n        case errors.Is(err, ErrNotFound):\n            log.Info(\"order not found\", \"duration\", time.Since(start))\n            http.Error(w, \"not found\", http.StatusNotFound)\n        case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):\n            log.Warn(\"request ended early\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"request timeout\", http.StatusGatewayTimeout)\n        default:\n            log.Error(\"get order failed\", \"err\", err, \"duration\", time.Since(start))\n            http.Error(w, \"internal error\", http.StatusInternalServerError)\n        }\n        return\n    }\n\n    if err := json.NewEncoder(w).Encode(o); err != nil {\n        log.Error(\"encode response failed\", \"err\", err)\n        return\n    }\n    log.Info(\"order served\", \"duration\", time.Since(start))\n}\n```\n\n`h.log` is a `*slog.Logger`. Add it to `Handler` and construct it with `slog.New(slog.NewJSONHandler(os.Stdout, nil))`.\n\nSome other things worth doing:\n\n1. **Request ID middleware.** Generate or propagate an `X-Request-ID`, put it in the context, and include it in every log line. Echo it back in the response header so a user's report can be matched to a log entry.\n2. **Access-log and panic-recovery middleware.** Log method, path, status, and latency for every request. A `recover()` that logs the stack trace will catch 500s that come from panics rather than returned errors, which your current code wouldn't show at all.\n3. **DB pool stats.** Periodically log `db.Stats()` (open connections, wait count, wait duration). Intermittent vague 500s are often pool exhaustion or timeouts.\n4. **Don't log sensitive data.** I deliberately left `card_number` out of the logs. Keep it out of logs and error messages. Also, the handler currently returns the full `card_number` in the JSON response, which is a serious PII/PCI problem. Drop it from the `SELECT` and the response, or at least mask it to the last four digits.\n\nOnce the real errors are logged, search for `\"get order failed\"` in prod. The wrapped error should tell you quickly whether it's a timeout, a connection problem, or a scan error such as a NULL in a non-nullable field."
+}

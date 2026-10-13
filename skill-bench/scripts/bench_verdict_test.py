@@ -241,11 +241,11 @@ class TestVerdictMath(unittest.TestCase):
         cl, gk = [], []
         for i in range(6):
             cl += [cell(f"c{i}", "C", f"S{i}", [1, 0, 0, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
-            gk += [cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
+            gk += [cell(f"c{i}", "C", f"S{i}", [1, 1, 1, i % 2]), cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0])]
         flip = bs.verdict_flip(bs.clustered_delta(cl, "C", "B"), bs.clustered_delta(gk, "C", "B"))
         self.assertTrue(flip["flipped"])
         self.assertEqual(flip["judge_a_verdict"], "INCONCLUSIVE")   # a flat null: no interval width
-        self.assertEqual(flip["judge_b_verdict"], "KEEP")           # +0.5 every scenario
+        self.assertEqual(flip["judge_b_verdict"], "KEEP")           # +0.5/+0.75 alternating
 
     def test_summarize_generalizes_to_any_arm_pair(self):
         # --primary D,C (#180 arm-D grid): arm means infer from the cells, delta keys follow the pair
@@ -253,10 +253,89 @@ class TestVerdictMath(unittest.TestCase):
         cells = [cell("d1", "D", "S1", [1, 1, 1, 1]), cell("c1", "C", "S1", [1, 1, 0, 0]),
                  cell("a1", "A", "S1", [1, 0, 0, 0])]
         s = bv.summarize(cells, "D", "C")
-        self.assertEqual(set(s["arm_means"]), {"A", "C", "D"})
+        self.assertEqual(set(s["arm_means"]), {"C", "D"})  # the verdict pair, matched scenarios
         self.assertIn("D_minus_C", s)
-        self.assertIn("D_minus_A", s)
+        self.assertNotIn("D_minus_A", s)  # only the verdict pair's delta is reported
         self.assertAlmostEqual(s["D_minus_C"]["mean"], 0.5)
+
+    def test_a_control_arm_A_keeps_its_verdict(self):
+        # Round 4: with --primary C,A a legacy bare-mean f"{x}_minus_A" key overwrote the verdict.
+        import bench_verdict as bv
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 1]), cell("a1", "A", "S1", [1, 0, 0, 0])]
+        self.assertIn("verdict", bv.summarize(cells, "C", "A")["C_minus_A"])
+
+
+class TestBenchstatsBoundaries(unittest.TestCase):
+    # Each assert pins a boundary a mutant once survived every suite on (2026-10 stats audit).
+    def test_identical_cluster_deltas_keep_the_verdict_but_drop_the_power_figure(self):
+        cells = [c for i in range(6) for c in (cell(f"c{i}", "C", f"S{i}", [1, 1, 1, 0]),
+                                                cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))]
+        v = bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))
+        self.assertEqual(v["verdict"], "KEEP")
+        self.assertIsNone(v["mde80"])
+        self.assertIn("zero", v["spread"])
+
+    def test_verdict_is_monotone_as_one_identical_delta_grows(self):
+        # A refusal at zero spread made more consistent evidence read weaker (round 3).
+        same = [c for i in range(4) for c in (cell(f"c{i}", "C", f"S{i}", [1, 1, 0, 0]),
+                                               cell(f"b{i}", "B", f"S{i}", [1, 0, 0, 0]))]
+        bigger = same[:-2] + [cell("c3", "C", "S3", [1, 1, 1, 0]), cell("b3", "B", "S3", [1, 0, 0, 0])]
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(same, "C", "B"))["verdict"], "KEEP")
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(bigger, "C", "B"))["verdict"], "KEEP")
+
+    def test_one_arm_scenarios_are_named_not_silently_dropped(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 0, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 0]), cell("b2", "B", "S2", [1, 0, 0, 0]),
+                 cell("c3", "C", "S3", [1, 1, 1, 1]), cell("a3", "A", "S4", [0, 0, 0, 0])]
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertEqual(d["dropped_scenarios"], ["S3"])   # S4 carries neither arm: not dropped
+        self.assertEqual(bs.keep_verdict(d)["dropped_scenarios"], ["S3"])
+        full = [c for c in cells if c["scenario"] != "S3"]
+        self.assertNotIn("dropped_scenarios", bs.keep_verdict(bs.clustered_delta(full, "C", "B")))
+
+    def test_reported_arm_means_subtract_to_the_delta(self):
+        # S1 has 3 C reps, S2 one: the all-cells arm_mean weighs S1 thrice and misses the delta.
+        cells = ([cell(f"c1{r}", "C", "S1", [1, 1, 1, 1]) for r in range(3)]
+                 + [cell("c2", "C", "S2", [1, 0, 0, 0]), cell("b1", "B", "S1", [1, 1, 0, 0]),
+                    cell("b2", "B", "S2", [1, 1, 0, 0]), cell("c3", "C", "S3", [0, 0, 0, 0])])
+        d = bs.clustered_delta(cells, "C", "B")
+        self.assertAlmostEqual(d["arm_means"]["C"] - d["arm_means"]["B"], d["mean"])
+        self.assertNotAlmostEqual(bs.arm_mean(cells, "C") - bs.arm_mean(cells, "B"), d["mean"])
+
+    def test_verdict_boundaries(self):
+        kv = lambda lo, hi, p=0.0: bs.keep_verdict(
+            {"mean": (lo + hi) / 2, "ci95": [lo, hi], "n_clusters": 6}, p)["verdict"]
+        self.assertEqual(kv(-0.20, -0.01), "HARMFUL")       # any upper bound below zero
+        self.assertEqual(kv(-0.20, 0.0), "INCONCLUSIVE")    # touching zero is not clear of it
+        self.assertEqual(kv(0.0, 0.40), "INCONCLUSIVE")     # lower bound must EXCEED the bar
+        self.assertEqual(kv(0.10, 0.40, 0.10), "INCONCLUSIVE")
+        self.assertEqual(kv(-0.50, 0.05, 0.10), "INCONCLUSIVE")  # lo outside the band: no CUT
+        self.assertEqual(kv(-0.05, 0.05, 0.10), "CUT")
+        v = bs.keep_verdict({"mean": 0.1, "ci95": [-0.1, 0.3], "n_clusters": 6})
+        self.assertAlmostEqual(v["mde80"], (bs.t95(5) + bs.t80(5)) * 0.2 / bs.t95(5), places=3)
+
+    def test_a_tied_scenario_is_not_a_win(self):
+        d = {"mean": 0.1, "ci95": [0.05, 0.15], "per_scenario": {"S1": 0.0, "S2": 0.2}}
+        self.assertEqual(bs.keep_verdict(d)["win_rate"], 0.5)
+
+    def test_per_expectation_is_the_met_rate_per_arm(self):
+        cells = [cell("c1", "C", "S1", [1, 1, 0, 0]), cell("c2", "C", "S2", [1, 0, 0, 0]),
+                 cell("b1", "B", "S1", [0, 0, 0, 1])]
+        pe = bs.per_expectation(cells)
+        self.assertEqual(pe[1], {"B": 0, "C": 1})
+        self.assertEqual(pe[2]["C"], 0.5)
+        self.assertEqual(pe[4], {"B": 1, "C": 0})
+
+    def test_divergence_counts_strictness_in_the_right_direction_and_kappa_at_full_agreement(self):
+        lax = [cell("x", "C", "S1", [1, 1, 1, 1])]
+        strict = [cell("x", "C", "S1", [1, 0, 0, 0])]
+        dv = bs.divergence(strict, lax, "s", "l")
+        self.assertEqual((dv["s_stricter_n"], dv["l_stricter_n"]), (3, 0))
+        self.assertEqual(bs.divergence(lax, lax)["kappa"], 1.0)
+
+    def test_sd_between_scales_by_root_g(self):
+        self.assertAlmostEqual(bs.sd_between({"ci95": [-0.1, 0.1], "n_clusters": 4}),
+                               0.1 / bs.t95(3) * 2)
 
 
 class TestTopCellAttribution(unittest.TestCase):
@@ -289,6 +368,202 @@ class TestTopCellAttribution(unittest.TestCase):
         attr = bs.top_cell_attribution(cells, "C", "B", top_n=2)
         self.assertEqual(len(attr["top"]), 2)
         self.assertNotIn("a1", [r["bid"] for r in attr["top"]])
+        self.assertNotIn("a1", [r["bid"] for r in bs.top_cell_attribution(cells, "C", "B", 10)["top"]])
+
+    def test_flip_means_the_verdict_changes_not_the_mean_sign(self):
+        # Base KEEP over 3 clusters; dropping any one cell leaves 2 clusters (t=12.7) and the
+        # verdict goes INCONCLUSIVE while the mean stays positive and unhalved. The mean-sign
+        # rule called this stable.
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 0]), cell("b2", "B", "S2", [1, 0, 0, 0]),
+                 cell("c3", "C", "S3", [1, 1, 1, 1]), cell("b3", "B", "S3", [1, 0, 0, 0])]
+        self.assertEqual(bs.keep_verdict(bs.clustered_delta(cells, "C", "B"))["verdict"], "KEEP")
+        self.assertTrue(bs.top_cell_attribution(cells, "C", "B")["inspect"])
+
+    def test_inspect_covers_every_cell_not_only_those_shown(self):
+        cells = ([cell(f"c{s}{r}", "C", f"S{s}", [1, 1, 0, 0]) for s in (1, 2) for r in (1, 2, 3)]
+                 + [cell("p11", "P", "S1", [1, 1, 0, 0]), cell("p12", "P", "S1", [1, 1, 0, 0]),
+                    cell("p1z", "P", "S1", [0, 0, 0, 0])]
+                 + [cell(f"p2{r}", "P", "S2", [1, 1, 0, 0]) for r in (1, 2, 3)])
+        attr = bs.top_cell_attribution(cells, "C", "P", top_n=0)
+        self.assertEqual(attr["top"], [])
+        self.assertTrue(attr["inspect"])
+
+    def test_practical_flag_reaches_the_cli(self):
+        import subprocess
+        r = subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "bench_verdict.py"), "--help"], capture_output=True, text=True)
+        self.assertIn("--practical", r.stdout)
+        import bench_verdict as bv
+        cells = [cell("c1", "C", "S1", [1, 1, 1, 0]), cell("b1", "B", "S1", [1, 0, 0, 0]),
+                 cell("c2", "C", "S2", [1, 1, 1, 1]), cell("b2", "B", "S2", [1, 0, 0, 0])]
+        self.assertEqual(bv.summarize(cells, "C", "B", 0.25)["C_minus_B"]["practical"], 0.25)
+
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def bench_dir(d, rows, root_map=True):
+    """Synthetic graded dir: rows = [(bid, arm, scenario, verdict-row-extras)]."""
+    import json
+    os.makedirs(os.path.join(d, "graded"), exist_ok=True)
+    with open(os.path.join(d, "arm_map.tsv" if root_map else "graded/arm_map.tsv"), "w") as f:
+        f.write("bid\tarm\tscenario\trep\n" + "".join(f"{b}\t{a}\t{s}\t1\n" for b, a, s, _ in rows))
+    with open(os.path.join(d, "graded/verdicts.jsonl"), "w") as f:
+        for b, _, s, extra in rows:
+            f.write(json.dumps({"bid": b, "scenario": s, **extra}) + "\n")
+    with open(os.path.join(d, "graded/keys.json"), "w") as f:
+        json.dump({"S1": {}, "S2": {}}, f)
+
+
+def exps(m):
+    return {"norm": {"decision": "d"},
+            "expectations": [{"id": i + 1, "met": bool(v)} for i, v in enumerate(m)]}
+
+
+GRID = [("c1", "C", "S1", [1, 1, 1, 1]), ("b1", "B", "S1", [1, 0, 0, 0]),
+        ("c2", "C", "S2", [1, 1, 1, 0]), ("b2", "B", "S2", [1, 1, 0, 0])]
+
+
+class TestLoadDirAndCache(unittest.TestCase):
+    def test_load_dir_records_error_and_malformed_rows_instead_of_crashing_or_scoring(self):
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID]
+                      + [("e1", "C", "S1", {"error": "judge exit 1"}),            # template error row
+                         ("m1", "B", "S1", {"norm": {}, "expectations": [{"id": 1, "met": True}]})])
+            cells, baseline, _, berrs, missing = bv.load_dir(d)
+        self.assertEqual(missing, [])
+        self.assertEqual({c["bid"] for c in cells}, {"c1", "b1", "c2", "b2", "m1"})  # m1 has a norm
+        self.assertEqual({c["bid"] for c in baseline}, {"c1", "b1", "c2", "b2"})
+        self.assertEqual({e["bid"] for e in berrs}, {"e1", "m1"})
+
+    def test_load_dir_reads_the_legacy_graded_arm_map(self):
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID], root_map=False)
+            self.assertEqual(len(bv.load_dir(d)[1]), 4)
+
+    def test_cache_judge_name_is_what_the_cache_says_or_cached(self):
+        import bench_verdict as bv
+        self.assertEqual(bv.cache_judge_name([{"judge": "grok-4.5"}] * 2), "grok-4.5")
+        for rows in ([], [{}], [{"judge": "grok-4.5"}, {}], [{"judge": "a"}, {"judge": "b"}],
+                     [{"judge": 7}]):
+            self.assertEqual(bv.cache_judge_name(rows), "cached", repr(rows))
+
+    def test_cached_rows_go_through_the_strict_met_map(self):
+        import bench_verdict as bv
+        cells = [{"bid": b, "arm": a, "scenario": s} for b, a, s, _ in GRID[:3]]
+        cache = [{"bid": "c1", **exps([1, 1, 1, 1])},
+                 {"bid": "b1", "expectations": [{"id": 1, "met": "false"}]},   # string met
+                 {"bid": "c2", "error": "timeout"}]
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual([c["bid"] for c in out], ["c1"])
+        self.assertEqual({e["bid"] for e in errs}, {"b1", "c2"})
+
+    def test_a_cell_with_no_verdict_row_or_no_cache_row_is_a_named_error(self):
+        # Round 4: a scenario whose rows were absent was skipped silently — its arm dropped, the
+        # verdict moved (INCONCLUSIVE -> KEEP on an 8-cell fixture) and errors read 0.
+        import tempfile
+        import bench_verdict as bv
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID])
+            with open(os.path.join(d, "arm_map.tsv"), "a") as f:
+                f.write("x9\tB\tS3\t1\n")                     # in the map, never graded
+            cells, _, _, _, missing = bv.load_dir(d)
+        self.assertEqual(missing, [{"bid": "x9", "error": "no graded/verdicts.jsonl row"}])
+        cache = [{"bid": b, **exps(m)} for b, _, _, m in GRID if b != "b2"]
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual(errs, [{"bid": "b2", "error": "no --cache row"}])
+        self.assertEqual(bv.summarize(out, "C", "B")["C_minus_B"]["dropped_scenarios"], ["S2"])
+        rep = self._run_cached("auto", drop=("b2",), extra_map="x9\tB\tS3\t1\n")
+        self.assertEqual(rep["errors"], 2)
+        self.assertEqual({e["bid"] for e in rep["error_cells"]}, {"b2", "x9"})
+        self.assertEqual(rep["regraded"]["C_minus_B"]["dropped_scenarios"], ["S2"])
+
+    def test_a_pre_12_oct_met_dict_cache_still_reads(self):
+        # Round 5: committed --cells-out files (e.g. 2026-07-14 grok-cells.jsonl) carry `met` only.
+        import bench_verdict as bv
+        cells = [{"bid": b, "arm": a, "scenario": s} for b, a, s, _ in GRID[:2]]
+        cache = [{"bid": "c1", "met": {"1": True, "2": True, "3": False, "4": True}},
+                 {"bid": "b1", "met": {"1": True}}]   # partial: still refused
+        out, errs = bv.regrade(None, cells, {}, 1, cache=cache)
+        self.assertEqual([c["bid"] for c in out], ["c1"])
+        self.assertEqual(out[0]["met"], {1: True, 2: True, 3: False, 4: True})
+        self.assertEqual([e["bid"] for e in errs], ["b1"])
+
+    def test_cells_out_reads_back_as_a_cache_carrying_its_judge(self):
+        # Round 4: --cells-out wrote {met:{..}} with no judge, which --cache could not read.
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as t:
+            first = os.path.join(t, "first.jsonl")
+            rep1 = self._run_cached("grok", cache_judge="grok-4.5", cells_out=first)
+            with open(first) as f:
+                rows = [json.loads(line) for line in f]
+            self.assertEqual(len(rows), 4)
+            # `met` stays for the frozen consumers (2026-07-14 aggregate_poker.py reads r["met"])
+            self.assertEqual(set(rows[0]), {"bid", "arm", "scenario", "judge", "met",
+                                            "expectations"})
+            self.assertEqual({r["judge"] for r in rows}, {"grok-4.5"})
+            self.assertEqual(rows[0]["expectations"][0], {"id": 1, "met": True})
+            rep2 = self._run_cached("both", cache_file=first)
+        self.assertEqual(rep2["judge"], "grok-4.5")
+        self.assertIn("divergence", rep2)
+        self.assertEqual(rep2["regraded"], rep1["regraded"])
+
+    def _run_cached(self, judge_arg, cache_judge=None, drop=(), extra_map="", cells_out=None,
+                    cache_file=None):
+        """bench_verdict --cache with stub grok AND claude on PATH that fail if ever called."""
+        import json, subprocess, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            bench_dir(d, [(b, a, s, exps(m)) for b, a, s, m in GRID])
+            with open(os.path.join(d, "arm_map.tsv"), "a") as f:
+                f.write(extra_map)
+            bindir = os.path.join(d, "bin")
+            os.makedirs(bindir)
+            for cli in ("grok", "claude"):
+                with open(os.path.join(bindir, cli), "w") as f:
+                    f.write("#!/bin/sh\necho live call >&2\nexit 1\n")
+                os.chmod(os.path.join(bindir, cli), 0o755)
+            cache = cache_file or os.path.join(d, "cache.jsonl")
+            with open(cache, "a") as f:
+                for b, _, _, m in ([] if cache_file else GRID):
+                    if b in drop:
+                        continue
+                    row = {"bid": b, **exps(m)}
+                    if cache_judge:
+                        row["judge"] = cache_judge
+                    f.write(json.dumps(row) + "\n")
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("SKILL_BENCH_JUDGE_CMD", "GROK_BIN", "COPILOT_BIN")}
+            env["PATH"] = bindir + os.pathsep + env.get("PATH", "")
+            r = subprocess.run([sys.executable, os.path.join(HERE, "bench_verdict.py"), "--dir", d,
+                                "--judge", judge_arg, "--cache", cache,
+                                *(["--cells-out", cells_out] if cells_out else [])],
+                               capture_output=True, text=True, env=env)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            return json.loads(r.stdout)
+
+    def test_a_cache_is_never_labelled_with_a_live_backends_name(self):
+        # grok and claude both reachable: the label was grok-4.5 / claude-opus-4-8, whichever
+        # CLI resolved, regardless of who produced the cached grades.
+        for arg in ("auto", "grok", "claude"):
+            rep = self._run_cached(arg)
+            self.assertEqual(rep["judge"], "cached", arg)
+            self.assertEqual(rep["notional_cost_usd"]["judge_calls"], 0)
+        self.assertEqual(self._run_cached("auto", "claude-opus-4-8")["judge"], "claude-opus-4-8")
+
+    def test_both_on_a_cache_needs_the_cache_to_name_a_cross_family_judge(self):
+        for unproven in (None, "claude-opus-4-8"):
+            rep = self._run_cached("both", unproven)
+            self.assertIn("degraded", rep)
+            self.assertNotIn("divergence", rep)
+        rep = self._run_cached("both", "grok-4.5")
+        self.assertEqual(rep["judge"], "grok-4.5")
+        self.assertEqual(rep["baseline_judge"], "committed")  # no judge recorded for the baseline
+        self.assertIn("divergence", rep)
 
 
 if __name__ == "__main__":
