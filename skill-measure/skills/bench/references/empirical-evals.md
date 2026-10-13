@@ -75,7 +75,7 @@ Disciplines:
 Run skill-creator's benchmark mode over the eval set with **at least 3 runs per
 configuration** (LLM sampling is noisy; single runs are anecdotes), then its aggregation.
 Escalated looks (replicates added where the CI straddles the bar) are DIAGNOSTIC: re-reading
-inflates false KEEPs (null sim: 2.5% nominal, 7.0% at 6 looks). A confirmatory verdict needs a
+inflates false KEEPs (optional stopping). A confirmatory verdict needs a
 fresh pre-registered grid (ADR 0095 decision 4 shape).
 
 Pre-screen task selection for a NEW comparison type: discriminative power is
