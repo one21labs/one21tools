@@ -175,6 +175,6 @@ test("shippedSkillDirs derives skills[] entries only, never bare source roots", 
 test("real manifest pins the exemption set (ADR 0089 Act: blast radius is reviewable)", () => {
   const real = JSON.parse(readFileSync(".claude-plugin/marketplace.json", "utf8"));
   assert.deepEqual([...shippedSkillDirs(real)].sort(), [
-    "skills/building-skills", "skills/code-standards",
+    "skills/building-skills", "skills/code-standards", "skills/control-narratives",
     "skills/engineering-principles", "skills/optimizing-context"]);
 });
