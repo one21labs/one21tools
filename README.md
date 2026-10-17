@@ -15,7 +15,7 @@ hooks, and skills, not prose (autonomy).
 ```
 /plugin marketplace add one21labs/one21tools
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
-/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS applied to software)
+/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS), control-narratives (PLC/DCS specs)
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
 /plugin install skill-measure@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
@@ -66,6 +66,7 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
   EARLIER full version on 2026-07-09. The OPERATIONAL partition carries the delta (#244,
   2026-07-18): operational-only +0.207, conceptual-only +0.057 with a CI straddling zero —
   concepts the model already knows are inert (`benchmarks/2026-07-18-ep-partition/`).
+- `control-narratives`: unmeasured (added 2026-10-17, no baseline yet).
 - `pdca-workflow` panel: honest nulls recorded — rubric-quality ~ cost-matched baselines across
   six instruments; the measured survivors are the process guarantees (forced records, spend
   gates), retrospect's false-positive reduction (a halving in v2, ~12% in v1), and an n=1
