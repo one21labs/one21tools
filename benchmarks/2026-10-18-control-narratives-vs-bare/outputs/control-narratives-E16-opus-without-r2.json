@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E16-opus-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E16",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 64151.5,
+  "duration_ms": 63262,
+  "duration_api_ms": 63055,
+  "cost_usd": 0.1088796,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 3058,
+   "output_tokens": 5413,
+   "output_tokens_details": {
+    "thinking_tokens": 2020
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5413,
+     "cache_read_input_tokens": 3058,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:39:45.593197+00:00",
+   "end": "2026-10-18T04:40:49.744725+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1088796,
+  "charged_usd": 0.1088796,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Mixing Tank: Functional Narrative (As-Found) and Upgrade Recommendations\n\nThis is based only on the exported rungs and the technician's notes. Anything marked **[VERIFY]** depends on field wiring or device behavior that the export doesn't show.\n\n---\n\n## Part 1: Functional Narrative (As-Found Behavior)\n\n### 1.1 Overview\n\nThe tank has one run state. While running, it fills automatically to a high-level switch, agitates whenever level is above the low-level point, and heats with steam whenever the agitator is commanded on and the temperature switch calls for heat. A fill timeout stops filling and sounds a horn. There is no batch sequence, recipe, drain control, or end-of-cycle logic. The process runs continuously until stopped.\n\n### 1.2 I/O Summary\n\n| Tag | Address | Type | As-found meaning |\n|---|---|---|---|\n| START_PB | I:1/0 | DI, momentary | Start, and also timeout reset |\n| STOP_PB | I:1/1 | DI, NC | ON = healthy (not pressed) |\n| ESTOP_OK | I:1/2 | DI | ON = E-stop healthy **[VERIFY: is the E-stop also hardwired to the outputs?]** |\n| LSL_TANK | I:1/3 | DI | ON = level **above** the low point (a permissive, despite the \"LSL\" name) |\n| LSH_TANK | I:1/4 | DI | Assumed ON = level at/above high point **[VERIFY polarity]** |\n| AGIT_HAND | I:1/5 | DI, door selector | ON = bypass the low-level permissive |\n| TEMP_LOW | I:1/6 | DI | Assumed ON = temperature below setpoint **[VERIFY polarity and setpoint]** |\n| FILL_VLV | O:2/0 | DO | Fill valve open command |\n| AGITATOR | O:2/1 | DO | Agitator run command (no run feedback) |\n| STEAM_VLV | O:2/2 | DO | Steam valve open command |\n| ALARM_HORN | O:2/3 | DO | Fill timeout horn |\n| RUN_LATCH | B3:0/0 | Internal | Run state |\n| T4:0 | RTO | Internal | Fill timeout, 600 s cumulative |\n\n### 1.3 Start / Stop\n\n- Pressing **START** puts the tank in run. Run seals in.\n- Run drops when **STOP** is pressed or **E-stop** is not healthy. Stop and E-stop override Start.\n- Releasing the E-stop does not restart the tank. Start must be pressed again.\n- **Observed anomaly:** after a power cycle, run came back ON and the tank began filling without operator action (see 2.1).\n\n### 1.4 Fill\n\n- While running, the fill valve opens whenever the level is below the high-level switch and the fill timeout has not expired.\n- The fill valve closes at high level and **reopens automatically** when level drops below the switch. The tank tops itself up continuously.\n- There is no deadband, so the valve may cycle rapidly near the switch point.\n\n### 1.5 Fill Timeout\n\n- A retentive timer accumulates whenever the fill valve is open. At 600 s **cumulative** fill time, it closes the fill valve and sounds the horn.\n- The timer is reset only by pressing **START**. It is not reset by reaching high level or by stopping.\n- The tank stays in run during a timeout. The agitator and steam continue if their conditions are met.\n\n### 1.6 Agitation\n\n- While running, the agitator runs when level is above the low point.\n- The **AGIT_HAND** door selector bypasses the low-level permissive. The agitator then runs regardless of level, but only while in run. It is a low-level bypass, not an independent hand mode.\n\n### 1.7 Heating\n\n- The steam valve opens when the agitator is **commanded** on and the temperature switch calls for heat.\n- Heating is interlocked to the agitator command, not to proven agitator rotation.\n- There is no separate high-temperature cutout in the logic.\n\n### 1.8 Alarms\n\n- One alarm only: fill timeout, annunciated by the horn.\n- There is no silence or acknowledge function separate from START. Pressing START both clears the alarm and resets the timer.\n\n---\n\n## Part 2: Behavior That Should Not Be Carried Forward\n\nListed roughly in order of risk.\n\n### 2.1 Unattended restart after power loss (Critical)\n`B3` is battery-backed/retentive on the SLC-500, so the run state can survive a power cycle. The tank restarted filling unattended, which matches that. The exact mechanism isn't confirmed; it could also be a stuck or NC-wired start button, or a rung that's really an OTL. That should be checked, but the requirement is the same regardless.\n- **New requirement:** on controller power-up, first scan, or mode change to run, all equipment goes to a stopped state. A deliberate operator Start is required.\n\n### 2.2 E-stop implemented only in software (Critical, if confirmed)\nIf ESTOP_OK only drops a PLC bit, the E-stop depends on the PLC, the program, and the output cards. That does not meet the expected E-stop design (ISO 13850 / NFPA 79 / IEC 60204-1 practice).\n- **New requirement:** a hardwired, safety-rated E-stop circuit (safety relay or safety PLC) that removes power from the agitator and closes the fill and steam valves. The PLC input should be monitoring only. Get a risk assessment to set the required PL/SIL.\n\n### 2.3 Low-level bypass also enables steam (High)\nWith AGIT_HAND on, the agitator runs at low level, and because steam follows the agitator command, **steam can be applied to a near-empty tank**. The agitator can also run with the impeller exposed or dry.\n- **New requirement:** steam needs its own low-level permissive that no selector can bypass. Any agitator low-level bypass should be a maintenance function (key switch, time-limited, alarmed, logged), or removed.\n\n### 2.4 High-level overfill protection is not fail-safe (High, pending verification)\nIf LSH_TANK is ON when level is high, a broken wire or failed switch reads \"not high,\" and the fill continues until the 600 s timer, which may be long enough to overflow. The only backstop is that timer.\n- **New requirement:** the high-level input should be fail-safe (de-energize to trip). Add an independent high-high switch that closes the fill valve directly, ideally hardwired, sized per the overfill hazard.\n\n### 2.5 Steam interlocked to agitator command, not proof of rotation (High)\nA tripped overload, broken coupling, or failed contactor leaves the agitator stopped while steam stays on. That risks localized overheating or scorching at the heating surface.\n- **New requirement:** agitator run feedback (auxiliary contact, or better a motion/current sensor). Drop steam on loss of feedback, with an alarm.\n\n### 2.6 No high-temperature protection (High)\nOne discrete switch provides both control and protection. If it fails \"calling for heat,\" steam stays on indefinitely.\n- **New requirement:** analog temperature transmitter for control, plus an independent high-temperature cutout on the steam valve.\n\n### 2.7 Fill timeout is cumulative and easily defeated (Medium)\n- Because it's an RTO reset only by START, normal top-up cycles over a long run add up and eventually trip the timeout falsely.\n- Holding START (or a stuck button) holds the timer in reset, so the timeout never fires.\n- Operators can repeatedly press START to clear a real fill fault and keep filling.\n- **New requirement:** the fill timeout should be per fill cycle (reset when high level is reached), with a separate acknowledged alarm reset. Repeated timeouts should lock out fill until investigated. Use edge-triggered start/reset logic.\n\n### 2.8 Start doubles as alarm reset; no silence (Medium)\n- **New requirement:** separate horn silence, alarm acknowledge, and reset functions per ISA-18.2-style practice. Alarms should latch until the condition clears and is acknowledged.\n\n### 2.9 Fill chatter / no deadband (Low\u2013Medium)\nContinuous top-up with a single point switch can cycle the valve rapidly and wear it.\n- **New requirement:** decide whether continuous top-up is actually wanted. If so, use a level transmitter with start/stop setpoints, or minimum on/off timers.\n\n### 2.10 Misleading tag naming (Low)\n\"LSL_TANK\" behaves as \"level above low\" (a permissive), the opposite of what the name suggests. That invites mistakes in the new code.\n- **New requirement:** name tags by their true sense (e.g., `LS_LOW_OK` / `LVL_ABOVE_LOW`) and record the fail-safe state for every discrete input in the I/O list.\n\n### 2.11 Missing functions to decide on, not copy\n- No alarms for agitator failure, low level while running, or temperature out of range.\n- No drain/discharge control or interlock. If the tank drains while running, it refills itself.\n- No batch/cycle definition. Confirm whether the process is truly continuous or whether operators run batches manually around this logic.\n\n---\n\n## Part 3: Open Items to Resolve Before the FDS Is Final\n\n1. Field-verify the polarity and fail-safe state of LSH_TANK, TEMP_LOW, and AGIT_HAND.\n2. Confirm whether the E-stop is hardwired anywhere today.\n3. Find the root cause of the power-cycle restart: check for OTE vs. OTL, START wiring, and whether the processor or only the I/O lost power.\n4. Determine the steam heating method (jacket or coil), heating surface location relative to the low-level switch, and the product's temperature limits.\n5. Confirm whether the 600 s timeout was ever sized from an actual fill time.\n6. Ask operators how they actually use AGIT_HAND and START. The workarounds will tell you what the new system needs to support properly."
+}

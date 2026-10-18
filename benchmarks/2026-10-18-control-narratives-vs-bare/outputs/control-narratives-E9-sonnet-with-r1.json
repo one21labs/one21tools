@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E9-sonnet-with-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E9",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 36710.5,
+  "duration_ms": 36017,
+  "duration_api_ms": 35807,
+  "cost_usd": 0.05318749999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 747,
+   "cache_read_input_tokens": 3855,
+   "output_tokens": 4981,
+   "output_tokens_details": {
+    "thinking_tokens": 1456
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 747,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4981,
+     "cache_read_input_tokens": 3855,
+     "cache_creation_input_tokens": 747,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 747
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:44:27.509339+00:00",
+   "end": "2026-10-18T04:45:04.219837+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.05318749999999999,
+  "charged_usd": 0.05318749999999999,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: 7.2 CIP Sequence\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| R-01 | Whole section | Not testable. No requirement IDs and no test method. | Add FR-CIP-NNN IDs and a FAT method for each. |\n| R-02 | Steps 1-4 | Numbers are in prose (5, 20, 15 min; 65 C). | Move to a setpoint list. Reference by name. |\n| R-03 | Step 1, 3 | \"Open the rinse tank valve\" has no tag. \"To drain\" has no valve, pump, or end condition. | Use tags. Define the end condition with CT-501 and a timeout. |\n| R-04 | Step 2 | \"Heated to temperature\" is undefined. No temperature instrument or setpoint is named. The timer start is unclear. | Heat to the caustic temperature setpoint. Start the timer only when TT-501 and FT-501 are both in range. |\n| R-05 | Step 2, 4 | No concentration check, no chemical recovery or drain rule, and no phase separation between rinse and chemical. | Use CT-501 to check concentration and to control the rinse/chemical cut. |\n| R-06 | Step 4 | Acid temperature (65 C) is stated as an outcome only. No heating or control is defined. | Use the acid temperature setpoint and the same timer-start rule as Step 2. |\n| R-07 | Step 5 | \"Run until clean\" cannot be tested. | End on the CT-501 rinse-complete setpoint, held for a set time, with a timeout. |\n| R-08 | Steps 1-5 | No timeout or failure response per step. | Use the step table with both columns. |\n| R-09 | Return pump line | \"Operator should check\" is not a requirement. P-501 can overfill the return line if P-502 stops. | Define a P-502 fault response: stop P-501, go to Hold, alarm. Define the restart conditions. |\n| R-10 | Last line | \"Any circuit selected\" has no permissives. The draft does not prove that S-1 or HTST-1 is out of production. It does not require mix-proof valve position feedback or limit the run to one circuit. This is a product-safety risk. | Add start permissives and a lock on circuit selection during a run. |\n| R-11 | Missing | No ISA-106 states, transitions, hold, abort, or automation level. | Add the state table. |\n| R-12 | Missing | No abnormal handling for bad PV (FT-501, CT-501, TT-501), comms loss, power loss and restart, or fail positions. | Add a section with these cases. |\n| R-13 | Missing | No operator interface, alarm reference, interlock reference, or open items. | Add them. Reference the C&E chart and alarm database. Do not restate their logic. |\n| R-14 | Missing | The draft does not say whether the mix-proof leak and product-separation functions are SIS. | Reference the SRS if they are SIS. If not, state this and have the C&E chart own them. |\n| R-15 | Wording | Passive and vague phrases (\"is heated\", \"should check\"). | Use imperative, active STE sentences. |\n\n## Corrected section\n\n### 7.2 CIP Sequence\n\n**7.2.1 Boundaries.** The CIP skid cleans one circuit at a time: raw milk silo S-1 or pasteurizer HTST-1. The operator selects the circuit on the HMI. Circuits are routed through mix-proof valves. Valve tags are in the instrument index.\n\n**7.2.2 States and transitions (SBC)**\n\n| State | Entry permissive | Allowed exits | Initiator | Automation level |\n|---|---|---|---|---|\n| Idle | None | Checking | Operator | Manual |\n| Checking | Circuit selected | Running, Idle | Auto | Automatic |\n| Running | All start permissives true (FR-CIP-003) | Holding, Aborting, Complete | Auto | Automatic |\n| Holding | Hold command or fault | Running, Aborting | Auto or operator | Operator-prompted |\n| Aborting | Abort command or abort fault | Idle | Auto or operator | Automatic |\n| Complete | Step 6 done | Idle | Auto | Automatic |\n\n**7.2.3 Requirements**\n\n| ID | Requirement | FAT test |\n|---|---|---|\n| FR-CIP-001 | Allow one circuit selection at a time. | Select both circuits. Verify the second is rejected. |\n| FR-CIP-002 | Lock the circuit selection while the state is not Idle. | Change the selection during a run. Verify it is rejected. |\n| FR-CIP-003 | Allow start only when all permissives in the C&E chart are true. These include the selected circuit being out of production and the mix-proof valves being in the CIP lineup. | Force each permissive false. Verify no start. |\n| FR-CIP-004 | Start each timed step timer only when TT-501 and FT-501 are in the ranges in the setpoint list. | Hold TT-501 low. Verify the timer does not run. |\n| FR-CIP-005 | Use CT-501 to decide the end of rinse steps and to check chemical strength. | Simulate CT-501 values. Verify each transition. |\n| FR-CIP-006 | If P-502 stops, stop P-501, go to Holding, and raise the alarm in the alarm database. | Trip P-502 in each step. Verify the response. |\n| FR-CIP-007 | Allow Holding to Running only after the operator acknowledges and the permissives are true. The step resumes from its start. | Clear the fault. Verify no auto-resume. |\n| FR-CIP-008 | Go to Aborting on abort command or step timeout. Close the chemical supply, then stop P-501 and P-502. | Time out a step. Verify the abort. |\n\n**7.2.4 Sequence (SqBC)**\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 Pre-rinse | Open the rinse tank outlet valve `<tag>`. Start P-502, then P-501. Route return to drain. | Pre-rinse time (SP-01) done, and CT-501 at or below SP-02 | SP-03 | Holding |\n| 2 Caustic wash | Route supply from the caustic tank `<tag>`. Heat to SP-04. Circulate. | TT-501 at or above SP-05 and FT-501 at or above SP-06. Then the caustic time (SP-07) is done. | SP-08 | Holding. Abort if the timeout expires. |\n| 3 Intermediate rinse | Route supply from the rinse tank. Route return to drain. | Rinse time (SP-09) done, and CT-501 at or below SP-10 | SP-11 | Holding |\n| 4 Acid wash | Route supply from the acid tank `<tag>`. Heat to SP-12. Circulate. | TT-501 at or above SP-13 and FT-501 at or above SP-06. Then the acid time (SP-14) is done. | SP-15 | Holding. Abort if the timeout expires. |\n| 5 Final rinse | Route supply from the rinse tank. Route return to drain. | CT-501 at or below SP-16 for SP-17 | SP-18 | Holding |\n| 6 Finish | Stop P-501, then P-502. Return all valves to the safe lineup. | Pumps stopped, valves in position | SP-19 | Holding |\n\n**7.2.5 Setpoint list (SPL-CIP).** Values are not in the draft except where marked. Process engineering confirms each value.\n\n| ID | Parameter | Value |\n|---|---|---|\n| SP-01 | Pre-rinse time | 5 min (draft value) |\n| SP-07 | Caustic circulation time | 20 min (draft value) |\n| SP-09 | Intermediate rinse time | 5 min (draft value) |\n| SP-12 | Acid wash temperature | 65 C (draft value) |\n| SP-14 | Acid circulation time | 15 min (draft value) |\n| SP-02, 03, 04, 05, 06, 08, 10, 11, 13, 15, 16, 17, 18, 19 | Conductivity limits, temperature limits, minimum flow, step timeouts, final rinse hold time | TBD |\n\n**7.2.6 Abnormal handling**\n\n| Event | Response |\n|---|---|\n| Bad quality on FT-501, CT-501, or TT-501 | Go to Holding. Raise the alarm. Do not start a step timer. |\n| HMI or PLC comms loss | Continue the current step. Do not accept new commands. Go to Holding if loss lasts longer than the comms timeout (TBD). |\n| Power loss | Pumps stay stopped. Go to Idle. Do not auto-restart. The operator restarts from Step 1 of the selected circuit. |\n| Fail positions | Mix-proof and chemical valves fail closed. Drain valve fail position is TBD (OI-02). |\n\n**7.2.7 Interlocks, alarms, and SIS.** The cause-and-effect chart owns all interlock logic. The alarm database owns all alarms. If a product-separation function is SIS, the SRS owns it. This section does not restate any of them.\n\n**7.2.8 Operator interface.** The HMI shows the selected circuit, state, step, step time, FT-501, TT-501, and CT-501. The operator can select a circuit, start, hold, resume, and abort. The HMI prompts the operator to acknowledge before it resumes from Holding.\n\n### Open items\n\n| ID | Item | Owner | Due |\n|---|---|---|---|\n| OI-01 | Confirm all TBD setpoints in SPL-CIP | Process engineer | TBD at review |\n| OI-02 | Define the drain valve fail position and valve tags | Controls lead | TBD at review |\n| OI-03 | Confirm whether product-separation functions are SIS | Safety lead | TBD at review |\n| OI-04 | Operations sign-off on states and prompts | Operations manager | TBD at review |\n| OI-05 | Confirm chemical recovery or drain rule for Steps 2 and 4 | Process engineer | TBD at review |\n\nI did not invent owners' names, dates, or setpoint values. Please assign dates and names at the review meeting. The STE pass is applied, but check the project dictionary for terms such as \"Holding\" and \"Aborting\"."
+}

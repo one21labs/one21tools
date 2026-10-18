@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E12-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E12",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 30871.6,
+  "duration_ms": 30179,
+  "duration_api_ms": 29996,
+  "cost_usd": 0.061946,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 740,
+   "cache_read_input_tokens": 2190,
+   "output_tokens": 2779,
+   "output_tokens_details": {
+    "thinking_tokens": 1026
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 740,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2779,
+     "cache_read_input_tokens": 2190,
+     "cache_creation_input_tokens": 740,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 740
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:35:37.777320+00:00",
+   "end": "2026-10-18T04:36:08.648900+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.061946,
+  "charged_usd": 0.061946,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: C-401 Debutanizer Control Narrative \u00a75.1\n\n**Recommendation: Do not issue for configuration.** There is one safety-significant direction error, one unresolved tuning conflict, and two requirements too vague to configure.\n\n## Critical: must fix before issue\n\n### 1. TIC-405 action contradicts its own description\nThe narrative says TIC-405 is **reverse acting**, then says *\"when tray temperature rises, the TIC-405 output increases steam flow.\"* That is **direct** action.\n\n- On the process, more steam raises tray temperature. So the controller must **reduce** steam when temperature rises. Reverse action is correct.\n- The sentence describes positive feedback. If someone configures from that sentence, a rising temperature adds more steam. That could drive the column toward high pressure, loss of the tray profile, and lifting relief valves.\n- **Fix:** \"When tray 5 temperature rises above setpoint, TIC-405 output decreases, reducing the FIC-420 steam flow setpoint (reverse acting).\"\n- Also confirm whether the DCS defines action on error (SP\u2212PV) or on PV. Vendors differ, and the narrative should state which.\n\n### 2. TIC-405 tuning conflicts with the issued tuning sheet\n| Source | Kc | Ti |\n|---|---|---|\n| Narrative \u00a75.1 | 0.8 | 12 min |\n| Tuning sheet (last month) | 1.2 | 8 min |\n\nThe sheet's values are about 50% more gain and noticeably faster integral action. Before issue:\n- Identify which set is current and approved. Check whether a field retune or MOC drove the sheet values.\n- Pick one controlling document. Best practice is for the narrative to reference the tuning sheet rather than duplicate values that will drift apart.\n- State the units: Kc as %/% (dimensionless) or engineering units, and Ti in min/repeat vs repeats/min. Mixing these up is a common commissioning error.\n\n## Major: not configurable as written\n\n### 3. TT-405 failure handling is vague\n\"Hold approximately its last output\" cannot be configured. The narrative needs to specify:\n- **Detection:** bad quality or out-of-range signal, plus any rate-of-change or deviation check against a redundant or adjacent tray TT.\n- **Action:** TIC-405 sheds to manual, and its output is frozen at the last good value. Consider using the value from N seconds before the failure, because a drifting transmitter may already have corrupted the output before it was flagged bad.\n- **FIC-420 state:** it stays in auto at the held setpoint, or falls back to a defined safe steam rate.\n- **Alarm** to the operator, and **return-to-service** requirements (manual reset, no automatic return to cascade).\n\n### 4. FIC-420 manual mode lacks cascade-break handling\nAllowing operators to put FIC-420 in manual is acceptable, but the narrative must also define:\n- **Output tracking:** while FIC-420 is not in cascade, TIC-405 output tracks the FIC-420 setpoint or PV. This gives a bumpless return and prevents integral windup.\n- **Mode indication:** TIC-405 shows as not in control, for example IMAN or \"cascade open.\"\n- **Return to cascade:** the procedure, and whether a TIC-405 setpoint tracking option applies.\n- Whether operators should use TIC-405 manual instead for most upsets.\n\n## Minor and clarifications\n\n5. **Tray numbering:** Is tray 5 counted from the top or the bottom? This determines whether the location is sensible for reboiler-duty control. Bottoms RVP and C4 control usually need a tray in the stripping section.\n6. **Steam limits:** Define the TIC-405 output clamps or FIC-420 setpoint high and low limits, such as minimum steam to keep the reboiler alive and maximum steam for flooding and hydraulic limits.\n7. **Inventory scheme:** Fixed distillate with LIC-411 resetting reflux is a valid scheme. However, a large distillate setpoint error then shows up only as drift in tray temperature and bottoms level. State that this choice is intentional and that operators own the FIC-412 setpoint.\n8. **PIC-430 / hot vapor bypass:**\n   - State the action direction (opening PV-430 raises pressure) and the fail position.\n   - Note the interaction with LIC-411. With a flooded-drum or bypass arrangement, drum level and pressure control are coupled.\n   - Reference the high-pressure alarm and trip setpoints.\n9. **Other controller actions and fail positions:** List these for FV-402, FV-410, FV-412, FV-420, and PV-430, including the LIC-402 and LIC-411 action relative to valve fail mode.\n10. **Wording:** \"FIC-410 controls reflux flow\" should name the final element (FV-410) for consistency with the other loops.\n\n## Summary of required changes before issue\n1. Correct the TIC-405 action description (safety).\n2. Resolve the tuning discrepancy and state units.\n3. Define TT-405 failure detection and the exact hold behavior.\n4. Add output tracking and anti-windup for the TIC-405 \u2192 FIC-420 cascade."
+}

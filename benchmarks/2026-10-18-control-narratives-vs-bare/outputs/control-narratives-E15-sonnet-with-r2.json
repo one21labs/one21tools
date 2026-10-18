@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E15-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E15",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 46170.4,
+  "duration_ms": 45267,
+  "duration_api_ms": 45038,
+  "cost_usd": 0.0640906,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4566,
+   "output_tokens": 6363,
+   "output_tokens_details": {
+    "thinking_tokens": 1744
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6363,
+     "cache_read_input_tokens": 4566,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:46:35.334052+00:00",
+   "end": "2026-10-18T04:47:21.504472+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0640906,
+  "charged_usd": 0.0640906,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# BH-700 Baghouse Control Narrative (Draft A)\n\nThis draft comes from the shift supervisor's email only. Every value marked **proposed** needs Operations confirmation before the integrator programs it. The open items (section 10) include decisions the email left unclear.\n\n## 1. Purpose and boundaries\n\nBH-700 removes dust from the kiln exhaust gas. The module controls these devices:\n\n- ID fan F-703\n- Screw conveyor SC-701\n- Rotary airlock RV-702\n- Inlet damper D-704\n- Bleed-air damper D-706\n- The pulse-cleaning rows\n\n**Interfaces:**\n- The upstream interface is the kiln feed. A kiln feed inhibit request leaves this module (OI-03).\n- The downstream interface is the stack. No stack requirements appear in the email.\n\n## 2. Equipment and tags\n\nRefer to the instrument index for all tags. The email names these tags:\n\n| Tag | Function |\n|---|---|\n| F-703 | ID fan |\n| SC-701 | Screw conveyor |\n| RV-702 | Rotary airlock |\n| D-704 | Inlet damper |\n| D-706 | Bleed-air damper |\n| TT-705 | Inlet temperature |\n\n**Tags missing from the email (OI-01):** the baghouse DP transmitter, the pulse valves per row, the kiln feed device, the airlock run-status feedback, and the damper position switches.\n\n## 3. States and transitions (ISA-106)\n\n| State | Entry permissive | Initiator | Automation level | Allowed exits |\n|---|---|---|---|---|\n| STOPPED | None | Stop complete or trip complete | Automatic | STARTING |\n| STARTING | Start permissives met (see the cause-and-effect chart) | Operator | Automatic after the start command | RUNNING, TRIPPED, STOPPING |\n| RUNNING | Start sequence complete | Automatic | Automatic | STOPPING, TRIPPED |\n| STOPPING (clean-down) | None | Operator | Automatic | STOPPED, TRIPPED |\n| TRIPPED | None | Automatic | Automatic | STOPPED, after operator reset |\n\n**Requirements:**\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-001 | The module shall have only the five states in the table above. | FAT: state table walk-through |\n| FR-BH700-002 | The module shall allow only the exits listed in the table. | FAT: attempt each disallowed transition |\n| FR-BH700-003 | The module shall leave TRIPPED only after an operator reset. The reset shall be accepted only when the trip cause is clear. | FAT: reset with the cause active, then clear |\n\n## 4. Regulatory control\n\nBH-700 has no PID loops in the email. D-706 uses on/off control (FR-BH700-030). Pulse control is timer-based with two rates (FR-BH700-020 to -023).\n\n## 5. Sequences\n\n### 5.1 Start sequence (STARTING)\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Start SC-701 and RV-702. | Both are confirmed running. | TM-01 | Go to TRIPPED. Raise the alarm. |\n| 2 | Start F-703. | F-703 is confirmed running. | TM-02 | Stop the started equipment. Go to TRIPPED. |\n| 3 | Wait for the fan stabilization time. | TM-03 has elapsed. | TM-03 | Not applicable |\n| 4 | Open D-704. | D-704 is confirmed open. | TM-04 | Close D-704. Go to STOPPING. Raise the alarm. |\n| 5 | Start pulse cleaning. | Pulse cleaning is active. | TM-05 | Raise the alarm. Continue. |\n\nStep 1 comes before step 2 in this draft. Mike's fan-first order is OI-02.\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-010 | The sequence shall run the steps in the order shown. | FAT: run the sequence and check the order |\n| FR-BH700-011 | The sequence shall not open D-704 until TM-03 has elapsed after F-703 is confirmed running. | FAT: check D-704 command time |\n| FR-BH700-012 | Each step shall apply its timeout and failure response from the table. | FAT: force a failure at each step |\n\n### 5.2 Stop sequence (STOPPING, clean-down)\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Keep F-703, SC-701, and RV-702 running. Keep pulsing. | TM-06 has elapsed. | TM-06 | Not applicable |\n| 2 | Close D-704. | D-704 is confirmed closed. | TM-04 | Raise the alarm. Continue. |\n| 3 | Stop F-703. | F-703 is confirmed stopped. | TM-02 | Raise the alarm. Continue. |\n| 4 | Stop pulsing. Stop RV-702, then SC-701. | Both are confirmed stopped. | TM-01 | Raise the alarm. |\n\nThe email does not give the order of the last stops or when D-704 closes during clean-down (OI-04).\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-015 | The module shall pulse with F-703 running for the clean-down time in STOPPING. | FAT: stop and time the clean-down |\n| FR-BH700-016 | The module shall keep SC-701 and RV-702 running during clean-down. | FAT: check status during clean-down |\n\n## 6. Interlocks and permissives\n\nSee the BH-700 cause-and-effect chart. The chart shall hold these causes:\n\n- The airlock stop trip (FR-BH700-040)\n- The high inlet temperature action (FR-BH700-030)\n- The start permissives\n\nThis section does not restate the logic.\n\n## 7. Alarms\n\nSee the rationalized alarm database. The chart and database shall hold alarms for these conditions: high DP, high-high DP, high inlet temperature, airlock stopped, sequence step timeout, and bad PV.\n\n## 8. Abnormal handling\n\n### 8.1 Pulse cleaning\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-020 | In RUNNING, the module shall pulse one row at a time. | FAT: observe row order |\n| FR-BH700-021 | The module shall use the normal pulse interval when DP is below the high-DP pulse setpoint (SP-02). | FAT: simulate DP |\n| FR-BH700-022 | The module shall use the fast pulse interval when DP is at or above SP-02. | FAT: simulate DP |\n| FR-BH700-023 | The module shall return to the normal interval when DP falls below SP-02 minus the deadband (SP-06). | FAT: simulate DP falling |\n| FR-BH700-024 | The module shall prompt the operator to stop the kiln feed when DP is at or above SP-03. | FAT: simulate DP; check the prompt |\n\n### 8.2 Airlock stop\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-040 | The module shall go to TRIPPED when RV-702 stops without a command. | FAT: fail RV-702 feedback |\n| FR-BH700-041 | In TRIPPED, the module shall stop the equipment in the order and with the delays in the cause-and-effect chart. | FAT: trip and check the actions |\n\nThe 2019 fire may make this a safety function. Refer to the SRS if the hazard review requires it (OI-05). Do not specify SIS logic here.\n\n### 8.3 High inlet temperature\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-BH700-030 | The module shall open D-706 when TT-705 is above SP-04. | FAT: simulate TT-705 |\n| FR-BH700-031 | The module shall close D-706 when TT-705 falls below SP-04 minus the deadband (SP-07). | FAT: simulate TT-705 falling |\n| FR-BH700-032 | The module shall raise the high-temperature alarm when TT-705 is above SP-04. | FAT: check the alarm |\n\nThe email gives no action if D-706 is open and TT-705 stays high (OI-06).\n\n### 8.4 Failure conditions\n\n| Condition | Required response | ID | Status |\n|---|---|---|---|\n| Bad PV: TT-705 | Not defined | FR-BH700-050 | OI-07 |\n| Bad PV: DP | Not defined | FR-BH700-051 | OI-07 |\n| Comms loss to the control system | Not defined | FR-BH700-052 | OI-07 |\n| Power loss and restart | Not defined | FR-BH700-053 | OI-07 |\n| Fail position: D-704 | Not defined | FR-BH700-054 | OI-08 |\n| Fail position: D-706 | Not defined | FR-BH700-055 | OI-08 |\n\nThe integrator shall not program these rows until the owners close the open items. Each row will get a response and test method when its item closes.\n\n## 9. Operator interface\n\n| Operator action | Detail |\n|---|---|\n| Sees | The state, equipment status, DP, TT-705, and the active pulse interval |\n| Changes | Start, stop, reset, and the setpoints in the list (with the right access level) |\n| Is prompted | To stop the kiln feed at high-high DP |\n\nOperations shall sign off on the states and prompts.\n\n### Setpoint and timer list (single source for values)\n\n| ID | Item | Value | Status |\n|---|---|---|---|\n| SP-01 | Normal pulse interval per row | 10 s | Proposed |\n| SP-02 | High-DP pulse setpoint | 6 to 7 in. (value not decided) | OI-09 |\n| SP-03 | High-high DP (kiln feed prompt) | 8 in. | Proposed |\n| SP-04 | High inlet temperature (TT-705) | 450 \u00b0F | Proposed |\n| SP-05 | Fast pulse interval per row | 5 s | Proposed |\n| SP-06 | DP deadband | Not given | OI-09 |\n| SP-07 | Temperature deadband | Not given | OI-09 |\n| TM-01 | Conveyor and airlock start/stop timeout | Not given | OI-10 |\n| TM-02 | Fan start/stop timeout | Not given | OI-10 |\n| TM-03 | Fan stabilization time before D-704 opens | About 1 min | OI-10 |\n| TM-04 | Damper travel timeout | Not given | OI-10 |\n| TM-05 | Pulse start timeout | Not given | OI-10 |\n| TM-06 | Clean-down time | 10 min | Proposed |\n\n## 10. Open items\n\nThe owners and dates below are my proposals. Confirm them before issue.\n\n| ID | Item | Owner | Due |\n|---|---|---|---|\n| OI-01 | Supply the missing tags (DP transmitter, pulse valves, kiln feed device, feedback signals). | Controls lead | 2026-11-01 |\n| OI-02 | Decide the start order: discharge equipment first (Dave) or fan first (Mike). The reason for fan-first is bag blinding. The risk of discharge-first is unknown. | Shift supervisor, process engineer | 2026-11-01 |\n| OI-03 | Decide whether the kiln feed stops automatically or by operator action. State what happens to the kiln when BH-700 trips. | Process engineer | 2026-11-08 |\n| OI-04 | Confirm the stop order and when D-704 closes. | Shift supervisor | 2026-11-01 |\n| OI-05 | Review the 2019 airlock fire. Decide if the airlock-stop trip is a safety function. If it is, move it to the SRS. | Safety lead | 2026-11-15 |\n| OI-06 | Define the action if TT-705 stays high with D-706 open. This may also be a safety function. | Process engineer, safety lead | 2026-11-15 |\n| OI-07 | Define bad PV, comms loss, and power loss and restart responses. | Controls lead, process engineer | 2026-11-15 |\n| OI-08 | Confirm fail positions for D-704 and D-706. | Process engineer | 2026-11-08 |\n| OI-09 | Fix SP-02 (the email says 6 or 7 in.) and the deadbands SP-06 and SP-07. | Shift supervisor | 2026-11-01 |\n| OI-10 | Set the timers TM-01 to TM-05, and confirm TM-03. | Process engineer | 2026-11-08 |\n| OI-11 | Check that \"quick\" shutdown (FR-BH700-041) has a defined delay and order. | Shift supervisor | 2026-11-01 |\n| OI-12 | Check the engineering units for DP (in. w.c. assumed) and the instrument range. | Controls lead | 2026-11-01 |\n\n## Notes on what I changed from the email\n\n- I chose discharge-first because it is the stated primary order. I did not choose it as the better order.\n- I made the DP over 8 in. action an operator prompt, because the email says \"usually shut kiln feed\". That wording describes habit, not a rule.\n- I left every response the email did not state (bad PV, power loss, fail positions) as an open item. I did not invent them.\n\nI have not yet run the STE editing pass or reviewed this draft with Operations. Both are needed once the open items close."
+}

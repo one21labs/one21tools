@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E6-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E6",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 52410.5,
+  "duration_ms": 51766,
+  "duration_api_ms": 51546,
+  "cost_usd": 0.0647672,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2832,
+   "output_tokens": 6448,
+   "output_tokens_details": {
+    "thinking_tokens": 2894
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6448,
+     "cache_read_input_tokens": 2832,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:43:02.379090+00:00",
+   "end": "2026-10-18T04:43:54.789662+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0647672,
+  "charged_usd": 0.0647672,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Aggregate Conveying Line: Start/Stop and Protection Narrative\n\n## 1. Scope and equipment\n\nMaterial flows in this order: **Hopper / VF-1 \u2192 CV-1 \u2192 CV-2 \u2192 CR-1 \u2192 CV-3 \u2192 stockpile.**\n\n| Tag | Device | Protective inputs |\n|---|---|---|\n| VF-1 | Vibratory feeder | Interlocked to CV-1 |\n| CV-1, CV-2, CV-3 | Belt conveyors | Zero-speed switch (ZSS), belt misalignment alarm and trip switches (MAS/MTS), pull-cord switches (PCS), plugged-chute switch (PCH) |\n| CR-1 | Jaw crusher | Motor current CT (FLC 210 A), lube oil pressure switch (LPS) |\n\nAll setpoints and timers below are proposed starting values. Confirm them at commissioning.\n\n## 2. General principles\n\n1. **Start against the flow, stop with the flow.** The line starts from the discharge end back to the feed end, so nothing feeds a stationary machine. It stops from the feed end forward, so every belt and the crusher run out empty.\n2. **Trips propagate upstream.** A fault stops the faulted device and everything upstream of it immediately. Equipment downstream runs out in a controlled sequence (Section 5).\n3. **Fail-safe wiring.** All protective switches are normally-closed (healthy = closed) and the CT is a 4-20 mA signal. Wire break, power loss, or signal below 3.5 mA is treated as a trip.\n4. **Hardwired safety.** Pull-cords and any E-stops are hardwired into the motor starter control circuits, independent of the PLC. The PLC monitors them for indication and for restart logic.\n5. **Latched trips.** Every trip latches and shows first-out indication on the HMI. The operator must clear the cause and acknowledge before a restart is allowed.\n6. **Control point.** The line is started and stopped only from the control room HMI, in Auto mode. Local/maintenance mode is outside this narrative.\n\n## 3. Start permissives\n\nThe HMI Start command is accepted only when all of these are true:\n\n- No active trips, and all pull-cord switches are reset (healthy).\n- All misalignment trip switches are healthy and all plugged-chute switches are clear.\n- CR-1 lube oil pressure is proven (see 4.3 if the pump is on a separate starter).\n- All drives are available (no starter fault or lockout, selected to Auto).\n- The audible/visual warning device is healthy.\n- The line is in the stopped state. No stop sequence is in progress.\n\nAny trip or missing permissive blocks the start and the HMI shows the reason.\n\n## 4. Normal start sequence\n\n### 4.1 Warning\n\nOn Start, the horn and beacon run for **10 s**. No conveyor, crusher, or feeder moves during this time.\n\n- If a permissive is lost or the operator cancels during the warning, the sequence aborts and nothing starts.\n- The warning is repeated in full on every start or restart, including after a trip.\n\n### 4.2 Sequence\n\nEach step starts only when the previous step is proven running. A step that fails proving trips the sequence (Section 6).\n\n| Step | Action | Proven when |\n|---|---|---|\n| 1 | Start **CV-3** | ZSS shows motion within 10 s |\n| 2 | Start **CR-1** | LPS healthy and current falls below the idle threshold (4.3) |\n| 3 | Start **CV-2** | ZSS shows motion within 10 s |\n| 4 | Start **CV-1** | ZSS shows motion within 10 s |\n| 5 | Start **VF-1** | Feeder running. The line is now \"Running\" |\n\nA short step delay (about 5 s) separates steps to limit simultaneous inrush.\n\n### 4.3 Crusher start specifics\n\n- **Lube oil.** Pressure must be proven before the start command. If the pump starts with CR-1, start the pump first and allow up to 30 s for pressure to build. Pressure not proven in that time means a start failure and no crusher start.\n- **Current during start.** CT readings are ignored during inrush (first 15 s).\n- **Run-up proving.** Current must fall below about 70% of FLC (about 147 A, set from the measured no-load current) within 30 s. Otherwise CR-1 trips as a failed start, because it is jammed or loaded.\n- **Starting with material in the chamber.** Never start CR-1 with material in the chamber unless there is no alternative (see Section 7).\n\n## 5. Normal stop sequence (controlled run-out)\n\nA Stop command from the HMI starts a staged shutdown in flow order. This clears material from each machine before it stops.\n\n| Step | Action | Timer before the next step |\n|---|---|---|\n| 1 | Stop **VF-1** immediately | CV-1 run-out time |\n| 2 | Stop **CV-1** | CV-2 run-out time |\n| 3 | Stop **CV-2** | Crusher clearing time (about 30 s) |\n| 4 | Stop **CR-1** | CV-3 run-out time |\n| 5 | Stop **CV-3** | Line \"Stopped\" |\n\n- Run-out timers are set per conveyor from the typical 20-45 s range. Measure them at commissioning with a loaded belt and add a margin of about 10%.\n- Overall stop time is about 2.5-3.5 min.\n- **Warning on stop.** The 10 s warning is not required for stopping.\n- **Faults during run-out.** A pull-cord, trip-stage misalignment, or plugged-chute fault during run-out stops the affected equipment and everything upstream immediately. Remaining downstream equipment continues its timed run-out.\n- **Abort.** Pressing Stop does not abort a restart that has already begun its warning. Stop cancels the start sequence and returns to the stopped state.\n\n## 6. Protection and trip actions\n\n### 6.1 Per-conveyor protections (CV-1, CV-2, CV-3)\n\n| Protection | Condition | Action |\n|---|---|---|\n| **Zero-speed switch** | No motion proven within 10 s of start, or speed lost for more than 5 s while running (slip, broken drive, jam) | Trip. Stop the conveyor and everything upstream immediately |\n| **Misalignment, alarm stage** | Switch operated for more than 3 s | HMI alarm only, no stop. Flag for operator attention |\n| **Misalignment, trip stage** | Switch operated for more than 3 s | Trip. Stop the conveyor and everything upstream immediately |\n| **Pull-cord** | Any cord operated | Hardwired stop of that conveyor and everything upstream. Latched until the cord is reset locally. Reset is then acknowledged at the HMI |\n| **Plugged chute** | Switch active for more than 3 s at the conveyor's discharge | Trip. Stop the conveyor and everything upstream immediately |\n\nThe 3 s delays on misalignment and plugged-chute switches reject momentary surges. The pull-cord stop is instantaneous and never delayed.\n\n### 6.2 Crusher protections (CR-1)\n\n| Protection | Condition | Action |\n|---|---|---|\n| **High current, alarm** | Above 105% FLC (about 220 A) for 10 s | HMI alarm, no stop |\n| **High current, feed cutback** | Above 110% FLC (about 231 A) for 10 s | Stop VF-1 until current recovers below 100%, to relieve the crusher. Optional if the chamber is clearing |\n| **High current, trip** | Above 120% FLC (about 252 A) for 10 s | Trip. Stop CV-2, CV-1 and VF-1 immediately. CR-1 stops. CV-3 runs out |\n| **Failed run-up** | Current above idle threshold 30 s after start | Trip as above |\n| **Lube oil pressure low** | LPS not healthy for more than 5 s while running (inrush/start bypass 30 s) | Trip as above, and block restart until pressure is restored |\n| **CT signal fault** | Below 3.5 mA | Trip as above |\n\nInstantaneous short-circuit and thermal overload protection stay in the motor starter or protection relay, independent of this logic.\n\n### 6.3 Where plugged-chute trips land\n\n| Switch location | Meaning | Trips |\n|---|---|---|\n| CV-1 discharge | CV-1 backed up at CV-2 | CV-1, VF-1 |\n| CV-2 discharge | Crusher feed chute blocked | CV-2, CV-1, VF-1 |\n| CV-3 discharge | Stockpile or chute full | CV-3, CR-1, CV-2, CV-1, VF-1 |\n\n### 6.4 Trip response summary\n\n| Fault origin | Stops immediately | Controlled run-out |\n|---|---|---|\n| CV-1 | VF-1, CV-1 | CV-2, CR-1, CV-3 |\n| CV-2 | VF-1, CV-1, CV-2 | CR-1, CV-3 |\n| CR-1 | VF-1, CV-1, CV-2, CR-1 | CV-3 |\n| CV-3 | Entire line | None |\n\nThe run-out sequence uses the same timers as a normal stop, started from the moment of the trip.\n\n## 7. Restart after a trip\n\n1. Make the area safe, find the cause, and clear it. This includes clearing blocked chutes, resetting pull-cords locally, and realigning belts.\n2. Acknowledge the alarm at the HMI. The trip resets only if the initiating condition has cleared.\n3. Check that CR-1 and the belts are clear before restarting. If the line tripped while loaded, the crusher chamber and belts may need to be cleared manually. Restarting a jaw crusher full of material risks a failed run-up.\n4. Restart as a full start sequence from Section 4, including the 10 s warning.\n\n## 8. Items to confirm\n\n- Whether pull-cords should stop only the affected conveyor plus upstream (as written) or the whole line. This depends on the site risk assessment.\n- Whether a lube pump has its own starter and what its pressure build time is.\n- Whether the site has E-stops, local isolators, or any HMI-loss behaviour (the line should trip, or run out in a controlled way, on PLC or HMI comms failure).\n- Measured run-out times, crusher idle current, and current setpoints.\n- Whether the warning must also pulse between start steps, since steps are about 5 s apart."
+}

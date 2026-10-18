@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E6-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E6",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 33327.2,
+  "duration_ms": 32399,
+  "duration_api_ms": 32159,
+  "cost_usd": 0.043451,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 642,
+   "cache_read_input_tokens": 2190,
+   "output_tokens": 4066,
+   "output_tokens_details": {
+    "thinking_tokens": 689
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 642,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4066,
+     "cache_read_input_tokens": 2190,
+     "cache_creation_input_tokens": 642,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 642
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:42:56.494599+00:00",
+   "end": "2026-10-18T04:43:29.821778+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.043451,
+  "charged_usd": 0.043451,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Aggregate Conveying Line: Start/Stop and Protection Narrative\n\nEquipment, in flow order: VF-1 (hopper feeder), CV-1, CV-2, CR-1 (jaw crusher), CV-3 (to stockpile).\n\nAll timers and setpoints below are proposed starting values. They are marked *(adj.)* and must be confirmed at commissioning. Where I made a design choice that your site standard may decide differently, I flag it as **[Confirm]**.\n\n## 1. Control Modes and Permissives\n\nThe line is started only from the control room HMI. There are no local starts in automatic operation. If local or maintenance control exists, it is outside this narrative.\n\n**Line Start Permissive** (all must be true, shown on the HMI as a permissive list):\n- No active trip or unreset latched fault on any device.\n- All pull-cord switches healthy (not pulled).\n- All belt misalignment trip switches clear.\n- All plugged-chute switches clear.\n- CR-1 lube oil pressure OK (see 3.2 for how this is handled at start).\n- CR-1 motor current CT healthy, with no signal-fault or out-of-range condition.\n- All motor starters are available (no overload or breaker trip, selected for remote).\n- No device is still in a stop run-out sequence.\n\n## 2. Start Sequence\n\nThe line starts in reverse of material flow, from discharge to feed. This way no device ever discharges onto a stopped one.\n\n1. **Operator issues Line Start on the HMI.** The permissive is checked. If it is not satisfied, the start is refused and the blocking items are displayed.\n2. **Pre-start warning.** The horn and beacon run for 10 s *(site rule; fixed, not adjustable from the HMI)*. Nothing moves during this time. If any trip or permissive loss occurs during the warning, or the operator cancels, the warning stops and the start aborts.\n3. **CV-3 starts.** Proven running when its zero-speed switch shows motion within the start-proving time *(adj. 10 s)*.\n4. **CR-1 starts**, after CV-3 is proven. It is proven running when motor current falls below the start-inrush limit and settles to a no-load level, and lube oil pressure is established within *(adj. 10 s)*.\n5. **CV-2 starts**, after CR-1 is proven, then is proven by its zero-speed switch.\n6. **CV-1 starts**, after CV-2 is proven, then is proven by its zero-speed switch.\n7. **VF-1 starts**, after CV-1 is proven. The feeder ramps to the HMI setpoint speed, with its start inhibited if CR-1 is overloaded (see 3.2).\n8. **Line Running** is indicated when all five devices are proven.\n\nIntervals between starts are *(adj. 3-5 s)*, so that each device is up to speed before the next starts. The 10 s warning is given once, before the first conveyor moves. It does not repeat between steps. **[Confirm]** this is acceptable under the site rule, which says \"before any conveyor moves\". If the site wants a separate warning per conveyor, add it.\n\nIf any device fails to prove within its time, the start aborts. Devices already started are stopped in the normal order for a stop (section 4), with the fault annunciated.\n\n## 3. Protection Functions\n\n### 3.1 Conveyor protection (CV-1, CV-2, CV-3)\n\n| Device | Alarm | Trip |\n|---|---|---|\n| Zero-speed switch | None | Trip if no motion is detected after the start-proving time, or if motion is lost while the drive is commanded to run, after a confirmation delay *(adj. 5 s)*. |\n| Belt misalignment, stage 1 | Alarm after a delay *(adj. 5 s, to filter momentary sway)*. | Does not trip. |\n| Belt misalignment, stage 2 | Not applicable. | Trip after a short delay *(adj. 2 s)*. |\n| Pull-cord switches | Not applicable. | Immediate trip, latched. The pulled location is identified on the HMI. A local reset at the cord is required, then an HMI reset. |\n| Plugged-chute switch (at discharge) | Not applicable. | Trip after a delay *(adj. 3 s)* to filter material surges. |\n\nThe zero-speed switch is bypassed (masked) only during the start-proving window for that conveyor, never when running.\n\n### 3.2 Crusher protection (CR-1)\n\n**Lube oil pressure switch:**\n- It is masked only for the start-proving time *(adj. 10 s)*. If pressure is not established by then, CR-1 does not run and the start aborts.\n- It is checked continuously once running. Low pressure causes a trip after a short delay *(adj. 3 s)*.\n\n**Motor current (full load 210 A).** These are proposed values, to be adjusted against the motor data and crusher OEM guidance:\n\n| Condition | Setpoint | Delay | Action |\n|---|---|---|---|\n| High current alarm | 105% FLA (\u2248 220 A) | 10 s *(adj.)* | Alarm. Feeder VF-1 is reduced to a minimum speed (load control). |\n| Overload trip | 120% FLA (\u2248 250 A) | 5 s *(adj.)* | Trip CR-1. |\n| Start inrush window | Ignored | Start-proving time only | Not applicable. |\n| Low current alarm | 25% FLA, with feed running | 30 s *(adj.)* | Alarm only (empty crusher, bridging or no feed). |\n\nThe motor's own overload relay or protection device remains the primary electrical protection. The CT logic above is process protection and does not replace it.\n\n## 4. Stop Sequences\n\n### 4.1 Normal (controlled) stop\n\nTriggered by the operator from the HMI. The line stops in the direction of material flow, from feed to discharge, so every belt and the crusher are emptied before they stop.\n\n1. **VF-1 stops immediately.**\n2. **CV-1 stops** after its run-out timer *(adj. 20-45 s, set per conveyor from measured empty time)*.\n3. **CV-2 stops** after CV-1 has stopped, plus its own run-out timer *(adj. 20-45 s)*.\n4. **CR-1 stops** after CV-2 has stopped, plus a crusher clear-out time *(adj. 30 s)*, or sooner if motor current has fallen to the no-load level and held for *(adj. 10 s)*.\n5. **CV-3 stops** after CR-1 has stopped, plus its run-out timer *(adj. 20-45 s)*.\n\nThe run-out timer for each device starts when the upstream device stops. The timers are individual and independent, because belt lengths differ. A run-out cancel (operator \"stop now\") can be offered on the HMI, with a confirmation prompt, since it leaves loaded belts and a loaded crusher.\n\n### 4.2 Trip stop\n\nOn any trip, **the tripped device and everything upstream of it stop immediately** and simultaneously, so no more material is delivered onto a faulted section. Devices downstream of the fault continue to run and clear out using their normal run-out timers, provided they are not themselves faulted.\n\n| Tripped device | Stops immediately | Continues to run out |\n|---|---|---|\n| CV-3 (any trip) | VF-1, CV-1, CV-2, CR-1, CV-3 | None |\n| CR-1 | VF-1, CV-1, CV-2, CR-1 | CV-3 (run-out timer) |\n| CV-2 | VF-1, CV-1, CV-2 | CR-1 (clear-out time), then CV-3 |\n| CV-1 | VF-1, CV-1 | CV-2, then CR-1, then CV-3 |\n| VF-1 | VF-1 | All others (normal sequence) |\n\nTwo exceptions apply:\n- **Pull-cord operation** stops the whole line immediately, including downstream devices, because a person may be at risk. **[Confirm]** against your site standard and risk assessment. If it is a safety function, it should be hardwired or SIL-rated and independent of the PLC, which this narrative does not cover.\n- **CR-1 lube oil pressure trip** stops CR-1 and everything upstream immediately, as above. CV-3 clears any crushed product.\n\n### 4.3 Restart after a trip\n\n- A trip is latched. The cause must be cleared, then reset from the HMI. A pull-cord trip also needs a local reset.\n- A restart is a full Line Start (section 2), including the 10 s warning. There is no automatic restart.\n- If a trip occurred with a loaded belt or crusher, the HMI shows a \"loaded start\" caution. A jaw crusher with a full chamber may need manual clearing. **[Confirm]** whether the site allows restart under load or requires material to be cleared first.\n\n## 5. Alarms and Annunciation\n\n- All alarms are time-stamped and first-out captured, so the initiating trip is distinguished from the consequential stops.\n- The HMI shows, per device: state (stopped, starting, running, run-out, tripped), the active trip or alarm, and the proving status.\n- Pull-cord trips show the cord zone, if the cords are zoned.\n- Bypasses (for example the start masks) are time-limited and logged. Any manual bypass of a protection input needs a supervisor-level login and shows a persistent HMI indication.\n\n## 6. Open Items to Confirm\n\n1. Whether a single 10 s warning per line start meets the site rule, or each conveyor needs its own.\n2. Whether pull-cords stop the whole line (as proposed) or only that conveyor and its upstream.\n3. Whether pull-cord and emergency stop functions are hardwired or SIL-rated, which needs a risk assessment.\n4. Measured run-out times per conveyor, and the crusher clear-out time.\n5. CR-1 current setpoints against the OEM data, and whether a crusher restart under load is allowed.\n6. Zone numbering for pull-cord switches and the misalignment switch positions, for the alarm text."
+}

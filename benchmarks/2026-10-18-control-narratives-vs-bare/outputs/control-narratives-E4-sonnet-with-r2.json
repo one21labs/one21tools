@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E4-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E4",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 42411.7,
+  "duration_ms": 41507,
+  "duration_api_ms": 41288,
+  "cost_usd": 0.05774739999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4534,
+   "output_tokens": 5729,
+   "output_tokens_details": {
+    "thinking_tokens": 1222
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5729,
+     "cache_read_input_tokens": 4534,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:41:50.664847+00:00",
+   "end": "2026-10-18T04:42:33.076600+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.05774739999999999,
+  "charged_usd": 0.05774739999999999,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# R-501 Monomer Feed Phase: Control Narrative (Draft A)\n\nScope: ISA-88 phase `R501_MONOMER_FEED`, running on equipment module R-501. Numbers appear only in the parameter list (section 2.2). The prose refers to list items by ID.\n\n## 1. Purpose and boundaries\n\n| Item | Content |\n|---|---|\n| Function | Feed monomer to R-501 at the recipe rate until the recipe quantity is delivered. Hold temperature at the recipe setpoint. Stop feed if the reaction does not consume the monomer. |\n| Upstream | Monomer supply (tag TBD) and the preceding recipe phase (initial charge and initiation, TBD). |\n| Downstream | The next recipe phase (hold/cook), started on phase Complete. |\n| Out of scope | SIS trip function (see SRS), alarm text and priorities (see alarm database), tuning values. |\n\n## 2. Equipment and parameters\n\n### 2.1 Tags (instrument index is the source)\n\n| Tag | Role in phase |\n|---|---|\n| FIC-510 | Monomer feed flow control. Output valve tag TBD. |\n| FQ-510 (assumed) | Feed totalizer. Confirm it exists. |\n| TIC-505 | Reaction temperature (master) |\n| TIC-506 | Jacket temperature (slave) |\n| TV-506A / TV-506B | Cooling water / steam, split range |\n| A-501 / SI-501 | Agitator / speed sensor |\n\n### 2.2 Parameter list (single source for numbers)\n\n| ID | Parameter | Value | Source |\n|---|---|---|---|\n| SL-01 | Feed rate (FIC-510 SP) | Recipe; typical 1.2 m\u00b3/h | Recipe |\n| SL-02 | Feed quantity | Recipe | Recipe |\n| SL-03 | Expected feed duration | About 4 h | Recipe, informational |\n| SL-04 | TIC-505 SP | 80 \u00b0C | Recipe |\n| SL-05 | Reaction high alarm | 88 \u00b0C | Alarm database |\n| SL-06 | SIS high trip | 95 \u00b0C | SRS (reference only) |\n| SL-07 | Minimum agitator speed | TBD | Process |\n| SL-08 | Maximum allowed accumulation | TBD | Hazard review |\n| SL-09 | Temperature deviation limit for feed permissive | TBD | Process |\n| SL-10 | Initiation confirmation criterion and rate | TBD | Process |\n| SL-11 | Feed ramp time | TBD | Process |\n| SL-12 | Step timeouts (T1 to T4) | TBD | Process |\n| SL-13 | Bad-PV and comms-loss debounce times | TBD | Controls |\n\n## 3. States and transitions\n\nAutomation level: all transitions are automatic unless the table shows operator action.\n\n| State | Entry permissives | Behavior | Allowed exits | Initiator |\n|---|---|---|---|---|\n| Idle | None | All phase outputs are off. | Running | Recipe or operator |\n| Running | See FR-R501-001 | Feed and temperature control per section 5. | Holding, Stopping, Aborting, Complete | Auto or operator |\n| Holding | None | FV-510 closes. Temperature control and A-501 continue. | Held, Aborting | Auto (fault) or operator |\n| Held | None | Same as Holding. The phase waits. | Restarting, Stopping, Aborting | Operator |\n| Restarting | Hold cause cleared, restart checks (FR-R501-012) | Re-verify conditions, then re-enter Running at the remaining quantity. | Running, Holding, Aborting | Operator |\n| Stopping | None | FV-510 closes. Temperature control and A-501 continue. | Stopped | Operator |\n| Stopped | None | Remaining quantity is kept. | Idle (after reset) | Operator |\n| Aborting | None | FV-510 closes immediately. Cooling and agitation continue. | Aborted | Operator or auto |\n| Aborted | None | Safe outputs held. | Idle (after reset) | Operator |\n| Complete | Quantity reached (FQ-510 against SL-02) | Feed is closed. | Idle | Auto |\n\n## 4. Requirements\n\n| ID | Requirement | Test method (FAT) |\n|---|---|---|\n| FR-R501-001 | The phase shall start only if SI-501 is above SL-07, TIC-505 is in cascade, and TIC-505 is within SL-09 of SL-04. | Simulate each condition false. Confirm the start is refused. |\n| FR-R501-002 | In Running, FIC-510 shall control feed flow to SL-01, ramped over SL-11. | Start the phase. Confirm the ramp and the final SP. |\n| FR-R501-003 | The phase shall go to Complete when the FQ-510 total reaches SL-02. FV-510 shall close. | Simulate the total. Confirm the transition. |\n| FR-R501-004 | During feed, TIC-505 shall hold SL-04 by cascade to TIC-506 and split range of TV-506A/B. | Step the PV. Confirm the cascade and the split-range response. |\n| FR-R501-005 | The phase shall confirm initiation (SL-10) before it raises feed above the initial rate. If initiation is not confirmed within T1, the phase shall go to Holding. | Simulate no exotherm. Confirm the hold at T1. |\n| FR-R501-006 | The phase shall calculate monomer accumulation continuously. Method is an open item (OI-01). | Simulate low consumption. Confirm Holding at SL-08. |\n| FR-R501-007 | If accumulation exceeds SL-08, the phase shall go to Holding. FV-510 shall close. | As FR-R501-006 |\n| FR-R501-008 | If SI-501 falls below SL-07, the phase shall go to Holding. | Simulate low speed. Confirm Holding. |\n| FR-R501-009 | In Holding, Held, Stopping, Aborting, and Aborted, FV-510 shall be closed and TIC-505 shall stay in control. A-501 shall stay on. | Command each state. Confirm the outputs. |\n| FR-R501-010 | A bad TIC-505 or FIC-510 PV (after SL-13) shall cause Holding. | Force bad quality. Confirm Holding. |\n| FR-R501-011 | A bad TIC-506 PV shall cause Holding. The phase shall tell the operator to take manual cooling control. | Force bad quality. Confirm Holding and the prompt. |\n| FR-R501-012 | Restart shall re-check FR-R501-001, FR-R501-005, and FR-R501-006 before feed resumes. Restart shall use the remaining quantity (SL-02 minus FQ-510). | Hold, clear the cause, restart. Confirm the checks and the quantity. |\n| FR-R501-013 | After controller power loss or restart, the phase shall not resume feed automatically. It shall go to Aborted or Held (OI-03). | Cycle power. Confirm FV-510 stays closed. |\n| FR-R501-014 | Loss of communication between controller and I/O or HMI shall be handled per the abnormal-handling table (section 7). | Simulate the loss. Confirm the response. |\n| FR-R501-015 | The phase shall not depend on, and shall not override, the SIS trip (SL-06). The SIS function is in the SRS. | Review against the SRS. |\n\nInterlocks and permissives: see the cause-and-effect chart for R-501. Alarms: see the alarm database. The reaction high alarm (SL-05) is defined there.\n\n## 5. Regulatory control\n\n| Loop | PV | Output | Action | Mode behavior | Cascade/override |\n|---|---|---|---|---|---|\n| FIC-510 | Feed flow | FV-510 | Reverse | Auto in Running. Output forced closed in all non-Running states. | Setpoint from recipe through the ramp |\n| TIC-505 | Reaction temperature | TIC-506 SP | Reverse | Cascade in Running | Master of TIC-506 |\n| TIC-506 | Jacket temperature | Split range to TV-506A/B | Reverse | Cascade, with manual fallback | Slave of TIC-505. Confirm anti-windup on feed stop. |\n\nSplit range: TV-506A (cooling water) and TV-506B (steam) share one output. The range split goes in the software design spec.\n\n## 6. Sequence (Running)\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Check start permissives. | FR-R501-001 true | T1 | Phase does not start. Prompt the operator. |\n| 2 | Put TIC-505 in cascade if it is not. | TIC-505 in cascade | T2 | Holding |\n| 3 | Open FV-510 and ramp FIC-510 to the initial feed rate. | Flow stable | T3 | Holding |\n| 4 | Confirm initiation (SL-10). | Exotherm detected | T1 | Holding. Do not increase feed. |\n| 5 | Ramp FIC-510 to SL-01. Monitor accumulation. | SL-01 reached | T4 | Holding |\n| 6 | Feed until FQ-510 reaches SL-02. | Quantity reached | None. Run time is limited by the accumulation check. | Not applicable |\n| 7 | Close FV-510 and set FIC-510 to manual with zero output. | FV-510 closed | T3 | Alert operator. Go to Holding. |\n| 8 | Report Complete. | None | None | Not applicable |\n\nConfirm whether the initial feed rate and T1 belong to the recipe or the phase (OI-02).\n\n## 7. Abnormal handling\n\n| Condition | Phase response | Operator action |\n|---|---|---|\n| Bad TIC-505 or FIC-510 PV | Holding (FR-R501-010) | Fix the instrument. Restart. |\n| Bad TIC-506 PV | Holding (FR-R501-011) | Control cooling manually. |\n| Agitator speed low | Holding (FR-R501-008) | Restore A-501. Restart. |\n| Controller to I/O comms loss | Outputs go to the configured fail state (OI-04). FV-510 shall close. | Check the network. |\n| HMI comms loss | The phase continues. The operator cannot act. Hold on timeout (OI-04). | Restore the HMI. |\n| Power loss and restart | No auto resume (FR-R501-013) | Check the batch status. Decide on restart or abort. |\n| Fail positions | FV-510 fail closed. TV-506A fail open. TV-506B fail closed. These are assumptions. | Confirm in OI-05. |\n\nIf the temperature rises, the alarm at SL-05 alerts the operator. The SIS acts at SL-06. The phase makes no trip decision.\n\n## 8. Operator interface\n\n- Faceplate displays phase state, feed rate, FQ-510 total, remaining quantity, TIC-505, TIC-506, SI-501, and the accumulation value with its limit.\n- Operator commands: Start, Hold, Restart, Stop, Abort, Reset.\n- The phase prompts for the cause of a hold, for manual cooling control, and for restart after a hold. Operations must sign off on states and prompts.\n\n## 9. Open items\n\n| ID | Item | Owner | Date |\n|---|---|---|---|\n| OI-01 | Choose the accumulation calculation (for example a heat balance from jacket duty against fed monomer, or a temperature response check). Set SL-08. Confirm that jacket flow and inlet/outlet temperature instruments exist. | Process and hazard review lead | TBD at review |\n| OI-02 | Decide which parameters belong to the recipe and which to the phase. | Process | TBD |\n| OI-03 | Choose Aborted or Held after power restart. | Operations and controls | TBD |\n| OI-04 | Define comms-loss fail states and timeouts. | Controls | TBD |\n| OI-05 | Confirm valve fail positions and the FV-510 tag. | Instrument engineer | TBD |\n| OI-06 | Confirm which hazard-review items need SIS coverage. Examples: loss of agitation, or accumulation as a safety function. | Hazard review lead | TBD |\n| OI-07 | Fill the TBD values in the parameter list. | Process | TBD |\n\nOI-06 matters because accumulation limiting is a hazard-review requirement. If the review assigns a risk reduction to it, an SIS function is needed, and a BPCS phase check alone is not enough. That function belongs in the SRS.\n\n## 10. Check status\n\n- Numbers are in the parameter list only. The prose uses IDs.\n- Every requirement has an ID and a test method.\n- Every sequence step has a timeout and failure response. The timeout values are TBD.\n- Not yet done: the STE editing pass, and the owner dates in the open items.\n- The values marked TBD, the assumed FQ-510 totalizer, and the assumed fail positions need your input before the draft is issued for review."
+}

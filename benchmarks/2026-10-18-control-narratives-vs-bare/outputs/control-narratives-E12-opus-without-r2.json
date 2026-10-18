@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E12-opus-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E12",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31759.0,
+  "duration_ms": 31128,
+  "duration_api_ms": 30893,
+  "cost_usd": 0.055474,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2930,
+   "output_tokens": 2744,
+   "output_tokens_details": {
+    "thinking_tokens": 1171
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2744,
+     "cache_read_input_tokens": 2930,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:36:08.154871+00:00",
+   "end": "2026-10-18T04:36:39.913939+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.055474,
+  "charged_usd": 0.055474,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# C-401 Debutanizer Narrative Review: Not Ready to Issue\n\nThere are two blocking errors and several gaps that a configuration engineer cannot implement as written.\n\n## Blocking issues\n\n**1. TIC-405 action contradicts itself, and the description is the wrong direction.**\n- The narrative says \"reverse acting\" and then describes direct action (\"tray temperature rises \u2192 output increases steam\").\n- The process needs reverse action. A rising tray temperature means the column is stripping too hard, so steam should decrease.\n- If it is configured as written, the loop is positive feedback. Rising temperature adds steam, which raises temperature further. That drives the reboiler to maximum steam and sends heavies overhead.\n- **Fix:** \"TIC-405 is reverse acting: on rising tray temperature, TIC-405 output decreases the FIC-420 setpoint.\"\n\n**2. TIC-405 tuning conflicts with the issued tuning sheet.**\n- The narrative gives Kc = 0.8, Ti = 12 min. Last month's tuning sheet gives Kc = 1.2, Ti = 8 min.\n- I can't tell which is current. Two possibilities:\n  - The narrative was drafted from older values.\n  - The sheet reflects field retuning that was never carried back into the narrative.\n- Confirm with whoever owns the tuning sheet.\n- Better: remove tuning from the narrative and reference the controlled tuning sheet, so the two can't drift apart again.\n- Also state the units. Is Kc dimensionless (%/%) or a proportional band? Is Ti in min/repeat or repeats/min? A units mix-up here is as damaging as the value conflict.\n\n## Must clarify before configuration\n\n**3. TT-405 failure response is not configurable as written.**\n\"Hold approximately its last output\" is not a DCS specification. Define:\n- **Bad-PV detection:** out of range, or NAMUR NE43 limits, plus any rate-of-change check.\n- **Action:** TIC-405 sheds to Manual with output frozen at its last good value. \"Approximately\" should be removed.\n- **Effect on FIC-420:** does it stay in Cascade holding the frozen setpoint, or shed to Auto at its current setpoint?\n- **Alarm:** priority, and the operator response.\n- **Recovery:** no automatic return to Auto. The operator restores the loop, with a bumpless transfer.\n- **Process safety:** confirm with process engineering that holding last steam is the safe action, compared with a defined fallback steam rate.\n\n**4. FIC-420 in Manual: cascade handling is undefined.**\nWhen FIC-420 leaves Cascade, TIC-405 needs:\n- Output tracking (initialize to the FIC-420 setpoint or PV), so it doesn't wind up.\n- Bumpless return to Cascade.\n- Window-limit or anti-windup behavior when FIC-420 is at its limits.\n\nAlso consider whether \"Auto\" (local setpoint) is a better upset mode than Manual. It keeps flow regulation and loses only the temperature correction.\n\n**5. Steam setpoint limits.**\nSpecify high and low clamps on the TIC-405 output and the FIC-420 setpoint. Examples are minimum steam to keep the reboiler wetted and a maximum set by the flooding or hydraulic limit.\n\n**6. PIC-430 action and valve failure position.**\nHot vapor bypass is counterintuitive: opening PV-430 *raises* pressure. State all three of these explicitly:\n- The controller action.\n- The valve fail position (FO or FC).\n- Whether the fail position is safe for overpressure.\n\nConfigurators frequently get this loop backwards.\n\n**7. Actions for the other loops.**\nState the controller action and valve fail position for LIC-402, LIC-411, and FIC-412.\n\n**8. Tray numbering convention.**\nState whether trays are numbered from the top or the bottom. Tray 5 is in a completely different section of the column depending on the convention. Confirm that it matches the intended sensitive tray (typically the stripping section for bottoms RVP or C4 control).\n\n## Acceptable as written, but worth noting\n- The scheme of reflux on drum level, fixed distillate, and boilup on temperature is valid.\n- With distillate fixed, however, all feed-rate changes pass to the bottoms. Operators must adjust FIC-412 manually on feed changes, or overhead C3/C4 recovery will drift. Consider stating this in the narrative, or adding a feed-ratio option for FIC-412.\n\n**Recommendation:** Return the narrative to the author for items 1 and 2 at minimum. Items 3\u20138 should be resolved before the configuration freeze."
+}

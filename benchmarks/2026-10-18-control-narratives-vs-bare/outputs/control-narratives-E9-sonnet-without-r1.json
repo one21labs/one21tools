@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E9-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 28298.0,
+  "duration_ms": 27694,
+  "duration_api_ms": 27485,
+  "cost_usd": 0.03705099999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 747,
+   "cache_read_input_tokens": 2190,
+   "output_tokens": 3384,
+   "output_tokens_details": {
+    "thinking_tokens": 1060
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 747,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3384,
+     "cache_read_input_tokens": 2190,
+     "cache_creation_input_tokens": 747,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 747
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:44:46.175314+00:00",
+   "end": "2026-10-18T04:45:14.473301+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.03705099999999999,
+  "charged_usd": 0.03705099999999999,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review of FDS 7.2 CIP Sequence\n\n## What is wrong\n\n1. **The step end conditions are untestable.** \"Run until clean\", \"to temperature\" and \"5 minutes to drain\" have no setpoint, instrument or tolerance. The skid has CT-501 and TT-501 precisely to make these steps measurable.\n2. **Caustic wash (Step 2).**\n   - No temperature setpoint is given, and the 20 min timer has no start condition. It must start only when TT-501 (return) reaches setpoint, not when the pump starts.\n   - No concentration check or dosing is defined (CT-501 can verify it).\n   - No tank temperature instrument is named, so one must be added or identified.\n3. **Acid wash (Step 4).** 65 \u00b0C has no tolerance and no measuring point. The timer start, concentration check and acid tank heating are not defined.\n4. **Intermediate rinse (Step 3).** A time-only rinse risks caustic carryover into the acid. It should end on a CT-501 criterion, with a minimum time.\n5. **Final rinse (Step 5).** \"Until clean\" is not a criterion. It needs a CT-501 limit, a minimum time and a stable-reading hold time. The FDS should also say whether the rinse goes to drain or recirculates.\n6. **Return pump failure.** \"The operator should check\" is not a control philosophy. An FDS must define the interlock, alarm, hold or abort behavior, and restart rules. P-501 and P-502 must also be interlocked, because a stopped P-502 with a running P-501 floods the return line or circuit.\n7. **Circuit selection.** \"Any circuit selected on the HMI\" has no permissives at all. This is the most serious gap. S-1 and HTST-1 are product-contact equipment, and the document does not say:\n   - that the circuit must be out of production, empty and product-free;\n   - that only one circuit runs at a time, since there is one skid;\n   - that selection is locked once the sequence starts;\n   - that mix-proof valve positions are proven and the leakage chambers are clear before and during CIP.\n8. **Missing content.**\n   - Circuit-specific parameters (flow, time, temperature) are not defined. S-1 and HTST-1 will differ.\n   - No minimum FT-501 flow is given to ensure turbulent cleaning velocity, and no low-flow alarm.\n   - Chemical routing is unspecified: recovery to tank versus drain, and phase cut by CT-501.\n   - Tank level and chemical availability permissives are absent.\n   - Completion, abort and state-after-failure behavior is not described, nor is CIP record keeping.\n   - \"Open the rinse tank valve\" is vague. Valve tags should be used and P-502 start should be stated.\n\n## Proposed replacement\n\nValues in [brackets] are placeholders to be confirmed with the process and sanitation requirements. They are not design values.\n\n---\n**7.2 CIP Sequence**\n\n**7.2.1 Start permissives**\nThe sequence can start only if all of the following are true:\n- Exactly one circuit (S-1 or HTST-1) is selected on the HMI by an authorized user.\n- The selected circuit is not in production, is empty, and has been flagged as product-free.\n- The route valves for the selected circuit are in position (confirmed by feedback). All other circuits are isolated by mix-proof valves, with no leak-chamber alarm.\n- Rinse tank level is above [x]%. Caustic and acid tank levels are above [x]%.\n- No active CIP, interlock or emergency-stop alarm exists.\n\nCircuit selection is locked while the sequence is running. Changing circuits requires an abort and restart.\n\n**7.2.2 Common conditions**\n- P-502 starts before P-501 and stays running throughout. P-501 runs only while P-502 is running.\n- FT-501 must be at least [x m\u00b3/h] (circuit-specific) within [x s] of P-501 start, or a low-flow alarm is raised.\n- All timers run only while their step conditions (flow, temperature) are satisfied, and they reset if the conditions are lost for more than [x s].\n- Parameters (flow, times, setpoints) are held per circuit in a recipe table (see Table 7.2-1: S-1, HTST-1).\n\n**7.2.3 Steps**\n\n| Step | Action | End condition |\n|---|---|---|\n| 1 Pre-rinse | Rinse water to drain via [valve tags]. | Minimum [5] min **and** CT-501 below [x \u00b5S/cm] (or stable) |\n| 2 Caustic wash | Recirculate caustic at [x]% concentration. Caustic tank held at [x] \u00b0C. | TT-501 \u2265 [x] \u00b0C **and** CT-501 within the concentration band. Hold for [20] min from when both are met. Return to caustic tank. |\n| 3 Intermediate rinse | Rinse water to drain. | Minimum [5] min **and** CT-501 below [x \u00b5S/cm] |\n| 4 Acid wash | Recirculate acid at [x]% concentration. | TT-501 \u2265 [65 \u00b1x] \u00b0C **and** CT-501 within band. Hold for [15] min from when both are met. |\n| 5 Final rinse | Rinse water to drain. | Minimum [x] min **and** CT-501 \u2264 [x \u00b5S/cm] (or within [x] of supply water) stable for [x] s |\n\nChemical-to-rinse transitions use CT-501 to divert the return stream (chemical recovery vs. drain).\n\n**7.2.4 Fault handling**\n- **P-502 stops or trips:** P-501 stops immediately. The sequence goes to HOLD and raises an alarm, with the step timer frozen. An operator-acknowledged restart resumes the step. If the fault is not cleared in [x min], the sequence aborts.\n- **FT-501 low flow** for more than [x s]: alarm and HOLD. After [x min] it aborts.\n- **TT-501 below setpoint** during the caustic or acid hold: the timer pauses. After [x min] below setpoint, an alarm is raised.\n- **Tank level low** or **mix-proof leak alarm:** abort and put valves in a safe state.\n- **On abort:** pumps stop, the circuit is flagged \"not clean\", and production start on that circuit is blocked until a CIP completes successfully or an authorized override is used.\n\n**7.2.5 Completion and records**\nOn completion the circuit is flagged \"clean\". The CIP record (circuit, start and end times, time and peak values for FT-501, TT-501 and CT-501 per step, alarms) is logged.\n\n---\n\n## Open questions I could not resolve from the text\n- Are caustic and acid recovered or sent to drain, and is there a heat or sanitize step for HTST-1?\n- What instruments measure tank temperature and chemical concentration?\n- Does HTST-1 need a different sequence (e.g. balance tank, flow diversion valve) from S-1?"
+}

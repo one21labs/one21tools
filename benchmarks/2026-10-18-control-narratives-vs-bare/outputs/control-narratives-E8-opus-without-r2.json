@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E8-opus-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E8",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 55208.3,
+  "duration_ms": 53881,
+  "duration_api_ms": 53566,
+  "cost_usd": 0.1153418,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2398,
+   "cache_read_input_tokens": 649,
+   "output_tokens": 4801,
+   "output_tokens_details": {
+    "thinking_tokens": 1787
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2398,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4801,
+     "cache_read_input_tokens": 649,
+     "cache_creation_input_tokens": 2398,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2398
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:33:02.583154+00:00",
+   "end": "2026-10-18T04:33:57.791482+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1153418,
+  "charged_usd": 0.1153418,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# AHU-3 Sequence Review: Issues to Flag Before Programming\n\nThe biggest question comes before the line-by-line comments. **This sequence reads like an office VAV AHU, not a lab AHU.** It has an economizer, a mixed-air setpoint and a scheduled shutdown, which all assume return air and a 9-to-5 building. Most lab supply units are 100% outdoor air, run 24/7, and are interlocked with lab exhaust and pressurization controls. Get that answered by RFI first. Many comments below change depending on the answer.\n\n---\n\n## Critical: Life Safety and Lab Containment\n\n### Item 6: Smoke detector shutdown \"through the BAS\"\n- Duct smoke detector fan shutdown should be **hardwired** to the starter or VFD safety circuit. Software is not acceptable unless the BAS is UUKL-listed and the AHJ accepts it. See IMC 606 and NFPA 90A.\n- \"Restart from the BAS once the alarm is acknowledged\" conflates **acknowledge** with **reset**. Acknowledging should never restart a fan. Restart should require resetting the detector, through the fire alarm panel or the detector itself, and the hardwired interlock clearing.\n- The sequence doesn't define what happens to lab exhaust fans, the OA damper, smoke or fire dampers, or the FACP interface. For a lab, shutting supply while exhaust keeps running can badly depressurize the building. That might be intended or might be a problem, so the engineer must state it.\n\n### Item 5: Freezestat auto-restart\n- Freezestats are normally **manual reset and hardwired**. Auto-restart at 40\u00b0F, with only a 2\u00b0F differential, invites repeated cycling with frozen air hitting the coils.\n- On trip, the sequence should also:\n  - drive HV-3 100% open,\n  - open CV-3 or start the CHW pump if the coil isn't glycol,\n  - close the OA damper (already stated),\n  - alarm.\n- Freezes are rare in Houston but not hypothetical; Winter Storm Uri in February 2021 is the obvious example. This matters most if the unit turns out to be 100% OA.\n\n### Item 2: Unoccupied shutdown\n- Most lab AHUs **can't shut off**. Fume hoods, biosafety cabinets and pressurization cascades need makeup air continuously. If occupancy setback is intended, it is usually a reduced-ACH setback through the lab airflow controls, not \"SF-3 off.\"\n- Ask whether any spaces on AHU-3 are labs, or whether it serves offices and support space only. If it's office-only, the sequence is more plausible, but the issues below still apply.\n\n### Item 7: Loss of power, \"valves stay in last position\"\n- This is not a safe failure mode. Define fail positions for each device and confirm the actuator types. Typical choices:\n  - OA damper **fail closed** (spring return),\n  - HV-3 **fail open** (freeze protection),\n  - CV-3 per the engineer.\n- Power-restoration behavior is also missing: auto-restart, staggered start, and coordination with exhaust fans.\n\n---\n\n## Major: Humid Climate and Control Logic\n\n### Item 3: Dry-bulb economizer at 75\u00b0F in Houston\n- Houston is climate zone 2A. A 74\u00b0F, 72\u00b0F-dewpoint day would enable the economizer and dump moisture into the building.\n- ASHRAE 90.1 (recent editions, Table 6.5.1.1.3) limits fixed dry-bulb high-limit shutoff to **65\u00b0F** in zone 2A, or requires fixed enthalpy plus a dry-bulb limit, or differential enthalpy. Verify against the adopted code edition.\n- Recommend **enthalpy or dewpoint-based** high limit. Confirm OA humidity sensors are in the points list.\n- Add an enable/disable deadband (e.g., 2\u00b0F or 2 Btu/lb) to prevent short-cycling around the limit.\n- If the unit is 100% OA, this item goes away. Energy recovery likely becomes required instead (90.1 \u00a76.5.7 lab exhaust and energy recovery provisions), and no ERV is shown.\n\n### Items 3 and 4: Competing loops\n- The economizer controls **mixed air to 55\u00b0F** while a separate PID controls **discharge air to 55\u00b0F** with HV and CV. Two independent loops chasing the same temperature will fight.\n- Standard practice is to put the economizer inside the single DAT sequence, for example:\n  - heating, then a deadband,\n  - economizer from minimum to 100%,\n  - mechanical cooling, with the economizer held at 100% while integrated.\n- Mixed air temperature should then be a **low-limit override** only, around 45\u201350\u00b0F, not a primary setpoint.\n- The 0\u201350% heat / 50\u2013100% cool split has no deadband at 50%. Expect hunting there. Add a deadband or separate the loops with hysteresis.\n\n### No dehumidification sequence\n- A fixed 55\u00b0F DAT doesn't guarantee dewpoint control in Houston, especially at part load or if anyone later adds SAT reset.\n- Ask for:\n  - a space or return RH or dewpoint sensor,\n  - a cooling coil leaving-air or dewpoint setpoint (e.g., 50\u201352\u00b0F),\n  - where reheat happens (zone VAV reheat or AHU reheat),\n  - a lockout of any SAT reset when humidity is high.\n- Unoccupied mode needs **humidity and high-temperature setback**, not just 60\u00b0F heating. In Houston, an unconditioned building at night grows mold far more often than it freezes. Suggest something like starting on space temperature above 85\u00b0F or space dewpoint above 60\u00b0F.\n\n### Item 1: Minimum OA as \"20% damper position\"\n- On a VAV fan, a fixed damper position doesn't deliver a fixed OA airflow; OA cfm drops as the fan slows.\n- Request an **airflow measuring station** and a cfm setpoint per the ventilation calculation, or a fan-speed-indexed minimum position table.\n- For labs, the minimum OA is usually set by exhaust requirements, not 62.1.\n\n### Item 1: Fixed 1.5 in. w.c. duct static\n- 90.1 \u00a76.5.3.2 requires **static pressure reset** (trim-and-respond off zone damper positions) for DDC VAV systems.\n- Also ask for:\n  - sensor location (typically about two-thirds down the longest run),\n  - min/max reset limits,\n  - a **high static safety** switch, hardwired with manual reset, located near the fan discharge.\n\n---\n\n## Missing Items: Request Before Programming\n\n| Missing | Why it matters |\n|---|---|\n| Return or relief fan, or building pressure control | Economizer at 100% with no relief overpressurizes the building, and there is no lab pressure relationship |\n| Exhaust fan interlocks | Required for labs: start order, failure response |\n| Fan proof (CT/DP) and failure alarm | Standard; otherwise the BAS can't detect a fan that is commanded on but not running |\n| Filter DP alarms | Standard |\n| Supply air high/low temp alarms, with delays and limits | Standard |\n| Return and relief damper control | Not mentioned; only the OA damper is described |\n| Sensor failure behavior | What happens if the DAT, OA temperature or static sensor fails |\n| Optimal start, warm-up/cool-down, and schedule ownership | \"06:00\u201318:00\" is fixed; who can change it? |\n| Unoccupied override or after-hours request | Labs have off-hours users |\n| Hand/Off/Auto and VFD bypass behavior | Which safeties remain active in hand or bypass |\n| Unoccupied DAT setpoint and valve behavior | Item 2 says \"heating valve modulates\" but not to what |\n| Unoccupied OA damper during heating mode | Closed is implied; confirm |\n\n---\n\n## Suggested RFI Order\n1. Is AHU-3 **100% OA or mixed air**, and does it serve labs? This changes the economizer, ERV, schedule and smoke response.\n2. Smoke and freeze: confirm **hardwired, manual reset** interlocks, FACP interface, and exhaust fan response.\n3. Dehumidification strategy and unoccupied humidity limits.\n4. Economizer high limit type (enthalpy or dewpoint) per the adopted 90.1 edition.\n5. OA airflow measurement and static pressure reset requirements.\n6. Fail positions for every actuator and power-restore behavior.\n\nI based this only on the text provided, so check it against the drawings, points list, and the code edition the AHJ has adopted. A sequence that says nothing about exhaust, pressurization or humidity in a Houston lab usually means the engineer's real intent is somewhere else, such as a lab airflow controls spec. Ask whether that spec exists before you assume the gaps are real."
+}

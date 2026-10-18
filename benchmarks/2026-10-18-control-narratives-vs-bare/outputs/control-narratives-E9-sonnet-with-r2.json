@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E9-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E9",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 56881.5,
+  "duration_ms": 56094,
+  "duration_api_ms": 55799,
+  "cost_usd": 0.0750542,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4602,
+   "output_tokens": 7459,
+   "output_tokens_details": {
+    "thinking_tokens": 3369
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7459,
+     "cache_read_input_tokens": 4602,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:44:35.507490+00:00",
+   "end": "2026-10-18T04:45:32.389023+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0750542,
+  "charged_usd": 0.0750542,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: 7.2 CIP Sequence (CIP skid)\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| R-01 | Steps 1-4 | Times and temperature (5 min, 20 min, 15 min, 65 C) are in prose, which breaks the single source of truth (SSoT). | Move all values to the setpoint list. Reference them by name. |\n| R-02 | Whole section | No requirement IDs and no test method. | Add FR-CIP-NNN IDs with a FAT method for each. |\n| R-03 | Whole section | No ISA-106 state/transition table. There is no hold, abort, restart or complete behavior, and no automation level. | Add a state table before the sequence table (see 7.2.1). |\n| R-04 | Last line | \"Any circuit selected on the HMI\" has no permissives. S-1 or HTST-1 could receive chemical while product or the other circuit is in service. This is a product-safety gap. | Add start permissives for circuit isolation, mix-proof valve position and product status. Allow only one active circuit. Reference the cause-and-effect chart. |\n| R-05 | Last line | S-1 and HTST-1 are treated as the same. Flow, time and temperature needs differ by circuit. | Make the setpoint list per circuit. |\n| R-06 | Last line | The HMI selection is the only circuit interface. There is no handshake with the S-1 or HTST-1 controls. | Define the \"in CIP / released for CIP\" interface signals. Open item OI-03. |\n| R-07 | Step 1 | \"Open the rinse tank valve\" has no tag. \"To drain\" is not a route definition. The return route and the P-502 start are missing. | Use valve tags. State the supply route, the return route (drain or tank) and the pump start order. |\n| R-08 | Step 2 | \"Heated to temperature\" has no PV, tag or setpoint. The 20 min has no defined start. | Start the wash timer only when TT-501, CT-501 and FT-501 are all in range. Use the setpoint list. |\n| R-09 | Step 3 | No transition condition. A fixed time does not prove the caustic is removed. | Require the minimum time and CT-501 at or below the rinse-end setpoint. |\n| R-10 | Step 4 | 65 C has no PV, no tolerance and no timer start. Acid concentration is not verified. | Use TT-501 and CT-501 in the timer-start condition. Reference the setpoint list. |\n| R-11 | Step 5 | \"Run until clean\" cannot be tested. | Use CT-501 at or below the final-rinse setpoint for the hold time. Add a timeout. |\n| R-12 | All steps | No timeout and no failure response for any step. | Use the step table format with both columns. |\n| R-13 | Last line but one | \"Operator should check the circuit\" is not a requirement and gives no system response. | Define the P-502 stop response: Hold, stop P-501, alarm, prompt. |\n| R-14 | Missing | No abnormal handling for bad PV (FT-501, CT-501, TT-501), comms loss, power loss and restart, or valve fail positions. | Add 7.2.4. |\n| R-15 | Missing | No flow proving. A circuit without flow is not cleaned. | Add an FT-501 minimum flow check in every circulation and rinse step. |\n| R-16 | Missing | No chemical recovery, drain changeover or tank level checks. Level tags are not in the equipment list. | Open items OI-01 and OI-02. |\n| R-17 | Missing | No operator interface, interlock reference, alarm reference or SIS reference. | Add references. Do not restate logic. |\n| R-18 | Missing | No cleaning record (time, temperature, conductivity per step). | Open item OI-06. The owner decides if a record is required. |\n| R-19 | Language | Passive and vague wording (\"is heated\", \"to drain\"). | STE pass applied below. |\n\n## Corrected section\n\n### 7.2 CIP Sequence (module CIP-501)\n\n**Type:** SqBC for the cleaning job. The skid state is in 7.2.1.\n**Automation level:** The operator selects the circuit and pushes START. The sequence then runs automatically.\n\n### 7.2.1 States and transitions\n\n| State | Entry condition | Allowed exits | Initiator |\n|---|---|---|---|\n| Idle | Power-up, Complete or Aborted acknowledged | Starting | Operator |\n| Starting | START pushed with a circuit selected | Running (permissives true), Idle (permissive false) | Auto |\n| Running | Permissives true | Holding, Aborting, Complete | Auto / Operator |\n| Holding | Hold command or fault in 7.2.4 | Held | Auto |\n| Held | Pumps stopped, outputs safe | Restarting, Aborting | Operator |\n| Restarting | RESUME pushed, step conditions true | Running | Operator |\n| Aborting | ABORT pushed or abort fault | Aborted | Operator / Auto |\n| Aborted | Pumps off, valves in safe position | Idle | Operator |\n| Complete | Step 5 done | Idle | Operator acknowledges |\n\n### 7.2.2 Sequence table\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 0 Permissive check | Check the permissives in FR-CIP-002. | All permissives true. | SP-CIP-01 | Stay Idle. Show the failed permissive on the HMI. |\n| 1 Pre-rinse | Open the rinse tank outlet valve [tag TBD]. Route return to drain. Start P-502, then P-501. | Step 1 time reached and FT-501 at or above minimum flow. | SP-CIP-02 | Hold. Alarm. |\n| 2 Caustic wash | Route supply from the caustic tank. Route return to the caustic tank. Heat the caustic tank to the wash temperature. | Wash timer complete. The timer runs only while TT-501, CT-501 and FT-501 are in range. | SP-CIP-03 | Hold. Alarm. |\n| 3 Intermediate rinse | Route supply from the rinse tank. Route return to drain. | Step 3 time reached and CT-501 at or below the rinse-end setpoint. | SP-CIP-04 | Hold. Alarm. |\n| 4 Acid wash | Route supply from the acid tank. Route return to the acid tank. | Acid timer complete. The timer runs only while TT-501, CT-501 and FT-501 are in range. | SP-CIP-05 | Hold. Alarm. |\n| 5 Final rinse | Route supply from the rinse tank. Route return to drain. | CT-501 at or below the final-rinse setpoint for the hold time. | SP-CIP-06 | Hold. Alarm. |\n| 6 Finish | Stop P-501. Stop P-502 after drain-down. Close the circuit valves. | Pumps stopped and valves closed. | SP-CIP-07 | Hold. Alarm. |\n\n### 7.2.3 Requirements\n\n| ID | Requirement | FAT test |\n|---|---|---|\n| FR-CIP-001 | The skid cleans only one circuit at a time. The circuits are S-1 and HTST-1. | Select both circuits. Check that the second selection is refused. |\n| FR-CIP-002 | The sequence starts only when all of these are true: the selected circuit is out of production, the mix-proof valves isolate the other circuit, the other circuit is not in CIP, and P-501 and P-502 are available. | Make each permissive false in turn. Check that START is refused. |\n| FR-CIP-003 | The sequence runs steps 1 to 6 in order. | Run a full cycle on each circuit. |\n| FR-CIP-004 | Each step uses the time, temperature, flow and conductivity values in the setpoint list for the selected circuit. | Compare the active values to the list for each circuit. |\n| FR-CIP-005 | In steps 1 to 5, the sequence goes to Hold if FT-501 stays below the minimum flow for longer than the flow-proving time. | Reduce flow in the simulator. Check for Hold and alarm. |\n| FR-CIP-006 | If P-502 stops during a run, the sequence stops P-501, goes to Hold, raises an alarm and prompts the operator. | Trip P-502 in each step. |\n| FR-CIP-007 | A bad-quality PV on FT-501, CT-501 or TT-501 puts the sequence in Hold. The sequence does not continue on a substituted value. | Force bad quality on each PV. |\n| FR-CIP-008 | The sequence uses a timer start condition, not a step start, for steps 2 and 4. | Hold TT-501 below the limit. Check that the timer does not run. |\n| FR-CIP-009 | After a power loss, the skid starts in Held with all pumps off. The sequence does not resume on its own. | Remove and restore power during a run. |\n| FR-CIP-010 | On RESUME, the sequence repeats the interrupted step from its start. Step timers reset. | Resume from Held in each step. |\n\n### 7.2.4 Abnormal handling\n\n| Condition | System response |\n|---|---|\n| Bad PV (FT-501, CT-501, TT-501) | Hold. See FR-CIP-007. |\n| P-502 stops | Hold. See FR-CIP-006. |\n| P-501 fault | Hold. Stop P-502 after drain-down. |\n| HMI comms loss | The controller continues the running step. The operator cannot start a new cycle until comms return. |\n| Comms loss with the S-1 or HTST-1 controls | Hold. Alarm. |\n| Power loss and restart | Held. See FR-CIP-009. |\n| Valve fail position | Valves go to the fail position in the valve list. The mix-proof valves keep the circuits separate. |\n\n### 7.2.5 References\n\n- Setpoint list: SP-CIP-01 to SP-CIP-07 and the process values per circuit. The draft values (5 min, 20 min, 5 min, 15 min, 65 C) go into this list. Confirm each value with process.\n- Interlocks and permissives: cause-and-effect chart CIP-501.\n- Alarms: the rationalized alarm database (ISA-18.2).\n- Safety functions: the SRS (IEC 61511), if any apply. No SIS function is specified here.\n\n### 7.2.6 Operator interface\n\n- The operator selects the circuit and pushes START, HOLD, RESUME or ABORT.\n- The HMI shows the state, the active step, the elapsed time, FT-501, CT-501 and TT-501.\n- The HMI shows each failed permissive and each Hold cause.\n- The HMI prompts the operator to check the circuit after a Hold. The operator then pushes RESUME or ABORT.\n\n### 7.2.7 Open items\n\n| ID | Item | Owner | Date |\n|---|---|---|---|\n| OI-01 | Add tank level tags and the caustic tank temperature tag to the equipment list. | Controls lead | TBD |\n| OI-02 | Decide chemical recovery and the drain changeover method. | Process | TBD |\n| OI-03 | Define the interface signals with the S-1 and HTST-1 controls. | Controls lead | TBD |\n| OI-04 | Confirm the valve tags and fail positions. | Integrator | TBD |\n| OI-05 | Confirm the P-501 flow control method (fixed speed or flow loop on FT-501). | Process | TBD |\n| OI-06 | Decide if a cleaning record is required. | Process / Quality | TBD |\n| OI-07 | Operations sign-off on the states and prompts. | Operations | TBD |\n\nTwo points need your decision. First, I assumed that a Hold restarts the interrupted step from its beginning. Second, I assumed that power loss does not resume automatically. Both are conservative choices, so confirm them with operations. I put the dates as TBD because the draft gives no schedule."
+}

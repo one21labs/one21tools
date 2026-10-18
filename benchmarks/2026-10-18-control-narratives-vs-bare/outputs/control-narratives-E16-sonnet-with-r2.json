@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E16-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E16",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 122009.6,
+  "duration_ms": 121070,
+  "duration_api_ms": 120843,
+  "cost_usd": 0.15931669999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4727,
+   "output_tokens": 15884,
+   "output_tokens_details": {
+    "thinking_tokens": 11364
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 15884,
+     "cache_read_input_tokens": 4727,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:47:45.674583+00:00",
+   "end": "2026-10-18T04:49:47.684278+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.15931669999999998,
+  "charged_usd": 0.15931669999999998,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "The narrative below is built only from the seven rungs and the technician's notes. I haven't seen the running processor, so the polarity of LSH and TEMP_LOW and the hardware fail positions are marked as open items. The most important findings are the retained run latch that auto-restarted the tank, the agitator selector that bypasses the low-level interlock and can also enable steam, and a fill timer that accumulates across refills. The full findings table follows the narrative.\n\n---\n\n# Functional Narrative: Mixing Tank Module MXT-100 (DRAFT Rev A)\n\nModule code MXT, tank T-101 and all tag names are proposed. The instrument index must replace them.\n\n## 1 Purpose and boundaries\n\nModule MXT-100 fills tank T-101, agitates the contents, and heats them with steam. The operator starts and stops the module at the local panel. The module has no analog control loops.\n\n- **Upstream:** Fill supply through XV-101. Steam supply through XV-102.\n- **Downstream:** The legacy logic has no discharge control (OI-01).\n\n## 2 Equipment and tags (temporary cross-reference)\n\nMove this table into the instrument index.\n\n| Proposed tag | Legacy address | Function | Signal state |\n|---|---|---|---|\n| HS-101 | I:1/0 | START pushbutton | ON when pushed |\n| HS-102 | I:1/1 | STOP pushbutton | NC, ON when healthy |\n| ES-101 | I:1/2 | E-stop status | ON when healthy |\n| LSL-101 | I:1/3 | Low level switch | ON when level is above low |\n| LSH-101 | I:1/4 | High level switch | Polarity not confirmed (OI-02) |\n| HS-103 | I:1/5 | AGIT selector, panel door | Removed (see F-02) |\n| TSL-101 | I:1/6 | Low temperature switch (TEMP_LOW) | Polarity not confirmed (OI-02) |\n| XV-101 | O:2/0 | Fill valve | |\n| M-101 | O:2/1 | Agitator | |\n| XV-102 | O:2/2 | Steam valve | |\n| HA-101 | O:2/3 | Horn | |\n\n## 3 States and transitions\n\n| State | Outputs |\n|---|---|\n| STOPPED | All outputs off. |\n| RUNNING | Fill, agitator, and steam follow section 4. |\n| FILL FAULT | XV-101 closed. Agitator and steam follow section 4. HA-101 per section 7. |\n\n| ID | Transition | Condition | Initiator | Automation level |\n|---|---|---|---|---|\n| T1 | STOPPED \u2192 RUNNING | HS-101 pushed. HS-102 healthy. ES-101 healthy. | Operator | Manual |\n| T2 | Any \u2192 STOPPED | HS-102 pushed or open. ES-101 unhealthy. Power lost. | Operator or auto | Manual or automatic |\n| T3 | RUNNING \u2192 FILL FAULT | Fill timer reaches FILL_TMO. | Controller | Automatic |\n| T4 | FILL FAULT \u2192 RUNNING | Operator pushes fault reset. | Operator | Manual |\n\n| ID | Requirement | Basis | FAT test |\n|---|---|---|---|\n| FR-MXT-001 | The module must leave STOPPED only through T1. | R0 | Push HS-101 with each permissive unhealthy in turn. The module stays STOPPED. |\n| FR-MXT-002 | The module must stay in RUNNING after the operator releases HS-101. | R0 | Release HS-101. The module stays in RUNNING. |\n| FR-MXT-003 | T2 must de-energize all outputs at once. | R0 | Trigger each T2 cause. All outputs go off. |\n| FR-MXT-004 | After power returns, the module must enter STOPPED and wait for T1. | **Changed** (F-01) | Cycle power in RUNNING. All outputs stay off until HS-101 is pushed. |\n| FR-MXT-005 | The module must leave FILL FAULT only through T2 or T4. | New | Try to clear the fault without a reset. The fault stays. |\n\n## 4 Control functions\n\n| ID | Requirement | Basis | FAT test |\n|---|---|---|---|\n| FR-MXT-010 | XV-101 must open when the module is in RUNNING and LSH-101 is not at high level. | R1 | Simulate each condition. XV-101 follows. |\n| FR-MXT-011 | The fill timer must run only while XV-101 is open. It must reset when XV-101 closes at LSH-101. | **Changed** (F-05) | Fill, reach LSH-101, refill. The timer restarts at zero. |\n| FR-MXT-012 | When the fill timer reaches FILL_TMO, XV-101 must close and the module must enter FILL FAULT through T3. | R1, R2 | Hold LSH-101 clear. XV-101 closes at the timeout. |\n| FR-MXT-013 | XV-101 must stay closed in FILL FAULT. | R1 | Clear LSH-101 in FILL FAULT. XV-101 stays closed. |\n| FR-MXT-020 | M-101 must run when the module is in RUNNING and LSL-101 is above low level. | R3 | Simulate each condition. M-101 follows. |\n| FR-MXT-021 | M-101 must stop when level is at or below the low level. No operator bypass exists. | **Changed** (F-02) | Drop LSL-101. M-101 stops. Turn on the old selector input. M-101 stays off. |\n| FR-MXT-022 | The module must filter the LSL-101 signal with the delay in the setpoint list. | **New** (F-08) | Pulse LSL-101 for less than the delay. M-101 does not change. |\n| FR-MXT-030 | XV-102 must open when M-101 is on, TSL-101 calls for heat, and LSL-101 is above low level. | R4, **changed** (F-03) | Simulate each condition. XV-102 follows. |\n| FR-MXT-031 | XV-102 must close when any condition in FR-MXT-030 is lost. | R4 | Remove each condition in turn. XV-102 closes. |\n\n## 5 Sequences\n\nNone. The module uses state-based control. The only timed function is the fill timeout in FR-MXT-011 and FR-MXT-012.\n\n## 6 Interlocks, permissives, and SIS\n\n- Interlocks and permissives are listed in cause-and-effect chart CE-MXT-100. This chart does not exist yet (OI-04).\n- The legacy logic has no SIS functions. A hazard review must decide whether high level or high temperature needs an SIS function (OI-05). Any such function belongs in the SRS, not here.\n\n## 7 Alarms\n\nAlarm ALM-MXT-001 (fill timeout) is defined in the alarm database. Priority and response are set there.\n\n| ID | Requirement | Basis | FAT test |\n|---|---|---|---|\n| FR-MXT-040 | HA-101 must sound while ALM-MXT-001 is active and not acknowledged. | R5, **changed** (F-06) | Cause a fill timeout. The horn sounds. |\n| FR-MXT-041 | The operator must be able to silence HA-101 without changing the module state. | **New** (F-06) | Silence the horn. The state does not change. |\n\n## 8 Abnormal handling\n\n| ID | Condition | Required response | Legacy |\n|---|---|---|---|\n| FR-MXT-050 | HS-102 or ES-101 circuit open | T2 | Same |\n| FR-MXT-051 | LSL-101 circuit open | Level reads low. M-101 and XV-102 go off. | Same |\n| FR-MXT-052 | LSH-101 circuit open | Level reads high. XV-101 closes. Needs confirmed polarity (OI-02). | Not met if LSH is ON at high level |\n| FR-MXT-053 | TSL-101 circuit open | XV-102 closes. Needs confirmed polarity (OI-02). | Same if ON means low temperature |\n| FR-MXT-054 | Loss of signal or power at an output | XV-101 and XV-102 fail closed. M-101 stops. Confirm against hardware (OI-03). | Not documented |\n| FR-MXT-055 | Controller fault or mode change | All outputs off. | Not documented |\n| FR-MXT-056 | Loss of any added HMI or comms link | The module state and outputs do not change. | No comms in legacy |\n| FR-MXT-004 | Power loss and restart | See section 3. | Auto-restart |\n\n## 9 Operator interface\n\n| ID | Requirement |\n|---|---|\n| FR-MXT-060 | The operator must have START, STOP, fault reset, and horn silence controls. |\n| FR-MXT-061 | The operator must see these indications: RUNNING, FILL FAULT, XV-101 open, M-101 on, and XV-102 open. |\n| FR-MXT-062 | Operations must sign off on the states, indications, and prompts before FAT. |\n\n## Setpoint list\n\n| Name | Legacy value | Status |\n|---|---|---|\n| FILL_TMO | 600 s | Confirm against the normal fill time (OI-06). |\n| LSL_DLY | None | Set at design (OI-07). |\n\nThe TEMP_LOW switching point is a field device setting. Record it from the device (OI-02).\n\n## 10 Open items\n\nOwners are roles. Due dates must be set by the project manager.\n\n| ID | Item | Owner | Due |\n|---|---|---|---|\n| OI-01 | Confirm how the tank discharges. Confirm that auto-refill during discharge is intended. | Process engineer | TBD |\n| OI-02 | Confirm LSH-101 and TSL-101 polarity. Record the TEMP_LOW setting. | Controls lead | TBD |\n| OI-03 | Confirm fail positions of XV-101, XV-102, and M-101. Check for run, overload, and position feedback. | Controls lead | TBD |\n| OI-04 | Create CE-MXT-100. | Controls lead | TBD |\n| OI-05 | Run a hazard review for overflow and overtemperature. Decide if an SRS entry is needed. | Process safety | TBD |\n| OI-06 | Confirm FILL_TMO and whether the timeout is per fill. | Process engineer | TBD |\n| OI-07 | Set LSL_DLY. | Controls lead | TBD |\n| OI-08 | Check whether the e-stop removes output power in hardware. | Electrical lead | TBD |\n| OI-09 | Confirm the export matches the running processor: other program files, forced I/O, and fault routines. | Integrator | TBD |\n| OI-10 | Decide whether a maintenance mode for M-101 is needed. | Operations | TBD |\n| OI-11 | Get operations sign-off on states and prompts. | Operations | TBD |\n\n---\n\n## What not to carry forward\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| F-01 | R0, B3:0/0 | The run latch is retained across power loss. Last month, the tank filled by itself after a power cycle. Fill and agitator can start with no operator present. The cause is most likely the retained B3 bit, but that is unverified. | FR-MXT-004. Use a non-retentive run state with a power-up reset. |\n| F-02 | R3, I:1/5 | The AGIT_HAND selector bypasses the low-level interlock. The agitator can run on an empty tank. | FR-MXT-021. Remove the bypass. If needed, add a controlled maintenance mode (OI-10). |\n| F-03 | R4 | Steam depends on the agitator command. Through F-02, steam can open with no liquid. There is no high-temperature limit. TEMP_LOW is a single switch. | FR-MXT-030 adds a direct level permissive. OI-05 covers overtemperature. |\n| F-04 | R1, I:1/4 | The only overflow protection is one level switch in the BPCS. If LSH is ON at high level, a broken wire keeps the valve open until the timeout. | Confirm polarity and use FR-MXT-052. OI-05 decides on independent protection. |\n| F-05 | R2, R6 | The RTO accumulates across all fills and clears only on START. Normal refills can trip it. Holding START defeats it. | FR-MXT-011 and FR-MXT-012. |\n| F-06 | R5, R6 | The horn has no acknowledge. It stays on after STOP. The only way to silence it is to push START, which restarts the process. | FR-MXT-040, FR-MXT-041, and the T4 reset. |\n| F-07 | R0 | ESTOP_OK is a controller input. This may be the only e-stop path. | Check the hardwiring (OI-08). Specify it in the safety design, not here. |\n| F-08 | R3 | The agitator has no debounce on LSL. Surface ripple can short-cycle the motor. | FR-MXT-022. |\n| F-09 | R1, R3, R4 | No feedback or fault detection on any output. | OI-03. |\n| F-10 | All | The export has only seven rungs. It may not match the running processor. | OI-09. |"
+}

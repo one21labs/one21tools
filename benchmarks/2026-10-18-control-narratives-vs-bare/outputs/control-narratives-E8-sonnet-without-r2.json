@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E8-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E8",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 36654.3,
+  "duration_ms": 35993,
+  "duration_api_ms": 35797,
+  "cost_usd": 0.040709100000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 3051,
+   "output_tokens": 4040,
+   "output_tokens_details": {
+    "thinking_tokens": 1898
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4040,
+     "cache_read_input_tokens": 3051,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:44:10.568934+00:00",
+   "end": "2026-10-18T04:44:47.223209+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.040709100000000005,
+  "charged_usd": 0.040709100000000005,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# AHU-3 sequence review: issues to flag before programming\n\nI worked only from the text you pasted, so I haven't seen the drawings, schedules, or other equipment sequences. Items are ordered by severity.\n\n## Life safety and code\n\n1. **Smoke detector shutdown \"through the BAS\" (item 6).**\n   - Duct smoke detector shutdown should be hardwired to the fan starter or VFD run circuit (NFPA 90A / IMC 606), not dependent on BAS software or network.\n   - BAS should only monitor it.\n   - Remote restart from the workstation after acknowledging the alarm is also questionable. Restart should require a local or fire alarm panel reset after someone investigates.\n   - Unspecified: OA damper position, interface with the FACP, and what happens to lab exhaust and room pressurization when supply stops.\n\n2. **Freezestat auto-restart (item 5).**\n   - Freezestats should be hardwired, latching, and manual reset. Auto-restart at 40 F will cycle the unit on a marginal condition.\n   - The sequence should also drive HV-3 to 100% open and start the HW pump on a trip. It should also specify CV-3 behavior (chilled water coil protection).\n   - Houston rarely freezes, but a cold snap with a stuck-open OA damper is exactly when this matters.\n\n3. **Loss of power: \"valves stay in last position\" (item 7).**\n   - This is not a failure mode. Specify spring-return fail positions: OA damper closed, HW valve open or closed per freeze strategy, and CHW valve per design intent.\n   - Also specify power-restore behavior: auto-restart or not, a staggered start delay, and a check that the OA damper is open before the fan starts.\n\n## Laboratory-specific gaps\n\n4. **Is this a 100% OA unit?**\n   - Labs typically run once-through air.\n   - If so, \"mixed air temperature\" (item 3) and a \"20% minimum OA\" (item 1) are meaningless. If not, the ventilation basis must be justified against lab ACH requirements and the hazard classification.\n   - Confirm with the engineer before any programming.\n\n5. **Unoccupied shutdown (item 2).**\n   - Many labs need continuous minimum ventilation and pressurization relative to corridors, plus exhaust/fume hood tracking.\n   - If exhaust continues while SF-3 is off with the OA damper closed, the lab goes negative. That causes door-pull problems and possible backdraft.\n   - Ask whether there is a supply/exhaust offset or tracking sequence, and whether the schedule allows an unoccupied minimum ACH.\n\n6. **Minimum OA as a damper position (item 1).**\n   - 20% damper position is not a flow. It will drift with fan speed and static pressure.\n   - It needs an airflow measuring station or a flow-based control loop.\n\n## Houston humidity\n\n7. **Dry-bulb economizer at 75 F (item 3).**\n   - In Houston, 75 F air is often at 70 F+ dewpoint. That floods the coil and space with moisture.\n   - It needs enthalpy or dewpoint lockout (for example, OA dewpoint below about 55 F), plus a high-limit comparison against return or space conditions.\n\n8. **No dehumidification control.**\n   - DAT is fixed at 55 F with no space RH or dewpoint input.\n   - There is no reheat strategy and no unoccupied humidity protection. An unoccupied AHU that is off in Houston invites mold and condensation, especially with the OA damper leaking.\n   - Ask for an RH high limit and a dehumidification sequence (cool and reheat), and ask whether energy recovery is provided.\n\n## Control logic\n\n9. **Economizer and DAT loops conflict (items 3, 4).**\n   - MAT and DAT are both 55 F, so the economizer loop can't hold 55 F while the coil is also controlling to 55 F.\n   - There is no minimum-position override, so the damper could close below 20% at low OA temperatures.\n   - There is no mixed-air low limit.\n\n10. **Single PID split 0-50/50-100 (item 4).**\n    - There is no deadband, so it will hunt around 50%.\n    - Heating and cooling valves have different gains, and one tuning set won't fit both.\n    - Recommend two loops or a split-range with a deadband and a minimum-valve-position strategy to prevent simultaneous heating and cooling.\n    - Add DAT reset based on zone demand, which also lets you reheat for dehumidification.\n\n11. **Unoccupied heating (item 2).**\n    - No stop setpoint or differential is given (for example, start at 60 F and stop at 65 F), which means short cycling.\n    - There is no DAT or heating setpoint, since 55 F doesn't heat anything.\n    - Which space sensor is used?\n    - Without return air there is nothing to recirculate, so heating 100% OA at night wastes energy. It may be better handled by zone heat.\n\n12. **Static pressure (item 1).**\n    - It is fixed at 1.5 in. with no reset. Specify trim-and-respond reset from the most open VAV or venturi valve.\n    - There is no high-static safety cutout, which should be hardwired.\n    - There is no fan-start ramp and no OA damper proof before start (end switch) to avoid collapsing the intake.\n\n## Missing entirely\n\n- Fan status proof (current switch or DP) and fan failure alarm.\n- Alarms: DAT high and low, filter DP, freezestat, smoke, static high and low, coil temperature.\n- Setpoint ranges and operator adjustability.\n- Hand-off-auto and manual override behavior.\n- Coordination with the exhaust fan or valve sequence and building and room pressure control.\n- Optimal start and the 06:00 timing (does the schedule consider warm-up and purge?).\n\n## Suggested RFIs to the engineer\n\n1. Is AHU-3 100% OA? What are the minimum ACH, the pressurization requirements, and the exhaust tracking basis?\n2. Can unoccupied operation keep minimum ventilation, or must the lab pressure stay controlled?\n3. Provide an enthalpy or dewpoint lockout strategy and a space humidity sequence.\n4. Confirm the freezestat and smoke detector are hardwired, and give the reset method.\n5. Give the valve and damper fail positions and the power-restore behavior."
+}

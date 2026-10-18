@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E9-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E9",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 24202.3,
+  "duration_ms": 23531,
+  "duration_api_ms": 23313,
+  "cost_usd": 0.0296777,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2937,
+   "output_tokens": 2938,
+   "output_tokens_details": {
+    "thinking_tokens": 568
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2938,
+     "cache_read_input_tokens": 2937,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:44:47.223668+00:00",
+   "end": "2026-10-18T04:45:11.426038+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0296777,
+  "charged_usd": 0.0296777,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review of FDS 7.2 CIP Sequence\n\n## Problems found\n\n1. **Steps are not testable.** \"Heated to temperature\", \"until clean\" and \"check the circuit\" have no setpoints or exit criteria, so FAT/SAT can't verify them.\n2. **No flow criterion.** FT-501 is never used. Cleaning needs a minimum flow (turbulent velocity), and timers should only run while it is met.\n3. **CT-501 and TT-501 are unused.** Return conductivity and temperature should decide phase end points, caustic/acid/water separation, and when the hold timer starts.\n4. **Return pump stop is left to the operator.** This is a safety and quality gap. It needs an automatic response (alarm, hold or abort, with defined pump behavior).\n5. **\"Any circuit selected on the HMI\" is unsafe.** Nothing checks that the circuit is out of production, that the mix-proof valves are positioned and proven, or that only one circuit runs at a time. Circuit-specific parameters are missing.\n6. **Inconsistent parameters.** Temperature is given only for acid and not for caustic. Caustic and acid concentrations, and the time basis for each step, are not stated.\n7. **Step 1 is vague.** \"Open the rinse tank valve\" gives no tag, and there is no drain-routing or pump-start permissive.\n8. **Chemical handling is undefined.** The text doesn't say whether caustic and acid are returned to their tanks or sent to drain, or how the phase changeover is detected.\n9. **Missing sequence elements.** There is no tank level check, no abort/hold/resume behavior, no chemical-to-rinse transition and no end-of-cycle record.\n\n## Revised section\n\nValues in **[brackets]** are placeholders to be confirmed by process/microbiology (CIP validation) and are not final.\n\n### 7.2 CIP Sequence\n\n**7.2.1 Circuits and start permissives**\nThe CIP skid serves two circuits, selectable on the HMI: **C1 \u2013 raw milk silo S-1** and **C2 \u2013 pasteurizer HTST-1**. Only one circuit may run at a time. Each circuit has its own parameter set (Table 7.2-1: flow setpoint, caustic/acid temperature, hold times, rinse end criteria).\n\nCIP start is permitted only when all of the following are true:\n- The selected circuit is not in production and is flagged \"ready for CIP\" (S-1 empty, HTST-1 in cleaning mode).\n- The mix-proof valves for the selected circuit are in the CIP position, and the other circuit is isolated, both proven by feedback with no leak-detection alarm.\n- The rinse, caustic and acid tank levels are above their minimum levels, and the caustic and acid concentrations are within limits.\n- P-501 and P-502 are available with no active faults.\n\nIf any permissive is lost during the cycle, see 7.2.4.\n\n**7.2.2 Sequence**\nEach timed step's timer starts only when its start condition is met. Timing is paused if flow or temperature falls below its limit.\n\n| Step | Action | Start condition for timer | End condition |\n|---|---|---|---|\n| 1. Pre-rinse | Route rinse water to the circuit and return to drain. Start P-502, then P-501. | FT-501 \u2265 [flow SP] | [5] min and CT-501 \u2264 [x] \u00b5S/cm above the rinse supply value (or [volume] delivered) |\n| 2. Caustic wash | Route to the caustic circuit. Recirculate with the caustic tank heated to [T_caustic] \u00b0C. | TT-501 \u2265 [T_min,caustic] \u00b0C and FT-501 \u2265 flow SP | [20] min hold, with CT-501 within the [caustic concentration range] |\n| 3. Intermediate rinse | Displace caustic to the caustic tank and rinse to drain. | FT-501 \u2265 flow SP | [5] min and CT-501 \u2264 [x] \u00b5S/cm (caustic cleared) |\n| 4. Acid wash | Route to the acid circuit. Recirculate with the acid tank at **[65] \u00b0C**. | TT-501 \u2265 [T_min,acid] \u00b0C and FT-501 \u2265 flow SP | [15] min hold, with CT-501 within the [acid concentration range] |\n| 5. Final rinse | Rinse to drain until the end criteria are met. | FT-501 \u2265 flow SP | CT-501 \u2264 [x] \u00b5S/cm (within [y] of rinse supply) for [z] s, and minimum [t] min. Maximum time [t_max] min, otherwise alarm. |\n\nChemical recovery: caustic and acid are returned to their tanks. Changeover between water and chemical is made on CT-501 thresholds, with drain diversion of the mixed phase. Confirm whether the phases are recovered or drained.\n\n**7.2.3 Monitoring and alarms**\n- Low flow: FT-501 < [flow SP] for > [10] s gives an alarm, and the timer is paused.\n- Low temperature: TT-501 < [T_min] for > [n] s in the wash steps gives an alarm, and the hold timer is paused or reset.\n- Conductivity out of range during the wash steps (dilution or overconcentration) gives an alarm.\n- Maximum step time exceeded gives an alarm and a hold.\n- Step times, TT-501, CT-501 and FT-501 minimum, maximum and average values, and any alarms are logged per cycle as a cleaning record (batch ID, circuit, start/end time, result).\n\n**7.2.4 Fault handling**\n- **P-502 (return pump) stops or faults:** The system stops P-501 immediately to prevent flooding or overpressure of the return line. It raises a high-priority alarm and puts the sequence in HOLD. The valves hold their last safe state.\n- **P-501 (supply pump) fault, loss of mix-proof valve feedback, or leak detection:** Same action as above. The sequence goes to HOLD, or ABORT if the fault is not cleared within [t] min.\n- **Resume or restart:** After the fault is cleared and acknowledged by an authorized operator, the operator selects Resume (restarts the current step timer) or Abort. After an abort, the cycle must be restarted from Step 1, and the circuit remains flagged \"not cleaned\" until a complete cycle finishes.\n\n**7.2.5 Circuit selection**\nThe operator selects C1 or C2 on the HMI and starts the cycle. Selection and start are blocked while another cycle is active or while the permissives in 7.2.1 are not met.\n\n## Open points for the author\n- Confirm all bracketed values per circuit (the HTST-1 and S-1 values will probably differ).\n- Provide the valve and instrument tags (rinse, caustic, acid, drain and return valves).\n- Decide whether chemicals are recovered or sent to drain, and whether pH or turbidity measurement is needed on the final rinse.\n- Confirm whether the cycle may skip the acid step on a defined schedule (for example, alternating days)."
+}

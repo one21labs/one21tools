@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E16-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E16",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 18260.8,
+  "duration_ms": 17611,
+  "duration_api_ms": 17402,
+  "cost_usd": 0.022101000000000003,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 872,
+   "cache_read_input_tokens": 2190,
+   "output_tokens": 1839,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 872,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1839,
+     "cache_read_input_tokens": 2190,
+     "cache_creation_input_tokens": 872,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 872
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:47:46.598913+00:00",
+   "end": "2026-10-18T04:48:04.859768+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.022101000000000003,
+  "charged_usd": 0.022101000000000003,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Functional narrative (existing behavior, as inferred from the logic)\n\n**Run permissive / latch (R0).** Pressing START (I:1/0) latches RUN (B3:0/0). The latch drops when STOP (I:1/1, wired NC, so a broken wire reads as stop) opens or E-stop OK (I:1/2) is lost. The latch is seal-in logic, with stop and e-stop in series.\n\n**Fill (R1, R2, R5, R6).** While RUN is active, the fill valve (O:2/0) opens until the high-level switch (I:1/4) is made. A retentive timer (T4:0, 600 s) accumulates while the fill valve is open. If accumulated fill time reaches 600 s without the tank being full, the done bit closes the fill valve and sounds the horn (O:2/3). The timer is reset only by pressing START.\n\n**Agitation (R3).** The agitator (O:2/1) runs while RUN is active and either the level is above the low-level point (I:1/3, ON = covered) or the panel selector AGIT_HAND (I:1/5) is on.\n\n**Heating (R4).** Steam valve (O:2/2) opens while the agitator is running and TEMP_LOW (I:1/6) is true (temperature below setpoint). There is no upper temperature limit other than the temperature input itself.\n\n**Discharge / process end.** None. There is no drain, no batch complete, and no recipe or timed mix step. The logic is fill, agitate, heat, repeat as level and temperature dictate.\n\n# Do not carry forward\n\n1. **Run latch survives power cycle (confirmed in the field).** B3:0/0 is in a retentive bit file, so the machine restarted and began filling unattended. The upgrade needs a start-up that requires a deliberate operator START after power restore, with the run state non-retentive (or cleared on first scan).\n2. **Hand override of agitator bypasses the low-level interlock (R3).** With AGIT_HAND on, the agitator runs on an empty tank. It also feeds R4, so steam can be admitted to an empty or low tank, which risks dry-running the agitator seal, scorching product, and overheating. Make hand mode a maintenance function that still honors the level interlock, and require the level interlock on steam directly.\n3. **Steam depends on a single temperature input with no high limit.** If TEMP_LOW sticks true (sensor failure, wire break reading as \"low\"), steam stays open indefinitely. Add an independent high-temperature cutoff, an alarm, and a sensor-fault state. Also confirm the fail-safe polarity of TEMP_LOW.\n4. **Steam is not gated on level directly.** It only follows the agitator, and so it inherits the R3 bypass. Gate it on the level as well.\n5. **Fill timeout is a retentive timer reset only by START.** The timer accumulates across partial fills (it only counts while the valve is open), so many short, legitimate top-ups can eventually trip a false timeout. In addition, the timer's done bit also holds the horn on while RUN is dropped or reset-pending, and the only reset is START, which also restarts the machine. Use a non-retentive timer per fill, a latched alarm with a separate acknowledge/reset, and distinct fault handling.\n6. **The alarm is a horn only, with no latch, acknowledge, or annunciation.** It is not tied to a cause. Add alarm states (fill timeout, level discrepancy, e-stop, sensor faults) with acknowledge.\n7. **START resets the timer even while running (R6).** A press of START mid-fill silently clears the fault timeout, which defeats the protection. Reset should only be allowed from a stopped, acknowledged state.\n8. **Single high-level switch controls the fill, with no independent high-high protection.** If LSH fails, only the 10-minute timeout prevents overfill. Consider an independent high-high switch hardwired to the fill valve, and an overfill alarm.\n9. **No level-consistency check.** Nothing detects high-level made while low-level is not (an impossible combination that indicates a bad switch). Add this diagnostic.\n10. **Safety by PLC logic only.** E-stop OK is read as an input and drops the latch, but nothing indicates the outputs are hardwired de-energized by the e-stop. Verify whether the e-stop is hardwired to the output power or valve actuators. Since the SLC-500 is not a safety-rated controller, the upgrade should hardwire or use safety-rated components, per risk assessment.\n11. **Missing features to decide on.** There is no agitator run-on delay, no process timer, no discharge, no valve feedback, and no status indication. These are not necessarily defects, but the FDS should state them as in or out of scope.\n\n# Items to verify on site before finalizing\n\n- The actual state of retentive bit file settings and whether B3:0/0 is intended as retentive.\n- The fail-safe wiring of LSL, LSH, and TEMP_LOW (what each reads on a broken wire).\n- The role of AGIT_HAND: intended for maintenance or for production use.\n- Whether the program has additional rungs, since this export has only R0-R6, and whether there are other outputs on O:2 not listed.\n- Whether the valves are fail-closed on loss of power or air.\n\nOne note on the evidence: the narrative and the findings come only from the seven rungs and the technician's notes. I have not seen the I/O list, P&IDs, or wiring, so the polarities and field behavior should be treated as assumptions until verified."
+}

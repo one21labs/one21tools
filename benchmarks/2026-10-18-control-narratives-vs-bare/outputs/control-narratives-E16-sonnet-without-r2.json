@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E16-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E16",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 17999.8,
+  "duration_ms": 17377,
+  "duration_api_ms": 17190,
+  "cost_usd": 0.019450199999999997,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 3062,
+   "output_tokens": 1914,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1914,
+     "cache_read_input_tokens": 3062,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:48:04.860325+00:00",
+   "end": "2026-10-18T04:48:22.860159+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.019450199999999997,
+  "charged_usd": 0.019450199999999997,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Functional narrative (as-found behavior)\n\n**Run permissive / start-stop.** Pressing START (I:1/0) latches RUN_LATCH (B3:0/0). The latch drops when STOP (I:1/1, wired NC so it reads ON when healthy) opens, or when ESTOP_OK (I:1/2) is lost. All process outputs are gated by RUN_LATCH.\n\n**Fill.** With the system running, FILL_VLV (O:2/0) opens until the high-level switch LSH_TANK (I:1/4) is made. A fill-timeout timer T4:0 (retentive, 600 s) accumulates while the valve is open. If the accumulated time reaches 600 s, the valve is forced closed and the horn sounds.\n\n**Fill-timeout alarm.** ALARM_HORN (O:2/3) is on while T4:0.DN is true. It stays on until the timer is reset. The reset occurs only when START is pressed (R6).\n\n**Agitation.** AGITATOR (O:2/1) runs when the system is running and either the tank level is above the low point (LSL_TANK, I:1/3, ON when covered) or the panel selector AGIT_HAND (I:1/5) is on.\n\n**Heating.** STEAM_VLV (O:2/2) opens when the agitator is running and TEMP_LOW (I:1/6) is true. It closes when the temperature is no longer low or the agitator stops.\n\n# Behaviors not to carry forward\n\n1. **RUN_LATCH is retentive across power cycles (confirmed by the tech's note).** B3 bits retain state through power loss, so after restoration the tank resumed filling without any operator action. This is an unexpected-restart hazard. The upgrade should require a fresh START after any power-up, controller mode change, or fault. Use a non-retentive bit or clear it from the first-scan bit (S:1/15).\n\n2. **AGIT_HAND bypasses the low-level interlock.** The selector lets the agitator run with the tank empty or below the blades. That risks dry running, seal or motor damage, and, via R4, steam admission into an empty or low tank. Make hand-mode agitation still require low-level proven, or require a documented, supervised override with a clear indication. The FDS should also say what hand mode is meant to be for, since nobody knows.\n\n3. **Steam is not independently interlocked.** It depends only on the agitator and a single TEMP_LOW input. There is no high-temperature limit or cutoff, no over-temperature alarm, and no check of the level directly. Because the agitator can be forced on by AGIT_HAND, steam can be commanded with no liquid in the tank. A failed or stuck TEMP_LOW input leaves steam on indefinitely. Add a high-temperature trip, direct low-level permissive for steam, and a heat-time or no-rise timeout.\n\n4. **The fill timeout is retentive and only resets on START.** Because T4:0 is an RTO, time accumulates across multiple fill cycles and never resets on its own. It trips from cumulative fill time rather than a single stuck fill. Since the latch also survives power loss, a tripped state could be confusing. The reset logic is a side effect of START, not a deliberate alarm acknowledge. Use a TON per fill (reset when the valve is not commanded), a separate fault latch, and an explicit acknowledge/reset. Note also that while the DN bit is set, the horn can only be silenced by restarting, and the alarm clears at the same moment the run command restarts the fill. There is no way to silence the horn and keep the system safe.\n\n5. **R6 resets the timer on START even while running.** Pressing START mid-run clears the fill timeout and gives the fill a fresh 600 s, which defeats the protection. Restrict reset to a stopped state with the fault cleared.\n\n6. **Single-channel, no fault detection on level inputs.** The high-level switch is the only thing that stops the fill apart from the timer. If LSH_TANK fails (wire break, stuck), the tank overfills until the timeout. A tank-overflow condition can occur well before 600 s depending on flow. Consider a redundant high-high switch that is independent of the PLC, and size the timeout to the actual fill time, with margin.\n\n7. **No inconsistency checks.** Nothing detects LSH made with LSL not made (an impossible state implying a faulty switch or wiring).\n\n8. **No status or alarm for e-stop/stop.** Loss of the run state is silent. Add indication of why the system stopped.\n\n9. **ESTOP_OK is read as a PLC input in the logic.** Confirm that the e-stop hard-wire removes power to the final elements (valves, agitator contactor) independently of the PLC. If it works only through this rung, it is not a safety function. This cannot be determined from the logic export, so verify it in the drawings and on site.\n\n# Open questions for the FDS\n\n- What is the intended process sequence? There is no batch end, no drain, and no recipe. The fill valve simply reopens whenever level falls below high. Is this a continuous top-off or a batch process?\n- Is the agitator meant to stop at high level or run continuously? Is there a minimum mixing time?\n- What are the TEMP_LOW setpoint and the target temperature, and is there any upper limit?\n- What was AGIT_HAND intended for (cleaning, manual mixing, maintenance)?\n- Are there any outputs or inputs not present in the export (drain, product transfer, additional alarms)?\n- Confirm the I/O polarity of LSH_TANK and TEMP_LOW against the field wiring. The tech's notes cover only LSL and the stop button.\n\nI worked only from the text you provided, so these points should be verified against the actual program and field wiring before the FDS is baselined."
+}

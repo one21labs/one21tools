@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E8-opus-with-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E8",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 61423.1,
+  "duration_ms": 60419,
+  "duration_api_ms": 60249,
+  "cost_usd": 0.1429116,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 4054,
+   "cache_read_input_tokens": 658,
+   "output_tokens": 5517,
+   "output_tokens_details": {
+    "thinking_tokens": 1735
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 4054,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5517,
+     "cache_read_input_tokens": 658,
+     "cache_creation_input_tokens": 4054,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 4054
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:33:02.580373+00:00",
+   "end": "2026-10-18T04:34:04.003513+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1429116,
+  "charged_usd": 0.1429116,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# AHU-3 Sequence of Operation: Controls Review\n\nThe sequence is written as if AHU-3 serves an office. For a laboratory in a hot, humid climate, several clauses are unsafe or will not work. Before programming, I would issue an RFI on the four critical items below.\n\n## Critical: resolve before programming\n\n1. **The lab use case is not addressed.** Labs normally run 24/7 at 100% outside air (ANSI/ASSP Z9.5, NFPA 45). They are pressure-coupled to exhaust fans and lab airflow controls. Clauses 1, 2, 3, and 5 assume a recirculating unit with an occupancy schedule. If AHU-3 shuts down while lab exhaust keeps running, rooms go severely negative. Doors may not open, and fume hood containment can be affected.\n2. **There is no humidity control.** In Houston, a 55 F dry-bulb discharge setpoint with a dry-bulb economizer will bring in wet air and produce high space RH and mold risk. The sequence needs dewpoint or humidity control with reheat.\n3. **The smoke detector logic is wrong for life safety.** Shutdown \"through the BAS\" and restart on alarm acknowledge do not meet IMC 606 or NFPA 90A. Shutdown must be hardwired or performed by the fire alarm system. Restart must wait for the detector to be reset.\n4. **The freezestat auto-restarts.** It should be a hardwired manual-reset low limit. Auto-restart can cycle the unit and cause coil damage, and it hides the root cause.\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| F-01 | General | The sequence does not say whether AHU-3 is 100% OA or recirculating. Lab supply air is normally not recirculated. | RFI: confirm the system type. If it is 100% OA, delete the economizer, the mixed air control, and the \"minimum 20%\" clause. |\n| F-02 | Cl. 1, 2 | A 06:00\u201318:00 schedule with unoccupied fan-off is unsafe for labs with continuous exhaust, hoods, or stored chemicals. | Define unoccupied mode as setback airflow at the lab minimum ACH, not off. Coordinate this with the lab airflow control and EF schedules. |\n| F-03 | General | There is no interface with exhaust fans, lab valves, or building pressurization. | Add an interface section listing the signals exchanged with EF-x and the lab airflow controllers. Define the order of starts and stops: supply proven before exhaust ramps, or the reverse, per the ME's pressurization intent. |\n| F-04 | Cl. 3 | The fixed dry-bulb 75 F high limit lets in humid air. ASHRAE 90.1 Table 6.5.1.1.3 does not allow a fixed dry-bulb high limit in climate zone 2A (Houston). | Use a fixed enthalpy plus fixed dry-bulb, or a differential enthalpy, high limit as the selected code edition allows. Alternatively, confirm the economizer is not required, for example because the unit is 100% OA. |\n| F-05 | Cl. 3, 4 | The mixed air loop (economizer) and the DAT loop are independent. They will fight, and the economizer is not integrated as the first stage of cooling. | Use one DAT loop split into heating, economizer, then cooling, with deadbands. If the ME wants a separate MAT loop, define how its setpoint tracks the DAT setpoint. |\n| F-06 | Cl. 4 | A 0\u201350 / 50\u2013100 split has no deadband, so HV-3 and CV-3 can both be open near 50%. | Add a deadband between the heating and cooling segments. Put the split points in the setpoint list. |\n| F-07 | Cl. 4 | There is no dehumidification sequence. A 55 F DAT does not ensure an adequate leaving coil dewpoint in Houston. | Add a leaving coil dewpoint or space RH loop that can override CV-3, plus a reheat source with tag numbers. RFI: what is the space RH limit? |\n| F-08 | Cl. 4 | There is no DAT reset. Labs often need a fixed DAT for dehumidification, but this should be stated. | Have the ME state either \"fixed DAT, no reset\" or the reset logic. |\n| F-09 | Cl. 1 | The fixed 1.5 in. w.c. static setpoint has no reset and no high static safety. | Add static pressure reset logic (or a statement that none is used), a hardwired high static limit, and a low static/fan failure response. |\n| F-10 | Cl. 1 | A 20% minimum damper position does not hold minimum OA airflow as VAV flow drops. | Specify an OA airflow measuring station and control to a minimum OA flow per ASHRAE 62.1 or lab ACH. Tag the station. |\n| F-11 | Cl. 1 | There is no start sequence. The fan may start against closed dampers. | Add a step table: open dampers, prove end switches, start SF-3, prove status, release loops. Give each step a timeout and a failure response. |\n| F-12 | Cl. 2 | Unoccupied heating is defined, but unoccupied cooling and dehumidification are not. In Houston, high RH is the real unoccupied risk. | Add unoccupied high-temperature and high-RH limits that start the unit in a dehumidification mode. Put the limits in the setpoint list. |\n| F-13 | Cl. 2 | \"Space temperature\" has no tag. The sequence does not say whether one sensor or an average is used. | Give the tag or tags and the selection method (average, lowest, highest). |\n| F-14 | Cl. 2 | There are no exit conditions or deadband for unoccupied heating, so the unit can short-cycle. | Define start/stop limits with a differential and a minimum run time, all in the setpoint list. |\n| F-15 | Cl. 5 | The freezestat auto-restarts. Its trip value is stated in prose. The sequence does not say whether it is hardwired. | Make FZ-3 hardwired to the VFD safety circuit with manual reset at the device. Add a BAS alarm. Move the trip value to the setpoint list. |\n| F-16 | Cl. 5 | The freezestat response does not drive HV-3 open or define CV-3 and pump actions. | On trip: SF-3 off, OA damper closed, HV-3 open to 100%, CHW valve per ME. The BAS commands this in parallel with the hardwired stop. |\n| F-17 | Cl. 5 | A fan stop on freezestat in a lab has the same pressurization consequences as F-03. | Define the exhaust response when SF-3 trips for any safety reason. |\n| F-18 | Cl. 6 | Smoke shutdown through BAS logic is not acceptable for life safety. | SD-3 shuts down SF-3 through the fire alarm relay hardwired to the VFD/starter. The BAS monitors only. Reference the fire alarm sequence matrix. |\n| F-19 | Cl. 6 | The operator can restart after acknowledging the alarm. Acknowledging an alarm is not resetting the detector. | Require the detector or fire alarm to be reset before a BAS restart is permitted. Confirm with the fire protection engineer whether AHU-3 has any smoke control role. |\n| F-20 | Cl. 7 | \"Valves stay in last position\" gives no fail position per device, says nothing about dampers, and does not define restart. | Add a fail position table for HV-3, CV-3, the OA damper, the RA/relief dampers, and the VFD. Define the power-restore sequence: delay, staggered restart, auto or manual. |\n| F-21 | General | Bad PV handling is missing for DAT, MAT, OAT, static, space temperature, and RH. | For each PV, define the response, for example: hold last output, go to a fixed position, disable the economizer, alarm. |\n| F-22 | General | Comms loss handling is missing for the controller and VFD network and for the head-end. | Define standalone operation and the default setpoints on comms loss. |\n| F-23 | General | There is no fan status proof, VFD fault handling, or filter alarm. | Add status proof with a timeout, fault lockout, and a reference to the alarm database. |\n| F-24 | General | The sequence lists no return fan or relief. The OA modulation in Cl. 3 needs a relief path. | RFI: list the return/relief equipment and its control. |\n| F-25 | General | Some components are untagged: OAT, MAT, DAT, static sensor, OA damper. | Use tag numbers that match the instrument index. |\n| F-26 | General | Setpoints and limits appear throughout the prose: 1.5 in., 20%, 60 F, 75 F, 55 F, 38/40 F, 06:00\u201318:00. | Move all values to a setpoint list, and have the prose reference that list. |\n| F-27 | General | Requirements have no IDs and no test method. | Number each requirement (FR-AHU3-NNN) and link it to a FAT/functional test step. |\n| F-28 | General | There is no mode/state table. Transitions between occupied, unoccupied, warm-up, safety shutdown, and smoke are undefined. | Add a state table with entry permissives, allowed exits, and the initiator (operator or auto) for each state. |\n\n## RFI questions for the mechanical engineer\n\n1. Is AHU-3 100% outside air, or does it recirculate? Are any of the lab spaces it serves non-recirculating?\n2. What are the minimum ACH and pressurization requirements, and which spaces must stay negative?\n3. What are the space RH limits and the design leaving coil dewpoint? What is the reheat source?\n4. Must AHU-3 run 24/7, or is there a setback airflow?\n5. What are the exhaust fan and lab airflow control responses when SF-3 trips?\n6. Does AHU-3 have a smoke control function, and what does the fire alarm matrix say for SD-3?\n7. Which code edition applies (90.1/IECC) for the economizer high limit and the static reset requirements?\n8. What is the fail position for each valve and damper, and does the ME want auto-restart after power loss?\n\n## Example rewrite (Clause 5, STE style)\n\n> **FR-AHU3-050** If FZ-3 trips, the hardwired circuit stops SF-3. The BAS closes the OA damper and opens HV-3 fully. The BAS sends a critical alarm per the alarm database.\n> **FR-AHU3-051** SF-3 stays off until an operator resets FZ-3 at the device. Then the operator starts SF-3 from the BAS.\n> *Test:* Simulate an FZ-3 trip at the device. Make sure that SF-3 stops, the OA damper closes, HV-3 opens fully, and SF-3 does not restart until FZ-3 is reset.\n\nI recommend you hold programming of the mode logic, economizer, and safeties until the ME answers RFI items 1\u20136. The regulatory loops (static, DAT split-range) can be roughed in now, but F-05, F-06, and F-07 may change their structure."
+}

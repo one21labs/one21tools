@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E15-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E15",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 24169.1,
+  "duration_ms": 23555,
+  "duration_api_ms": 23345,
+  "cost_usd": 0.032067,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 711,
+   "cache_read_input_tokens": 2190,
+   "output_tokens": 2900,
+   "output_tokens_details": {
+    "thinking_tokens": 754
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 711,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2900,
+     "cache_read_input_tokens": 2190,
+     "cache_creation_input_tokens": 711,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 711
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:47:21.504968+00:00",
+   "end": "2026-10-18T04:47:45.674098+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.032067,
+  "charged_usd": 0.032067,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control Narrative: Kiln Baghouse BH-700\n\n**Status:** DRAFT, derived from a verbal description by the shift supervisor. Items marked **[CONFIRM]** are gaps or conflicts in the source and must be resolved before programming. Nothing marked as a confirmed value should be read as a validated setpoint.\n\n## 1. Equipment and Instruments\n\n| Tag | Description |\n|---|---|\n| BH-700 | Kiln baghouse (pulse-jet, multiple rows) |\n| SC-701 | Screw conveyor (hopper discharge) |\n| RV-702 | Rotary airlock valve |\n| F-703 | ID fan |\n| D-704 | Inlet damper |\n| TT-705 | Inlet temperature transmitter |\n| D-706 | Bleed-air (tempering) damper |\n| **[CONFIRM]** | Differential pressure transmitter tag (called \"DP\" in source; units assumed inches w.c.) |\n| **[CONFIRM]** | Pulse valve tags and row count |\n| **[CONFIRM]** | Kiln feed tag/interface for the feed-stop action |\n| **[CONFIRM]** | Airlock run-status/zero-speed feedback tag |\n\n## 2. Startup Sequence\n\n1. Start SC-701 and RV-702 (discharge equipment first).\n2. Once both are proven running, start ID fan F-703.\n3. After F-703 is running, wait the startup delay (**60 s**, adjustable; source says \"a minute or so\" **[CONFIRM]**), then open D-704.\n4. Enable timed pulse cleaning (Section 3).\n\n**[CONFIRM] Start order:** The source describes the conveyor/airlock-first order but says one operator prefers fan first (to avoid blinding the bags) and that \"either works.\" The PLC needs one fixed sequence. This draft uses discharge equipment first. If fan-first is preferred, someone must confirm that it is safe with the hopper discharge not yet running.\n\n**[CONFIRM]** Whether pulsing starts at fan start or at damper open, and whether the startup should fault if any step doesn't prove within a timeout.\n\n## 3. Pulse Cleaning (Normal Operation)\n\n- Pulsing is timer-based, one row at a time, sequentially through all rows.\n- **Normal rate:** one row every **10 s**.\n- **High-DP rate:** one row every **5 s**.\n- Switch to the high-DP rate when baghouse DP reaches the high-DP setpoint; return to normal when DP falls below it by a deadband.\n\n**[CONFIRM] Setpoints:** The source gives the trigger as \"like 6 or 7 in.\" Pick one value (draft: **6.0 in. w.c.** to go fast, return to normal at **5.0 in. w.c.**) and set the deadband. These are engineering decisions, not field-confirmed values.\n\n## 4. Protective Actions and Interlocks\n\n### 4.1 Airlock stop (RV-702)\nIf RV-702 stops or loses run feedback while the system is running, initiate an immediate shutdown of the baghouse train. Rationale from the source: the hopper fills, and there was a fire in 2019.\n\n**[CONFIRM] before programming:**\n- Exactly what \"everything\" includes (F-703, SC-701, D-704, kiln feed, pulsing).\n- Whether the 10-minute clean-down in Section 5 is **skipped** in this case (assumed yes, since it is a fast trip).\n- Whether the trip is hard-wired/safety-rated rather than only in the PLC, given the fire history. Recommend this go through the site's hazard review.\n- Whether a debounce time applies to the stop signal.\n\n### 4.2 High DP\n- DP above the high-DP setpoint: switch to fast pulsing (Section 3).\n- DP above **8 in.**: alarm, and shut off kiln feed.\n\n**[CONFIRM]** The source says the kiln feed is \"usually\" shut at that point, which is operator discretion, not logic. Decide whether this is an automatic interlock or an alarm with operator action. Also set the reset condition and whether the fan keeps running.\n\n### 4.3 High inlet temperature\n- TT-705 above **450 \u00b0F**: open bleed-air damper D-706 to cool the inlet gas.\n\n**[CONFIRM]:**\n- Close/reset condition and deadband (not given).\n- Whether D-706 modulates or is open/closed.\n- Whether a higher temperature should trip the kiln feed or fan.\n- Whether an alarm is required at 450 \u00b0F.\n\n## 5. Normal Shutdown\n\n1. Stop the kiln feed (assumed; **[CONFIRM]**).\n2. Keep F-703 running and continue pulse cleaning for **10 min** (clean-down timer).\n3. At timer expiry, stop pulsing and stop F-703.\n4. Stop RV-702 and SC-701.\n\n**[CONFIRM]:**\n- The source states only that pulsing continues for 10 min with the fan running. The order for stopping the conveyor, airlock, and closing D-704 is not stated. This draft keeps the airlock and conveyor running during clean-down so the dislodged dust is discharged, which should be confirmed.\n- Pulse rate during clean-down (normal or fast).\n\n## 6. Items Not in the Source (for the integrator's review)\n\nThese were not described by the supervisor. They are suggestions, not requirements:\n- Hopper high-level protection, given the fire/fill history.\n- Fan and conveyor motor fault handling and E-stop behavior.\n- Low-temperature (dew point) protection.\n- Manual/auto modes and operator override of pulsing.\n- Alarm priorities and HMI display of the DP trend.\n\n## 7. Summary of Open Questions\n\n1. Fixed start order (discharge first vs. fan first).\n2. Startup delay value.\n3. High-DP pulse setpoint and deadband.\n4. Whether DP > 8 in. is an automatic feed stop.\n5. Scope and safety rating of the airlock-stop trip.\n6. D-706 close condition and any higher-temperature trip.\n7. Shutdown order after clean-down.\n8. Missing tag names (DP, pulse valves, kiln feed, airlock feedback).\n\nI'd suggest sending section 7 back to Dave (and Mike, on the start order) for answers before the integrator starts."
+}

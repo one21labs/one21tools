@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E10-opus-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E10",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 72920.4,
+  "duration_ms": 72245,
+  "duration_api_ms": 72044,
+  "cost_usd": 0.13811520000000002,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2936,
+   "output_tokens": 6876,
+   "output_tokens_details": {
+    "thinking_tokens": 2770
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6876,
+     "cache_read_input_tokens": 2936,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:34:19.787479+00:00",
+   "end": "2026-10-18T04:35:32.707871+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.13811520000000002,
+  "charged_usd": 0.13811520000000002,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# RTO-6 State Model Review\n\n## What's wrong\n\n### Critical: these can cause a fire, explosion, or permit violation\n\n**1. Low temperature in PROCESS only drives high fire. Fumes keep flowing.**\nIf TT-601 drops below the destruction temperature, solvent goes to atmosphere untreated, which is a permit violation. It is also a safety problem. Low temperature in PROCESS often means the burner is struggling or has lost flame, and solvent-laden air keeps entering a chamber that may no longer be an ignition source. Fumes can then accumulate and light off later. Low chamber temperature in PROCESS must divert fumes to bypass (open XV-602, close XV-601). It is not a firing-rate problem.\n\n**2. There is no high-temperature handling.**\nA solvent concentration spike from CL-6 can drive the RTO autothermal and then overheat it. That can damage the media, the chamber, or downstream equipment, and can cause a fire. The model needs:\n- a high alarm, with dilution or hot-side bypass if the OEM provides it,\n- a high-high trip,\n- an independent high-temperature limit device, separate from the TT-601 control loop.\n\n**3. XV-601 and XV-602 have no defined relationship or sequencing.**\nThe model never says what XV-602 does. Two failure cases follow:\n- **Both closed:** CL-6's dryer exhaust is deadheaded, and solvent concentration in the oven rises toward LEL. This is a dryer explosion hazard.\n- **Both open:** this is usually acceptable, but it must be deliberate and brief.\n\nFixes:\n- Use make-before-break sequencing: open the new path, prove it open, then close the old path.\n- Use position-proven feedback on both valves.\n- Fail-safe positions: XV-601 fail-closed, XV-602 fail-open.\n- Interlock to CL-6: if no exhaust path is proven, the coating line must stop.\n\n**4. Operator opens XV-601 directly from the HMI faceplate.**\nThis lets the state machine be bypassed. The valve should be commanded only by the sequence logic, after the permissives are checked. The operator should *request* PROCESS, and manual control of XV-601 must be locked out except in a controlled maintenance mode with fumes proven absent.\n\n**5. Purge is timer-only.**\nA 5-minute timer proves nothing. NFPA 86 (or EN 746-2 if you are outside the US) requires a purge of at least 4 volume changes under proven conditions:\n- combustion fan running and airflow proven,\n- XV-601 proven closed,\n- gas safety shutoff valves proven closed.\n\nThe timer must reset if any of those conditions is lost mid-purge. Confirm that 5 minutes actually equals 4 or more volume changes at proven purge flow.\n\n**6. There is no burner ignition sequence.**\nPURGE goes straight to HEAT-UP, so pilot and main flame trials, flame proving, and low-fire start are missing. Normally these belong to the BMS, but the state model needs a LIGHT-OFF step that waits for \"flame proven.\"\n\n**7. FAULT is undefined.**\n- No actions are specified for the FAULT state.\n- There is no exit from FAULT.\n- \"Any trip\" is not enumerated.\n\nFAULT must:\n- close the gas safety shutoff valves,\n- close XV-601 and open XV-602,\n- keep the combustion fan running, unless the trip is fan-related, for post-purge and cooling,\n- latch until the operator resets with all trips clear,\n- return only to OFF, so any restart re-purges.\n\n**8. Single TT-601 for both control and safety.**\nDestruction-temperature permissive, low-temperature divert, and high-temperature trip all hang on one thermocouple with no bad-PV handling. A failed thermocouple reading high would hold PROCESS open on a cold chamber. Recommendations:\n- Use redundant thermocouples, e.g. 1oo2 for the high trip and 2oo2-agree for the PROCESS permissive.\n- Treat a bad PV as a trip.\n- Run safety functions in the BMS/SIS, not only in the BPCS sequence.\n\n### Significant: operability and robustness\n\n**9. The same threshold is used for READY and for \"too cold in PROCESS.\"**\nUsing 760 \u00b0C for both will chatter. You need:\n- a permissive with margin (e.g. T_ready),\n- a lower minimum-operating limit (T_min),\n- hysteresis between them.\n\nFor an RTO, READY should also require the ceramic beds to be heat-soaked (bed temperatures or a soak timer), not only the chamber.\n\n**10. Missing reverse transitions.**\n- READY has no path back to HEAT-UP if temperature drops.\n- HEAT-UP has no timeout. A failure to reach temperature should alarm or fault, not sit in the state forever.\n\n**11. Stop from PROCESS goes straight to COOL-DOWN.**\nThat shuts down the burner with solvent still in the beds and possibly with fumes still being admitted. Stop should:\n1. divert fumes first,\n2. hold temperature for a burnout/bakeout period to oxidize residual organics in the media,\n3. only then move to COOL-DOWN.\n\nA \"stop processing\" request (go back to READY, hot standby) is also different from \"shut down the RTO.\"\n\n**12. No LEL monitoring on the fume inlet.**\nA solvent-laden inlet needs:\n- an LEL analyzer,\n- a high alarm (divert or dilute),\n- a high-high trip.\n\nThe typical design basis is to keep the inlet at or below 25% LEL, or up to 50% with continuous monitoring and controls, per NFPA 86. Confirm against your design basis.\n\n**13. COOL-DOWN behavior is unspecified.**\nState that the burner is off and the fan runs. Also define what Start does during COOL-DOWN: it should go back to PURGE.\n\n**14. \"High fire\" as a control action.**\nPROCESS should use modulating temperature control (PID on TT-601 to the burner firing rate), not bang-bang high fire.\n\n## Corrected state model\n\nThe setpoints below are placeholders. T_min must come from your air permit, and T_HH and the soak time from the RTO OEM.\n\n| Symbol | Meaning | Example |\n|---|---|---|\n| T_min | Permit minimum destruction temperature | 760 \u00b0C |\n| T_ready | PROCESS permissive (T_min + margin) | 790 \u00b0C |\n| T_HA / T_HH | High alarm / high-high trip | per OEM, e.g. 950 / 1000 \u00b0C |\n| T_cool | Fan-off temperature | 200 \u00b0C (or per OEM) |\n\n### States and outputs\n\n| State | Burner | Comb. fan | XV-601 (inlet) | XV-602 (bypass) | Notes |\n|---|---|---|---|---|---|\n| **OFF** | Off, SSOVs closed | Off | Closed | Open | CL-6 may run only if XV-602 is proven open |\n| **PURGE** | Off, SSOVs proven closed | On, flow proven | Proven closed | Open | Purge timer runs only while all purge conditions are true; reset on loss |\n| **LIGHT-OFF** | BMS ignition sequence, low fire | On | Closed | Open | Pilot/main trials per BMS |\n| **HEAT-UP** | Modulating to heat-up ramp | On | Closed | Open | Timeout alarm/fault |\n| **READY** | Modulating, hold \u2265 T_ready | On | Closed | Open | Hot standby |\n| **PROCESS** | Modulating PID on TT-601 | On | Open | Closed | Fumes treated; entry and exit are sequenced |\n| **BURNOUT** | Modulating, hold \u2265 T_min | On | Closed | Open | Bakes residual solvent out of the media for t_burnout |\n| **COOL-DOWN** | Off, SSOVs closed | On | Closed | Open | |\n| **FAULT** | Off, SSOVs closed (BMS lockout) | On, unless fan trip | Closed | Open | Latched; notify CL-6 |\n\n### Transitions\n\n| From | To | Condition |\n|---|---|---|\n| OFF | PURGE | Start, all start permissives OK (no trips, XV-601 proven closed, XV-602 proven open, gas pressure OK) |\n| PURGE | LIGHT-OFF | Purge complete (\u2265 4 volume changes at proven flow, uninterrupted) |\n| LIGHT-OFF | HEAT-UP | Main flame proven |\n| HEAT-UP | READY | TT-601 \u2265 T_ready **and** bed soak complete |\n| HEAT-UP | FAULT | Heat-up timeout |\n| READY | HEAT-UP | TT-601 < T_ready \u2212 hysteresis |\n| READY | PROCESS | Operator requests PROCESS **and** TT-601 \u2265 T_ready **and** flame proven **and** inlet LEL < alarm **and** valves healthy. Sequence: open XV-601, prove open, then close XV-602 |\n| PROCESS | READY | Operator \"Stop Processing\" **or** TT-601 < T_min **or** inlet LEL \u2265 high alarm **or** TT-601 \u2265 T_HA (if no dilution/hot-bypass available). Sequence: open XV-602, prove open, then close XV-601 |\n| PROCESS | BURNOUT | Operator \"Shutdown\" (divert sequence as above first) |\n| READY | BURNOUT | Operator \"Shutdown\" |\n| BURNOUT | COOL-DOWN | Burnout timer complete |\n| COOL-DOWN | OFF | TT-601 < T_cool (fan stops) |\n| COOL-DOWN | PURGE | Start (full purge required before relight) |\n| Any | FAULT | Any trip (below) |\n| FAULT | OFF | All trips clear **and** operator reset |\n\nTwo notes on these transitions:\n- **Low temperature in PROCESS:** with a modulating burner, a brief drop below T_min diverts to READY. The operator can re-request PROCESS once TT-601 recovers above T_ready. If you want automatic return, add a hold-off timer and limit the number of auto-retries.\n- **Divert sequencing timeout:** if a valve fails to prove its position within its stroke time, the system goes to FAULT. If XV-602 cannot be proven open, CL-6 must be stopped.\n\n### Trips (go to FAULT, latched)\n\n| Trip | Active in |\n|---|---|\n| Flame failure | LIGHT-OFF, HEAT-UP, READY, PROCESS, BURNOUT |\n| Combustion air flow low / fan failure | All except OFF |\n| Gas pressure high or low | All except OFF |\n| Chamber temperature high-high (independent limit) | All |\n| Bed/outlet temperature high-high | All |\n| Inlet LEL high-high | PROCESS (and wherever XV-601 could be open) |\n| TT-601 bad PV / thermocouple disagreement | All except OFF |\n| XV-601 / XV-602 position disagreement or failure to prove | All |\n| Loss of instrument air or power to safety valves | All |\n| E-stop | All |\n\n### CL-6 interlocks\n\n- CL-6 oven exhaust is permitted only when XV-601 **or** XV-602 is proven open.\n- On RTO FAULT, signal CL-6. If XV-602 is not proven open, CL-6 must stop (and stop solvent application).\n\n## Things to confirm with your team\n\n- **T_min:** the destruction temperature and residence time in your air permit. 760 \u00b0C may not be the permitted value, and the permit may require continuous temperature recording.\n- **Safety function placement:** which functions sit in the BMS/SIS versus the PLC sequence. Flame safeguard, purge, gas valve proving, and the high-temperature limit belong in listed or SIL-rated equipment.\n- **OEM details:** purge volume, burnout time, bed soak criteria, and whether poppet-valve switching or a hot-side bypass needs its own interlocks in these states."
+}
