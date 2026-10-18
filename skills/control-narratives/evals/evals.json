@@ -1,0 +1,170 @@
+{"skill_name": "control-narratives", "evals": [
+{"id": 1,
+"prompt": "Draft the control narrative for sanitary lift station LS-12. Wet well is 3.0 m deep. Two submersible pumps P-121 and P-122, each sized for 100% duty, on VFDs. Level: submersible pressure transducer LIT-121 (0-3.0 m). Backup float switches LSL-121 at 0.4 m and LSHH-121 at 2.6 m. Operations wants lead/lag with alternation every pump cycle: lead start 1.6 m, lead stop 0.6 m, lag start 2.0 m, high level alarm 2.3 m. Lead pump runs at 45 Hz minimum and ramps linearly to 60 Hz as level rises from lead start to lag start. Each pump has a Hand-Off-Auto switch at the MCC. Station PLC reports to central SCADA over licensed radio. There is a standby generator with an automatic transfer switch. Overflow occurs at 2.8 m and discharges to a creek, which is a permit violation. Write it so the integrator can program it and the FAT tester can test it.",
+"expected_output": "A complete, testable lead/lag narrative that defines every level setpoint consistently, covers transducer, pump, power and communications failures, and keeps the float backup independent of the transducer-based control.",
+"expectations": [
+"Defines a lag pump stop level (or explicit lag stop rule) and states setpoints that are internally consistent with the given levels (e.g., stop below start, alarm between lag start and LSHH)",
+"Specifies that the LSHH-121 float backup starts pumping independently of LIT-121 and the PLC analog logic (e.g., hardwired or via a separate path), so a failed transducer cannot cause overflow",
+"Defines how a transducer failure is detected (out of range, disagreement with floats, or similar) and what the station does in response",
+"Defines lead pump failure handling: if the lead pump faults or does not prove running, the lag pump is promoted and an alarm is raised",
+"Defines restart after power loss or generator transfer, including staggered pump starts so both pumps do not start at the same instant",
+"States that loss of the SCADA radio link does not stop local automatic control, and states whether LSL-121 dry-run protection is active when a pump is in Hand"
+]},
+{"id": 2,
+"prompt": "Write the start, stop, and protection section of the control narrative for plant air compressor K-210: 900 kW, three-stage integrally geared centrifugal, 6.6 kV motor with soft starter. Capacity control by inlet guide vanes (ZC-210 command, ZT-210 position) and blow-off valve FV-211 to atmosphere. Lube oil: shaft-driven main oil pump plus AC auxiliary oil pump P-212, header pressure PT-213 (normal 2.5 bar, low alarm 1.8 bar, low-low trip 1.3 bar), oil temperature TT-214 (start permissive above 25 C, tank heater available). Vibration VT-215/216/217 one per stage (alarm 40 microns, trip 60 microns). Discharge header pressure controlled at 7.0 barg. Motor vendor limit: 3 starts per hour, minimum 20 min between hot starts. Vendor supplies a surge line in the controller; surge protection opens the blow-off valve. Unit is started from the DCS by the operator.",
+"expected_output": "A step-by-step start/stop sequence with timed steps, separated permissives and trips with values, explicit oil-system and start-limit logic, and latched trips that never auto-restart.",
+"expectations": [
+"Lists start permissives separately from running trips, each with a numeric value, so a tester can check each one",
+"Specifies that the compressor starts unloaded (guide vanes at minimum, blow-off valve open) and loads only after the motor is proven at speed and a defined delay",
+"Defines auxiliary oil pump behavior: pre-lube before start with a pressure proof, automatic start if header pressure falls during running, and post-lube during rundown for a defined time",
+"Enforces the motor start limits (3 per hour and hot-restart interval) and states what the operator sees when a start is blocked",
+"States that a trip opens the blow-off valve immediately, latches with first-out indication, and requires an operator reset; no automatic restart",
+"Describes surge protection response (blow-off opening on approach to the surge line) and how it interacts with header pressure control"
+]},
+{"id": 3,
+"prompt": "We are adding package boiler B-301: gas-fired, about 25 MW firing, single burner, forced draft fan FD-301 on a VFD, O2 trim. The boiler vendor supplies the burner management system on its own safety-rated PLC. Our DCS does combustion control. Write the control narrative section for combustion control and the DCS-to-BMS interface. Steam header master pressure PT-310 at 10 barg. Fuel gas flow FT-311 with control valve FV-311. Combustion air flow FT-312 manipulated by FD fan speed and damper. Flue gas O2 analyzer AT-313. Operations wants the boiler to swing between 30% and 100% load following header pressure.",
+"expected_output": "A narrative that keeps purge, ignition, flame safeguard and trips in the BMS, defines the two-way DCS/BMS handshake, and specifies cross-limited air/fuel control with bounded O2 trim and defined trip/re-release behavior.",
+"expectations": [
+"States that purge, ignition, flame supervision and safety trips are owned by the BMS and that the DCS cannot bypass, override or replicate them",
+"Defines the handshake in both directions, including that the DCS holds air and fuel at BMS-demanded positions (purge, low fire) until the BMS releases it to modulate",
+"Specifies cross-limiting so air leads fuel on load increase and fuel leads air on load decrease, preventing a fuel-rich condition",
+"Limits O2 trim authority to a defined band and defines the fallback when AT-313 is bad or out of range",
+"Defines DCS behavior on a BMS trip and on re-release (controllers forced to tracking/low-fire positions, bumpless return), so modulation does not resume from stale outputs"
+]},
+{"id": 4,
+"prompt": "Draft the phase logic narrative for the Monomer Feed phase of reactor R-501: 10 m3 jacketed vessel, semi-batch exothermic polymerization. Monomer is fed through FIC-510 at a recipe rate (typical 1.2 m3/h) for about 4 h; total amount comes from the recipe. Reaction temperature TIC-505 at 80 C cascades to jacket temperature TIC-506, which split-ranges cooling water valve TV-506A and steam valve TV-506B. Agitator A-501 has a speed sensor SI-501. The hazard review requires that monomer accumulation be limited: feed must stop if the reaction is not consuming it. Reaction high temperature alarm 88 C. A separate SIS trips at 95 C. Our plant uses ISA-88 phases with Hold, Restart, Stop and Abort.",
+"expected_output": "A phase narrative whose feed interlocks address accumulation (agitation proven by speed, temperature, cooling saturation), that never auto-resumes feed, and that defines every phase command and the completion condition.",
+"expectations": [
+"Stops the feed on loss of agitation proven by SI-501 speed (not only the motor run signal), on high reaction temperature, and on loss of cooling margin such as the cooling valve near full open",
+"States that feed does not resume automatically after agitation is restored; restart needs an explicit operator or recipe action with conditions to limit accumulated monomer",
+"Defines a method to detect that monomer is not reacting (for example reaction-to-jacket temperature difference or heat release versus fed amount) and the action taken",
+"Defines what happens in this phase on Hold, Restart, Stop and Abort, including valve positions and temperature control mode",
+"Uses the totalized feed versus the recipe amount as the completion condition, with a rule for a feed that takes much longer than expected",
+"Treats the 95 C SIS trip as an independent layer that the phase logic does not rely on or duplicate"
+]},
+{"id": 5,
+"prompt": "Write the automatic backwash sequence for a water treatment plant with four dual-media gravity filters F-1 to F-4. Each filter has: influent valve, effluent rate control valve, backwash water valve, air scour valve, drain valve, filter-to-waste valve, headloss transmitter, effluent turbidimeter. Backwash water comes from two clearwell pumps P-BW1/P-BW2 (duty/standby), air from blower B-1. A backwash starts on headloss above 2.4 m, effluent turbidity above 0.3 NTU for 5 min, filter run time 72 h, or operator request. Steps: drain down to 0.3 m above media, air scour 3 min, air plus low-rate wash 2 min, high-rate wash 8 min at 50 m/h, settle 2 min, then filter-to-waste until turbidity is below 0.1 NTU or 30 min maximum. Clearwell must be above 3.0 m to start a backwash. Plant flow is 30 ML/d split across the online filters.",
+"expected_output": "A step-by-step backwash sequence that allows only one filter at a time with queueing, verifies valve positions with timeouts, defines hold/abort and the filter-to-waste failure outcome, and handles clearwell and plant-flow effects.",
+"expectations": [
+"Allows only one filter in backwash at a time and defines queueing and priority when several filters request backwash",
+"States what happens to plant flow on the remaining three filters while one is out (redistribution, a rate limit, or a plant-flow reduction request)",
+"Requires valve position confirmation before each step proceeds, with a defined timeout and fault response",
+"Defines hold and abort behavior during a backwash, including the safe valve state and whether and how the sequence can resume",
+"Defines the outcome when filter-to-waste reaches 30 min without turbidity below 0.1 NTU: the filter is not returned to service and an alarm is raised",
+"Checks the clearwell level before starting and defines the response if it falls low during the wash; defines duty/standby backwash pump failover"
+]},
+{"id": 6,
+"prompt": "Write the start/stop and protection narrative for an aggregate conveying line. Material flow: hopper with vibratory feeder VF-1, then belt conveyor CV-1, then CV-2, then jaw crusher CR-1, then CV-3 to the stockpile. Each conveyor has a zero-speed switch, belt misalignment switches (alarm and trip stages), pull-cord switches along its length, and a plugged-chute switch at its discharge. CR-1 has motor current CT (full load 210 A) and a lube oil pressure switch. Site rule: an audible and visual warning must run for 10 s before any conveyor moves. Line is started from the control room HMI. Typical belt run-out time to empty a belt is 20-45 s depending on the conveyor.",
+"expected_output": "A sequenced narrative starting downstream-first with speed proof, stopping upstream-first with run-out, cascading faults upstream only, keeping pull-cords as hardwired safety stops, and handling crusher overload by feed reduction before trip.",
+"expectations": [
+"Starts equipment from the stockpile end back toward the feeder (CV-3, CR-1, CV-2, CV-1, VF-1), each proven running by its zero-speed switch before the next starts",
+"Stops from the feeder end first with a defined run-out time per conveyor so belts are emptied",
+"On a fault of any machine, stops that machine and everything upstream of it while downstream machines continue or run out",
+"States that pull-cord stops act directly on the motor circuit independent of the PLC and need a local reset before restart; the PLC only monitors them",
+"Uses CR-1 motor current to reduce or stop feed before an overload trip, with defined current thresholds",
+"Applies the 10 s warning before the first start and before any restart after a stop or fault"
+]},
+{"id": 7,
+"prompt": "Review this overfill protection section from our tank farm control narrative before it goes to the client. Tank T-201 is a 20,000 bbl gasoline tank, filled from a pipeline through XV-201 by transfer pump P-201 (fixed speed, positive displacement, no recirculation line). Find the problems and give me a corrected section.\n\n---\n4.3 T-201 Overfill Protection\n4.3.1 Level is measured by radar LT-201 (0-100%). The high alarm LAH-201 is set at 93%. The high-high alarm LAHH-201 is set at 90%.\n4.3.2 An independent high-high level switch LSHH-201 shall close XV-201 when level reaches 95%.\n4.3.3 When LT-201 reaches 92% the PLC should close XV-201 to protect the tank.\n4.3.4 The operator can bypass LSHH-201 from the HMI during tank gauging. The bypass resets automatically when the level drops below 90%.\n4.3.5 After XV-201 closes, the operator should restart the fill when the level is OK.\n---",
+"expected_output": "A review that catches the inverted alarm order, the unexplained trip values, the deadheaded PD pump, the unsafe bypass, the missing transmitter-failure behavior and the vague wording, and returns a corrected, testable section.",
+"expectations": [
+"Flags that the high alarm (93%) is above the high-high alarm (90%) and corrects the order",
+"Flags that the closure value appears as 92% (PLC) and 95% (LSHH) without stating they are separate layers, and either justifies two layers explicitly or resolves the conflict",
+"Identifies that closing XV-201 while positive-displacement P-201 runs deadheads the pump, and requires P-201 to stop (in a defined order with the valve, and coordinated with the pipeline)",
+"Identifies that an HMI bypass of the independent switch, cleared only when level falls, is unsafe; requires authorization, a time limit, alarm indication, and keeps independence from the BPCS",
+"Defines LT-201 failure behavior (bad signal or frozen value) and replaces vague words ('should', 'level is OK') with mandatory statements and numeric restart conditions"
+]},
+{"id": 8,
+"prompt": "Review this AHU sequence of operation for a laboratory building in Houston (hot, humid). The mechanical engineer wrote it; I am the controls contractor and need to flag issues before we program it.\n\n---\nAHU-3 Sequence of Operation\n1. Occupied mode (06:00-18:00 per BAS schedule): supply fan SF-3 starts and runs to maintain duct static pressure 1.5 in. w.c. Outdoor air damper opens to minimum 20%.\n2. Unoccupied mode: SF-3 off, OA damper closed. If space temperature falls below 60 F, SF-3 starts and the heating valve modulates.\n3. Economizer: when outdoor air temperature is below 75 F the economizer is enabled and the OA damper modulates to maintain mixed air temperature 55 F.\n4. Discharge air temperature setpoint 55 F. Heating valve HV-3 and cooling valve CV-3 modulate in sequence from one PID output: 0-50% heating, 50-100% cooling.\n5. Freezestat FZ-3 (38 F) stops the fan and closes the OA damper. When the temperature rises above 40 F the unit restarts automatically.\n6. Duct smoke detector SD-3 stops SF-3 through the BAS. The operator can restart from the BAS workstation once the alarm is acknowledged.\n7. On loss of power, valves stay in last position.\n---",
+"expected_output": "A review that catches the humid-climate economizer high limit, the ambiguous split range with no deadband, the auto-resetting freezestat, the BAS-only smoke shutdown, and the undefined fail positions, with corrected sequence text.",
+"expectations": [
+"Flags that a 75 F dry-bulb economizer high limit in a humid climate admits moist air, and proposes an enthalpy-based or lower dry-bulb limit",
+"Flags that the split-range description does not state valve direction at each end and has no deadband between heating and cooling, risking simultaneous heating and cooling or hunting",
+"Flags that the freezestat restarts automatically; requires a manual reset and that the heating valve opens fully on a freeze condition",
+"Flags that smoke shutdown through the BAS alone, with a workstation restart, is inadequate; requires the detector to stop the fan directly (hardwired) with restart only after the detector or fire alarm is reset",
+"Replaces 'last position' with defined fail positions for HV-3, CV-3 and the OA damper (e.g., heating fail open and OA damper fail closed) with the reason"
+]},
+{"id": 9,
+"prompt": "Review this draft FDS section for a dairy CIP skid. The skid has rinse, caustic and acid tanks, supply pump P-501 with flow FT-501, return pump P-502, return conductivity CT-501 and return temperature TT-501. It cleans two circuits from the HMI: raw milk silo S-1 and the pasteurizer HTST-1. Circuits are routed with mix-proof valves. Fix what is wrong.\n\n---\n7.2 CIP Sequence\nStep 1 Pre-rinse: Open the rinse tank valve and run P-501 for 5 minutes to drain.\nStep 2 Caustic wash: The caustic tank is heated to temperature. Circulate caustic for 20 minutes.\nStep 3 Intermediate rinse: 5 minutes to drain.\nStep 4 Acid wash: Circulate acid for 15 minutes at 65 C.\nStep 5 Final rinse: Run until clean.\nIf the return pump stops, the operator should check the circuit.\nThe CIP can be started on any circuit selected on the HMI.\n---",
+"expected_output": "A review that adds circuit route and product-isolation verification, makes wash time count only at verified return temperature and concentration, replaces vague endpoints with measured criteria, and defines flow and return-pump failure behavior.",
+"expectations": [
+"Identifies that starting CIP on any selected circuit with no route proof risks chemicals reaching product; requires proof that the circuit is empty or isolated and mix-proof valve positions are confirmed before chemical is sent",
+"Requires wash time to count only while return temperature and return conductivity are at or above defined minimums, with the timer paused or extended when they drop",
+"Replaces 'heated to temperature' and 'until clean' with numeric criteria (caustic temperature, final rinse return conductivity below a set value)",
+"Defines automatic responses to return pump failure and low supply flow from FT-501 (stop chemical supply, hold the step, alarm) instead of 'operator should check'",
+"Defines how chemical and rinse water are separated at step transitions (recovery to tank versus drain based on return conductivity)"
+]},
+{"id": 10,
+"prompt": "Review the state model for our regenerative thermal oxidizer RTO-6, which treats solvent fumes from coating line CL-6. Natural gas burner, combustion fan, fume inlet valve XV-601, fume bypass damper to stack XV-602, combustion chamber temperature TT-601. Tell me what is wrong and give me a corrected state model.\n\n---\nStates: OFF, PURGE, HEAT-UP, READY, PROCESS (fumes admitted), COOL-DOWN, FAULT.\nOFF to PURGE: operator presses Start.\nPURGE to HEAT-UP: purge timer complete (5 min).\nHEAT-UP to READY: TT-601 above 760 C.\nREADY to PROCESS: operator opens XV-601 from the HMI faceplate.\nPROCESS to COOL-DOWN: operator presses Stop.\nAny state to FAULT: any trip.\nCOOL-DOWN to OFF: TT-601 below 200 C.\nIn PROCESS, if TT-601 falls below 760 C, the burner goes to high fire.\n---",
+"expected_output": "A corrected state model with a defined fault exit, proven-airflow purge, state-controlled fume admission, fume diversion on low temperature with hysteresis, defined stop paths from every state, and a coating-line interface.",
+"expectations": [
+"Flags that FAULT has no exit; defines the reset conditions and the state entered after reset",
+"Flags that purge completes on a timer only; requires proven combustion airflow during the purge time, with the purge restarting if airflow is lost",
+"Flags that the operator opening XV-601 directly from a faceplate bypasses the state logic; fume admission must be a command inside the state model with permissives",
+"Flags that low temperature in PROCESS only raises firing; requires diverting fumes (close XV-601, open XV-602) and signalling the coating line below a minimum destruction temperature",
+"Flags that 760 C is used both as the READY threshold and the low limit with no hysteresis or delay, which causes chattering transitions",
+"Defines Stop behavior from PURGE and HEAT-UP, and fan behavior during COOL-DOWN and FAULT"
+]},
+{"id": 11,
+"prompt": "Our acid unloading interlock is described in two places: the control narrative and the cause and effect matrix. FAT is next week. Check them against each other and against good practice, and tell me which document should own what. System: sulfuric acid unloading from tank trucks by pump P-301 through XV-301 into storage tank T-301; XV-302 is the truck-side valve.\n\n---\nNarrative 6.2: High pressure on the unloading line (trip at 6.0 barg, 2oo3 voting of PT-301A/B/C) stops P-301 after a 30 second delay.\nNarrative 6.3: High-high level in T-301 (LSHH-301) stops P-301. Reset is automatic when the condition clears.\nNarrative 6.4: Maintenance may bypass any trip from the engineering workstation.\n\nC&E matrix:\nCause: PT-301A above 6.5 barg. Effects: Stop P-301, Close XV-301.\nCause: LSHH-301. Effects: Stop P-301.\nCause: ESD pushbutton HS-301. Effects: Stop P-301, Close XV-301, Close XV-302.\n---",
+"expected_output": "A line-by-line reconciliation that lists every disagreement between the narrative and the matrix, flags the unsafe delay, auto-reset and unrestricted bypass, and assigns one document as the owner of trip values and effects.",
+"expectations": [
+"Flags that the trip setpoint disagrees (6.0 barg in the narrative, 6.5 barg in the matrix)",
+"Flags that the narrative says 2oo3 voting while the matrix shows only PT-301A as the cause",
+"Flags that the matrix closes XV-301 on high pressure but the narrative does not, and that the ESD cause is missing from the narrative",
+"Flags that automatic reset on LSHH-301 can restart acid transfer without operator action, and requires a latched trip with a manual reset",
+"Challenges the 30 s high-pressure delay and the unrestricted engineering-workstation bypass, requiring justification, authorization, time limits and indication",
+"Recommends one owner for trip values and effects (e.g., the C&E matrix) with the narrative referring to it instead of repeating values"
+]},
+{"id": 12,
+"prompt": "Review this DCS control narrative excerpt for debutanizer C-401 before it is issued for configuration.\n\n---\n5.1 Column Control\nFIC-410 controls reflux flow. Reflux drum level LIC-411 sets the FIC-410 setpoint. Distillate flow FIC-412 runs at a fixed operator setpoint.\nTray 5 temperature TIC-405 (reverse acting) cascades to reboiler steam flow FIC-420: when tray temperature rises, the TIC-405 output increases steam flow.\nBottoms level LIC-402 manipulates bottoms valve FV-402.\nColumn pressure PIC-430 manipulates the hot vapor bypass valve PV-430.\nTIC-405 tuning: Kc = 0.8, Ti = 12 min.\nIf TT-405 fails, TIC-405 should hold approximately its last output.\nOperators may put FIC-420 in manual during upsets.\n---\nThe tuning sheet issued last month lists TIC-405 at Kc = 1.2, Ti = 8 min.",
+"expected_output": "A review that finds the contradictory controller action, removes the conflicting duplicated tuning, defines bad-PV mode shedding, and specifies cascade tracking and bumpless return when the slave is in manual.",
+"expectations": [
+"Flags that TIC-405 is labelled reverse acting but described as increasing steam on rising temperature, which is positive feedback; states the correct behavior (rising tray temperature reduces steam)",
+"Flags that the tuning values disagree with the tuning sheet and recommends removing tuning from the narrative and referencing the tuning sheet as the single source",
+"Replaces 'should hold approximately its last output' with a defined response to bad TT-405 signal: mode shed to manual with output held, alarm, and the condition for return to cascade",
+"Requires TIC-405 to track or initialize when FIC-420 is not in cascade (for example in manual), so there is no windup and the return to cascade is bumpless",
+"Does not invent a defect in the valid reflux-drum-level-to-reflux scheme with fixed distillate, or, if commenting on it, correctly treats it as an acceptable configuration"
+]},
+{"id": 13,
+"prompt": "We are a system integrator on a food plant with about 120 equipment modules: VFD pumps, on/off valves, modulating valves, agitators. I want a reusable control narrative template for one module type, the VFD pump, that our engineers fill in once per pump. Tags, ranges and alarm setpoints already live in our I/O list and alarm database spreadsheets. Give me the template, then one filled-in example for P-1102: transfer pump from mix tank T-110 to hold tank T-120, on a VFD with speed reference from the batch system, dry-run protection from T-110 low level switch LSL-110, discharge pressure PT-1102, and T-120 high level switch LSH-120.",
+"expected_output": "A fill-in VFD pump template covering modes, permissives, interlocks, failure responses and fail states, which points to the I/O list and alarm database for values instead of copying them, plus a correct, testable P-1102 example.",
+"expectations": [
+"Template has fill-in fields for operating modes and their command sources, start permissives, running interlocks, and the reset behavior of each interlock",
+"Template covers equipment failure handling: failure to prove running within a set time, VFD fault, loss of feedback, and behavior after power restoration",
+"Template tells the engineer to reference the I/O list and alarm database for setpoints and tag details, instead of copying values that can drift",
+"The P-1102 example stops the pump on LSL-110 (dry run) and on LSH-120 (destination high), and states whether each stop is latched and how it is reset",
+"Each filled-in example statement is specific enough to become a FAT test step, with no vague words such as 'appropriate' or 'as required'"
+]},
+{"id": 14,
+"prompt": "Create a functional requirements specification template for a water utility SCADA upgrade, which our consultants will reuse across utilities. A typical system: central SCADA with redundant servers, 6 remote booster pump stations and 3 elevated reservoirs, licensed radio primary with cellular backup, PLC at each site. Booster pumps are called on and off from reservoir levels at a different site. Include guidance for the author in each section, and show one worked example requirement for a booster station called from reservoir level.",
+"expected_output": "A reusable FRS template with traceable requirement IDs and verification methods, that separates functional needs from design and forces each site's communications-loss and stale-data behavior to be specified, plus a worked cross-site example.",
+"expectations": [
+"Gives each requirement a unique ID and a verification method so it traces to FAT/SAT tests",
+"Requires the author to define each site's local fallback control when communications fail, including what a booster station does when it loses the reservoir level it depends on",
+"Includes requirements for detecting and showing stale or bad data (timestamps, communication status) to operators",
+"Guidance separates functional requirements (what the system must do) from design choices (hardware, protocols) unless the utility mandates them",
+"The worked example defines the pump call/stop levels, the comms-loss fallback, and the alarm the operator receives, and each part is testable"
+]},
+{"id": 15,
+"prompt": "Our shift supervisor sent this email about how they run the kiln baghouse. Turn it into a control narrative section the integrator can program from.\n\n---\nFrom: Dave\nHere's how we run baghouse BH-700. Start screw conveyor SC-701 and rotary airlock RV-702 first, then ID fan F-703. Mike likes to start the fan first so the bags don't blind, either works. Wait a minute or so after the fan is up before opening inlet damper D-704. Pulsing: we run it on a timer, one row every 10 sec, but if DP gets high, like 6 or 7 in., we crank it to every 5. If DP goes over 8 we usually shut the kiln feed. If the airlock stops, shut everything down quick because the hopper fills, we had a fire in 2019. On shutdown keep pulsing for 10 min with the fan running to clean down. Inlet temp TT-705 over 450 F is bad for the bags, open bleed-air damper D-706.\n---",
+"expected_output": "A programmable narrative that turns the informal practices into defined automatic logic, surfaces the start-order conflict and the approximate values as decisions to confirm, and gives a list of open questions instead of silently inventing answers.",
+"expectations": [
+"Identifies the conflicting start orders (discharge equipment first versus fan first) and presents it as a decision for the owner, with a stated engineering basis for any recommendation, instead of silently picking one",
+"Converts approximate values ('a minute or so', 'like 6 or 7 in.') into defined setpoints and timers that are clearly marked for confirmation",
+"Separates automatic control actions from operator practice, and asks whether the kiln feed stop at DP above 8 in. is an automatic interlock or an operator action",
+"Defines the response to airlock RV-702 failure and questions whether stopping the fan is the right action given the past hopper fire; raises the absence of hopper level or fire detection",
+"Specifies the high inlet temperature response with numeric alarm, bleed-air and trip values, and states the action if the bleed-air damper does not correct the temperature",
+"Ends with a concise list of open questions for operations"
+]},
+{"id": 16,
+"prompt": "We inherited an SLC-500 mixing tank with no documentation. A technician exported the logic with his comments. Turn this into a functional narrative for the upgrade FDS, and tell me anything in the existing behavior we should not carry forward.\n\n---\nR0: RUN_LATCH (B3:0/0) = (START_PB I:1/0 OR RUN_LATCH) AND STOP_PB I:1/1 (NC, ON when healthy) AND ESTOP_OK I:1/2\nR1: FILL_VLV O:2/0 = RUN_LATCH AND NOT LSH_TANK I:1/4 AND NOT T4:0.DN\nR2: RTO T4:0, preset 600 s, enabled by FILL_VLV (fill timeout)\nR3: AGITATOR O:2/1 = RUN_LATCH AND (LSL_TANK I:1/3 OR AGIT_HAND I:1/5)\nR4: STEAM_VLV O:2/2 = AGITATOR AND TEMP_LOW I:1/6\nR5: ALARM_HORN O:2/3 = T4:0.DN\nR6: RES T4:0 when START_PB I:1/0\nTech notes: LSL_TANK is ON when level is ABOVE the low point. RUN_LATCH stayed ON after we cycled power last month and the tank started filling by itself. AGIT_HAND is a selector switch on the panel door.\n---",
+"expected_output": "A process-language narrative of the as-found logic with rung traceability, plus a clear list of hazards and defects not to carry forward (auto-restart on power-up, the hand bypass enabling agitation and steam at low level, the accumulating fill timer) with proposed behavior.",
+"expectations": [
+"Describes the function in process terms (fill, agitate, heat, fill timeout alarm) rather than restating addresses, while keeping a trace from each statement to its rung",
+"Flags that the run latch survives a power cycle and restarts filling without an operator command, and specifies that the upgrade requires an operator start after power restoration",
+"Flags that the AGIT_HAND selector bypasses the low-level permissive, so the agitator and the steam valve can run with the tank below the low point, and proposes a fix",
+"Flags that the fill timeout timer is retentive and is reset only by START_PB, so time accumulates across fills or while stopped and causes false timeouts, and proposes a per-fill reset",
+"Clearly separates the as-found description from the proposed upgrade behavior, and lists remaining unknowns to verify in the field (for example, what TEMP_LOW is and its setpoint)"
+]}
+]}
