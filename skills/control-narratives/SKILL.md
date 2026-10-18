@@ -33,12 +33,12 @@ Do not put implementation detail (blocks, tasks, routines) in the narrative.
 ## Narrative template (one per equipment module)
 
 1. Purpose and boundaries: function, upstream/downstream interfaces.
-2. Equipment and tags: reference the instrument index; do not copy it.
+2. Equipment and tags: reference the instrument index; do not copy it. No index given: list the tags this module uses.
 3. States and transitions: ISA-106 state table with allowed transitions, permissives, initiator (operator/auto), and automation level (manual, operator-prompted, automatic).
 4. Regulatory control: per loop give PV, output, action, mode behavior, cascade/override. No tuning values.
 5. Sequences: step tables with columns Step | Action | Transition condition | Timeout | Failure response.
-6. Interlocks and permissives: reference the cause-and-effect chart. Do not restate logic in prose.
-7. Alarms: reference the rationalized alarm database.
+6. Interlocks and permissives: reference the cause-and-effect chart. Do not restate logic in prose. No chart given: write its rows here (cause | effect | latched or auto-reset | reset method).
+7. Alarms: reference the rationalized alarm database. None given: list the alarms the module needs, with their responses.
 8. Abnormal handling: bad PV, comms loss, power loss and restart, fail positions.
 9. Operator interface: what the operator sees, changes, and is prompted for.
 10. Open items: each with owner and due date.
@@ -47,7 +47,8 @@ Choose state-based control (SBC) for plant/unit modes; sequence-based control (S
 
 ## Rules
 
-- Numbers live in lists, never in prose. Write "above the start permissive in the setpoint list", not "above 50 psig".
+- Numbers live in lists, never in prose. Write "above the start permissive in the setpoint list", not "above 50 psig". No setpoint list given: put one in your reply (ID | value | units | status) and fill every value you can, from the input or as a provisional value marked "confirm".
+- A reference or a TBD is not a specification. State what the module does (what trips, what stops, latched or not, how it resets, where it fails to) in the document you deliver. Use TBD only for a fact you were not given and cannot reasonably propose, and list it as an open item.
 - Give every requirement an ID (FR-<module>-NNN). If it cannot be tested, rewrite or remove it.
 - Specify transitions, timeouts, and restarts as fully as steady state.
 - Use tag numbers, not descriptive equipment names alone.
@@ -81,7 +82,8 @@ Reviewing: run the checks below and report findings as a table: ID | Location | 
 - [ ] Every state has entry permissives and allowed exits
 - [ ] Every sequence step has a timeout and failure response
 - [ ] Bad PV, comms loss, power loss/restart, fail positions defined
-- [ ] Interlocks and alarms referenced, not duplicated
+- [ ] Interlocks and alarms referenced, not duplicated; written out here when no chart or database was given
+- [ ] Nothing the task asked for is deferred to a list, chart, or vendor document the reply does not contain
 - [ ] SIS functions referenced to the SRS, not specified here
 - [ ] STE limits met (sentence length, one action, active voice)
 - [ ] Open items listed with owner and date
