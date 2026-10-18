@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E24-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E24",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31408.1,
+  "duration_ms": 30672,
+  "duration_api_ms": 30444,
+  "cost_usd": 0.034418899999999995,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2949,
+   "output_tokens": 3412,
+   "output_tokens_details": {
+    "thinking_tokens": 1430
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3412,
+     "cache_read_input_tokens": 2949,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:33:53.845634+00:00",
+   "end": "2026-10-18T23:34:25.253774+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.034418899999999995,
+  "charged_usd": 0.034418899999999995,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Aeration Control Narrative\n\nI'd hold this back from the contractor. Items 2, 3, and 5 have errors that would change how the system behaves, and several protective and sequencing functions are missing.\n\n## Must fix (conflicts and errors)\n\n**1. Item 2: the header pressure setpoint is both fixed and reset.**\nThe text says \"fixed setpoint of 7.5 psig\" and then describes most-open-valve (MOV) logic that resets it. Pick one. If it is MOV-reset (the usual intent), 7.5 psig should be the initial or maximum value, and the narrative needs:\n- minimum and maximum setpoint limits\n- reset rate and deadband\n- exclusion of valves that are in manual, failed, or closed on signal loss\n- behavior when the setpoint is pinned at its maximum and the valve is still above 85%, which should raise an alarm\n\n**2. Items 2 and 5: the units are inconsistent and the thresholds don't fit the setpoint.**\n7.5 psig is about 208 inH2O (1 psi \u2248 27.7 inH2O). The staging points of 160 and 165 inH2O are about 5.8 and 6.0 psig. If the header is held near 7.5 psig, pressure is always above 165 inH2O, so the \"stage off\" condition is permanently true and \"stage on\" can never occur unless pressure collapses by about 45 inH2O. Use one unit throughout and tie the thresholds to the actual setpoint.\n\n**3. Item 5: staging on header pressure doesn't work when pressure is the controlled variable.**\nHeader pressure is held at setpoint by the running blowers, so it is a poor trigger for staging. Staging is normally based on the lead blower's capacity:\n- start the next blower when the running blowers are at maximum output (or high flow) for a set time while pressure is below setpoint by a margin\n- stop one when the running blowers are at minimum, or total demand is below the capacity of N\u20131 blowers, for a set time with enough margin to avoid surge\n\nAlso missing:\n- a stage-off delay\n- minimum run and minimum off timers\n- start-count limits\n- lead/lag rotation\n- duty/standby designation (the narrative never says how many blowers are required at peak)\n\n**4. Item 3: closing the valve on DO signal loss has the wrong rationale.**\nA closed valve starves the basin, which is under-aeration, not over-aeration. That risks a process upset and septic conditions. The usual approach is to hold the last good output or go to a configurable safe position, alarm, and switch to a fixed airflow or position setpoint. Also specify:\n- how a failed signal is detected (out-of-range, frozen, quality bad)\n- an alarm\n- whether the basin is excluded from MOV while in fallback\n\n**5. Item 6: simultaneous automatic restart of all running blowers is a hazard.**\nSeveral large motors starting at once means high inrush and possible repeat trips. The narrative needs:\n- a power-restoration delay\n- staggered, sequenced restarts (lead first, others at fixed intervals)\n- confirmation that the restart permissives are satisfied\n- a minimum off or coast-down time before restart\n- exclusion of any blower that tripped or was faulted before the outage (it should not auto-restart)\n\n## Gaps and incomplete items\n\n- **Item 7, vibration trip:** no tag numbers, alarm and trip setpoints, trip delay, start-up inhibit or bypass, instrument-fault handling, or manual-reset lockout. Specify whether it is hardwired or PLC-based, and whether it covers motor, gearbox, and bearings.\n- **Item 4, start permissives:**\n  - The list is incomplete. Typical additions are no active trips or E-stop, lube oil pressure or temperature OK (if applicable), motor and starter ready, minimum off-time elapsed, and no excessive starts per hour.\n  - ZSC-931 appears to be a single tag for three blowers. Give per-blower tags.\n  - Confirm the starting condition (open discharge, closed IGV) against the blower vendor's requirements.\n- **Blower capacity control** is never defined. IGVs are mentioned only in the permissive. Say what actuator modulates output (IGV, inlet throttle, VFD), what the pressure PID outputs to, and how the blower is protected from surge: a minimum flow limit, a blow-off or bypass valve, or both.\n- **Airflow measurement:** the valves are called \"air flow control valves,\" but there are no flow transmitters. If there are no per-basin airflow meters, say the DO loop drives valve position directly. If there are meters, describe a cascade from DO to airflow setpoint to valve.\n- **MOV details:** the 85% target needs a controller type, a speed that is slower than the DO loops, and limits on valve minimum position.\n- **Header pressure instrument failure (PIT-920):** specify a fallback, such as a fixed-speed or fixed-position hold, and a high-high and low-low pressure response.\n- **DO control:** fixed 2.0 mg/L is an operator-adjustable setpoint, not a constant. Mention the allowed range, and whether the ammonia or other trim will be added later. Also cover probe maintenance or calibration hold.\n- **Modes and alarms:** there is no manual/auto/remote definition, bumpless transfer, or alarm list, and no communications-loss behavior (PLC to SCADA, or the instrument network).\n- **Item 3 and the MOV interaction:** a basin whose valve closes on signal loss should be excluded from MOV, or the logic could drive header pressure incorrectly.\n\n## Suggested next step\n\nSend the consultant a short list of questions covering the contradictions in items 2, 3, and 5, plus a request for a revised narrative that includes per-blower tags, setpoints in consistent units, and a defined alarm and interlock table. I can draft that comment list or a redline of the narrative if you'd like."
+}

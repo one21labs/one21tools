@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E18-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E18",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 37568.1,
+  "duration_ms": 36566,
+  "duration_api_ms": 36317,
+  "cost_usd": 0.050792899999999995,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 900,
+   "cache_read_input_tokens": 2189,
+   "output_tokens": 4697,
+   "output_tokens_details": {
+    "thinking_tokens": 417
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 900,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4697,
+     "cache_read_input_tokens": 2189,
+     "cache_creation_input_tokens": 900,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 900
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:24:58.035053+00:00",
+   "end": "2026-10-18T23:25:35.603189+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.050792899999999995,
+  "charged_usd": 0.050792899999999995,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# ST-1 Functional Design Specification: Draft Sections\n\n**Scope:** 15 MW condensing STG ST-1, 3600 rpm. Woodward governor handles speed/load control and the turbine trip logic. The DCS handles auxiliaries and sequencing.\n**Status:** DRAFT. Items marked **[TBC]** are assumptions or open points (listed in section 5).\n\n---\n\n## 1. Startup Sequence\n\n### 1.1 General\n- Startup is operator-initiated from the DCS as a step sequence. Each step needs its permissive satisfied before it proceeds, and the operator can hold at any step.\n- Any trip returns the sequence to Step 0. A trip latches until the cause has cleared and the operator resets it.\n\n### 1.2 Step 0: Pre-start permissives (all required)\n| # | Permissive |\n|---|---|\n| 1 | No active trip, and trip latch reset |\n| 2 | Lube oil tank level normal and oil temperature within start range **[TBC]** |\n| 3 | Emergency stop valve (ESV) and control valves closed |\n| 4 | Generator breaker 52G open |\n| 5 | Turbine at zero speed (for engaging the turning gear) |\n| 6 | Cooling water available to condenser and oil coolers **[TBC]** |\n| 7 | Governor healthy; speed probes healthy (voting per Woodward config) |\n| 8 | Vibration (XT-301/302) and thrust (ZT-310) probes healthy, no sensor fault |\n\n### 1.3 Step 1: Lube oil system start\n1. Operator starts P-11 (AC aux oil pump). PT-210 must reach \u22651.5 barg (normal) and be stable within a set time **[TBC]**. Otherwise the sequence is held and an alarm is raised.\n2. P-12 (DC emergency pump) is placed in AUTO standby. It must be confirmed available (DC supply healthy) before proceeding.\n3. Oil header pressure healthy is latched as a permissive for the turning gear.\n\n### 1.4 Step 2: Turning gear\n1. M-15 engages **only at zero speed**. It is blocked if speed is above zero or lube oil pressure is not healthy.\n2. A **2 h minimum timer** starts when M-15 is running with oil pressure healthy, for a cold start.\n3. If M-15 stops or oil pressure is lost during the timer, the timer is **reset** and restarts on recovery **[TBC: confirm with OEM whether pause/resume is allowed]**.\n4. Rotor eccentricity or rotor-lift checks apply if the OEM provides them **[TBC]**.\n5. The roll permissive from this step is released only after the timer has elapsed (cold start). Warm and hot start criteria are **[TBC per OEM start curves]**.\n\n### 1.5 Step 3: Steam admission preparation\n1. Drains open and the steam line is warmed to the ESV inlet **[TBC: supply conditions]**.\n2. Condenser vacuum is established (ejectors or vacuum pump). Vacuum must be healthy: PT-220 below the start limit **[TBC, below the 0.3 bara trip with margin]**.\n3. Gland sealing steam is in service **[TBC]**.\n4. Turning gear remains running until roll.\n\n### 1.6 Step 4: Roll-off and warm-up\n1. The operator or sequence resets the trip and opens the ESV.\n2. The governor takes control and accelerates the turbine on its start ramp. M-15 disengages automatically at roll, with confirmation of disengagement before speed exceeds the gear limit **[TBC]**.\n3. **Hold 1:** 500 rpm for 20 min (cold start). This hold is skipped or shortened for warm/hot starts **[TBC]**.\n4. Accelerate to 2000 rpm, **passing through the critical band 1600\u20131900 rpm** (section 1.7).\n5. **Hold 2:** 2000 rpm for 15 min.\n6. Accelerate to 3600 rpm (rated).\n\nHold timers run only while speed is within tolerance of the setpoint **[TBC: \u00b1 rpm]**. Each hold shows a countdown on the HMI and can be extended by the operator but not shortened below the minimum.\n\n### 1.7 Critical speed band 1600\u20131900 rpm\n- The governor **inhibits any speed setpoint hold** within 1600\u20131900 rpm. The setpoint cannot be parked there, and the operator cannot stop the ramp inside the band.\n- The ramp rate through the band is a fixed, configured minimum rate **[TBC per OEM]**.\n- Hold 2 at 2000 rpm is outside the band (100 rpm margin).\n- If the ramp is interrupted inside the band, for example by an operator hold request, the governor continues through to 2000 rpm. If a vibration alarm occurs inside the band, the sequence continues through it but flags the alarm. A trip still acts per section 2.\n- A \"no-hold\" violation is alarmed if speed stays in the band longer than the expected transit time **[TBC]**.\n\n### 1.8 Step 5: Synchronization and loading\n1. At 3600 rpm and with generator excitation on, the auto-synchronizer matches voltage, frequency and phase.\n2. Breaker **52G closes via the auto-synchronizer** only. There is no manual close from the DCS unless a separate synchro-check relay supervises it **[TBC]**.\n3. The governor applies the minimum initial load step (to avoid reverse power) and then ramps load at the configured rate **[TBC]**.\n4. The sequence ends when load control mode (or other selected mode) is active and the drains are closed.\n\n---\n\n## 2. Protection\n\n### 2.1 Philosophy\n- Trips act through the **governor/trip system** and are hardwired to close the ESV and control valves. Trips do not depend on DCS communication.\n- All trips are latching. The first-out cause is recorded.\n- Where practical, trip transmitters are **voted 2oo3**, and a single failed signal degrades to 1oo2 with an alarm **[TBC for PT-210 and PT-220]**.\n- After any trip, 52G opens (via reverse-power or trip-initiated opening, per the electrical design **[TBC]**) and the turbine coasts down. P-11 and P-12 remain available, and M-15 is re-engaged only at zero speed.\n\n### 2.2 Trip and alarm schedule\n| Tag | Parameter | Alarm | Auto-action | Trip |\n|---|---|---|---|---|\n| PT-210 | Lube oil header pressure | Low alarm **[TBC, e.g. 1.2 barg]** | **<1.0 barg: P-11 auto-start** | **0.6 barg** |\n| PT-210 | | | **<0.7 barg: P-12 auto-start** | |\n| Speed (governor) | Overspeed | **[TBC]** | | **110% (3960 rpm) electronic** |\n| Mechanical bolt | Overspeed | | | **111% (3996 rpm)**, independent backup |\n| XT-301/302 | Shaft vibration, per bearing | **75 \u00b5m** | | **125 \u00b5m, 2oo2 per bearing** |\n| ZT-310 | Thrust position | **\u00b10.4 mm** | | **\u00b10.6 mm** |\n| PT-220 | Exhaust pressure (loss of vacuum) | **[TBC, e.g. 0.15 bara]** | | **0.3 bara (high)** |\n\n### 2.3 Lube oil protection logic\n- **Normal:** about 1.5 barg. During run-up, the shaft-driven main oil pump takes over duty. The handover speed and the stop of P-11 are **[TBC per OEM]**. P-11 stays in auto-standby after handover.\n- If PT-210 falls below **1.0 barg**, P-11 auto-starts (or it keeps running, if it is already the duty pump).\n- If PT-210 falls below **0.7 barg**, P-12 auto-starts. At the same time, a \"low-low\" alarm is raised.\n- If PT-210 falls below **0.6 barg**, the turbine trips. There is a **0.1 bar spacing** between the P-12 start and the trip, so the standby pump must be given a chance to restore pressure first.\n- P-12 runs until the turbine has fully stopped and cooled **[TBC]**, and only the operator can stop it.\n- Starting M-15 requires oil pressure healthy. Loss of oil pressure while M-15 runs stops M-15 (**[TBC: confirm with OEM]**).\n- **Design note:** the pressure switches or transmitters for the auto-start and trip functions should be separate from the DCS control signal where possible (see 2.1).\n\n### 2.4 Overspeed\n- The electronic trip at 110% is in the Woodward governor and uses independent speed probes (2oo3 recommended **[TBC]**).\n- The mechanical bolt at 111% is the independent backup. It must be tested per the OEM test procedure (a periodic overspeed test is performed at least at each major inspection and after any governor change **[TBC]**).\n- The gap between 110% and 111% is small, so the electronic trip setpoint should be verified at commissioning. Both setpoints are locked against casual change.\n\n### 2.5 Vibration (XT-301/302)\n- Each bearing has an X and a Y probe. A trip requires **both probes of the same bearing** above 125 \u00b5m (2oo2 per bearing). Alarm is at 75 \u00b5m (1oo2 per bearing is recommended for alarm **[TBC]**).\n- Probe fault (loss of gap voltage or out-of-range) generates an alarm. On a faulted probe, 2oo2 cannot trip, so the bearing runs unprotected on vibration. Faulted probes should be repaired quickly, and the operating restriction should be defined **[TBC]**.\n- During transit of the critical band, vibration will rise. The trip setpoint is **not** raised unless the OEM confirms a different value for transit **[TBC]**.\n\n### 2.6 Thrust position (ZT-310)\n- Alarm at \u00b10.4 mm, trip at \u00b10.6 mm from the established zero position. Both directions (active and inactive thrust) are protected.\n- Zero reference is set at commissioning. Voting should be 2oo3 if three probes are fitted, and otherwise 2oo2 or 1oo2 per the design decision **[TBC]**.\n\n### 2.7 Loss of vacuum (PT-220)\n- Trip at **0.3 bara** exhaust pressure, rising. Alarm is set lower, to give the operator time to act.\n- Exhaust hood spray and any atmospheric relief (rupture disc) are per the mechanical design **[TBC]**.\n\n### 2.8 Trip actions (all trips)\n1. The ESV and control valves close (governor output to zero, hardwired trip).\n2. 52G opens. Where load is above a threshold, a sequential trip (reverse-power check) is used to avoid generator overspeed **[TBC with electrical]**.\n3. Extraction and admission valves close; drains open; gland steam is managed **[TBC]**.\n4. P-11/P-12 operate per section 2.3.\n5. M-15 can be re-engaged at zero speed, and the 2 h timer restarts for a cold restart.\n\n---\n\n## 3. Interlocks Summary\n- M-15 engages only at zero speed and with oil pressure healthy.\n- Roll is not permitted until the 2 h turning gear time is complete (cold start).\n- Speed holds are not permitted in 1600\u20131900 rpm.\n- 52G closes only via the auto-synchronizer.\n- No trip reset is possible while a trip condition is still active.\n\n## 4. Operator Displays and Records\nShow the startup step, active permissives and hold timers, PT-210/PT-220 trends, the vibration (per bearing) and thrust trends, and the first-out trip. All trips and alarms are time-stamped.\n\n## 5. Open Points for Confirmation\n1. Alarm setpoints for PT-210 low and PT-220 high (not given).\n2. Start criteria for warm and hot starts (the data covers cold only).\n3. Pause/resume rules for the turning gear 2 h timer.\n4. Voting for PT-210, PT-220, speed and ZT-310 (2oo3 recommended for trip-critical transmitters).\n5. Vibration trip behavior during critical band transit.\n6. Handover speed from P-11 to the shaft-driven main oil pump.\n7. Generator breaker trip logic and synchro-check supervision.\n8. Ramp rates, hold tolerances and the minimum initial load."
+}

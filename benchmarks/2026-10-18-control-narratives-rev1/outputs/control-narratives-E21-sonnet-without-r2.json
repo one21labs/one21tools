@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E21-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E21",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 38797.9,
+  "duration_ms": 38064,
+  "duration_api_ms": 37816,
+  "cost_usd": 0.0471668,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2928,
+   "output_tokens": 4687,
+   "output_tokens_details": {
+    "thinking_tokens": 1899
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4687,
+     "cache_read_input_tokens": 2928,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:30:37.747806+00:00",
+   "end": "2026-10-18T23:31:16.545695+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0471668,
+  "charged_usd": 0.0471668,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Fire Water System Control Narrative (Draft)\n\n## 1. Corrections to the client's draft intent\n\n| Client draft | Correction | Reason |\n|---|---|---|\n| PLC starts the fire pumps on low header pressure | **Listed fire pump controllers start the pumps, not the PLC.** Each controller has its own pressure sensing and start logic. The PLC monitors PT-601 and pump status but is not in the fire pump start or stop path. | NFPA 20 requires the controller to start the pump automatically on pressure drop. A PLC, network, or SCADA failure cannot be allowed to prevent a start. |\n| PLC stops pumps after 10 minutes of recovered pressure | **No PLC-initiated stop. Fire pumps are stopped manually at the controller.** If the AHJ or insurer allows automatic stop, it is configured in the listed controller (pressure-drop starts only, with a run timer of at least 10 minutes), not in the PLC. | NFPA 20 favors manual shutdown. A pump that stops itself during an event can leave the site unprotected. Any stop from outside the controller is a hazard. |\n| PLC trips FP-1 on low lube oil pressure and high coolant temperature | **No engine trips on these. They are alarm-only.** The only automatic engine shutdown is for overspeed, handled by the engine and controller, not the PLC. | NFPA 20 requires the engine to run to destruction during a fire. Protecting the engine at the cost of fire water is not acceptable. |\n\n## 2. Scope and philosophy\n- FP-1 (diesel), FP-2 (electric), and JP-1 (jockey) start and stop through their own controllers. Fire pump function is independent of the PLC/SCADA.\n- The PLC/SCADA scope is **monitoring, alarming, trending, and event logging**. It also covers JP-1 pressure control, if the client chooses PLC control (see 3.1).\n- Fire pump signals into the PLC are hardwired, volt-free contacts from the listed controllers, with 4\u201320 mA for analog signals. No fire pump signal is wired as a permissive or interlock into pump operation.\n- Loss of the PLC, network, or SCADA has no effect on pump starting, running, or protection.\n\n## 3. Sequence of operation\n\n### 3.1 Pressure control (header setpoints, PT-601 and controller sensors)\n\n| Device | Start | Stop | Notes |\n|---|---|---|---|\n| JP-1 | 155 psig falling | 165 psig rising | Maintenance pump only. Stops automatically. |\n| FP-2 (electric, lead) | 145 psig falling | Manual at controller | Starts first if the header keeps falling. |\n| FP-1 (diesel, backup) | 135 psig falling | Manual at controller | Starts if FP-2 fails to start or cannot hold pressure. |\n\n- Each fire pump controller uses its own listed pressure transducer and setpoints. PT-601 is for PLC indication, trending, and cross-checking only.\n- Controller setpoints are field-adjusted and verified by the commissioning agent. The 10 psi steps between JP-1, FP-2, and FP-1 should be confirmed against actual pump curves, system static pressure, and the controller's pressure tolerance.\n- JP-1 should preferably be controlled by its own pressure switch or controller. If the client wants PLC control of JP-1, it uses PT-601 with a hardwired backup. A JP-1 failure must not affect the fire pumps.\n- JP-1 stop at 165 psig must be checked against the fire pump churn pressure and system rating. The jockey pump must not defeat the fire pump start points.\n- Pressure drops from fire flow must trigger a fire pump start before the header collapses. The test for this is a flow test at the jockey and fire pump start points.\n\n### 3.2 Other start causes (confirm with client)\n- Local manual start at each controller.\n- Remote start (for example, deluge or fire detection) goes through the controller's remote start input as an additional start cause. Any SCADA-originated start should be limited to a hardwired, supervised input, and SCADA must never stop a pump.\n- A weekly no-flow test is run locally and logged by the PLC through the run signals.\n\n### 3.3 Shutdown\n- Pumps are stopped only by a person at the controller, after the event is confirmed over and header pressure is stable.\n- The PLC has no stop commands for FP-1 or FP-2.\n- The only automatic engine stops are the overspeed shutdown (and the controller's own protections as listed). Low oil pressure and high coolant temperature do not stop the engine.\n\n## 4. PLC/SCADA monitored points\n\n### 4.1 Analog inputs\n\n| Tag | Description | Alarms |\n|---|---|---|\n| PT-601 | Fire water header pressure | Low (e.g. below 155 psig, JP-1 not recovering), low-low (below 145 psig), high (above design) |\n| LT-610 | Diesel fuel tank level | Low at two-thirds capacity (NFPA 20 minimum), low-low as set by client |\n| TT-6xx | Pump room temperature | Low (freeze and engine-start risk) and high. Setpoints set by the engine manufacturer and local freeze conditions. |\n\n### 4.2 Discrete inputs (from listed controllers)\n\n| Source | Signal | Alarm priority |\n|---|---|---|\n| FP-1 and FP-2 | Pump running | High (notifies the operator that an event or test is under way) |\n| FP-1 and FP-2 | Fail to start | Critical |\n| FP-1 and FP-2 | Controller trouble (common) | High |\n| FP-1 and FP-2 | Controller in Off or Manual (not in Auto) | High |\n| FP-2 | Power failure, phase loss or reversal | High |\n| FP-2 ATS | Running on alternate (emergency) source | High |\n| FP-1 | Engine trouble, with these separate alarm points: low oil pressure, high coolant temperature, overspeed shutdown, battery failure, charger failure | High, **alarm only** |\n| JP-1 | Running, trouble | Medium |\n\nIndividual FP-1 engine alarms are recommended so operators and maintenance can see the cause. The client should confirm which engine alarms the controller can pass as separate contacts.\n\n## 5. Alarm and annunciation\n- NFPA 20 requires audible and visual signals at a constantly attended location for pump running, power loss, phase reversal, and controller or engine trouble. The PLC/SCADA alarm may supplement these but does not replace them, unless the AHJ accepts it.\n- Alarms are logged with time and date, and pump runs are logged for weekly test records.\n- All PLC alarms for fire pump signals use a high alarm priority and cannot be suppressed or shelved by operators without supervisory approval.\n\n## 6. Loss of PLC/SCADA, power, and failure modes\n- PLC or SCADA failure: no impact on pump operation. A loss-of-communication alarm is raised at the control room, and a watchdog is provided.\n- Loss of FP-2 normal power: the ATS transfers to the alternate source, and the PLC annunciates it. FP-1 is the independent backup.\n- Fuel level, battery, and charger are alarmed to give early warning, since FP-1 is the main backup to the electric pump.\n\n## 7. Open items for the client\n1. Confirm whether the AHJ or insurer allows automatic shutdown. The default in this narrative is manual stop only.\n2. Confirm JP-1 control: its own controller (recommended) or the PLC.\n3. Confirm the alarm points the listed controllers can provide and the controller/engine manufacturer's room temperature requirements.\n4. Confirm the fire pump test, flow, and static pressure data used to verify the setpoints.\n5. Confirm who receives alarms, including the attended location and any off-site notification.\n6. Confirm the SCADA remote functions allowed (view-only is recommended) and cybersecurity requirements.\n\nThis is a draft for review. Final setpoints and the stop/alarm philosophy should be confirmed against the current NFPA 20/25 edition adopted for the site, the AHJ, the insurer, and the listed controller manufacturers' documentation."
+}

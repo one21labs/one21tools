@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E28-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E28",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 62624.2,
+  "duration_ms": 61675,
+  "duration_api_ms": 61396,
+  "cost_usd": 0.1236978,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 739,
+   "cache_read_input_tokens": 2189,
+   "output_tokens": 5867,
+   "output_tokens_details": {
+    "thinking_tokens": 2066
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 739,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5867,
+     "cache_read_input_tokens": 2189,
+     "cache_creation_input_tokens": 739,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 739
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:17:40.825863+00:00",
+   "end": "2026-10-18T23:18:43.450132+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1236978,
+  "charged_usd": 0.1236978,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Emergency Power Sequence, 300-Bed Hospital (G-1/G-2, ATS-L/C/E)\n\n## Summary\n\nAs written, this sequence does not meet the 10-second requirement. It also has a single-generator failure mode in which **no load transfers at all**. Several clauses conflict with NFPA 99, NFPA 110 (Level 1, Type 10) and NEC Article 517/700 practice. These five issues must be fixed before the sequence is accepted:\n\n1. **3.2 cannot meet the 10 s requirement in 3.1.** Life safety and critical branch must transfer when the first generator closes to the bus, without waiting for paralleling.\n2. **3.2 never transfers if one generator fails**, because the transfer condition is \"once both are on the bus.\"\n3. **3.4's immediate retransfer is unacceptable.** It needs a retransfer time delay, utility stability verification, and an engine cooldown.\n4. **3.5 shuts down engines on alarm-only conditions** (low coolant temperature, low fuel) and omits the mandatory shutdowns.\n5. **There is no dead-bus arbitration**, so both generators could close onto the dead bus at the same moment.\n\n---\n\n## Clause-by-Clause Findings\n\n### 3.1 / 3.2: Timing Conflict (Critical)\n\nThe 10 s window is measured from loss of normal power. Add up the sequence in 3.2:\n\n| Step | Typical time |\n|---|---|\n| Utility-loss confirmation delay | 3 s (as specified) |\n| 1500 kW diesel crank to rated V/Hz | 6\u201310 s |\n| Stabilization delay | 5 s |\n| Synchronize and close second generator | 2\u201310 s or more |\n| ATS transfer | ~0.1\u20130.5 s |\n| **Total** | **~16\u201328 s** |\n\nThis fails Type 10 by a wide margin, even with an ideal start.\n\n**Required changes:**\n- **Transfer ATS-L and ATS-C as soon as the first generator closes to the bus.** They should not wait for the stabilization delay or for paralleling.\n- **Delay ATS-E and stage it after the life safety and critical branches.** The equipment branch is permitted delayed automatic connection (NEC 517 / NFPA 99). Transfer it either after the second generator is paralleled, or on a timed delay if only one generator is online and capacity allows.\n- **Shorten the utility-loss confirmation delay to about 1 s** (adjustable) to ride through momentary dips without eating the 10 s budget. The 3 s value leaves almost no margin.\n- **Remove the 5 s stabilization delay from the life safety and critical path.** If one is wanted before paralleling, apply it only to the second generator's sync permissive.\n- **Do not transfer the three ATSs simultaneously.** That puts a single large block step-load on one machine, causing voltage and frequency dips and a possible trip. Stage the transfers: ATS-L, then ATS-C, then ATS-E, then equipment-branch sub-loads.\n- **Define \"rated voltage and frequency\" numerically** (e.g., \u226590% V and \u226595% Hz) with sensing on the generator side of each breaker.\n\n### 3.2: Dead-Bus Closing (Critical)\n\n\"First generator to reach rated voltage and frequency closes to the bus\" leaves a race condition. If both units reach rating within the same scan or a few cycles of each other, both may close onto the dead bus unsynchronized. The result is an out-of-phase paralleling fault.\n\n**Required change:** Add dead-bus arbitration. Only one breaker may receive a dead-bus close permissive. Use a hardwired interlock or arbitration relay in addition to PLC logic. The second unit must close only through a sync-check relay (ANSI 25) with defined slip, phase and voltage windows.\n\n### 3.2 / 3.3: Single-Generator Failure Mode (Critical)\n\n- Under 3.2, if one generator fails to start, the \"both on bus\" condition is never met, so **no ATS ever transfers**. Life safety and critical loads stay dead indefinitely.\n- 3.3 says \"sheds load as required.\" That is not a specification.\n\n**Required changes:**\n- Define \"unavailable\": fail to start or overcrank, not in Auto, tripped, breaker failed to close, or not on the bus within X seconds.\n- Specify a **load priority table**, for example:\n  1. ATS-L\n  2. ATS-C\n  3. ATS-E priority loads (medical air/vacuum, critical HVAC, etc.)\n  4. Remaining ATS-E loads\n  \n  Life safety and critical are never shed.\n- Confirm that **one 1500 kW unit can carry ATS-L + ATS-C + essential ATS-E loads** under worst-case demand, including motor starting. Provide a load study.\n- **Cover running failure, not just start failure.** If one generator trips while paralleled, the PLC must shed lower-priority loads fast enough to prevent the surviving unit from collapsing. Use an underfrequency or overload trigger, not just a status change. Re-add loads when the unit recovers or utility returns.\n- Specify **load-add sequencing** after the second generator comes online, with a time delay between steps.\n\n### 3.4: Retransfer (Critical)\n\n\"Retransfer immediately and generators stop\" causes several problems:\n\n- **Utility bounce.** Utility often returns briefly and fails again. NFPA 110 expects an adjustable time delay on retransfer (commonly 5\u201330 min, with ~5 min minimum typical) after normal-source voltage and frequency are verified stable.\n- **No engine cooldown.** Engines should run unloaded for a cooldown period (typically 5 min) before stopping.\n- **Simultaneous retransfer of all ATSs** causes a second outage on every load at once. Stage it, and consider closed-transition or in-phase-monitored retransfer for ATS-C and ATS-E (motor loads).\n- **Bypass on emergency-source failure.** If the generators fail during the retransfer delay and utility is available, the ATSs must retransfer immediately. This is the only case where \"immediate\" is correct.\n- **Utility failure during cooldown.** The generators must immediately reaccept load. Specify this.\n- After stopping, the generators should return to **Auto/standby**, not just \"stop.\"\n\n### 3.5: Engine Shutdowns (Critical)\n\nShutting down a Level 1 emergency generator for non-critical conditions removes power from life safety loads to protect equipment. NFPA 110 restricts Level 1 shutdowns to conditions that would quickly destroy the engine. Everything else is alarm-only.\n\n| Condition | As specified | Should be |\n|---|---|---|\n| Low coolant temperature | Shutdown | **Alarm only.** It indicates a block heater problem; it is not a running hazard. |\n| Low fuel level | Shutdown | **Alarm only** (low fuel in main tank). Running until the fuel is exhausted is the intended behavior. |\n| High coolant temperature | Shutdown | Shutdown, preceded by a **high-temperature pre-alarm** |\n| Overspeed | Missing | **Shutdown** |\n| Low oil pressure | Missing | **Shutdown**, with a pre-alarm |\n| Overcrank / fail to start | Missing | **Shutdown** and alarm, which triggers the 3.3 logic |\n| Emergency stop (local and remote) | Missing | **Shutdown** |\n| Reverse power (32), loss of excitation, overcurrent | Missing | Generator breaker trip. This is required for paralleled units. |\n\nAlso verify the NFPA 110 remote annunciator requirements and the fuel supply duration. Hospitals commonly need 96 h; confirm against the AHJ, CMS and the facility's emergency plan.\n\n---\n\n## Additional Gaps\n\n- **PLC as single point of failure.** A PLC fault must not prevent emergency power. Provide a hardwired fallback: each ATS's own start contact starts the generators directly, and a failsafe lets one generator close to a dead bus without the PLC. Alternatively, use redundant PLCs with automatic failover.\n- **ATS-level sensing.** Each ATS should monitor its own normal source and initiate a start on its own. Otherwise a single feeder or ATS-level loss (with the main utility healthy) goes undetected.\n- **Undefined utility-loss criteria.** Specify undervoltage and underfrequency pickup and dropout setpoints, single-phasing detection, and phase-rotation checks.\n- **No position confirmation.** Monitor ATS position and generator breaker status, with alarms for failure to transfer.\n- **Generator bus fault handling** is not addressed.\n- **Testing provisions.** Add NFPA 110 monthly testing (\u226530 min, loaded per NFPA 110), annual or triennial load-bank tests, and a test mode that simulates utility loss at the ATS without opening the utility. Also cover what happens if utility fails during a test.\n- **Load-shed status and manual override.** Provide annunciation for operators, plus manual priority override at the paralleling switchgear.\n\n---\n\n## Suggested Revised Sequence (Outline)\n\n1. **Utility loss.** Normal source below setpoint for about 1 s (adjustable) at any ATS, or at the PLC, starts both generators. Hardwired start contacts from each ATS run in parallel with the PLC.\n2. **First unit on bus.** The first generator at \u226590% V and \u226595% Hz receives the dead-bus permissive through hardwired arbitration and closes. The other unit is blocked from dead-bus closing.\n3. **Life safety and critical transfer.** ATS-L transfers immediately, then ATS-C after a short stagger of about 1 s. Both must complete within 10 s of utility loss, verified by testing.\n4. **Second unit.** The second generator synchronizes through a sync-check relay and parallels.\n5. **Equipment branch.** ATS-E transfers after the second unit is paralleled, or after a time delay if capacity permits. Loads are added in priority steps.\n6. **One unit only.** If one unit is unavailable, or trips while running, priority shedding keeps ATS-L and ATS-C on the surviving unit. ATS-E loads are added or shed according to the load priority table.\n7. **Utility return.** Normal source must be stable for an adjustable retransfer delay (\u22655 min typical). Then the ATSs retransfer in stages, using open transition with in-phase monitoring or closed transition. If the emergency source fails during the delay, retransfer is immediate.\n8. **Cooldown.** The generators run unloaded through a cooldown period (about 5 min), then return to Auto. A utility failure during cooldown causes immediate reacceptance of load.\n9. **Engine protection.** Shutdowns are limited to overspeed, low oil pressure, high coolant temperature, overcrank and emergency stop, plus electrical breaker trips. All other conditions are alarm-only.\n\n**Recommendation:** Return the sequence for revision. Clauses 3.2, 3.3, 3.4 and 3.5 each need rework, and the final sequence should be coordinated with the load study, the switchgear vendor, and the AHJ."
+}

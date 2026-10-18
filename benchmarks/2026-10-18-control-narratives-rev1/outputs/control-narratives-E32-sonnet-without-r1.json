@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E32-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E32",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 23721.1,
+  "duration_ms": 22929,
+  "duration_api_ms": 22698,
+  "cost_usd": 0.034226900000000005,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 886,
+   "cache_read_input_tokens": 2189,
+   "output_tokens": 3046,
+   "output_tokens_details": {
+    "thinking_tokens": 1012
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 886,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3046,
+     "cache_read_input_tokens": 2189,
+     "cache_creation_input_tokens": 886,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 886
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:42:31.875438+00:00",
+   "end": "2026-10-18T23:42:55.596611+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.034226900000000005,
+  "charged_usd": 0.034226900000000005,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# FRS Section: Boiler Feedwater Pump Lead/Lag Control\n\n**Source:** Reverse-engineered from the extracted ST fragment only. Items marked **[VERIFY]** are inferred or look like defects, and need confirmation against plant behavior before sign-off.\n\n## 1. Scope\nControls the start, stop and lead/lag duty of two boiler feedwater pumps, P1 and P2, using drum level LT100 (%) and feedwater header pressure PT101 (bar).\n\n## 2. Inputs, outputs and parameters\n\n| Item | Description |\n|---|---|\n| LT100 | Drum level, % |\n| PT101 | FW header pressure, bar |\n| AutoMode | Auto mode enable |\n| LeadSel | Lead selector: 1 = P1 lead, otherwise P2 lead |\n| Px.Fault | Pump fault status |\n| Px.Run | Pump run command |\n| Maint_B7 | Maintenance flag (see FR-9) |\n| DayOfWeek, Hour, Minute | Real-time clock values |\n\n| Parameter | Value |\n|---|---|\n| Lag start pressure | < 18.5 bar |\n| Lag start delay | 8 s (on-delay, continuous) |\n| Lag stop pressure | > 21.0 bar |\n| Low-level pump trip | LT100 < 15.0 % |\n\n## 3. Functional requirements\n\n**FR-1 Duty assignment.** If LeadSel = 1, P1 is lead and P2 is lag. Otherwise P2 is lead and P1 is lag.\n\n**FR-2 Lead start.** When AutoMode is active and the lead pump has no fault, the lead pump run command shall be set. The command stays set until cleared by FR-5 or FR-6 (or by logic outside this extract).\n\n**FR-3 Lag start on low pressure.** If PT101 is below 18.5 bar continuously for 8 s, the lag pump run command shall be set and the LagLatched flag set. The timer resets when PT101 is at or above 18.5 bar.\n\n**FR-4 Lag start on lead fault.** If the lead pump is faulted, the lag pump run command shall be set immediately (no delay) and LagLatched set.\n\n**FR-5 Lag stop.** If LagLatched is set and PT101 exceeds 21.0 bar, the lag pump run command shall be cleared. The band between 18.5 and 21.0 bar is hysteresis, in which the lag pump holds its state.\n\n**FR-6 Low-level protection.** If LT100 is below 15.0 %, both pumps' run commands shall be cleared. This is evaluated after FR-2 to FR-5 and overrides them. There is no hysteresis, so in AutoMode the lead pump restarts as soon as LT100 reaches 15.0 % or above.\n\n**FR-7 Weekly lead rotation.** LeadSel shall toggle once a week at 06:00 on DayOfWeek = 1. **[VERIFY]** whether 1 means Monday or Sunday on this PLC.\n\n**FR-8 Evaluation order.** Order matters, because later statements override earlier ones in the same scan. The order is lead select, lead start, lag timer, lag start, lag stop, low-level trip, maintenance, rotation.\n\n**FR-9 Maintenance flag.** When Maint_B7 is true, LT100_Lo is set false. LT100_Lo is not used elsewhere in this extract. **[VERIFY]** whether it is a low-level alarm or interlock flag defined elsewhere and whether this is an intended bypass. As written, it does not bypass the FR-6 trip.\n\n## 4. Suspected defects and gaps in the legacy logic\nDecide for each whether to replicate or fix.\n\n1. **Rotation fires every scan.** The condition `Minute = 0` is true for the whole minute, with no one-shot. If the logic runs every scan, LeadSel toggles repeatedly during 06:00, and the final lead depends on scan-count parity. The intent is almost certainly one toggle per week, so the new platform should use a one-shot or a rising edge.\n2. **Old lead keeps running after rotation.** Run commands are only ever set in the extract (apart from FR-5 and FR-6). After a swap, the former lead's Run may stay TRUE, which could leave both pumps running. **[VERIFY]** whether stop logic exists elsewhere.\n3. **LagLatched is never cleared** in this extract. After the first lag event, FR-5 is permanently armed. The reset condition is unknown.\n4. **Lag stop can defeat the lead-fault standby.** If the lead is faulted and PT101 > 21.0 bar, FR-4 sets the lag Run and FR-5 clears it in the same scan, so no pump runs. Pressure then falls and the pump restarts, producing cycling.\n5. **Lag pump fault is not checked** before starting, and AutoMode does not gate the lag start.\n6. **Lead stop is not defined.** Nothing stops the lead on leaving AutoMode, on fault, or on stop commands, other than FR-6. Manual mode and stop handling are presumably elsewhere.\n7. **Automatic restart after a low-level trip.** The trip is not latched and needs no operator reset. Confirm that this is acceptable for pump protection and safety.\n8. **Pressure and level signal quality.** There is no handling of a failed or out-of-range LT100 or PT101, and no alarms.\n\n## 5. Open questions for the plant\n- RTC convention for DayOfWeek, and the scan time or task type.\n- Where the pump stop, manual and alarm logic lives, and where LagLatched is reset.\n- Meaning and consumers of LT100_Lo and Maint_B7.\n- Is the 8 s delay and the 18.5 / 21.0 bar / 15 % set-point set fixed, or operator-adjustable?\n\nBefore finalizing, confirm FR-1 to FR-9 against observed plant behavior (trend data or operator interview), because the source is only an extract."
+}

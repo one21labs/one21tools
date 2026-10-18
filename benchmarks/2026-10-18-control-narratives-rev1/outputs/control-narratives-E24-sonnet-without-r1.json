@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E24-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E24",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 30911.8,
+  "duration_ms": 30184,
+  "duration_api_ms": 29958,
+  "cost_usd": 0.036882899999999996,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 760,
+   "cache_read_input_tokens": 2189,
+   "output_tokens": 3362,
+   "output_tokens_details": {
+    "thinking_tokens": 1393
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 760,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3362,
+     "cache_read_input_tokens": 2189,
+     "cache_creation_input_tokens": 760,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 760
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:33:29.368586+00:00",
+   "end": "2026-10-18T23:34:00.280409+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.036882899999999996,
+  "charged_usd": 0.036882899999999996,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Aeration Control Narrative\n\nI'd hold this until the consultant fixes the first four items. Items 1 and 2 are errors that would cause problems in operation. Item 3 is a design error that would cause a process upset. The rest are gaps the contractor will either fill in with their own assumptions or price as change orders.\n\n## Critical issues\n\n**1. Header pressure setpoint contradicts itself (item 2).**\nIt is described as \"fixed at 7.5 psig\" and then reset by most-open-valve (MOV) logic. Only one can be true. The intent is almost certainly a pressure setpoint that floats via MOV between a minimum and maximum. The narrative needs to define:\n- The min and max setpoints (the minimum must keep blowers out of surge and keep enough pressure to reach the basin diffusers).\n- The reset rate, which should be much slower than the DO loops to avoid hunting.\n- What happens if a valve is excluded from MOV selection (see item 3 below).\n- Which blower is the trim blower and which run at fixed output.\n\n**2. Pressure units conflict, and the staging logic doesn't work (items 2 and 5).**\n7.5 psig is about 208 inH2O (1 psi \u2248 27.68 inH2O). Staging is written around 160 and 165 inH2O (about 5.8 and 6.0 psig), well below the setpoint. As written:\n- Pressure would normally sit above 165, so the \"stage off\" condition is almost always true.\n- The \"stage on\" condition is only met if pressure is 45+ inH2O below setpoint, and by then the system has already failed to hold pressure.\n- The 5 inH2O deadband is tiny and would cause cycling.\n\nStaging should be based on blower capacity: for example, stage on when the trim blower is above X% output or speed (or IGV position) for N minutes while the pressure setpoint isn't being met, and stage off when total demand would fit on fewer blowers with margin. It also needs minimum run and minimum off timers. Use a single pressure unit throughout.\n\n**3. Loss of DO signal closes the valve \"to prevent over-aeration\" (item 3).**\nThis is backwards. A closed valve starves the basin of air, which kills nitrification and can send the basin septic. If all valves closed together, the blowers would deadhead. Better options:\n- Hold the last good position or go to a defined fallback position (a minimum or typical-demand position) with an alarm.\n- Optionally switch to a flow- or ratio-based control using the other basins' average.\n- Exclude the failed basin from MOV selection.\n- Define a minimum valve position for mixing in all modes.\n\nAlso define how a bad-quality signal is detected: out-of-range, stuck or frozen value, and rate-of-change checks, not just a loss of 4-20 mA.\n\n## Significant gaps\n\n**4. Basin control structure (item 1).**\nThe valves are called \"air flow control valves\" but no flow transmitters are listed. If the DO controller drives the valve position directly, valve nonlinearity and header pressure swings will interact. A DO\u2192airflow cascade is the usual approach and should either be specified or deliberately declined. Also address DO setpoint (fixed 2.0 versus trimmed or ammonia-based), probe fouling and calibration alarms, and manual/auto modes with bumpless transfer.\n\n**5. Start permissives are incomplete (item 4).**\n- ZSC-931 is a single tag for three blowers. Each blower needs its own tag.\n- Missing: lube oil pressure and temperature, motor and bearing temperatures, no active trips, starter ready, remote/auto mode, inlet filter status, and no E-stop.\n- Confirm the discharge valve strategy with the blower vendor (open before start, or opened on a timer after start, with a check valve).\n- Define the start sequence: IGV position, ramp, loading, and unloading on stop.\n\n**6. Auto-restart after power loss (item 6).**\n- Restarting all blowers together causes a large inrush and may overload a generator or utility service. It needs staggered restarts with defined delays and priority.\n- Restart must be blocked until the coast-down or restart-lockout time has elapsed and all permissives are healthy.\n- Blowers stopped by a trip must not auto-restart.\n- Define a time window after which the \"was running\" memory expires.\n\n**7. Vibration trip is a single line (item 7).**\nNeeds:\n- Vibration sensor tags.\n- Separate alarm and trip setpoints.\n- Trip delay and any bypass during startup.\n- Latched trip with manual reset.\n- What the system does next, such as starting the standby blower and unloading the failed one.\n- The same treatment for other protections: surge, high discharge temperature, bearing and motor temperature, low oil pressure, and motor overload.\n\n## Other omissions\n\n- **Surge and minimum flow protection:** multistage centrifugal blowers have a surge limit. The narrative needs a blow-off or recirculation strategy and a minimum turndown, particularly as basin valves close down.\n- **Duty rotation:** lead/lag/standby assignment, rotation to equalize run hours, and behavior when a blower is out of service.\n- **PIT-920 failure:** redundant transmitter or a fallback mode. Loss of the sole pressure signal currently has no defined response.\n- **High header pressure:** protection and relief.\n- **Alarms:** no alarm list, priorities, or setpoints.\n- **Communication loss and operating modes:** SCADA/PLC behavior on comms loss, and local/manual/auto modes for each device.\n\n## Suggested next step\n\nSend this back to the consultant as a comments list. The items above are specific enough to attach as-is. Ask for a revised narrative with a consistent unit basis, an I/O or tag list that includes the per-blower instruments, and a table of setpoints, timers, and alarm limits. If useful, I can draft the comment letter or a markup table in that format."
+}

@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E32-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E32",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 60011.0,
+  "duration_ms": 59032,
+  "duration_api_ms": 58787,
+  "cost_usd": 0.07957270000000001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4987,
+   "output_tokens": 7907,
+   "output_tokens_details": {
+    "thinking_tokens": 3786
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 7907,
+     "cache_read_input_tokens": 4987,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:42:28.963634+00:00",
+   "end": "2026-10-18T23:43:28.974703+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.07957270000000001,
+  "charged_usd": 0.07957270000000001,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control Narrative: Boiler Feedwater Pumps (FWP)\n\n**Basis:** Reverse-engineered from the extracted ST code only. No P&ID, instrument index, cause-and-effect chart or alarm database was supplied. Section 6 lists the interlocks and Section 7 the alarms. Items marked **as-found** describe what the code does. Items marked **confirm** are my proposals and need operations sign-off. The code has several defects that you should decide on before re-implementing them (Section 10, findings F-1 to F-7).\n\n## 1. Purpose and boundaries\n\n- FWP keeps feedwater header pressure by running one lead pump and starting one lag pump on demand.\n- Pumps: P1 and P2, duty/duty. Lead and lag roles swap weekly.\n- Upstream: feedwater supply (source not in the code). Downstream: the feedwater header at PT101 and the boiler drum at LT100.\n- Out of scope: drum level control, pump motor protection, burner trips. The low-low drum level trip, if any, belongs in the SIS SRS (IEC 61511). It is not specified here.\n\n## 2. Tags used\n\n| Tag | Description | Units | Use |\n|---|---|---|---|\n| P1, P2 | Feedwater pumps (Run command, Fault status) | \u2013 | Outputs and inputs |\n| PT101 | FW header pressure | bar | Lag start and stop |\n| LT100 | Drum level | % | Pump stop |\n| LeadSel | Lead selector (1 = P1 lead, otherwise P2 lead) | \u2013 | Internal |\n| Lead, Lag | Role aliases of P1 and P2 | \u2013 | Internal |\n| AutoMode | Module auto mode | \u2013 | Permissive |\n| LagTmr | Lag start on-delay timer | s | Internal |\n| LagLatched | Lag-called flag | \u2013 | Internal |\n| Maint_B7 | Maintenance bit | \u2013 | Input |\n| LT100_Lo | Low-level flag | \u2013 | Internal, forced by Maint_B7 |\n\n## 3. States and transitions\n\nThe code has no explicit states. These states are derived from its behavior. Mode: state-based control (SBC).\n\n| State | Entry permissive | Initiator | Allowed exits | Automation level |\n|---|---|---|---|---|\n| S0 Not in auto | AutoMode false | Operator | S1 | Manual |\n| S1 Lead running | AutoMode true, Lead not faulted, LT100 not below SP-004 | Auto | S2, S3, S0 | Automatic |\n| S2 Lead and lag running | LagLatched set by T1 or T2 | Auto | S1 (T3), S3 | Automatic |\n| S3 Low-level stop | LT100 below SP-004 | Auto | S1 when LT100 recovers (as-found: no hysteresis) | Automatic |\n\n| ID | Transition | Condition |\n|---|---|---|\n| T1 | S1 to S2 | PT101 below SP-001 for SP-003 |\n| T2 | S1 to S2 | Lead.Fault true |\n| T3 | S2 to S1 | PT101 above SP-002 and LagLatched set |\n| T4 | any to S3 | LT100 below SP-004 |\n\n## 4. Regulatory control\n\nNone. FWP is on/off staging only. No PID loop and no pump speed control appear in the code.\n\n## 5. Sequences\n\nNo step sequence exists. The only timed action is the lag start delay.\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Start LagTmr when PT101 is below SP-001 | Timer elapsed (SP-003) | SP-003 | Timer resets if PT101 is not below SP-001 |\n| 2 | Start Lag, set LagLatched | Lag.Run true | None in code. **Confirm:** alarm if no run feedback after SP-009 | Alarm, see Section 7 |\n\n## 6. Interlocks and permissives\n\n| Cause | Effect | Latched or auto-reset | Reset method |\n|---|---|---|---|\n| LT100 below SP-004 | Stop P1 and P2. Overrides all start commands | Auto-reset (as-found) | LT100 rises to SP-004 or above |\n| PT101 above SP-002 and LagLatched set | Stop Lag | Auto-reset | New lag start demand |\n| Lead.Fault true | Start Lag | Sealed in by LagLatched | Lag stop (PT101 above SP-002) |\n| AutoMode false or Lead.Fault true | Block Lead start command | Auto-reset | Condition clears |\n\n## 7. Alarms\n\nThe code raises no alarms. The module needs these (names provisional, **confirm** against the alarm database):\n\n| Alarm | Response |\n|---|---|\n| FWP low drum level stop active | Operator checks the level source and the drum |\n| FWP lead pump fault | Operator checks Lead pump. Lag has started |\n| FWP lag called | Information. Operator checks cause of low pressure |\n| FWP lag no run feedback | Operator checks Lag pump |\n| PT101 or LT100 bad quality | See Section 8 |\n\n## 8. Abnormal handling\n\nThe code does not handle these cases. All values below are proposals (**confirm**).\n\n| Event | Required behavior |\n|---|---|\n| PT101 bad | Start Lag. Alarm. Operator decides on stop |\n| LT100 bad | Hold current pump state. Alarm. Do not trip on a bad signal |\n| Comms loss to a pump | Treat as pump fault. Start the other pump |\n| Power loss and restart | Clear LagTmr and LagLatched. Lead restarts when AutoMode is true. Lag restarts by normal demand |\n| Output fail position | Pump Run de-energized means pump stopped |\n\n## 9. Operator interface\n\n- The operator sees: lead and lag roles, run and fault status of P1 and P2, PT101, LT100, LagLatched, low-level stop active.\n- The operator changes: AutoMode, LeadSel (manual swap), Maint_B7 (maintenance access).\n- The operator gets prompts for: pump faults, low-level stop, lag called. Operations must sign off on all states and prompts.\n\n## 10. Requirements, setpoints, findings, open items\n\n### Setpoint list\n\n| ID | Value | Units | Status |\n|---|---|---|---|\n| SP-001 | 18.5 | bar | As-found |\n| SP-002 | 21.0 | bar | As-found |\n| SP-003 | 8 | s | As-found |\n| SP-004 | 15.0 | % | As-found |\n| SP-005 | 1 | DayOfWeek | As-found, confirm day numbering |\n| SP-006 | 6 | h | As-found |\n| SP-007 | 0 | min | As-found |\n| SP-008 | 30 | s | Provisional, confirm (swap overlap) |\n| SP-009 | 10 | s | Provisional, confirm (lag run feedback) |\n| SP-010 | 1.0 | % | Provisional, confirm (low-level restart hysteresis) |\n\n### Requirements (as-found behavior)\n\n| ID | Requirement | Test |\n|---|---|---|\n| FR-FWP-001 | When LeadSel is 1, P1 is Lead and P2 is Lag. Otherwise P2 is Lead and P1 is Lag. | Set LeadSel both ways. Check roles. |\n| FR-FWP-002 | When AutoMode is true and Lead.Fault is false, command Lead to run. | Simulate. Check Lead.Run. |\n| FR-FWP-003 | When PT101 stays below SP-001 for SP-003, command Lag to run and set LagLatched. | Force PT101 low. Time the start. |\n| FR-FWP-004 | If PT101 rises to SP-001 or above before SP-003 elapses, reset the timer. | Force PT101 low, then high before the timer ends. |\n| FR-FWP-005 | When Lead.Fault is true, command Lag to run at once and set LagLatched. | Force Lead.Fault. |\n| FR-FWP-006 | When PT101 is above SP-002 and LagLatched is set, stop Lag. | Raise PT101 above SP-002. |\n| FR-FWP-007 | Lag keeps running between SP-001 and SP-002 after it starts. | Hold PT101 in the band. Check Lag.Run. |\n| FR-FWP-008 | When LT100 is below SP-004, command P1 and P2 to stop. This overrides FR-FWP-002, -003, -005. | Force LT100 low with both pumps running. |\n| FR-FWP-009 | While Maint_B7 is true, force LT100_Lo to false. This does not change pump commands. | Set Maint_B7. Check LT100_Lo and pumps. |\n| FR-FWP-010 | At SP-005, SP-006 and SP-007, swap LeadSel. | See F-1. |\n\n### Findings in the as-found code\n\n| ID | Location | Issue | Proposed fix (confirm) |\n|---|---|---|---|\n| F-1 | Weekly swap | No one-shot. The swap runs on every scan during the minute, so the final LeadSel depends on scan count (odd or even). | FR-FWP-011: swap once, on the rising edge of the time match. Test: check one toggle per week. |\n| F-2 | Weekly swap | Old Lead.Run is never cleared. After the swap both pumps can keep running. | FR-FWP-012: start new Lead, then stop old Lead after SP-008 with run feedback. |\n| F-3 | Low-level stop | No latch, no delay, no hysteresis. Pumps restart on the first scan above SP-004, which can chatter. | FR-FWP-013: restart only when LT100 is above SP-004 plus SP-010. |\n| F-4 | Low-level stop | Stopping feed pumps on low drum level is unusual. Low level normally needs more feed. LT100 may be a deaerator level, or the comment may be wrong. | Process engineer confirms intent. Move any boiler protection to the SRS. |\n| F-5 | Lag stop, last-write-wins | With Lead.Fault true and PT101 above SP-002, Lag stops. It restarts when PT101 falls to SP-002 or below. | FR-FWP-014: keep Lag running while Lead.Fault is true. |\n| F-6 | Lag and Lead logic | Lag start ignores AutoMode and Lag.Fault. Nothing stops Lead when AutoMode goes false. LagLatched is never cleared. | FR-FWP-015: block Lag start when Lag.Fault is true. Clear LagLatched at Lag stop. Operator owns manual stop. |\n| F-7 | Maint_B7 | LT100_Lo is not used in this extract. Its effect elsewhere is unknown. | Search the full program for LT100_Lo. |\n\nEach proposed fix is a requirement only after operations accepts it. Until then, FR-FWP-001 to -010 stand as-found, defects included.\n\n### Open items\n\n| # | Item | Owner | Due |\n|---|---|---|---|\n| 1 | Decide F-1 to F-7 | Operations lead and controls lead | 2026-11-15 |\n| 2 | Confirm DayOfWeek numbering and swap time | Operations lead | 2026-11-15 |\n| 3 | Confirm LT100 service and low-level stop intent | Process engineer | 2026-11-15 |\n| 4 | Check the full program for other uses of P1.Run, P2.Run, LagLatched, LT100_Lo | Controls engineer | 2026-11-08 |\n| 5 | Confirm the Section 8 abnormal-handling behavior | Operations lead | 2026-11-22 |\n| 6 | Provide the instrument index, C&E chart and alarm database | Plant owner | 2026-11-22 |\n| 7 | Confirm whether any low drum level protection exists in the SIS | Safety lead | 2026-11-22 |\n\nI have not applied a full STE pass to the table text. Do this after you settle the findings."
+}

@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E27-sonnet-with-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E27",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 42213.5,
+  "duration_ms": 41357,
+  "duration_api_ms": 41122,
+  "cost_usd": 0.0575001,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 769,
+   "cache_read_input_tokens": 4101,
+   "output_tokens": 5401,
+   "output_tokens_details": {
+    "thinking_tokens": 1443
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 769,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5401,
+     "cache_read_input_tokens": 4101,
+     "cache_creation_input_tokens": 769,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 769
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:36:27.568042+00:00",
+   "end": "2026-10-18T23:37:09.781523+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0575001,
+  "charged_usd": 0.0575001,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: U-2 control narrative excerpt (5.1 Unit Start, 5.2 Shutdowns)\n\nThe excerpt cannot be tested at FAT as written. It also has two safety-critical defects: automatic restart after ESD, and an unspecified blowdown fail position. No tag index, cause-and-effect chart, alarm database, or setpoint list was supplied, so I wrote those items out below.\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| R-01 | 5.2 bullet 3 | **Critical.** The unit restarts automatically after ESD clears. Gas may still be present, the cause may be unverified, and the turbine may be hot or in a hung state. This also conflicts with the ISA-106 automation level for a start, which is operator-initiated. | Delete. Replace with FR-U2-020: ESD latches the unit in a lockout state. Reset needs local verification and a manual reset. Start needs a new operator Start command. |\n| R-02 | 5.2 bullet 2 | **Critical.** The blowdown valves fail closed. On loss of power, signal, or air, an ESD cannot depressurize the station. | Decide the fail position through hazard analysis. I propose fail-open, or fail-closed only with a stored-energy actuator (accumulator) and a documented basis. Record this in the SRS and make it an open item. |\n| R-03 | 5.2 bullet 2 | ESD logic sits in the same PLC as unit control. IEC 61511 requires the SIS to be independent of the BPCS, or the shared design to be justified. The narrative is also silent on the ESD function itself. | Reference the SRS for ESD functions and the SIL target. State the SIS/BPCS boundary. Remove ESD logic from this narrative, keeping only the unit's response (FR-U2-018 to 020). |\n| R-04 | 5.2 bullet 4 | \"Trip value see vendor data\" is a reference, not a specification. | Put the alarm and trip values, delay, and voting in the setpoint list (SP-01 to SP-04). Write the vote and fault behavior as requirements (FR-U2-014 to 016). |\n| R-05 | 5.2 bullet 1 | \"Will trip\" has no definition of the trip. It gives no stop type, latching, reset, delay, or voting, and no handling of a failed VT-2201 or VT-2202. | Add FR-U2-014 to 016 (below). |\n| R-06 | 5.1 Step 3 | There is no purge or crank-purge before fuel and ignition. This is a combustion safety gap, and the purge belongs in the sequence. | Add a purge step with a minimum crank time (SP-05) before FUEL admission. Add a fuel-valve-closed permissive. |\n| R-07 | 5.1 Steps 1-4 | There are no transition conditions with tags, no timeouts, and no failure responses. Examples are failure to equalize, failure to light, hung start, and failure to reach idle. | Replace with the step table below. |\n| R-08 | 5.1 Step 2 | \"Equals\" cannot be tested. Equalization is a differential pressure within a band, and no tags are named. | Use a differential below SP-02. Name the tags: `PT-xxxx` case, `PT-xxxx` suction. The tag index was not supplied, so they are open item OI-03. |\n| R-09 | 5.1 Step 4 | The recycle valve closes at idle, which is premature. Loading and recycle closure should follow idle stability, a speed hold, and a surge-margin check. Closing the valve is not the same as loading the unit. | Define the load sequence: idle hold time (SP-07), then a permissive on stable speed, then a ramped recycle close under anti-surge control. |\n| R-10 | 5.1 start permissives | There are no start permissives. Examples are lube oil pressure and temperature, ESD healthy, no active trip or lockout, and enclosure ventilation. | Add a permissive list in the states section (state table below). |\n| R-11 | Whole excerpt | There is no state table, no normal stop, no cooldown, and no HOLD or abort. | Add the ISA-106 state table (below). |\n| R-12 | Whole excerpt | Bad PV, comms loss, and power loss and restart are undefined. | Add FR-U2-022 to 024. |\n| R-13 | Whole excerpt | No requirement IDs, and the text is not in STE. It uses passive voice (\"is processed\"), future tense (\"will trip\"), and sentences with two actions. | Apply the IDs and the STE rewrite below. |\n| R-14 | 5.2 bullet 2 | ESD sources are not distinguished. Pushbuttons and gas detection are listed without voting. Gas detector voting and the station-versus-unit ESD hierarchy are unspecified. | Reference the SRS for voting. Define the unit response per ESD level in the cause-and-effect rows below. |\n\n## Provisional setpoint list\n\nThese values are not given in the excerpt. All are provisional and need confirmation against the OEM data.\n\n| ID | Parameter | Value | Units | Status |\n|---|---|---|---|---|\n| SP-01 | VT-2201/2202 high alarm | 0.4 | in/s pk | Confirm (OEM) |\n| SP-02 | Case-to-suction equalization differential, max | 5 | psid | Confirm |\n| SP-03 | VT-2201/2202 high-high trip | 0.6 | in/s pk | Confirm (OEM) |\n| SP-04 | Vibration trip confirm delay | 2 | s | Confirm |\n| SP-05 | Minimum crank-purge time | 120 | s | Confirm (OEM) |\n| SP-06 | Equalization timeout | 120 | s | Confirm |\n| SP-07 | Idle stabilization hold | 60 | s | Confirm |\n| SP-08 | Light-off timeout (fuel on to flame proven) | 30 | s | Confirm (OEM) |\n| SP-09 | Acceleration-to-idle timeout | 90 | s | Confirm (OEM) |\n| SP-10 | Restart lockout after trip/ESD | TBD | min | Open item OI-04 (OEM, turbine) |\n\n## Proposed state table (ISA-106)\n\n| State | Entry permissives | Allowed exits | Initiator | Automation level |\n|---|---|---|---|---|\n| STOPPED | No trip active | STARTING | Operator Start | Operator-prompted |\n| STARTING | Start permissives true | RUNNING-IDLE, HOLD, TRIPPED | Auto after Start | Automatic |\n| HOLD | Step failure or operator Hold | STARTING (resume), STOPPING | Auto or operator | Operator-prompted |\n| RUNNING-IDLE | Idle stable (SP-07) | LOADED, STOPPING, TRIPPED | Auto | Automatic |\n| LOADED | Recycle closed, anti-surge active | STOPPING, TRIPPED | Auto | Automatic |\n| STOPPING | Operator Stop | STOPPED, TRIPPED | Operator | Automatic |\n| TRIPPED | Any trip cause | STOPPED (after manual reset) | Auto | Automatic |\n| ESD-LOCKOUT | Any ESD level | STOPPED (after manual reset) | Auto | Manual reset |\n\n## Revised 5.1 sequence\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Open the unit loading valve. | Case-to-suction differential below SP-02. | SP-06 | HOLD. Alarm. Close the loading valve. |\n| 2 | Start the starter. Crank-purge the turbine. | Purge time at SP-05 or more at purge speed. | SP-05 plus margin (OI) | Abort to STOPPING. |\n| 3 | Open the fuel valve. Energize ignition. | Flame detected. | SP-08 | Close fuel. Re-purge. After the allowed attempts, go to TRIPPED. |\n| 4 | Accelerate. Disengage the starter at self-sustaining speed. | Idle speed reached. | SP-09 | Close fuel. TRIPPED (hung start). |\n| 5 | Hold at idle. | Stable for SP-07. | SP-07 plus margin | HOLD. |\n| 6 | Ramp the recycle valve closed under anti-surge control. | Recycle valve closed. | OI | HOLD. Keep the recycle valve open. |\n\n## Cause and effect (no chart supplied)\n\n| Cause | Effect | Latched / auto-reset | Reset method |\n|---|---|---|---|\n| Vibration high-high, confirmed (VT-2201/2202) | Unit trip: close fuel, open recycle valve. Shutdown without blowdown. | Latched | Local manual reset |\n| Station ESD, pushbutton or gas detection (per SRS) | Close suction and discharge block valves. Open the blowdown valves. Trip the unit. | Latched | Local manual reset after verification |\n| Loss of ESD-system health | Unit stays in STOPPED. Block Start. | Auto-reset | Health restored |\n\n## Requirements to add\n\n- **FR-U2-014:** Trip the unit when the vibration high-high condition persists for SP-04. *Test: simulate the input.*\n- **FR-U2-015:** Alarm at SP-01. *Test: simulate the input.*\n- **FR-U2-016:** On a bad-quality VT-2201 or VT-2202, alarm and change the vote from 2oo2 to 1oo1 on the healthy sensor. Trip if both are bad. *Test: fail one, then both.*\n- **FR-U2-018:** Reference the SRS for ESD logic, voting, and valve action.\n- **FR-U2-020:** After any ESD, hold the unit in ESD-LOCKOUT. Do not restart automatically. Require manual reset and a new Start command. *Test: clear the ESD cause and check there is no start.*\n- **FR-U2-022:** On a bad PV in any sequence step, go to HOLD and alarm.\n- **FR-U2-023:** On loss of comms between the PLC and the HMI, keep the sequence running. On loss between the PLC and the turbine controller, trip.\n- **FR-U2-024:** After power loss, restart in STOPPED with trips latched. Do not resume a sequence.\n\n## STE rewrite example\n\n- Before: \"After an ESD, when the ESD condition clears, the unit restarts automatically.\"\n- After: \"Do not restart U-2 after an ESD. Reset the ESD lockout locally. Push START on the U-2 faceplate.\"\n\n## Open items\n\n| ID | Item | Owner | Due |\n|---|---|---|---|\n| OI-01 | Fail position of the blowdown valves, with hazard-analysis basis | Process safety | Before design freeze |\n| OI-02 | SIS/BPCS boundary and SRS reference for station ESD | Controls lead | Before design freeze |\n| OI-03 | Tag index: case and suction `PT` tags, fuel and recycle valves | Integrator | Before FAT procedure |\n| OI-04 | Restart lockout time (SP-10) and the allowed number of start attempts | OEM / Process | Before FAT |\n| OI-05 | Confirm all provisional values (SP-01 to SP-09) against OEM data | Controls lead | Before FAT |\n| OI-06 | Operations sign-off on states and prompts | Operations | Before FAT |\n\n(Owners and due dates are proposals, so please confirm them.)"
+}

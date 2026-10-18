@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E24-opus-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E24",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 41565.1,
+  "duration_ms": 40653,
+  "duration_api_ms": 40384,
+  "cost_usd": 0.073057,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2945,
+   "output_tokens": 3623,
+   "output_tokens_details": {
+    "thinking_tokens": 1464
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3623,
+     "cache_read_input_tokens": 2945,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:16:34.634209+00:00",
+   "end": "2026-10-18T23:17:16.199315+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.073057,
+  "charged_usd": 0.073057,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Aeration Blower Control Narrative\n\n**Recommendation: Return to the consultant before issuing to the contractor.** The narrative has an internal contradiction, a unit/setpoint conflict that would make staging misbehave, two failure responses that are unsafe or harmful to the process, and many gaps a contractor would have to guess at.\n\n## Critical Issues (must fix)\n\n**1. Header pressure control contradicts itself (Item 2).**\nIt says the setpoint is \"fixed at 7.5 psig,\" then says most-open-valve (MOV) logic resets it. It can't be both. Assuming MOV is intended, the narrative must define:\n- Minimum and maximum pressure setpoint limits\n- Reset step size, update interval, and rate limit\n- Deadband around the 85% target, plus a low-limit target (e.g., if the MOV drops below ~70%, lower the pressure)\n- Behavior when a valve is in manual or its DO signal is bad. That valve should be excluded from MOV selection.\n\n**2. Staging thresholds conflict with the pressure setpoint (Items 2 and 5).**\n7.5 psig \u2248 208 inH2O. The stage-on threshold of 160 inH2O is about 5.8 psig, and stage-off at 165 inH2O is about 6.0 psig. Both are far below the stated setpoint. Mixing psig and inH2O in one narrative invites errors, so pick one unit. Also, with MOV reset the pressure setpoint floats, so fixed pressure thresholds are a poor staging basis. Staging is usually based on:\n- Stage on: running blowers at maximum capacity (IGV/speed at max) and pressure below setpoint for a time delay\n- Stage off: running blowers near minimum (approaching surge) and total flow could be met by N\u22121 units, with a time delay\n\n**3. The loss-of-DO-signal response is harmful (Item 3).**\nClosing the valve starves the basin of oxygen and of mixing, since diffused air usually provides both. This can lead to solids deposition, septic conditions, and a possible permit violation. If several probes fail at once, for example from a shared PLC card or a power issue, the valves closing together could deadhead the blowers into surge. Better approach:\n- Hold the last good valve position or airflow, or go to an operator-set fallback position or airflow\n- Alarm the operator\n- Enforce a minimum valve position or airflow for mixing at all times, not only on failure\n\n**4. Automatic restart after a power outage is a safety and electrical hazard (Item 6).**\nRestarting every previously running blower on power return can:\n- Start equipment without warning while maintenance staff may be working on it\n- Start a centrifugal blower that is still coasting down or rotating backward\n- Restart a blower simultaneously with others, causing inrush that trips the generator or utility breaker\n- Skip re-verification of permissives (IGVs may not have returned to closed)\n\nRevise it to require:\n- Permissives re-verified before any start\n- Coast-down/anti-backspin timer\n- Staggered starts with an adjustable delay\n- Restarting only the number of blowers demand requires\n- Separate handling for generator versus utility power\n- An operator-enable selection for auto-restart\n- A safety review of auto-restart against plant lockout/tagout practice\n\n## Item-by-Item Comments\n\n**Item 1: DO control**\n- The 2.0 mg/L setpoint should be operator-adjustable per basin, with limits.\n- No airflow meters are listed. Typical practice is cascade control: DO sets an airflow setpoint, and an airflow loop (FIT-9xx) positions the valve. Confirm whether flow meters exist. Without them, \"air flow control valve\" is just a position-controlled valve.\n- Define valve minimum and maximum position limits, tuning approach, and low/high DO alarms.\n\n**Item 4: Start permissives**\n- Only one limit switch tag (ZSC-931) is given for three blowers. Each blower needs its own (e.g., ZSC-931/932/933).\n- The discharge valve has no tag or position switch.\n- Missing permissives: no active trips, remote/auto mode selected, motor starter ready, minimum time between starts (motor start-per-hour limits), blow-off valve open (if provided), lube oil pressure (if oil-lubricated), and anti-backspin timer.\n\n**Item 5: Staging**\nIn addition to the unit conflict above:\n- Hysteresis is only 5 inH2O, and stage-off has no time delay, so the blowers will cycle.\n- Missing: minimum run and off times, lead/lag/standby assignment and rotation, maximum number of duty blowers, and automatic start of the standby unit when a running blower trips.\n- Missing: how running blowers share load (IGV position? VFD speed?) and how a new blower is brought online without surging it or the running units.\n\n**Item 7: Protection**\nThis item is a fragment. It needs:\n- Tags, alarm and trip setpoints, time delays, and a manual reset requirement\n- Missing protections: surge detection/anti-surge (blow-off valve control), high discharge temperature, bearing temperature, motor winding temperature, motor overload/high current, low lube oil pressure (if applicable), inlet filter high differential pressure\n- Action after a trip: alarm, start standby, re-stage\n\n## Missing Sections\n\n- **Modes:** Local/Remote, HOA, operator manual control of valves and blowers, and bumpless transfer.\n- **Instrument failure:** response to loss of PIT-920 (the single point of failure for all blower control; consider redundancy), loss of airflow signals, and PLC/network communication failure.\n- **Minimum airflow:** a floor on total system airflow for mixing, and a minimum per blower to stay out of surge.\n- **Alarm list:** low/high DO, high/low header pressure, valve position deviation, and blower trips.\n- **Operator-adjustable parameters:** a table of all setpoints, limits, timers, and their ranges.\n- **Tag consistency:** complete tag list for all valves, switches, and transmitters per blower.\n\n## Suggested Next Step\n\nAsk the consultant to revise and resubmit with the contradictions resolved, units made consistent, and the failure responses (Items 3 and 6) redesigned. Also request coordination with the blower manufacturer on surge control, permissives, and protection setpoints. Those details are vendor-specific and should not be left to the contractor's interpretation."
+}

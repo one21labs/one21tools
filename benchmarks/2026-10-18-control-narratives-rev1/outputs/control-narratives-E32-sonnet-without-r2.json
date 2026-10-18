@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E32-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E32",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 27181.1,
+  "duration_ms": 26235,
+  "duration_api_ms": 26012,
+  "cost_usd": 0.0346515,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 3075,
+   "output_tokens": 3434,
+   "output_tokens_details": {
+    "thinking_tokens": 1261
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3434,
+     "cache_read_input_tokens": 3075,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:42:55.597102+00:00",
+   "end": "2026-10-18T23:43:22.778200+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0346515,
+  "charged_usd": 0.0346515,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# FRS Section: Boiler Feedwater Pump Lead/Lag Control\n\n**Source:** Structured Text extracted from the legacy PLC. No original documentation exists, so this section describes the *observed* behavior. Items marked **[VERIFY]** are ambiguities or probable defects to confirm with operations before re-implementation.\n\n## 1. Scope and I/O\n\n| Tag | Description |\n|---|---|\n| P1, P2 | Feedwater pumps, each with Run command and Fault status |\n| LT100 | Drum level, % |\n| PT101 | Feedwater header pressure, bar |\n| AutoMode | Automatic mode enable |\n| LeadSel | Lead pump selector (1 = P1 lead, otherwise P2 lead) |\n| Maint_B7 | Maintenance flag/switch (function not fully determinable) |\n| LagLatched | Internal latch: lag pump has been called |\n| LagTmr | 8 s on-delay timer for lag start |\n\n## 2. Functional Requirements\n\n**FR-1 Lead/lag assignment.** If LeadSel = 1, P1 is lead and P2 is lag. Otherwise P2 is lead and P1 is lag.\n\n**FR-2 Lead start.** When AutoMode is active and the lead pump is not faulted, the lead pump shall be commanded to run.\n\n**FR-3 Lag start on low pressure.** If PT101 stays below 18.5 bar continuously for 8 s, the lag pump shall be commanded to run and LagLatched shall be set. The timer resets whenever PT101 is at or above 18.5 bar.\n\n**FR-4 Lag start on lead fault.** If the lead pump is faulted, the lag pump shall be commanded to run immediately (no delay) and LagLatched shall be set.\n\n**FR-5 Lag stop.** If LagLatched is set and PT101 exceeds 21.0 bar, the lag pump shall be commanded to stop. This gives a pressure band of 18.5 to 21.0 bar (2.5 bar hysteresis). FR-5 is evaluated after FR-3/FR-4, so it takes priority within a scan.\n\n**FR-6 Low-level pump trip.** If LT100 is below 15.0%, both pumps shall be commanded to stop. This is evaluated after the start logic and overrides it. The source comment states the purpose is \"protect pumps\".\n\n**FR-7 Maintenance override.** When Maint_B7 is active, LT100_Lo is forced FALSE. LT100_Lo is not used elsewhere in the extract, so this is probably a low-level alarm or permissive bypass handled in other code.\n\n**FR-8 Automatic lead rotation.** When DayOfWeek = 1 and the time is 06:00, LeadSel shall be toggled, swapping lead and lag roles.\n\n## 3. Execution Order (priority)\n\nLogic is order-dependent, with later statements overriding earlier ones within a scan:\n1. Lead/lag assignment\n2. Lead start\n3. Lag timer\n4. Lag start\n5. Lag stop\n6. Low-level trip (highest priority)\n7. Maintenance override\n8. Rotation\n\nThe new platform must preserve this ordering, or replace it with explicit priority logic that gives the same results.\n\n## 4. Observations and Items to Verify\n\n1. **Rotation fires every scan [VERIFY, likely defect].** The condition is true for the full minute 06:00:00 to 06:00:59, and there is no edge detection. A cyclic scan toggles LeadSel every scan, so the final selection is effectively random. The new implementation should use a one-shot (rising edge) so rotation happens once per week. Also confirm which weekday DayOfWeek = 1 means (Monday or Sunday depends on the platform convention).\n2. **Low-level trip logic [VERIFY].** Tripping feedwater pumps on *low drum level* is unusual, since low level normally demands more feed. Confirm that LT100 is the right signal (suction or deaerator level would be typical for pump protection) and that the 15% setpoint is intended.\n3. **No latch or hysteresis on the level trip.** Pumps are re-commanded every scan and tripped again while LT100 < 15%, with no manual reset and no restart deadband. They restart as soon as the level reaches 15% or more, which risks chatter. Decide whether a latched trip with reset is required.\n4. **LagLatched is never reset** in the extract. After the first lag call it stays TRUE, so FR-5 can stop the lag pump any time PT101 > 21 bar, even if it was started manually. Reset conditions may exist elsewhere.\n5. **No stop logic for the lead pump.** The lead run command is only set here. It is cleared only by the low-level trip, or by logic outside this extract. The behavior when AutoMode goes FALSE is not defined here.\n6. **Lag start is not gated by AutoMode.** FR-3 and FR-4 act regardless of AutoMode.\n7. **Lag pump fault is not handled.** If the lag pump is faulted, the logic still commands it to run, and no alarm or alternate action is defined.\n8. **Lead fault with high pressure.** With the lead faulted and PT101 > 21 bar, FR-5 stops the lag pump each scan, and FR-4 re-commands it. The net result is a stop above 21 bar and a restart below it, which is acceptable but should be confirmed as intended.\n9. **Struct aliasing.** `Lead := P1` may copy the structure rather than reference it, depending on the platform. If it copies, `Lead.Run := TRUE` would not drive P1. The new platform must write to the real pump outputs (via reference or pointer, or explicit mapping).\n10. **Units and scaling.** Setpoints are 18.5 and 21.0 bar, 15.0% level, and 8 s delay. Confirm they are engineering-unit values, not raw counts, and whether they should be configurable parameters.\n\n## 5. Suggested Acceptance Tests\n- Lead starts in auto with no fault; the lag pump stays off.\n- PT101 held below 18.5 bar for 7 s shows no lag start; at 8 s the lag starts.\n- Lead fault starts the lag immediately.\n- Lag stops at PT101 > 21.0 bar and not before.\n- LT100 < 15% stops both pumps regardless of other conditions.\n- At the Monday 06:00 rotation, LeadSel toggles exactly once."
+}

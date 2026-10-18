@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E28-sonnet-with-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E28",
+ "arm": "with",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 52790.8,
+  "duration_ms": 51845,
+  "duration_api_ms": 51601,
+  "cost_usd": 0.0672184,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 4844,
+   "output_tokens": 6673,
+   "output_tokens_details": {
+    "thinking_tokens": 2578
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6673,
+     "cache_read_input_tokens": 4844,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:37:30.625584+00:00",
+   "end": "2026-10-18T23:38:23.416460+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0672184,
+  "charged_usd": 0.0672184,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Emergency Power Sequence 3.1-3.5\n\n**Verdict:** Not ready for FAT. The most serious problems are that 3.2 cannot meet the 10 s requirement in 3.1, that all three branches transfer together, and that 3.5 shuts down the generators when the hospital needs them most. No requirement has an ID, and no step has a timeout or failure response.\n\nThe code references below (NFPA 99/110) are from memory. Confirm them against the adopted editions and the AHJ.\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| F-01 | 3.1 vs 3.2 | The two clauses conflict. 3.1 says generators start \"immediately\", but 3.2 starts them after the utility-loss delay. | Define one start trigger. Start on confirmed utility loss, with the confirm delay taken from SP-02. |\n| F-02 | 3.1, 3.2 | The 10 s limit cannot be shown. The path is confirm delay, then start, then first close, then a 5 s stabilization delay, then second-generator sync, then transfer. Waiting for both generators puts transfer far beyond the limit. | Transfer ATS-L and ATS-C on the first generator that closes to the bus. Make the second generator an add-on, not a precondition. Budget the time per step from SP-01. |\n| F-03 | 3.1 | \"Within 10 seconds of utility loss\" has no start point or end point, and it applies to all ATSs. | State the start (utility loss detected) and the end (ATS-L and ATS-C closed to the emergency source). Treat the equipment branch separately (F-04). |\n| F-04 | 3.2 | ATS-L, ATS-C and ATS-E transfer at the same instant. That is a block-load step with no priority, and NFPA 99/110 treat the equipment branch as a delayed, load-stepped connection. | Use a priority order: ATS-L first, then ATS-C, then ATS-E after the delay in SP-05. Put each transfer in its own step with its own permissive. |\n| F-05 | 3.2 | \"First generator to reach rated voltage and frequency\" has no tie-break, no timeout and no check for a dead bus. | Add a first-up arbitration rule (G-1 by default). Interlock the breaker so only one generator can close to a dead bus. Add a ready timeout from SP-03. |\n| F-06 | 3.2 | There is no failure path: no start failure, no second-generator sync failure, no loss of the first generator after closing. | Add a failure response to every step. If the first generator fails, the other generator takes the dead bus. If the sync fails, alarm and stay on one generator under the load limit. If both fail, alarm and hold ATSs on the utility side. |\n| F-07 | 3.2 | The \"5 s stabilization delay\" is a number in prose. It is unjustified and it sits ahead of the transfer. | Move it to the setpoint list. Remove it from the path to ATS-L and ATS-C. |\n| F-08 | 3.2 | Synchronizing has no check limits and no timeout. | Add the sync-check limits (SP-07) and the sync timeout (SP-06). |\n| F-09 | 3.3 | \"Sheds load as required\" is untestable. It has no priority, trigger, reset or restore rule. | Write the shed order: ATS-E first, then non-essential ATS-C loads. ATS-L is never shed. Add the trigger (SP-10), a restore deadband and a restore delay. Say whether shedding is latched or auto-reset. |\n| F-10 | 3.3 | One generator at the rated load can overload on the first connection. | Connect in order and check available capacity before each step. |\n| F-11 | 3.4 | Immediate retransfer follows a utility return, which may be a flicker. This risks a second outage, and it forces an open-transition load bump. | Require a stable-utility timer (SP-08). Use in-phase or closed-transition retransfer if the ATSs support it. If utility fails again during retransfer, return to the emergency source. |\n| F-12 | 3.4 | The generators stop at once, with no cooldown. | Run the generators unloaded for the cooldown in SP-09, then stop. If utility fails again during cooldown, reconnect the loaded generators. |\n| F-13 | 3.5 | Automatic shutdown on low coolant temperature and low fuel level is wrong. Low coolant temperature means a heater fault, so it is an alarm and not a reason to stop. Low fuel is a warning that gives time to refuel. NFPA 110 for Level 1 systems normally limits automatic shutdown to overspeed, overcrank and manual emergency stop. | Change low coolant temperature and low fuel level to alarms only. Confirm with the AHJ before allowing any high coolant temperature shutdown, and put any approved trip in the setpoint list. |\n| F-14 | 3.5 | A shutdown trip on \"high coolant temperature\" has no value, delay or reset. | Use a pre-alarm and an alarm (SP-14). Put the shutdown decision in the open items. |\n| F-15 | Missing | Nothing covers abnormal handling: bad PV, comms loss, PLC failure, power loss and restart, or fail positions. | Add a section. The ATSs and generator controls must start and transfer without the PLC, and the PLC must not be the only path. Define a fail position for every breaker and ATS. |\n| F-16 | Missing | There are no states or transitions in the ISA-106 sense: standby, starting, one generator on bus, two on bus, retransfer, cooldown, test, manual. | Add the state table before rewriting the prose. |\n| F-17 | Missing | Test and maintenance modes are missing: exercise under load, manual override, and a lockout when a generator is out of service. | Add them as states with permissives. |\n| F-18 | Missing | The document defines no bus protection, reverse power, load sharing, or ATS bypass-isolation behavior. | Add them. Reference the protection settings document for relay settings. |\n| F-19 | Missing | There are no tag numbers for utility sensing, generator breakers, bus, or ATS position signals. | Add a tag list. Reference the instrument index if there is one. |\n| F-20 | All | No requirement has an ID or a test method. | Number as FR-EPS-NNN and add a FAT test for each. |\n| F-21 | Missing | There is no operator interface section: what the operator sees, what the operator can change, and what the operator is prompted for. | Add the section. Require operations sign-off on states and prompts. |\n| F-22 | 3.2 | Sentences are over the STE length limit, and several actions share one sentence. | Split into one action per sentence during the STE pass. |\n\n## Provisional setpoint list\n\nNo setpoint list was given. Every value below is provisional and needs confirmation.\n\n| ID | Parameter | Value | Units | Status |\n|---|---|---|---|---|\n| SP-01 | Maximum time from utility loss to ATS-L and ATS-C on emergency source | 10 | s | Confirm (code limit) |\n| SP-02 | Utility loss confirm delay | 1 | s | Confirm (was 3) |\n| SP-03 | First-generator ready timeout (rated voltage and frequency) | 7 | s | Confirm against engine data |\n| SP-04 | Delay from first breaker closed to ATS-L and ATS-C transfer | 0.5 | s | Confirm |\n| SP-05 | Delay from ATS-C transfer to ATS-E transfer | 15 | s | Confirm with operations |\n| SP-06 | Second-generator sync timeout | 60 | s | Confirm |\n| SP-07 | Sync check limits: voltage / frequency / phase | 5 / 0.2 / 10 | % / Hz / deg | Confirm |\n| SP-08 | Utility stable time before retransfer | 300 | s | Confirm with operations |\n| SP-09 | Generator cooldown (unloaded) | 300 | s | Confirm against engine data |\n| SP-10 | Single-generator load limit | 1200 | kW | Confirm after load study |\n| SP-11 | Overcrank: cycle count / crank time / rest time | 3 / 15 / 15 | \u2013 / s / s | Confirm |\n| SP-12 | Overspeed trip | 115 | % rated | Confirm against engine data |\n| SP-13 | Low coolant temperature alarm | 21 | \u00b0C | Confirm |\n| SP-14 | High coolant temperature pre-alarm / alarm | 95 / 102 | \u00b0C | Confirm against engine data |\n| SP-15 | Low fuel alarm (remaining runtime at rated load) | 4 | h | Confirm |\n\n## Proposed state table (to replace 3.1-3.4)\n\n| State | Entry permissive | Allowed exits | Initiator | Automation level |\n|---|---|---|---|---|\n| Standby | Utility healthy, generators in auto | Starting, Test | Auto | Automatic |\n| Starting | Utility loss confirmed (SP-02) | One on bus, Failed to start | Auto | Automatic |\n| One on bus | First generator ready within SP-03, breaker closed | Two on bus, Retransfer wait, Standby (if both fail, alarm) | Auto | Automatic |\n| Two on bus | Sync complete within SP-06 | One on bus, Retransfer wait | Auto | Automatic |\n| Retransfer wait | Utility stable for SP-08 | Retransfer, One on bus or Two on bus (utility fails again) | Auto | Automatic |\n| Retransfer / Cooldown | ATSs on utility | Standby, One on bus or Two on bus (utility fails again during cooldown) | Auto | Automatic |\n| Test / Manual | Operator selects, lockout cleared | Standby | Operator | Manual |\n\n## Proposed transfer sequence\n\n| Step | Action | Transition condition | Timeout | Failure response |\n|---|---|---|---|---|\n| 1 | Confirm utility loss | Undervoltage for SP-02 | \u2013 | Ignore if utility recovers |\n| 2 | Start G-1 and G-2 | Run signals | SP-03 | Crank per SP-11, then alarm. The other generator continues |\n| 3 | Close first ready generator to dead bus | Breaker closed, bus live | SP-03 | Try the other generator. If neither is ready, alarm |\n| 4 | Transfer ATS-L, then ATS-C | Both ATS positions on emergency | SP-01 | Alarm. ATS acts on its own sensing |\n| 5 | Synchronize second generator | Sync check within SP-07 | SP-06 | Alarm. Stay on one generator under SP-10 |\n| 6 | Transfer ATS-E | Capacity available, SP-05 elapsed | SP-05 | Hold ATS-E on utility side. Alarm |\n| 7 | Shed per priority if over SP-10 | Load below the limit | SP-10 delay | Trip ATS-E first. Never shed ATS-L |\n\n## Open items\n\n| # | Item | Owner | Due (proposed) |\n|---|---|---|---|\n| 1 | Confirm the 10 s requirement and the equipment-branch delay with the AHJ | Controls lead | 2026-11-15 |\n| 2 | Decide whether any engine fault may shut down a generator while it is loaded | Owner's engineer | 2026-11-15 |\n| 3 | Provide the load study for SP-10 and the shed order | Electrical engineer | 2026-11-30 |\n| 4 | Confirm engine data for SP-03, SP-09, SP-12 and SP-14 | Generator vendor | 2026-11-30 |\n| 5 | Confirm closed or open transition retransfer capability of the ATSs | ATS vendor | 2026-11-30 |\n| 6 | Sign-off on states, prompts and retransfer timing | Operations / facilities | 2026-12-15 |\n\nIf you want, I can write the full narrative in the module template next, with FR-EPS IDs and a FAT test for each requirement."
+}

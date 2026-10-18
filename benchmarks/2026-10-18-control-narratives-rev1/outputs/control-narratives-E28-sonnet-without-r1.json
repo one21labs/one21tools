@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E28-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E28",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 37501.0,
+  "duration_ms": 36619,
+  "duration_api_ms": 36370,
+  "cost_usd": 0.0471049,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 743,
+   "cache_read_input_tokens": 2189,
+   "output_tokens": 4391,
+   "output_tokens_details": {
+    "thinking_tokens": 2066
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 743,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4391,
+     "cache_read_input_tokens": 2189,
+     "cache_creation_input_tokens": 743,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 743
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:37:35.107848+00:00",
+   "end": "2026-10-18T23:38:12.608898+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0471049,
+  "charged_usd": 0.0471049,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review of Emergency Power Sequence (Sections 3.1-3.5)\n\nThe sequence as written has one clear code-compliance problem (the 10 s requirement), one design flaw that causes it (waiting for both generators), and several gaps. Findings are listed by severity. I reviewed only the text provided, against NFPA 110, NFPA 99, and NEC 700/517 as I know them. Confirm clause references and local AHJ requirements before relying on this.\n\n## Critical\n\n**1. The 10 s transfer requirement is likely not achievable under 3.2.**\nLife safety and critical branch loads must be energized within 10 s of power loss (NFPA 110 Type 10, NFPA 99, NEC 700.12 / 517.31). The sequence stacks these delays before any transfer:\n- 3 s utility-loss confirmation\n- Engine crank to rated V/Hz: typically 6-10 s\n- 5 s stabilization delay\n- Second generator start, sync, and close: several more seconds\n\nThat puts transfer at roughly 15-20 s, well over the limit. Section 3.1 states 10 s as the requirement, but 3.2 cannot meet it.\n\n**2. Transfer is gated on both generators being on the bus.**\nThis is a single point of failure. If G-2 fails to start or sync, the sequence as written never transfers, and the hospital stays dark. Life safety loads must not depend on a successful parallel operation.\n\n**Fix:** The first generator to reach rated V/Hz closes to the bus. ATS-L and ATS-C transfer immediately onto it, within 10 s. G-2 then synchronizes onto the live bus with no stabilization delay beyond what sync-check needs, and adds capacity.\n\n**3. Shutdown logic in 3.5 is inappropriate for an emergency source.**\n- **Low coolant temperature** should never shut down an engine. It indicates a block heater or readiness problem and should be an alarm only. Shutting down on it is backwards.\n- **Low fuel level** should be an alarm, with enough warning for refueling. Shutting down on it removes power exactly when it is needed.\n- **High coolant temperature** is normally a pre-alarm and alarm in emergency mode. Many hospital designs shut down only on overspeed, overcrank, and generator or bus faults, and let the engine run to failure otherwise. NFPA 110 requires these conditions to be indicated, and shutdown on them is an AHJ and owner decision. It should be a deliberate, documented choice.\n\nDefine the shutdown set explicitly (overspeed, overcrank, and electrical faults) and list everything else as alarms.\n\n## Major\n\n**4. Simultaneous transfer of all three ATSs (3.2).**\n- Closing everything at once creates a large block load and motor inrush on one or two generators, risking frequency and voltage collapse.\n- The equipment branch (NEC 517.34/517.35) is permitted delayed automatic or manual connection. It should be load-stepped after life safety and critical, with timers and a permissive that checks generator capacity.\n\n**5. Section 3.3 is undefined.**\n\"Sheds load as required\" is not implementable. Specify:\n- Which loads shed, and in what order. The equipment branch sheds first, then non-essential equipment loads, and life safety and critical branches are never shed.\n- Trigger thresholds (kW, frequency, or a breaker-status-based capacity limit).\n- Restoration logic when the second generator comes online.\n- Confirmation that life safety plus critical branch demand fits on one 1500 kW generator with margin, including motor starting.\n\n**6. Retransfer in 3.4 is immediate and uncontrolled.**\n- There is no utility-stable timer. Typical practice is 5-30 minutes of stable utility before retransfer, to avoid cycling on flickering utility power.\n- There is no specified transition method. Use in-phase monitor, closed transition, or delayed transition to avoid motor residual voltage transients.\n- \"Generators stop immediately\" skips the unloaded cooldown run (typically about 5 min), which shortens engine life.\n- Retransfer of all three ATSs at once repeats the inrush problem.\n- If a generator fails while utility is available, the ATS should retransfer to utility. State this explicitly.\n\n## Moderate / Missing\n\n**7. 3.1 contradicts 3.2.** 3.1 says \"starts immediately\" and 3.2 says \"after 3 s confirmation.\" Pick one. Typically the engine start signal comes from the ATS with a very short delay, and the 3 s timer is used only to avoid starting or transferring on momentary dips. Define \"utility loss\" (voltage, phase loss, and thresholds).\n\n**8. Missing failure paths.**\n- No timeout if the first generator fails to reach rated V/Hz. It should fall back to G-2 or alarm.\n- No timeout or retry for sync failure.\n- No handling for a generator failing while on the bus.\n- No behavior for both generators failing.\n- No definition of \"rated voltage and frequency\" (for example 90% V and 95% Hz).\n\n**9. PLC dependency.** Confirm that engine start, ATS transfer, and basic generator control have hardwired paths independent of the PLC. A PLC fault must not prevent emergency power. NFPA 110 expects ATS-initiated start signals.\n\n**10. Not covered at all:**\n- Manual and test modes (monthly exercise per NFPA 110, with load test)\n- Manual override and bypass-isolation on ATSs\n- Alarms and annunciation (remote annunciator per NFPA 110)\n- Fuel supply requirements and runtime (Level 1 typically needs 96 h for hospitals per local code and risk assessment)\n- Transfer-inhibit and fault-lockout conditions\n\n## Suggested Rewrite of the Core Sequence\n\n1. Utility loss (defined thresholds) is confirmed after a short timer (0.5-3 s). Both generators receive a start signal from the ATS or PLC with a hardwired backup.\n2. The first generator to reach rated V/Hz closes to the dead bus. ATS-L and ATS-C transfer to it, all within 10 s of loss.\n3. The second generator synchronizes to the live bus and closes after sync-check passes.\n4. ATS-E loads are connected after a delay, in steps, only if generator capacity permits.\n5. If only one generator is available, ATS-E (and any non-essential loads) remain shed. Life safety and critical branches stay connected.\n6. On utility return, after a stable-utility timer (for example 5-30 min), transfer back by a controlled method, staggered by branch. Generators then run unloaded for a cooldown before stopping.\n7. Engine shutdown only for overspeed, overcrank, and electrical faults. Low coolant temperature, low fuel, and high coolant temperature are alarms.\n\nI can turn this into a formal revised specification, a timing budget table, or a sequence-of-operations flowchart if useful."
+}

@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E30-sonnet-without-r2",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E30",
+ "arm": "without",
+ "rep": 2,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31646.1,
+  "duration_ms": 30683,
+  "duration_api_ms": 30429,
+  "cost_usd": 0.0346092,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 0,
+   "cache_read_input_tokens": 2752,
+   "output_tokens": 3433,
+   "output_tokens_details": {
+    "thinking_tokens": 657
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 0,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3433,
+     "cache_read_input_tokens": 2752,
+     "cache_creation_input_tokens": 0,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:39:18.272770+00:00",
+   "end": "2026-10-18T23:39:49.918887+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0346092,
+  "charged_usd": 0.0346092,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control narrative template for equipment modules\n\n## 1. Principle: write behavior once, document only what is different\n\nThe 90% that is identical belongs in a **class narrative**, one per library type. Each pump or valve then gets a short **instance sheet** holding only tags, parameters, interlock sources and exceptions. Process sequencing (what calls the pump and when) lives in the unit or phase narrative, not in the equipment module.\n\n| Level | Written | Content | Owner |\n|---|---|---|---|\n| 1. Class narrative | Once per library type and version | Modes, states, commands, standard faults, alarm behavior, HMI behavior | Standards owner, tied to the PLC library version |\n| 2. Instance sheet | One per tag (generated from a table where possible) | Tag, I/O, scaling, setpoints, timers, interlock sources, alarm priorities, exceptions | Integrator, reviewed by the brewery |\n| 3. Unit/phase narrative | Per process area | Who commands the module and when (e.g. CIP supply sequence) | Integrator |\n\nSuggested classes for your platform (align the names with your actual library): `EM_Pump_DOL`, `EM_Pump_VFD`, `EM_Valve_OnOff` (with variants: single solenoid spring-return, double-acting, and with or without open/closed feedback). Mixproof and seat-lift valves should be separate classes if the library treats them separately.\n\n## 2. Class narrative template (pump, VFD variant)\n\nEach section is written once. Anything marked **[param]** is set on the instance sheet, never in the class text.\n\n1. **Purpose and scope**: what the class covers, and the library block and version it describes.\n2. **Modes**: Auto (commanded by unit/phase), Manual (operator from HMI, interlocks still active), Out of Service (module ignores commands, outputs off, alarms suppressed).\n3. **Commands and setpoints**: Run request, speed setpoint (% or Hz), reset.\n4. **Start permissives**: conditions required before starting. Class-level list: no active fault, drive ready, not Out of Service, plus **[param]** process permissives.\n5. **Protective interlocks (trips)**: conditions that stop the pump while running. Class-level behavior: stop immediately, latch, require reset after the condition clears. The sources are **[param]**.\n6. **Run feedback supervision**: start-confirmation timeout and unexpected-stop detection, with timers as **[param]**.\n7. **Speed control**: ramp behavior, min/max limits **[param]**, behavior on loss of setpoint.\n8. **Fault handling and reset**: drive fault, communication loss, feedback mismatch. Which faults latch, and what resets them.\n9. **Fail-safe and power-up state**: output state on PLC stop, comms loss and power restore. The pump does not auto-restart unless stated.\n10. **Alarms**: standard alarm list with default priorities. Instance-level changes go on the instance sheet.\n11. **HMI**: faceplate behavior, what the operator can do in each mode.\n12. **Runtime and maintenance data**: run hours, start count.\n13. **Simulation and bypass rules**: whether interlocks can be bypassed, by whom, and how it is logged.\n\n## 3. Instance sheet template (one per tag)\n\n```\nTag / description:\nClass and version:          (e.g. EM_Pump_VFD v__)\nArea / unit:\nDrive / MCC reference:\nI/O and comms tags:         (run cmd, speed ref, run FB, drive fault, ready)\nSpeed limits:               min / max / default / ramp\nStart permissives (beyond class):   source | condition | delay\nProtective interlocks:              source | condition | delay | reset type\nAlarms changed from default:        alarm | priority | setpoint | delay\nCommanded by:               unit/phase references\nExceptions to class narrative:      \"None\" or numbered, each with reason\nOpen items / TBC:\n```\n\nThe rule is that \"Exceptions: None\" is the normal entry. Every exception needs a reason and is tracked, so drift becomes visible rather than hidden in prose.\n\n## 4. Valve class (short form)\n\nThe same structure applies: modes, open/close commands, position feedback and travel-time supervision, fail-safe position on air or power loss, fault latching, and alarms. The instance sheet holds the tag, I/O, travel timeout, fail position, and any interlock such as \"do not open unless X\". A table covers 300 valves well, since most rows differ only by tag and I/O.\n\n## 5. Example: P-4021, CIP supply pump\n\nValues below are **illustrative placeholders** I chose to show the format. They need to be confirmed against the actual process, drive and design data.\n\n### Instance sheet: P-4021\n\n| Field | Entry |\n|---|---|\n| Tag / description | P-4021, CIP supply pump |\n| Class and version | EM_Pump_VFD, v__ (set to the project's library version) |\n| Area / unit | CIP |\n| Drive | VFD (drive tag/MCC ref: TBC) |\n| I/O and comms | Run cmd, speed ref, run feedback, drive ready, drive fault: TBC per I/O list |\n| Speed limits | Min 30% / Max 100% / Default 80% / Ramp 10 s up, 10 s down (placeholders) |\n| Start permissives (beyond class) | PT-4022 suction pressure above low-low limit, or start-up bypass timer active (see below) |\n| Protective interlock | **Dry-run protection**: see below |\n| Alarms changed from default | PT-4022 low pressure: warning at 0.3 bar (placeholder); dry-run trip alarm priority High |\n| Commanded by | CIP supply phase(s) in the CIP unit narrative: TBC references |\n| Exceptions to class | None |\n| Open items | Confirm PT-4022 location (suction side), range and limits; confirm retry policy |\n\n### Dry-run protection (instance parameters, behavior from the class)\n\n| Item | Entry |\n|---|---|\n| Source | PT-4022 |\n| Condition | PT-4022 < low-low setpoint (0.15 bar, placeholder) |\n| Start-up bypass | Condition ignored for 10 s after start to allow priming (placeholder) |\n| Trip delay | Condition must persist 3 s while running (placeholder) |\n| Action | Class-standard protective trip: stop pump, latch |\n| Reset | Operator reset after PT-4022 is healthy again; no auto-restart |\n| Instrument failure | PT-4022 bad quality or out of range is treated as a trip condition (confirm this is the wanted policy) |\n\n### Narrative text in the project document\n\n> **P-4021 CIP supply pump** is an instance of EM_Pump_VFD (see Class Narrative CN-PUMP-VFD, rev _). Its behavior is as described in that narrative except for the parameters and interlocks in the instance sheet above. Dry-run protection uses PT-4022 as described in the table. The pump is commanded by the CIP supply phases (see CIP Unit Narrative). **There are no exceptions to the class narrative.**\n\nThat is about half a page, versus a full copied paragraph per pump.\n\n## 6. Rules to keep copies from drifting\n\n1. **The class narrative has a version tied to the PLC library version.** Instance sheets cite it, and a library upgrade triggers a review of the narrative.\n2. **No class behavior is restated in instance text.** Reviewers reject paragraphs that duplicate the class.\n3. **Generate instance sheets from the I/O or equipment list** (spreadsheet or database to document) so tags and parameters are entered once.\n4. **Exceptions are numbered and justified.** If the same exception appears on several tags, promote it to a new class variant.\n5. **Contract it that way.** Specify the class narratives and instance-sheet format as the integrator's deliverable format. The brewery owns the class narratives, and the integrator proposes changes through the standards owner.\n6. **Test from the same source.** Derive FAT/SAT checks per class once (modes, trips, resets), and per instance only the parameters and interlocks.\n\nIf you tell me the library's actual block names and the alarm philosophy, I can fill in the class narrative text itself, not just the headings."
+}

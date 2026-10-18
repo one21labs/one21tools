@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E24-sonnet-with-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E24",
+ "arm": "with",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 103900.5,
+  "duration_ms": 103212,
+  "duration_api_ms": 102959,
+  "cost_usd": 0.13411409999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 760,
+   "cache_read_input_tokens": 4101,
+   "output_tokens": 13066,
+   "output_tokens_details": {
+    "thinking_tokens": 9096
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 760,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 13066,
+     "cache_read_input_tokens": 4101,
+     "cache_creation_input_tokens": 760,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 760
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:32:09.944415+00:00",
+   "end": "2026-10-18T23:33:53.844918+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.13411409999999999,
+  "charged_usd": 0.13411409999999999,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Aeration Control Narrative\n\n**Recommendation:** Do not issue this to the contractor yet. R-01 to R-05 are design errors or gaps that would be built as written. Findings are ordered by severity.\n\n## Findings\n\n| ID | Location | Issue | Fix |\n|---|---|---|---|\n| R-01 | \u00a72 | **Critical.** \"Fixed setpoint\" conflicts with \"most-open-valve logic resets the setpoint\". The two cannot both be true. | Make the PIT-920 setpoint a reset value with a minimum and maximum clamp, a rate limit, and a deadband (SP-AER-005 to 009). Use a fixed setpoint only in manual and as the bad-PV fallback. |\n| R-02 | \u00a72 vs \u00a75 | **Critical.** Units differ, and the values contradict. 7.5 psig is about 208 inH2O. The staging thresholds of 160 and 165 inH2O are about 5.8 and 6.0 psig. While PIT-920 holds setpoint, \"stage off when above 165\" is always true, so blowers would stage off while demand is met. The 5 inH2O band is also too narrow and has no stage-off delay. The thresholds are fixed, but the setpoint moves. | Use one pressure unit (psig). Stage on when PIT-920 is below the *active* setpoint by a set deviation and the running blower output is saturated, for the stage-on delay. Stage off when the remaining blowers can carry the load, for the stage-off delay (SP-AER-010 to 013). |\n| R-03 | \u00a73 | **Critical.** Closing the valve on loss of DO starves the basin, which is the opposite of the stated intent. If several valves close, the header dead-heads and the blowers can surge. It also removes the valve from the most-open-valve logic. | On bad AIT-90x: hold the last good valve output, raise an alarm, exclude the basin from the most-open-valve logic, and prompt the operator for manual. Add a blower start permissive and a run-time alarm for minimum open air path (SP-AER-021). |\n| R-04 | \u00a76 | **Critical.** \"All blowers that were running restart\" has no stagger, no outage limit, and no check of coast-down or motor-start limits. Simultaneous starts cause inrush and voltage sag. The restart also runs without checking permissives. | Restart only if the outage is shorter than SP-AER-019. Restart in lead order, one blower per SP-AER-020 interval, and only after all start permissives are true. For a longer outage, prompt the operator. Require operations sign-off on auto-restart. |\n| R-05 | \u00a77 | **Critical.** \"Blower high vibration trip\" has no tag, no trip value, no delay, no start-up inhibit, no latch or reset, and no fail state. It does not say who owns the trip. | Use the vibration alarm and trip values in SP-AER-018 (vendor to confirm). On trip: stop the motor, close the IGV, latch, require a local reset after the cause clears, and start the standby blower. If this is a safety function, reference the SRS. If it is a vendor machinery-protection function, reference that document and still state the BPCS response. |\n| R-06 | \u00a74 | Permissive is incomplete. ZSC-931 is one tag for three blowers. The discharge valve has no tag or position switch. | Give per-blower tags (for example ZSC-931/932/933). Add the discharge valve tag and its open switch. Add these permissives: motor starter ready, no lockout, no E-stop, remote mode, lube oil OK, vibration healthy, min-off time elapsed, starts-per-hour not exceeded, minimum open air path. |\n| R-07 | General | No ISA-106 state and transition table. Start, run, stop, trip, and restart are undefined. Start has no step timeouts or failure responses. | Add the blower state table (below). Derive step tables with Step, Action, Transition, Timeout, and Failure response. |\n| R-08 | \u00a72 | Blower capacity control is undefined. The text does not say what the PIT-920 loop adjusts (IGV, speed, or both), how load is shared, or how surge and blow-off protection work. | State the PV, output, action, mode behavior, and load sharing. State the surge and blow-off response in the blower module. |\n| R-09 | \u00a71 | \"Air flow control valve\" has no flow transmitter. The text does not say whether the DO output is valve position or a flow setpoint. It gives no controller action, output limits, or mode behavior. | State that the output is valve position (or add a FIT and cascade). State reverse action, minimum position (SP-AER-003), and auto/manual behavior with bumpless transfer. |\n| R-10 | \u00a71, 2, 5 | Numbers in prose: 2.0 mg/L, 7.5 psig, 85%, 160, 165, 2 min. | Move all values to the setpoint list (below). Refer to them by ID. |\n| R-11 | \u00a72 | Most-open-valve logic has gaps. It does not exclude valves in manual, with bad signal, or in out-of-service basins. It has no rate limit and no handling for a valve at 100% when the setpoint is at its maximum. | Exclude those valves. Alarm \"insufficient air capacity\" when the setpoint is at maximum and the valve is above SP-AER-004 for SP-AER-004A. Add anti-windup. |\n| R-12 | \u00a75 | Staging has no lead/lag rotation, minimum run or off times, starts-per-hour limit, or hold-off during a start. It does not say what happens if a started blower fails to start. | Add rotation, SP-AER-014 to 017, a stage hold-off during Starting, and a rule that a fail-to-start commands the next standby blower. |\n| R-13 | General | Abnormal handling is missing. Bad PIT-920, comms loss, PLC restart, and fail positions of FCV-911 to 914, IGVs, and discharge valves are undefined. | Bad PIT-920: hold blower output and setpoint, freeze staging, alarm. Comms loss: blowers continue on last setpoint, with local control available. Specify each fail position. A fail-open or fail-as-is valve is preferred (see R-03). |\n| R-14 | General | No cause-and-effect chart or alarm list. | Write the interlock rows here if no chart exists. Alarms needed: DO bad PV, DO low and high, valve high position, header pressure low and high, insufficient air capacity, blower fail to start, blower trip, vibration high, auto-restart active. Give each a response. |\n| R-15 | General | No requirement IDs, test methods, purpose and boundaries, operator interface, automation levels, or open items. | Apply the module template. Use FR-AER-NNN IDs, each with a FAT test. Require operations sign-off on states and prompts. Do the STE pass last. |\n\n## Setpoint list (none was supplied)\n\n| ID | Item | Value | Units | Status |\n|---|---|---|---|---|\n| SP-AER-001 | DO setpoint, AIT-901 to 904 | 2.0 | mg/L | From consultant, confirm |\n| SP-AER-002 | DO setpoint operator limits | 0.5 to 4.0 | mg/L | Provisional, confirm |\n| SP-AER-003 | Valve minimum position (auto) | 10 | % | Provisional, confirm |\n| SP-AER-004 | Valve high-position alarm | 95 | % | Provisional, confirm |\n| SP-AER-004A | Valve high-position alarm delay | 10 | min | Provisional, confirm |\n| SP-AER-005 | Most-open-valve target | 85 | % | From consultant |\n| SP-AER-006 | Most-open-valve deadband | \u00b15 | % | Provisional, confirm |\n| SP-AER-007 | PIT-920 setpoint maximum | 7.5 | psig | From consultant (as ceiling), confirm |\n| SP-AER-008 | PIT-920 setpoint minimum | 5.5 | psig | Provisional, confirm |\n| SP-AER-009 | Setpoint reset rate limit | 0.1 | psi/min | Provisional, confirm |\n| SP-AER-010 | Stage-on deviation below active setpoint | 0.5 | psi | Provisional, confirm |\n| SP-AER-011 | Stage-on delay | 2 | min | From consultant |\n| SP-AER-012 | Stage-off load limit (N-1 blowers) | 80 | % of capacity | Provisional, confirm |\n| SP-AER-013 | Stage-off delay | 10 | min | Provisional, confirm |\n| SP-AER-014 | Minimum run time | 30 | min | Provisional, vendor confirm |\n| SP-AER-015 | Minimum off time | 15 | min | Provisional, vendor confirm |\n| SP-AER-016 | Maximum starts per hour | 3 | starts | Provisional, vendor confirm |\n| SP-AER-017 | Start confirm / run-up timeout | 15 / 120 | s | Provisional, confirm |\n| SP-AER-018 | Vibration alarm / trip / trip delay / start inhibit | 4.5 / 7.1 / 3 / 60 | mm/s, mm/s, s, s | Provisional, vendor confirm |\n| SP-AER-019 | Maximum outage for auto-restart | 30 | min | Provisional, confirm |\n| SP-AER-020 | Restart stagger interval | 60 | s | Provisional, confirm |\n| SP-AER-021 | Minimum open basin valves for blower start | 1 | valves | Provisional, confirm |\n| SP-AER-022 | PIT-920 low / high alarm | 5.0 / 8.0 | psig | Provisional, confirm |\n\n## Minimum blower state table (ISA-106)\n\n| State | Entry condition | Allowed exits | Initiator | Automation level |\n|---|---|---|---|---|\n| Stopped, not ready | Any start permissive false | Stopped, ready | Auto | Automatic |\n| Stopped, ready | All permissives true | Starting | Staging, operator, or restart sequence | Automatic or operator-prompted |\n| Starting | Start command | Running; Tripped (timeout or fault) | Auto | Automatic |\n| Running | Motor running, run-up complete | Stopping; Tripped | Staging or operator | Automatic |\n| Stopping | Stop command | Stopped, not ready; Tripped (timeout) | Staging or operator | Automatic |\n| Tripped (latched) | Any trip | Stopped, not ready, after local reset | Operator | Manual |\n\n## Open items\n\n| # | Item | Owner | Due |\n|---|---|---|---|\n| 1 | Confirm pressure basis and units, setpoint limits, and the staging method (R-01, R-02) | Consultant (process) | 2026-10-30 |\n| 2 | Confirm FCV, IGV, and discharge valve fail positions (R-03, R-13) | Consultant (process) and Electrical | 2026-10-30 |\n| 3 | Provide vibration, start-limit, and restart data (R-04, R-05, R-12) | Blower vendor | 2026-11-06 |\n| 4 | Decide whether the vibration trip is a safety function, and reference the SRS if so (R-05) | Controls lead | 2026-11-06 |\n| 5 | Sign off on states, prompts, and auto-restart (R-04, R-15) | Operations | 2026-11-13 |\n| 6 | Reissue the narrative with IDs, tests, tables, and the STE pass (R-15) | Consultant | 2026-11-20 |\n\nOwners and due dates are my proposals. Adjust them to your project schedule."
+}
