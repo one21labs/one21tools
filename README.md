@@ -66,7 +66,9 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
   EARLIER full version on 2026-07-09. The OPERATIONAL partition carries the delta (#244,
   2026-07-18): operational-only +0.207, conceptual-only +0.057 with a CI straddling zero —
   concepts the model already knows are inert (`benchmarks/2026-07-18-ep-partition/`).
-- `control-narratives`: unmeasured (no baseline yet).
+- `control-narratives`: no KEEP; direction negative on blind tasks (2026-10-18, same-family judge,
+  unpromoted) — Sonnet −0.078 [−0.224, +0.069] at G=9, Opus −0.142 diagnostic at G=6; replies
+  defer asked-for content to lists and TBDs (`benchmarks/2026-10-18-control-narratives-vs-bare/`).
 - `pdca-workflow` panel: honest nulls recorded — rubric-quality ~ cost-matched baselines across
   six instruments; the measured survivors are the process guarantees (forced records, spend
   gates), retrospect's false-positive reduction (a halving in v2, ~12% in v1), and an n=1
