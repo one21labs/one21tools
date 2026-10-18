@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E9-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E9",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 31809.3,
+  "duration_ms": 31059,
+  "duration_api_ms": 30853,
+  "cost_usd": 0.041097299999999996,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 751,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 3787,
+   "output_tokens_details": {
+    "thinking_tokens": 1288
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 751,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3787,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 751,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 751
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:23:05.676370+00:00",
+   "end": "2026-10-18T04:23:37.485712+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.041097299999999996,
+  "charged_usd": 0.041097299999999996,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review of FDS 7.2 CIP Sequence\n\n## What is wrong\n\n**Sequence steps**\n1. **Steps have no measurable start or end criteria.** \"Heated to temperature\", \"run until clean\" and \"5 minutes\" cannot be tested at FAT or SAT. Nothing says when a timer starts or what counts as success.\n2. **Step 2:** There is no caustic temperature setpoint and no concentration check. The timer must start only once return temperature TT-501 is at setpoint, not when the step begins.\n3. **Step 4:** 65 \u00b0C has no measurement point (supply or return) and no tolerance. The acid tank heating is not mentioned, and the timer start is undefined.\n4. **Step 5:** \"Until clean\" is not testable. It needs a return conductivity (CT-501) limit, a minimum time, and a defined result.\n5. **Steps 1 and 3:** \"To drain\" does not say what the return valves do, or how P-501 and P-502 are coordinated. There is also no flow requirement from FT-501, which is what proves the circuit is actually being cleaned.\n6. **Chemical carry-over:** Nothing prevents caustic carrying into the acid step, or acid into caustic. The intermediate rinse needs a conductivity end criterion, not only a time. Whether caustic and acid are recovered or sent to drain is also not stated.\n7. **Pump logic is missing.** The draft gives no start order for P-502 and P-501 and no tank level interlocks. There is no dry-run protection, and no low-flow handling on FT-501.\n\n**Fault handling**\n8. **\"The operator should check the circuit\" is not a control action.** The FDS must define the automatic response, alarm, hold/abort behavior and restart rules.\n\n**Circuit selection and safety**\n9. **\"Any circuit selected on the HMI\" is unsafe.** Missing permissives:\n   - the circuit must not be in production or contain product\n   - S-1 must be empty\n   - HTST-1 must be in a cleanable state\n   - only one circuit may be cleaned at a time\n   - the correct mix-proof valve positions must be proven before chemicals are introduced\n10. **The two circuits are treated as identical.** S-1 and HTST-1 will differ in flow, temperature, time and routing, so they need separate parameter sets (recipes).\n11. **Mix-proof valve behavior is not specified.** Lift/leakage-chamber cleaning, position feedback and the response to a valve fault are all missing.\n12. **No CIP states, alarms or records.** The section has no idle/running/hold/aborted/complete states and no batch record of time, temperature, flow and conductivity per step. Without a record there is no evidence of cleaning, and no \"circuit clean\" status that expires.\n\n## Revised section\n\n**7.2 CIP Sequence**\n\nValues in [brackets] are proposed and must be confirmed against the process and chemical supplier specs.\n\n**7.2.1 Circuit parameters**\n\n| Parameter | S-1 | HTST-1 |\n|---|---|---|\n| Min supply flow FT-501 | [x m\u00b3/h] | [x m\u00b3/h] |\n| Caustic return temp setpoint (TT-501) | [75 \u00b0C] | [75 \u00b0C] |\n| Acid return temp setpoint (TT-501) | [65 \u00b0C] | [65 \u00b0C] |\n| Caustic / acid hold time | 20 / 15 min | 20 / 15 min |\n| Final rinse conductivity limit (CT-501) | [x \u00b5S/cm] | [x \u00b5S/cm] |\n\nParameters are held as per-circuit recipes. Operators cannot edit them from the HMI without the appropriate access level.\n\n**7.2.2 Start permissives** (all must be true, otherwise the start is refused with the reason shown)\n- Exactly one circuit is selected, and no other circuit is in CIP.\n- The selected circuit is not in production and holds no product. S-1 level is below [x]. HTST-1 is in its cleaning state.\n- Mix-proof valves for the selected circuit are in position, confirmed by feedback. Valves to the other circuit are in the isolated/leak-safe position.\n- Rinse, caustic and acid tank levels are above their low limits. Caustic and acid temperatures are at or above setpoint, or heating is enabled with the step held until they are.\n- The operator confirms the start on the HMI.\n\n**7.2.3 Pump interlocks**\n- P-502 starts first. P-501 starts only when P-502 is running.\n- P-501 stops on low suction tank level. P-502 stops on low return level or a fault.\n- Low flow: if FT-501 is below minimum for more than [30 s], the step goes to Hold and an alarm is raised. Timers pause while FT-501 is below minimum or return temperature is below setpoint.\n\n**7.2.4 Steps**\n\n| Step | Action | Timer starts when | Ends when |\n|---|---|---|---|\n| 1 Pre-rinse | Rinse water from the rinse tank, return to drain | FT-501 \u2265 min | 5 min minimum and CT-501 \u2264 [x] |\n| 2 Caustic wash | Caustic circulated, return to caustic tank | TT-501 \u2265 caustic setpoint | 20 min at setpoint, caustic conductivity in [x\u2013y] band |\n| 3 Intermediate rinse | Rinse water to drain | FT-501 \u2265 min | 5 min minimum and CT-501 \u2264 [x] (caustic removed) |\n| 4 Acid wash | Acid circulated, return to acid tank | TT-501 \u2265 65 \u00b0C [\u00b12] | 15 min at setpoint |\n| 5 Final rinse | Rinse water to drain | FT-501 \u2265 min | [x] min minimum and CT-501 \u2264 [limit] for [60 s] continuous |\n\nValve transitions between steps wait for flow to stop and valve feedback to confirm. The order of caustic and acid steps and the chemical routing must prevent the two chemicals meeting in a tank or line. Interface cuts between water and chemical are based on CT-501.\n\n**7.2.5 Fault handling**\n- **P-502 stops or faults:** P-501 stops immediately, heating is disabled, the sequence goes to Hold, and a high-priority alarm is raised. Restart requires the operator to acknowledge the alarm and resume. If the fault persists beyond [x min], the sequence aborts to a safe state with valves closed.\n- **Mix-proof valve position fault, low tank level or temperature out of range for more than [x min]:** Hold and alarm, then abort on timeout.\n- **Abort:** pumps stop, the circuit is marked \"not clean\", and a rinse is required before production.\n\n**7.2.6 Completion and records**\n- On successful completion the circuit is marked \"clean\" with a timestamp. The status expires after [x h] or when production starts.\n- For each step the system records start/end time, min/avg flow, temperature, conductivity and any alarms, retained for [x] years.\n\n## Open questions for you\n\n1. Is a sanitizing/disinfection step required (hot water or chemical), for example before HTST-1 production?\n2. Are caustic and acid recovered or sent to drain? This affects the interface-detection logic.\n3. TT-501 and CT-501 are return-side only. If supply temperature or concentration must be proven, additional instruments are needed.\n4. Does HTST-1 need flow-diversion, balance-tank or holding-tube handling during CIP?"
+}

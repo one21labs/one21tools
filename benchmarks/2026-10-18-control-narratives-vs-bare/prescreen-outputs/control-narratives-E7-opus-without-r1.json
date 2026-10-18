@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E7-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 44870.1,
+  "duration_ms": 44245,
+  "duration_api_ms": 44042,
+  "cost_usd": 0.0869666,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 745,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 4028,
+   "output_tokens_details": {
+    "thinking_tokens": 1534
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 745,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4028,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 745,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 745
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:22:08.632885+00:00",
+   "end": "2026-10-18T04:22:53.503044+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0869666,
+  "charged_usd": 0.0869666,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: Section 4.3 T-201 Overfill Protection\n\n## Problems found\n\n**1. Alarm setpoints are inverted (4.3.1).** LAHH-201 (90%) is set below LAH-201 (93%). The high-high alarm would fire before the high alarm.\n\n**2. The PLC trip fires before the alarms (4.3.3).** The PLC closes XV-201 at 92%, which is below LAH at 93%. The operator gets no warning before the automatic action, and LAH can never be reached in normal operation. The order should be: operator alarm, then BPCS action, then independent SIS trip, then overfill. Each gap must be sized for response time at the maximum fill rate.\n\n**3. Closing XV-201 deadheads the PD pump. This is the most serious problem (4.3.2, 4.3.3).** P-201 is a fixed-speed positive displacement pump with no recirculation. Closing the valve while it runs will over-pressure the discharge piping until something relieves or ruptures. That swaps a tank overfill for a gasoline loss of containment at the pump. Every overfill action must stop P-201 first, or at the same time. The narrative should also confirm that discharge relief is in place. Valve closure time also needs a surge check against the pipeline.\n\n**4. \"Independent\" LSHH-201 shares its final element with the PLC (4.3.2).** Both the BPCS and the SIS act only on XV-201. The text needs to state the independence: separate sensor, separate logic solver, and either a separate final element or a SIL verification that credits the shared valve properly. The SIS should trip P-201 directly at the motor starter.\n\n**5. The bypass logic is unsafe and doesn't work (4.3.4).**\n- Bypassing the last line of overfill protection from the HMI, with no access control, is not acceptable.\n- Tank gauging does not need the SIS bypassed. Bypasses are usually for proof testing or maintenance.\n- The auto-reset is backwards. If the bypass is applied below 90%, it resets at once and is useless. If applied above 90%, the protection is disabled exactly when the level is highest, and filling is not prevented.\n- There is no time limit, alarm, logging, or compensating measure.\n\n**6. Restart is vague and unlatched (4.3.5).** \"When the level is OK\" is not a defined condition. The narrative doesn't say whether the trip latches, who resets it, or what conditions must be met. A reset must never restart the pump or reopen the valve by itself.\n\n**7. Mandatory language is inconsistent.** 4.3.3 and 4.3.5 use \"should\" for safety actions. Use \"shall\".\n\n**8. Missing content:**\n- The basis for the setpoints (API 2350 levels of concern, fill rate, response time).\n- Setpoints in engineering units. Percent of what span?\n- What happens when LT-201 fails or reads bad quality.\n- Alarm deadbands.\n- Telling the pipeline operator when the tank trips.\n- Proof testing.\n- If T-201 is a floating-roof tank (common for gasoline), the critical high level must account for roof-to-structure contact.\n\n## Corrected section\n\nThe setpoints below are placeholders that show the required ordering. The real values must come from the API 2350 level-of-concern and response-time calculation at maximum fill rate.\n\n---\n\n**4.3 T-201 Overfill Protection**\n\n**4.3.1 Basis.** Overfill protection for T-201 follows API 2350 and IEC 61511. The Critical High (CH), High-High (HH), and Maximum Working (MW) levels, and the setpoints below, are derived in [Doc ref]. That calculation uses the maximum fill rate from P-201 and the required operator and system response times. Setpoints are given as % of LT-201 calibrated span, [0\u2013100% = X ft to Y ft above datum]. Setpoints shall not be changed without MOC.\n\n**4.3.2 Level measurement and alarms (BPCS).** Radar transmitter LT-201 provides continuous level to the PLC.\n- LAH-201 at [85%] alerts the operator to stop or divert the receipt.\n- LAHH-201 at [88%] is a priority alarm.\n- Alarm deadband is [1%].\n- If LT-201 fails or reads bad quality, the PLC shall raise a priority alarm. The operator shall then stop the receipt until level can be confirmed by manual gauging.\n\n**4.3.3 BPCS high-level action.** When LT-201 reaches [90%], the PLC shall stop P-201. After confirming the pump has stopped (run feedback off, or [X] s delay), the PLC shall close XV-201. XV-201 shall not be commanded closed while P-201 is running, except as described in 4.3.4.\n\n**4.3.4 Independent overfill protection (SIS).**\n- Level switch LSHH-201 is independent of LT-201, with its own process connection. It is wired to the SIS logic solver, separate from the BPCS PLC.\n- At [93%], which is at or below the HH level, the SIS shall:\n  - trip P-201 directly at the motor starter, and\n  - close XV-201, with closure timing coordinated with pump stop.\n- The required SIL and the independence of the final elements from the BPCS action in 4.3.3 shall be confirmed by the SIL verification in [Doc ref].\n- P-201 discharge overpressure protection shall be verified as adequate for a closed-valve condition.\n- XV-201 closure time shall be confirmed by surge analysis.\n- The SIS trip shall latch.\n\n**4.3.5 Bypass of LSHH-201.**\n- The overfill trip shall not be bypassed during normal operation or tank gauging.\n- A bypass is permitted only for proof testing or maintenance, and only under a work permit. It is applied by key switch or password-controlled supervisor action.\n- A bypass may only be applied while P-201 is stopped and XV-201 is closed. While the bypass is active, the SIS shall prevent P-201 from starting and XV-201 from opening.\n- A bypass shall be:\n  - alarmed continuously at the HMI,\n  - logged with user and time, and\n  - removed automatically after [X] hours.\n\n**4.3.6 Reset and restart.**\n- After a BPCS or SIS high-level action, P-201 and XV-201 shall stay in the safe state until the operator manually resets.\n- Reset is permitted only when all of the following are true:\n  - LT-201 is below [MW level, e.g. 85%],\n  - LSHH-201 has cleared, and\n  - the cause has been reviewed and recorded.\n- Reset shall not restart P-201 or open XV-201. Restarting the receipt is a separate, deliberate operator action, and only when enough ullage has been confirmed for the planned receipt.\n\n**4.3.7 Pipeline coordination.** On any BPCS or SIS high-level action, the operator shall notify the pipeline operator per [communication procedure].\n\n**4.3.8 Testing.** LSHH-201 and the SIS trip of P-201 and XV-201 shall be proof-tested every [X] months, per the SIL verification.\n\n---\n\n**Items to confirm before issue:**\n- Actual fill rate and the calculated levels of concern.\n- Whether the pump is upstream of XV-201, and that P-201 relief is in place.\n- Roof type.\n- Whether \"tank gauging\" in the original text meant something specific, such as testing the switch, that the client actually needs a bypass for."
+}

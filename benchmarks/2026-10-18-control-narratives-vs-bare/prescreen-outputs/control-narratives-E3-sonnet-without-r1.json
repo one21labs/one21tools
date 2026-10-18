@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E3-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E3",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 49769.8,
+  "duration_ms": 48961,
+  "duration_api_ms": 48748,
+  "cost_usd": 0.059447299999999995,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 626,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 5672,
+   "output_tokens_details": {
+    "thinking_tokens": 1929
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 626,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5672,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 626,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 626
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:19:55.530336+00:00",
+   "end": "2026-10-18T04:20:45.300185+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.059447299999999995,
+  "charged_usd": 0.059447299999999995,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control Narrative: Package Boiler B-301 Combustion Control and DCS-to-BMS Interface\n\nTag names beyond those you gave (PT-310, FT-311, FV-311, FT-312, AT-313, FD-301) are proposed and need to be aligned with the project tag database. Numeric values in [brackets] are starting points to confirm with the boiler vendor and during commissioning.\n\n## 1. Scope and responsibility split\n\n| Function | Owner |\n|---|---|\n| Purge, pilot and main flame light-off sequence, flame supervision, burner safety shutoff valves, all burner/boiler trips (MFT), safety permissives | **Vendor BMS (safety-rated PLC)** |\n| Header pressure control, fuel/air ratio and cross-limiting, FD fan speed/damper, O2 trim, load ramping, operator interface, alarming, historian | **DCS** |\n\nThe DCS does not perform any safety function. Nothing in the DCS can open a fuel safety shutoff valve or override a BMS trip. The BMS can always override DCS outputs to fuel and air positions during purge, light-off and trip.\n\n## 2. Operating modes\n\n1. **Shutdown/Tripped.** The BMS has no run permit. DCS firing-rate outputs track the BMS-required positions. FV-311 is closed, and the fan is stopped or held at the position the BMS requires.\n2. **Purge.** The BMS requests purge airflow. The DCS drives the FD fan and damper to the purge position, and the BMS proves purge flow and purge time.\n3. **Light-off (low fire hold).** The DCS holds the fan, damper and FV-311 at the vendor's light-off positions. The BMS lights pilot, then main flame. Modulation is blocked.\n4. **Modulating.** The BMS releases modulation after main flame is proven and the stabilization time has elapsed. The DCS controls in cascade (Section 3).\n5. **Shutdown sequence.** On a normal stop, the DCS ramps to low fire and the BMS closes the fuel valves. The DCS then holds post-purge air as requested by the BMS.\n\nTransitions between modes are bumpless. Controllers track their output in all non-modulating modes, so the handover starts from the actual light-off position.\n\n## 3. Combustion control (modulating mode)\n\n### 3.1 Steam pressure master (PIC-310)\n- PT-310 measures header pressure. The setpoint is 10 barg, with the operator able to adjust within a limited range [9.5\u201310.5 barg].\n- The PID output is boiler load demand, 0\u2013100%. It is clamped to **30\u2013100%** while the burner is firing, and to the low-fire position during light-off.\n- A load demand rate limiter applies, with separate up and down rates [e.g. 5%/min up, 10%/min down]. Operators can adjust the limits. Header pressure deviation can override the rate limit upward within the BMS and vendor limits.\n- Below 30% demand the boiler stays at minimum fire. If pressure continues to rise above a high-pressure threshold [10.5 barg], the DCS requests a normal boiler stop (hot standby). The safety relief and the BMS high-pressure trip remain independent of this.\n- Anti-windup: the master holds integral action when the boiler is clamped at min or max, or when the downstream cascade is limited.\n- If other boilers share this header, load sharing needs to be defined (see open items).\n\n### 3.2 Fuel/air ratio with cross-limiting\nThe load demand feeds two characterizers. They give fuel flow and air flow setpoints, based on vendor commissioning curves of at least 5\u20137 points across 30\u2013100%.\n\n- **Air flow setpoint** = max(characterized air demand, measured fuel flow \u00d7 stoichiometric ratio \u00d7 excess air) \u00d7 (1 + O2 trim).\n- **Fuel flow setpoint** = min(characterized fuel demand, measured air flow \u00f7 (ratio \u00d7 minimum excess air)).\n\nThis gives **air leading on load increases and fuel leading on load decreases**, so the mixture stays lean through transients. The ratio is based on measured flows, not valve or speed positions.\n\n### 3.3 Fuel gas flow (FIC-311 \u2192 FV-311)\n- FT-311 is pressure and temperature compensated to mass or normalized flow.\n- FIC-311 manipulates FV-311.\n- FV-311 is a modulating valve downstream of the BMS safety shutoff valves. It does not replace them.\n- The vendor must confirm that FV-311 is sized for 3.3:1 turndown at the available gas pressure. The burner is a single burner with 30% minimum load.\n\n### 3.4 Combustion air flow (FIC-312 \u2192 FD-301 VFD and damper)\n- FT-312 is compensated for air temperature (and pressure if applicable).\n- FIC-312 outputs a fan speed command (primary). The damper follows a speed-to-position characteristic set by the vendor. At low load it is partially closed for burner mixing and flame stability. At high load it is fully open to minimize fan power.\n- The fan has a minimum speed limit [vendor value]. Below that speed, the damper does the throttling.\n- The VFD runs on speed reference from the DCS. Run/stop and ready/fault are hardwired.\n- FT-312 low-range accuracy at 30% load is a design check, since differential pressure drops with the square of flow.\n\n### 3.5 O2 trim (AIC-313)\n- AT-313 measures flue gas O2.\n- The O2 setpoint is a function of load [e.g. ~3% at high fire, ~4\u20135% at low fire], adjustable by the operator within a limited range.\n- The PID output is a multiplicative or additive trim on the air setpoint, limited to \u00b1[10%].\n- The trim is enabled only when: modulating mode, load above [35%], load rate of change below a threshold, AT-313 healthy and not in calibration, and flame proven for [5 min].\n- On analyzer failure or calibration, the trim freezes, then ramps to zero over [2 min], with an alarm.\n- The trim can only be moved within limits above the minimum excess air curve. It cannot push the mixture below the minimum excess air line.\n- Recommend adding a CO analyzer or at least a CO limit on the trim. It is not in the stated scope.\n\n### 3.6 DCS monitoring and alarms\n- Fuel/air ratio deviation, with alarm and a request to the BMS for a trip at high deviation [subject to vendor/HAZOP agreement].\n- O2 low and low-low, O2 high.\n- FT-311, FT-312, PT-310 and AT-313 signal quality (range and deviation checks).\n- The header pressure high alarm and the high-high alarm are separate from the BMS trip.\n- Transmitters that are used for control only are not credited for safety. The BMS must have its own safety-rated devices for low and high gas pressure, low air flow and flame.\n\n## 4. DCS-to-BMS interface\n\n### 4.1 Principle\nAll signals required for safe operation are **hardwired**. A serial or Ethernet link (e.g. Modbus TCP) carries only status, diagnostics and the first-out trip list. The link is read-only for the DCS except for non-safety requests. A loss of communication does not cause a trip, but raises an alarm.\n\n### 4.2 Signal list\n\n**BMS \u2192 DCS (hardwired)**\n- BMS healthy/ready\n- Burner run permissives satisfied\n- Purge in progress / purge complete\n- Light-off / low-fire hold required (forces DCS to hold light-off positions)\n- Main flame proven\n- Modulation released\n- Master fuel trip (MFT) active\n- Request purge-position air (fan and damper)\n\n**DCS \u2192 BMS (hardwired)**\n- Start request / stop request (momentary or maintained, per vendor)\n- FD-301 running and ready\n- DCS watchdog / healthy (de-energized on DCS failure)\n- Normal boiler stop request, and DCS-initiated trip request (as an additional initiating input only)\n\n**Over the link (BMS \u2192 DCS, read-only)**\n- Burner state and sequence step\n- First-out trip cause and trip history\n- Individual permissive, flame signal strength, valve position and proof-of-closure status\n- Diagnostic and fault messages\n- Heartbeat counter (DCS also sends one; both sides alarm on stall)\n\n### 4.3 Interface behavior\n- **Position commands during BMS-controlled steps.** The DCS outputs follow BMS-required positions. The BMS proves them by its own position or air flow switches. The DCS does not report proof on the BMS's behalf.\n- **Trip.** On MFT the BMS closes its valves. The DCS sets the master to the light-off demand and tracks. The fan follows the BMS request (post-purge, then stop). The operator reset is at the BMS, not at the DCS.\n- **DCS failure.** The watchdog drops and the BMS responds per the agreed action. Recommend an immediate alarm and a controlled hold at current position for a short period [30 s], then a BMS trip.\n- **Restart.** After any trip, a restart requires purge and the operator's action. The DCS cannot auto-restart.\n- **Restricted write.** The DCS has no write access to BMS parameters or setpoints, and the BMS has no access to DCS control parameters.\n\n## 5. Operator interface\n- A B-301 faceplate shows mode, master setpoint and output, fuel and air setpoints with measurements, O2 value and trim, and BMS state.\n- Operators can switch master, fuel, air and O2 controllers between auto and manual. In manual, the cross-limits stay active. Manual control of the fuel and air valves is not allowed to bypass the cross-limits.\n- Start and stop requests are issued from the DCS, but the BMS sequence remains authoritative.\n\n## 6. Commissioning and testing\n- Vendor and project teams jointly tune the fuel/air curves across 30\u2013100% with a flue gas analyzer at each point.\n- Check the load swing test (30\u2192100\u219230%) at the permitted ramp rates, without any flame loss or CO excursion.\n- Check cross-limiting under step changes in header demand.\n- Loop checks on each hardwired signal, with the trip and failure scenarios above (DCS watchdog, analyzer failure, comms loss).\n\n## 7. Open items for confirmation\n1. Does B-301 share the header with other boilers, and if so, how are load sharing and the pressure master allocated?\n2. Does the vendor BMS own the light-off and purge positions, or does the DCS supply them? Are position proofs hardwired?\n3. Burner turndown guarantee, minimum stable load and the turndown of FV-311 and FT-311/FT-312 over 30\u2013100%.\n4. The BMS reaction to DCS failure or watchdog loss (hold, drive to low fire, or trip).\n5. Whether a CO analyzer and an independent safety-rated airflow device are included in the vendor scope.\n6. Whether the burner also needs a flue gas recirculation or low-NOx control loop.\n7. The final ramp rates and the header pressure limits, from Operations."
+}

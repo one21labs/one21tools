@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E2-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E2",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 71181.5,
+  "duration_ms": 69672,
+  "duration_api_ms": 69381,
+  "cost_usd": 0.1454058,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 2286,
+   "cache_read_input_tokens": 649,
+   "output_tokens": 6349,
+   "output_tokens_details": {
+    "thinking_tokens": 1907
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 2286,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6349,
+     "cache_read_input_tokens": 649,
+     "cache_creation_input_tokens": 2286,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 2286
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:18:55.046560+00:00",
+   "end": "2026-10-18T04:20:06.228050+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1454058,
+  "charged_usd": 0.1454058,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# K-210 Plant Air Compressor: Start, Stop and Protection\n\n## 1. Scope and Control Responsibilities\n\nThis section covers start permissives, start sequence, loading, normal stop, trips and alarms for K-210. K-210 is a 900 kW, three-stage, integrally geared centrifugal compressor driven by a 6.6 kV motor through a soft starter.\n\n| Function | Location |\n|---|---|\n| Start / stop commands, permissive display, start-limit counter, sequencing, discharge pressure control | DCS |\n| Surge line, surge detection, surge-protective opening of FV-211 | Vendor compressor controller (UCP) |\n| Motor protection (overload, earth fault, phase loss, locked rotor) | Motor protection relay / soft starter |\n| Machine trips (oil pressure low-low, vibration high-high) | Hardwired to motor trip circuit, plus DCS indication (see 6.4) |\n\nValues marked **TBC** must be confirmed with the compressor or motor vendor before issue.\n\n---\n\n## 2. Start Permissives\n\nThe DCS displays a \"Ready to Start\" status on the K-210 faceplate. It is true only when all of the following are satisfied:\n\n| # | Permissive | Condition |\n|---|---|---|\n| P1 | No active trips | All trips cleared and reset (Section 6.3) |\n| P2 | Lube oil temperature | TT-214 > 25 \u00b0C |\n| P3 | Lube oil header pressure | PT-213 \u2265 2.2 bar (TBC) with P-212 running, held \u2265 30 s (TBC pre-lube time) |\n| P4 | Inlet guide vanes at start position | ZT-210 \u2264 minimum start position + 2 % (TBC) |\n| P5 | Blow-off valve open | FV-211 confirmed fully open (limit switch or position feedback) |\n| P6 | Vibration healthy | VT-215/216/217 all healthy (no instrument fault) and below alarm |\n| P7 | Start limits | Start counter not inhibited (Section 2.1) |\n| P8 | Electrical ready | 6.6 kV breaker racked in, closed-ready and healthy; soft starter ready, no fault; motor protection relay healthy |\n| P9 | Vendor UCP ready | UCP \"ready / no fault\" signal present |\n| P10 | Local/remote | Compressor in REMOTE (DCS) mode |\n\nAny permissive that is not met is shown individually on the faceplate so the operator can see why the unit will not start.\n\n### 2.1 Motor Start Limits\n\nThe DCS enforces the motor vendor's limits:\n\n- **Maximum 3 starts in any rolling 60-minute window.** Each start attempt counts, including failed or aborted starts after the start command reaches the soft starter.\n- **Minimum 20 minutes between hot starts.** A start is a \"hot start\" if the motor ran within the previous 60 min (TBC). Alternatively, use winding RTD temperature above a vendor threshold, if RTDs are available.\n\nWhen a limit is active, the DCS inhibits the start and shows the time remaining until a start is allowed. The operator cannot bypass this inhibit. Only a password-protected engineering bypass is permitted, and every use is logged.\n\n### 2.2 Oil Heater\n\nThe tank heater is controlled automatically by TT-214, independently of the compressor running state:\n\n- Heater ON below 27 \u00b0C (TBC).\n- Heater OFF above 32 \u00b0C (TBC).\n- Heater is also forced OFF when the compressor is running, if this is the vendor's recommendation (TBC).\n- Heater is interlocked OFF on low oil tank level, if a level switch is provided (vendor to confirm).\n\n---\n\n## 3. Start Sequence\n\nThe operator initiates the start from the DCS. The sequence runs automatically.\n\n**Step 1: Pre-start**\n1. The operator selects START. If P-212 is not already running, the DCS starts it.\n2. The DCS drives the IGVs to the start position (ZC-210 = minimum start position) and FV-211 to 100 % open.\n3. The sequence waits until all permissives in Section 2 are met.\n4. If the permissives are not all met within 5 min (TBC), the sequence aborts with \"Start Failed \u2013 Permissives\". The abort is alarmed. P-212 continues running.\n\n**Step 2: Motor start**\n1. The DCS issues the start command to the soft starter and increments the start counter.\n2. The soft starter ramps the motor. On reaching full speed, the bypass contactor closes and the soft starter returns \"Run / At Speed\".\n3. If \"At Speed\" is not received within the maximum acceleration time of 30 s (TBC, per motor and soft starter data), the DCS trips the motor with \"Start Failed \u2013 Acceleration Time\".\n\n**Step 3: Oil system changeover**\n1. After \"At Speed\", the DCS waits 60 s (TBC) for the shaft-driven main oil pump to establish header pressure.\n2. If PT-213 \u2265 2.2 bar (TBC), the DCS stops P-212 and places it in AUTO STANDBY.\n3. If PT-213 falls to the auto-start setpoint after P-212 stops, P-212 restarts automatically and the DCS raises the alarm \"Main Oil Pump Low Pressure\". P-212 then stays running until an operator stops it.\n\n**Step 4: Ready to load**\n1. FV-211 stays fully open and the IGVs stay at minimum for a 30 s (TBC) warm-up / stabilisation period.\n2. The DCS then indicates \"Running \u2013 Unloaded\".\n\n**Step 5: Loading**\n1. Loading starts either automatically after Step 4 (Auto Load selected) or when the operator selects LOAD.\n2. The DCS releases the discharge pressure controller (PIC, set point 7.0 barg).\n3. The IGVs open from minimum under PIC control, rate limited to 5 %/s (TBC).\n4. FV-211 closes as the IGVs reach their working range. FV-211 then acts only as the low-flow / turndown valve below the minimum IGV position.\n5. Capacity control: the IGVs control pressure across their range. When demand falls below the flow at minimum IGV position, FV-211 opens to hold the pressure set point (split range, or as the vendor control logic defines).\n6. The vendor UCP surge protection can open FV-211 at any time, overriding DCS pressure control (Section 5).\n\n---\n\n## 4. Normal Stop\n\nThe operator initiates a normal stop from the DCS.\n\n1. **Start P-212.** The DCS starts P-212 immediately, so oil pressure is assured during unloading and coastdown.\n2. **Unload.**\n   - The PIC is switched to manual.\n   - The IGVs ramp to minimum.\n   - FV-211 ramps to 100 % open.\n3. **Confirm unloaded.** The DCS waits until ZT-210 is at minimum, FV-211 is fully open, and motor current is below the unloaded value (TBC A). If this is not confirmed within 60 s (TBC), the DCS proceeds anyway and raises the alarm \"Unload Incomplete\".\n4. **Stop motor.** The DCS opens the motor breaker or stops the soft starter.\n5. **Coastdown and post-lube.**\n   - P-212 runs for the post-lube period of 20 min (TBC, per vendor) after shaft stop.\n   - The DCS then stops P-212, unless the operator has selected continuous pre-lube.\n6. **Alarm suppression.** The oil pressure low alarm (1.8 bar) is suppressed when the compressor is stopped and the post-lube period has ended. The low-low trip is suppressed under the same condition, so that it does not latch a trip on a stopped machine.\n\n---\n\n## 5. Surge Protection\n\n- The vendor UCP holds the surge control line and protection logic. When the operating point reaches the surge control line, the UCP opens FV-211 directly. This opening overrides the DCS pressure controller output through a high-select or override arrangement in the UCP.\n- FV-211 fails **OPEN** on loss of instrument air or loss of signal.\n- The UCP sends the following to the DCS for alarm and logging:\n  - \"Surge Control Active\"\n  - \"Surge Detected\" (actual surge event)\n  - Surge event count\n- Repeated surges, for example 3 within 60 s (TBC), cause the UCP to trip K-210 if the vendor provides that function. The DCS shows this as a separate first-out trip.\n- The DCS must not write to the surge line or surge controller tuning.\n\n---\n\n## 6. Protection\n\n### 6.1 Alarm and Trip Schedule\n\n| Tag | Description | Normal | Alarm | Trip | Action on trip |\n|---|---|---|---|---|---|\n| PT-213 | Lube oil header pressure | 2.5 bar | L 1.8 bar | LL 1.3 bar | Motor trip |\n| PT-213 | P-212 auto-start | \u2014 | 2.0 bar (TBC) | \u2014 | Start P-212 |\n| TT-214 | Lube oil temperature | \u2014 | L 25 \u00b0C (start permissive) / H TBC | HH TBC | Motor trip (if provided) |\n| VT-215 | Stage 1 vibration | \u2014 | H 40 \u00b5m | HH 60 \u00b5m | Motor trip |\n| VT-216 | Stage 2 vibration | \u2014 | H 40 \u00b5m | HH 60 \u00b5m | Motor trip |\n| VT-217 | Stage 3 vibration | \u2014 | H 40 \u00b5m | HH 60 \u00b5m | Motor trip |\n| \u2014 | Discharge header pressure | 7.0 barg | H TBC | HH TBC | Unload / trip (TBC) |\n| UCP | Surge detected / repeated surge | \u2014 | Alarm | Vendor TBC | Motor trip |\n| \u2014 | Soft starter fault / motor protection relay trip | \u2014 | \u2014 | Trip | Motor trip |\n| \u2014 | Start failed (acceleration time) | \u2014 | \u2014 | Trip | Motor trip |\n| \u2014 | Emergency stop (DCS hard PB and local PB) | \u2014 | \u2014 | Trip | Motor trip |\n\nVibration trips are 1oo1 per stage, so a high-high reading on any single probe trips the unit. A vibration probe instrument fault, such as a gap voltage out of range, raises an alarm. Whether a probe fault also trips is to be confirmed with the vendor. Recommended: a probe fault alarms only, but a second probe fault on the same machine trips.\n\n### 6.2 Trip Actions\n\nOn any trip, the following happen simultaneously:\n\n1. The motor breaker opens / the soft starter stops (hardwired).\n2. P-212 starts immediately, initiated directly from the trip, not only after the DCS scan. It then runs the post-lube period as in Section 4.\n3. FV-211 drives to 100 % open.\n4. ZC-210 drives the IGVs to minimum.\n5. The PIC is switched to manual and its output tracks.\n6. The first-out trip is captured and displayed on the K-210 faceplate and in the sequence of events.\n\n### 6.3 Trip Reset and Restart\n\n- Trips are latched. To reset, the trip condition must be cleared and the operator must issue a deliberate RESET from the DCS.\n- Electrical trips (motor protection relay, soft starter) must also be reset at their source.\n- A reset does not start the unit. A new start request must satisfy every permissive in Section 2, including the start-limit counter.\n\n### 6.4 Implementation Notes\n\n- **Hardwired trips.** The low-low oil pressure trip, the high-high vibration trips and the emergency stops are wired through the machine protection system or the UCP directly to the motor trip circuit. The DCS receives these trips as status signals only, so DCS software is not the only path. This is to be confirmed against the site safety and protection philosophy.\n- **Startup vibration.** No startup bypass is applied to the vibration trips unless the vendor specifically requires one. If a bypass is needed, it must be time-limited, for example the acceleration time plus 10 s, and automatically removed.\n- **Additional protections.** The vendor is to confirm whether any of the following typical protections are supplied, so each can be added to Table 6.1 with its setpoints:\n  - Stage discharge temperatures\n  - Intercooler / aftercooler cooling water flow or temperature\n  - Bearing temperatures\n  - Motor winding RTDs\n  - Oil filter differential pressure\n  - Oil tank level\n  - High air outlet temperature\n\n---\n\n## 7. Open Items for Vendor Confirmation\n\n1. Pre-lube pressure and time, and the P-212 auto-start setpoint.\n2. Post-lube duration.\n3. Motor acceleration time limit and the definition of a \"hot start\".\n4. IGV start position, and the IGV fail position on loss of signal.\n5. Unloaded motor current threshold.\n6. Surge trip logic and the UCP\u2013DCS interface signal list.\n7. Vibration probe fault handling and any startup bypass.\n8. Tag number for the discharge header pressure transmitter, and its high / high-high setpoints.\n9. The additional protections listed in Section 6.4."
+}

@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E11-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E11",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 35932.2,
+  "duration_ms": 35274,
+  "duration_api_ms": 35094,
+  "cost_usd": 0.04430529999999999,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 768,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 4101,
+   "output_tokens_details": {
+    "thinking_tokens": 2104
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 768,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4101,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 768,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 768
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:23:59.533778+00:00",
+   "end": "2026-10-18T04:24:35.466044+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.04430529999999999,
+  "charged_usd": 0.04430529999999999,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: acid unloading interlock, narrative vs. C&E\n\nI used only the text you pasted. I haven't seen the HAZOP/LOPA, the SRS, P&IDs, or relief and hose ratings, so I can't say which conflicting value is correct. Those documents have to settle it before FAT.\n\n## 1. Conflicts between the two documents\n\n| Item | Narrative | C&E | Issue |\n|---|---|---|---|\n| High-pressure setpoint | 6.0 barg | 6.5 barg | Values differ |\n| High-pressure voting | 2oo3 on PT-301A/B/C | PT-301A only | The C&E shows a single transmitter, so B and C are missing |\n| High-pressure delay | 30 s | none | The C&E has no delay column |\n| High-pressure actions | Stop P-301 | Stop P-301 and close XV-301 | XV-301 closure is missing from the narrative |\n| LSHH-301 reset | Automatic | not stated | The C&E has no reset information |\n| ESD HS-301 | not mentioned | Stop P-301, close XV-301 and XV-302 | The narrative never describes the ESD |\n| Bypass | \"Any trip\" from the engineering workstation | no bypass information | Neither document defines which causes may be bypassed |\n\n## 2. Problems against good practice\n\n**Design issues**\n- **30 s delay on a high-pressure trip.** A safety trip delay must fit inside the process safety time, meaning how long until the hose, piping or pump seal is overpressured. 30 s is hard to justify for a hazardous acid line. If the purpose is to ride through start-up surge, use a start-up inhibit or a short debounce of 1\u20132 s instead. Check the trip point (6.0 or 6.5) against hose and piping ratings and the relief valve set pressure. The trip should sit below the relief set point with margin.\n- **LSHH-301 only stops the pump.** Overfill protection should also close XV-301. Otherwise a pressurized truck, a siphon, or a leaking pump check valve can keep filling T-301. The C&E should add XV-301 closure on LSHH-301.\n- **Automatic reset on LSHH-301.** This is the most serious finding. The pump restarts by itself once the level drops, which causes cycling and unexpected acid transfer with nobody checking. Safety trips should latch and need a deliberate manual reset after the operator confirms the cause is cleared.\n- **Single LSHH.** It is acceptable only if the risk assessment supports it. Confirm it is independent of the level instrument used for control, de-energize-to-trip, and has a separate high-level alarm below it.\n- **Bypass of any trip (6.4).** This should be rewritten. Bypasses should be:\n  - defined per cause, not blanket;\n  - done through a controlled maintenance override (key switch or access-controlled), not by editing online logic from the engineering workstation;\n  - alarmed, logged and time-limited;\n  - covered by a procedure and compensating measures.\n\n  The ESD must never be bypassable. Bypassing LSHH-301 during an unloading should be prohibited or tightly controlled.\n- **Closing XV-301 on high pressure.** If the pressure comes from a downstream blockage, closing XV-301 traps liquid. Confirm this is intended and that thermal relief exists.\n\n**Gaps in both documents**\n- ESD sequencing: pump stop versus valve closure timing, and closure time (surge and water hammer risk).\n- Valve fail-safe position (fail closed, de-energize to trip), and position feedback with a failure-to-close alarm.\n- Reset philosophy for each trip, and the ESD reset (manual, local).\n- Start permissives: XV-302 open, truck connection confirmed, tank level below high.\n- Transmitter fault handling for 2oo3: degraded voting, bad-quality action, and alarms.\n- Whether these are SIFs with SIL targets and proof-test intervals.\n- Whether \"stop P-301\" is a hardwired motor trip or a software command.\n\n## 3. Which document should own what\n\n**C&E matrix (the single source of truth for trip logic, and what FAT tests against)**\n- Each cause with its tag(s), setpoint, voting and delay.\n- Every effect, including all valve actions.\n- Reset type per cause (latched/manual or auto).\n- A \"bypass permitted?\" column per cause.\n- Fail-safe states.\n\n**Control narrative (the intent and operating philosophy)**\n- Why each function exists and what hazard it addresses.\n- Operating modes, start permissives and sequences.\n- Reset, bypass and override philosophy and who is authorized.\n- Alarm and operator-response description.\n- References to the C&E for values, with no duplicated setpoints. Duplicated numbers are how these two documents drifted apart.\n\nIf you have an SRS under IEC 61511, it should own the safety function requirements (setpoints, voting, process safety time, SIL). The C&E and narrative would then be derived from it. If you don't have one, the C&E becomes that master and should be treated as controlled.\n\n## 4. Before FAT next week\n\n1. Get the HAZOP/LOPA owner to confirm the high-pressure setpoint, voting, delay and actions, and the LSHH-301 actions and reset.\n2. Update the C&E with the added columns above. Cut the narrative sections 6.2 and 6.3 down to intent plus a pointer to the C&E.\n3. Rewrite 6.4 and add the ESD section to the narrative.\n4. Write FAT test cases for:\n   - 2oo3 behavior, including one transmitter failed or bad quality;\n   - delay timing (or its removal);\n   - latching and reset of each trip;\n   - the bypass restrictions, including that the ESD can't be bypassed;\n   - ESD valve sequencing and fail-safe on loss of power or air.\n\nIf you paste the P&ID notes or design pressures, I can help work out which pressure value is defensible."
+}

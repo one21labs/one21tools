@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E16-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E16",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16087.4,
+  "duration_ms": 15463,
+  "duration_api_ms": 15245,
+  "cost_usd": 0.0216273,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 876,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 1790,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 876,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1790,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 876,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 876
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:26:01.664266+00:00",
+   "end": "2026-10-18T04:26:17.751729+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0216273,
+  "charged_usd": 0.0216273,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Functional Narrative (as-found behavior)\n\n**Run/Stop control.** Pressing START_PB (I:1/0) energizes the RUN_LATCH (B3:0/0), which seals itself in. The latch drops when STOP_PB (I:1/1, wired NC so it is ON when healthy) opens or when ESTOP_OK (I:1/2) is lost. RUN_LATCH is the permissive for all outputs.\n\n**Filling.** While running, FILL_VLV (O:2/0) opens as long as the high-level switch LSH_TANK (I:1/4) is not made and the fill timer has not timed out. The retentive timer T4:0 (600 s) accumulates while the fill valve is open. If cumulative fill time reaches 600 s, T4:0.DN closes the fill valve and sounds ALARM_HORN (O:2/3). The timer resets only when START_PB is pressed (R6).\n\n**Agitation.** While running, AGITATOR (O:2/1) runs when the tank is above the low-level point (LSL_TANK I:1/3, ON = covered) or when the panel selector AGIT_HAND (I:1/5) is on.\n\n**Heating.** STEAM_VLV (O:2/2) opens when the agitator is running and TEMP_LOW (I:1/6) indicates the temperature is below setpoint. It closes when the temperature is satisfied or the agitator stops.\n\n**Alarm.** The horn sounds only on fill timeout, and stays on until the timer is reset by START_PB.\n\n# Items not to carry forward\n\n1. **Run latch retained through power cycle (safety issue).** B3:0/0 is a retentive bit, so after power loss the tank restarted filling without a start command. The upgrade must require a fresh start after power-up or any controller mode change (clear the run state on first scan, or use a non-retentive memory), and the FDS should state this as a requirement.\n2. **Hand agitator bypasses the low-level interlock.** AGIT_HAND turns the agitator on with the tank empty or below the low point, which risks running dry, damaging the seal or shaft, and then permitting steam into an empty tank. Decide whether hand mode is intended as a maintenance override, and if so, add restrictions (or an alarm) rather than silently defeating the level interlock.\n3. **Steam is not independently protected.** Steam depends only on the agitator and a single low-temperature contact. There is no high-temperature cutout, no low-level check on the steam valve itself (hand mode defeats it, per item 2), and no fail-safe if the sensor fails. Add a high-temp limit/alarm, a level permissive, and decide the fail-safe state of the sensor and valve.\n4. **Fill timeout is cumulative and resets only on START.** An RTO accumulates across several fill cycles, so normal refills will eventually produce a false timeout, while a stuck fill is only caught after 600 s total. The reset is also tied to START_PB, so the alarm cannot be cleared separately from restarting. Use a per-fill-cycle TON that resets when the valve closes, add a dedicated alarm acknowledge/reset, and confirm 600 s against the actual fill rate.\n5. **Fill valve stays closed with the alarm, but the latch stays on.** The system remains \"running\" in a faulted state. Define explicit fault behavior, such as dropping to a stopped state or holding with a latched alarm.\n6. **Single high-level switch for overfill protection.** The fill valve is controlled by the same LSH that is the only overfill guard. A failed switch means an overfill until the 600 s timeout. Consider an independent high-high switch hardwired to the fill valve.\n7. **E-stop and stop are only in logic.** ESTOP_OK and STOP_PB feed the PLC input rather than being shown to cut power to the outputs. Verify the actual wiring, since the e-stop should be a hardwired safety function and not depend on the program.\n8. **Input polarity inconsistencies.** LSL is ON when above the low point, STOP is NC, and the tag names don't say so (LSL reads like \"low level active\"). Define polarity in the I/O list, and name tags for their true state, for example `TANK_ABOVE_LOW`.\n9. **No process state, no feedback.** There are no run lamps, no valve or agitator feedback, no alarm for low level while running, and no horn silence. Decide what the new design requires.\n10. **Undefined behavior on start.** START_PB with a high tank level or with the timer already timed out is accepted silently. Define start permissives.\n\n# Questions to confirm with operations before the FDS is finalized\n\n- Is the hand agitator mode a deliberate feature, and who uses it?\n- Is there any recipe or batch sequence (for example, fill, then mix, then heat, then drain)? The existing logic has no drain, no discharge, and no setpoint for the end of the batch, and it's unclear whether those are done manually.\n- What is the actual fill rate, and is 600 s the intended limit?\n- Is the temperature input a thermostat contact or a switch from an analog device, and what's the setpoint?\n- Should the horn latch until acknowledged, and who needs to be notified?\n\nCaveat: this is derived from the six rungs and notes only. I haven't seen the I/O wiring, the rest of the program, or the processor's retentive settings, so confirm these against the physical system."
+}

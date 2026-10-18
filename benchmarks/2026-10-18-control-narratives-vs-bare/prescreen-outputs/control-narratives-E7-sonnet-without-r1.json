@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E7-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E7",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 33995.6,
+  "duration_ms": 33092,
+  "duration_api_ms": 32890,
+  "cost_usd": 0.0428393,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 749,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 3962,
+   "output_tokens_details": {
+    "thinking_tokens": 1971
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 749,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3962,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 749,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 749
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:22:31.680112+00:00",
+   "end": "2026-10-18T04:23:05.675722+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0428393,
+  "charged_usd": 0.0428393,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review of 4.3 T-201 Overfill Protection\n\n## Problems found\n\n**Critical**\n\n1. **Setpoints are out of order (4.3.1, 4.3.3).** LAH is at 93% but LAHH is at 90%, so the \"high-high\" fires before the \"high\". The sequence as written is LAHH 90, PLC close 92, LAH 93, LSHH 95. The pre-alarm, alarm, BPCS action and independent trip must ascend in that order.\n2. **Closing XV-201 alone deadheads P-201 (4.3.2, 4.3.3).** P-201 is fixed-speed and positive displacement with no recirculation line. Closing the valve against it will overpressure the pump and piping, and no pump trip is specified anywhere. Both the BPCS action and the LSHH action must stop P-201, and the discharge needs a PSV or equivalent. The pump stop and valve closure must also be sequenced so surge on the pipeline is controlled. State the XV-201 closure time, which should be based on a surge check.\n3. **The LSHH bypass defeats the last layer of protection (4.3.4).**\n   - A software HMI bypass of an \"independent\" trip is not independent, because it relies on the HMI and PLC.\n   - Auto-reset at \"level below 90%\" means that if the level never drops, the bypass stays active up to overfill. It should reset on a timer or whenever fill starts.\n   - Gauging does not normally require filling, so the bypass should not be possible while XV-201 is open or P-201 is running.\n   - The bypass needs authorization, a time limit, an alarm and logging. Preferably remove it or make it a hardwired key switch.\n4. **Restart is undefined and unsafe (4.3.5).** \"When the level is OK\" is not a criterion. Trips must latch and need a deliberate manual reset, with a defined reset level and the LSHH clear. The narrative should also state the restart sequence for the PD pump: open XV-201 first, then start P-201.\n\n**Other issues**\n\n5. **Language.** \"Should\" appears in 4.3.3 and 4.3.5, but \"shall\" in 4.3.2. Requirements need \"shall\" throughout.\n6. **Percentages are not tied to tank geometry.** State the levels against the tank's safe fill height and the maximum fill height. Confirm the margin between the trip and overfill covers the fill rate, valve stroke time and operator response. Because the 93% to 95% gap is only about 2% (roughly 400 bbl if linear), this is tight for a pipeline transfer.\n7. **Independence is not defined for LSHH-201.** It should use a separate nozzle and a different measurement principle from the radar, be hardwired, and be de-energize-to-trip. It should connect to the SIS or an independent logic path, not only the BPCS.\n8. **No failure behavior.** LT-201 bad quality or failure, loss of signal, and loss of power or air are not addressed. XV-201 should be fail-closed.\n9. **No operator actions or alarm priorities** for LAH and LAHH.\n10. **No standards basis.** Reference API 2350 and the SIL/LOPA result for the tank.\n\n## Corrected section\n\nSetpoints keep your original numbers but in a valid order. Confirm all of them against the safe fill height and a response-time calculation before issue.\n\n**4.3 T-201 Overfill Protection**\n\n**4.3.1** Level in T-201 shall be measured by radar transmitter LT-201 (0\u2013100% of calibrated range). Alarm and trip levels are expressed as a percentage of this range, with 100% corresponding to [maximum fill height, to be confirmed]. The levels are, in ascending order:\n\n| Tag | Level | Function |\n|---|---|---|\n| LAH-201 | 90% | High alarm, operator to reduce or stop the transfer |\n| LAHH-201 | 92% | High-high alarm, operator to stop the transfer immediately |\n| LT-201 BPCS trip | 93% | Automatic shutdown, see 4.3.3 |\n| LSHH-201 | 95% | Independent high-high trip, see 4.3.2 |\n\n**4.3.2** An independent high-high level switch LSHH-201 shall, at 95%, stop P-201 and close XV-201. LSHH-201 shall be hardwired, de-energize-to-trip, mounted on a separate nozzle from LT-201, and shall act through the [SIS / independent logic solver], not through the BPCS alone.\n\n**4.3.3** When LT-201 reaches 93%, or LT-201 signal quality is bad, the PLC shall stop P-201 and close XV-201. P-201 shall be stopped before or simultaneously with XV-201 closing. XV-201 shall close in no less than [X] seconds, per the surge analysis. A PSV on the P-201 discharge shall protect against deadheading.\n\n**4.3.4** [Preferred: no bypass of LSHH-201 shall be provided. Gauging shall be performed with the transfer stopped.] If a bypass is required, it shall be a hardwired key-operated switch under supervisor control and shall:\n- be available only when P-201 is stopped and XV-201 is closed;\n- be annunciated and logged while active;\n- time out after [30] minutes;\n- cancel automatically if P-201 is started or XV-201 is commanded open.\n\n**4.3.5** XV-201 closure by LAHH, the BPCS trip or LSHH-201 shall latch. P-201 shall not restart automatically. The operator may reset the trip only when LT-201 is below 85%, LSHH-201 is clear, and the cause of the high level has been investigated. To resume the fill, the operator shall open XV-201 and then start P-201. XV-201 shall fail closed on loss of power or air.\n\n**4.3.6** The alarm priorities, expected operator actions and the SIL/LOPA basis for this protection shall be recorded in [document reference], in accordance with API 2350."
+}

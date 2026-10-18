@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E6-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E6",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 62292.2,
+  "duration_ms": 61626,
+  "duration_api_ms": 61404,
+  "cost_usd": 0.1281626,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 642,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 6129,
+   "output_tokens_details": {
+    "thinking_tokens": 1497
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 642,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 6129,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 642,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 642
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:21:31.793376+00:00",
+   "end": "2026-10-18T04:22:34.085647+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.1281626,
+  "charged_usd": 0.1281626,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control Narrative: Aggregate Conveying Line (VF-1 \u2192 CV-1 \u2192 CV-2 \u2192 CR-1 \u2192 CV-3)\n\n## 1. Scope and Assumptions\n\nThis narrative covers automatic start, stop and protection for the line, operated from the control room HMI.\n\n**Material flow:** Hopper \u2192 VF-1 \u2192 CV-1 \u2192 CV-2 \u2192 CR-1 \u2192 CV-3 \u2192 Stockpile\n\n**Assumptions** (to confirm at design review):\n- Each conveyor has its own audible/visual warning device (horn + beacon) covering its full length and all access points.\n- Pull-cord switches and any E-stop pushbuttons are hardwired into a safety circuit that removes motor power independently of the PLC. The PLC monitors their status but does not perform the safety function.\n- Equipment that is already running when a start is requested is not restarted. It is simply proven running.\n- All timer and setpoint values marked **[TBC]** are starting values, to be tuned at commissioning.\n\n## 2. General Principles\n\n1. **Start against flow** (CV-3 first, VF-1 last), so no equipment receives material from upstream before it is running and proven.\n2. **Stop with flow** (VF-1 first, CV-3 last), so each belt and the crusher empty before they stop.\n3. **Cascade interlock.** Any stop or trip of a unit immediately stops all units upstream of it. Units downstream keep running so they can clear material.\n4. **No movement without warning.** No conveyor may start unless its 10 s pre-start warning has just completed (see \u00a74).\n5. **Trips are latched.** Every trip requires the field condition to clear, then an operator reset at the HMI. Pull-cords additionally require a local reset at the switch.\n\n## 3. Start Permissives\n\nThe HMI **Line Start** command is enabled only when all of the following are true:\n\n| Permissive | Condition |\n|---|---|\n| Safety circuit | Healthy (no pull-cord or E-stop active) |\n| All drives | In Remote/Auto, available, no motor fault |\n| All latched trips | Reset |\n| Belt misalignment, trip stage | Healthy on all conveyors |\n| Plugged-chute switches | Healthy on all conveyors |\n| CR-1 lube oil pressure | Healthy (see \u00a75.3 for lube pump start if applicable) |\n| Stockpile | CV-3 plugged-chute (stockpile high) not active |\n\nMisalignment **alarm** stage does not block the start. It is shown as an active alarm.\n\nIf a permissive is lost during the start sequence, the sequence aborts and a controlled stop of the units already started is initiated (\u00a76.2).\n\n## 4. Pre-Start Warning (Site Rule)\n\n- Before each conveyor starts, its horn and beacon run for **10 s**. The motor start command is issued only at the end of that 10 s.\n- **Stale-warning rule:** if the motor start command is not issued within **5 s [TBC]** of the warning ending (for example, the sequence is held by a slow downstream proof), the warning is void. A full 10 s warning must be repeated.\n- The warning is not bypassable from the HMI or by any software mode.\n- **Recommended:** apply the same 10 s warning to **CR-1** and **VF-1**. They are not belt conveyors, but they create the same moving-machinery hazard. The sequence below includes this. Remove it only if the site risk assessment confirms it is unnecessary.\n- A warning that runs but is followed by an aborted start is logged.\n\n## 5. Normal Start Sequence (HMI \"Line Start\")\n\n| Step | Action | Proof to advance | Fail action |\n|---|---|---|---|\n| 1 | Check permissives (\u00a73) | All true | Start inhibited, HMI shows missing permissive |\n| 2 | CV-3 warning, 10 s | Warning complete | n/a |\n| 3 | Start CV-3 | Run feedback within 2 s, zero-speed healthy within **8 s [TBC]** | Trip CV-3, abort |\n| 4 | Confirm CR-1 lube oil pressure healthy | Pressure OK | Abort, stop CV-3 |\n| 5 | CR-1 warning, 10 s | Warning complete | n/a |\n| 6 | Start CR-1 | Run feedback, motor current falls below **no-load threshold [TBC, e.g. 60 A]** within **15 s [TBC]** (start inrush complete) | Trip CR-1, abort |\n| 7 | CV-2 warning, 10 s | Warning complete | n/a |\n| 8 | Start CV-2 | Run feedback, zero-speed healthy within 8 s | Trip CV-2, abort |\n| 9 | CV-1 warning, 10 s | Warning complete | n/a |\n| 10 | Start CV-1 | Run feedback, zero-speed healthy within 8 s | Trip CV-1, abort |\n| 11 | VF-1 warning, 10 s (recommended) | Warning complete | n/a |\n| 12 | Start VF-1 at minimum feed rate, then ramp to operator setpoint | Run feedback | Trip VF-1 |\n| 13 | Line status = **RUNNING** | n/a | n/a |\n\n**Notes:**\n- Warnings may be overlapped with the preceding unit's proving time, as long as the stale-warning rule (\u00a74) is met. This shortens total start time.\n- **Restart after partial trip:** units downstream of the fault that are still running are proven and skipped. Stopped units go through the full warning and start steps.\n\n## 6. Stop Sequences\n\n### 6.1 Run-Out Timers\n\n| Unit | Run-out timer |\n|---|---|\n| CV-1 | T_RO1 = **[TBC, 20\u201345 s]** |\n| CV-2 | T_RO2 = **[TBC, 20\u201345 s]** |\n| CR-1 | Runs until current \u2264 no-load threshold for **10 s [TBC]**, maximum **60 s [TBC]** |\n| CV-3 | T_RO3 = **[TBC, 20\u201345 s]** |\n\nSet each belt timer from the measured empty-belt time at commissioning, plus a margin (for example 20%).\n\n### 6.2 Normal Stop (HMI \"Line Stop\")\n\n1. Stop VF-1 immediately.\n2. CV-1 continues for T_RO1, then stops.\n3. CV-2 continues for T_RO2 after CV-1 stops, then stops.\n4. CR-1 continues until empty (current criterion above), then stops.\n5. CV-3 continues for T_RO3 after CR-1 stops, then stops.\n6. Line status = **STOPPED \u2013 EMPTY**.\n\nIf CR-1 reaches its maximum run-out without dropping to no-load current, raise alarm **\"CR-1 not empty at stop\"**, then stop it. The operator must inspect before restart.\n\n### 6.3 Feed Stop (HMI \"Stop Feed\")\n\nStops VF-1 only. The rest of the line keeps running so it can be cleared or held ready.\n\n### 6.4 Emergency Stop (HMI E-Stop / Pull-Cord / Field E-Stop)\n\nAll units stop immediately with no run-out. Belts may be left loaded. The restart warning still applies.\n\n## 7. Protection and Interlocks\n\nThe general trip action is: **trip the affected unit, plus everything upstream of it, immediately. Downstream units continue running.**\n\n### 7.1 Conveyors (CV-1, CV-2, CV-3)\n\n| Device | Condition | Delay | Action |\n|---|---|---|---|\n| Zero-speed switch | Speed below 80% [TBC] of normal, after start bypass | 3 s [TBC] | Trip the conveyor and upstream. Alarm \"CV-x underspeed / belt slip / break\". |\n| Misalignment, alarm stage | Switch active | 2 s [TBC] | Alarm only. Operator to inspect. |\n| Misalignment, trip stage | Switch active | 1 s [TBC] | Trip the conveyor and upstream. |\n| Pull-cord | Any cord pulled | None (hardwired) | Safety circuit removes power from the conveyor. PLC trips everything upstream. Alarm identifies the switch where wiring allows it. |\n| Plugged chute | Switch active | 2 s [TBC] | Trip the conveyor and upstream. |\n| Motor protection relay or VFD fault | Active | None | Trip the conveyor and upstream. |\n\nNotes on specific conveyors:\n- **CV-2 discharge chute** is the CR-1 feed chute. A plug there usually means CR-1 is choked. CR-1 stays running to try to clear, subject to its own protection.\n- **CV-3 plugged-chute switch** means the stockpile is up to the head pulley. CV-3 and the whole line upstream stop in sequence. A normal stop is acceptable here unless the pile is already at the switch, which trips. **[TBC]** whether a separate stockpile-high pre-alarm is wanted.\n\n### 7.2 Jaw Crusher CR-1 (Full-Load Current 210 A)\n\n| Condition | Setpoint [TBC] | Delay | Action |\n|---|---|---|---|\n| Start inrush bypass | n/a | 15 s from start | Current trips ignored during this window |\n| High load, feed control | > 180 A (\u2248 85% FLA) | 3 s | Hold/reduce VF-1 rate. Alarm \"CR-1 high load\". |\n| Feed stop | > 200 A (\u2248 95% FLA) | 5 s | Stop VF-1 (CV-1/CV-2 keep running). Resume feed automatically when < 150 A for 10 s. |\n| Overload trip | > 231 A (110% FLA) | 10 s | Trip CR-1 and upstream. CV-3 keeps running. |\n| Stall / jam | > 315 A (150% FLA) | 2 s | Trip CR-1 and upstream. |\n| Undercurrent | < 40 A while running | 5 s | Alarm \"CR-1 drive loss / belt broken\". Trip if it persists 15 s. |\n| Lube oil pressure low | Switch active, after start bypass | 5 s [TBC] | Trip CR-1 and upstream. Not a start permissive bypass. |\n| Lube oil pressure, pre-start | Must be healthy | n/a | Start permissive (\u00a73) |\n\nThe motor protection relay remains the primary motor overload protection. The CT-based limits above are process-level controls that sit below it.\n\n**Restart after a CR-1 trip under load:** jaw crushers generally cannot start when choked. If CR-1 tripped on overload or stall, or the \"not empty\" alarm is active, the HMI requires an operator acknowledgement **\"CR-1 chamber inspected and clear\"** before CR-1 can be reset.\n\n**Lube system:** if CR-1 has a lube pump, it should run before CR-1 starts and for a run-down period after it stops. Confirm pump arrangement and whether it is controlled by this sequence.\n\n### 7.3 Vibratory Feeder VF-1\n\n| Condition | Action |\n|---|---|\n| VF-1 drive fault | Stop VF-1. Alarm. Downstream continues. |\n| CV-1 not running | VF-1 cannot run (interlock) |\n\n### 7.4 Cascade Trip Summary\n\n| Tripped unit | Stops immediately | Continues running |\n|---|---|---|\n| CV-3 | CR-1, CV-2, CV-1, VF-1 | n/a |\n| CR-1 | CV-2, CV-1, VF-1 | CV-3 |\n| CV-2 | CV-1, VF-1 | CR-1, CV-3 |\n| CV-1 | VF-1 | CV-2, CR-1, CV-3 |\n| VF-1 | n/a | All downstream |\n\nDownstream units that keep running stay up until the operator stops them, or restarts the line once the fault is cleared.\n\n## 8. Reset and Restart\n\n1. Field condition must clear (switch returns to healthy, chute cleared, belt trained, and so on).\n2. **Pull-cord:** reset locally at the tripped switch, then reset the safety relay. Neither can be done from the HMI.\n3. Operator resets the latched trip at the HMI. Reset does not start equipment.\n4. Operator issues **Line Start**. Every stopped conveyor gets the full 10 s warning before it moves. A loaded belt restart is permitted.\n\n## 9. HMI Requirements (Summary)\n\n- **Commands:** Line Start, Line Stop, Stop Feed, E-Stop, Reset, VF-1 feed-rate setpoint.\n- **Status:** each unit's state (Stopped, Warning, Starting, Running, Running-Out, Tripped), the active sequence step, and the run-out countdown.\n- **CR-1 data:** current trend in amps and % FLA, plus lube pressure status.\n- **Alarms:** first-out indication for every trip, so the root cause is distinguishable from the consequential upstream stops.\n- **Access:** run-out timers and CR-1 setpoints are editable only at engineer level.\n\n## 10. Items to Confirm\n\n- Belt run-out times for CV-1, CV-2 and CV-3.\n- CR-1 no-load current and the final current setpoints.\n- Applying the warning to VF-1 and CR-1.\n- Lube pump arrangement for CR-1.\n- Stockpile pre-alarm on CV-3.\n- Local/maintenance mode requirements. Any local mode must still enforce the 10 s warning and the safety circuit.\n- Pull-cord and E-stop safety function performance level, per the site risk assessment."
+}

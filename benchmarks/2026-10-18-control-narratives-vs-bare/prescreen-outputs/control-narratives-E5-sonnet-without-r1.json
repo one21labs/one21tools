@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E5-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E5",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 39581.4,
+  "duration_ms": 38887,
+  "duration_api_ms": 38666,
+  "cost_usd": 0.0529693,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 734,
+   "cache_read_input_tokens": 2193,
+   "output_tokens": 4981,
+   "output_tokens_details": {
+    "thinking_tokens": 984
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 734,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4981,
+     "cache_read_input_tokens": 2193,
+     "cache_creation_input_tokens": 734,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 734
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T04:21:29.050890+00:00",
+   "end": "2026-10-18T04:22:08.632387+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0529693,
+  "charged_usd": 0.0529693,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Automatic Backwash Sequence: Filters F-1 to F-4\n\n## 1. Assumptions and setpoints to confirm\n\nThe request leaves some values open. I've made them tunable parameters instead of hard-coding them.\n\n| Item | Value | Note |\n|---|---|---|\n| Backwash high rate | 50 m/h | Given. Flow SP = 50 m/h \u00d7 filter area (m\u00b2). |\n| Backwash low rate (with air) | 10 m/h (tunable) | Not given. Must stay below the fluidisation/media-loss limit. |\n| Drain-down target | 0.3 m above media | Needs a filter level signal (see 6). |\n| Clearwell minimum to start | > 3.0 m | Given. |\n| Clearwell abort level | 2.5 m (tunable) | Not given. Prevents pump cavitation or draining the clearwell mid-wash. |\n| Plant flow | 30 ML/d | 7.5 ML/d per filter with 4 online, 10 ML/d with 3 online. |\n| Max filtration rate | per design | Used to block a backwash when too few filters are online. |\n\n## 2. Start triggers (per filter)\n\nAny one of these sets `BW_REQ[n]`:\n\n1. **Headloss:** `HT_n > 2.4 m` for 60 s (debounce).\n2. **Turbidity:** `TT_n > 0.3 NTU` continuously for 5 min. The timer is active only while the filter is *In Service* and past ripening, so filter-to-waste turbidity can't trigger it.\n3. **Run time:** `RunTime_n \u2265 72 h`. The timer counts only while in service and resets at the end of a successful backwash.\n4. **Operator request:** an HMI command, which can be cancelled while queued.\n\n## 3. Permissives to start (all must be true)\n\n- No other filter is in backwash, filter-to-waste or ripening. **Only one filter may be backwashed at a time.**\n- Clearwell level `LT_CW > 3.0 m`.\n- Online filters excluding the one being washed \u2265 `MinOnline` (3 of 4). The remaining filters must stay below the maximum filtration rate at 30 ML/d.\n- At least one of P-BW1/P-BW2 is available, with no fault and in Auto.\n- Blower B-1 is available and in Auto.\n- The filter's valves are healthy, with no valve fail alarm and not in Hand.\n- The drain/waste path is not high-level.\n\nIf the permissives aren't met, the request stays queued and an alarm is raised after a delay (for example 30 min).\n\n**Queue priority** is turbidity breakthrough, then headloss, then run time, then operator request. Within a priority, the oldest request goes first.\n\n## 4. Pump selection\n\n- The duty pump is the lead of P-BW1/P-BW2. Lead/lag alternates each backwash to equalise wear.\n- If the duty pump fails to prove running within 15 s, or trips during the wash, the sequence swaps to the standby pump. The wash step timer is **held** during the swap, and one retry is allowed.\n- If the standby also fails, the sequence goes to a safe stop (see 7).\n\n## 5. Sequence steps\n\nEach step has a single exit condition. Valve moves are interlocked, and a step advances only on proven valve position.\n\n| Step | Name | Actions | Exit |\n|---|---|---|---|\n| 0 | **Idle / In service** | Influent open, effluent rate control valve modulating to flow share. Others closed. | Request + permissives OK |\n| 1 | **Isolate and hand-off** | Ramp the other three filters up to take 30 ML/d (10 ML/d each). Hold the washing filter's flow at its last value until their setpoints are reached. | Flow transfer complete (or 60 s timeout) |\n| 2 | **Drain down** | Close influent. Ramp the effluent valve closed. Open the drain valve. | Level \u2264 0.3 m above media. Fail if not reached in 15 min (tunable). |\n| 3 | **Air scour (3 min)** | Open the air scour valve (proven open), then start B-1. Drain stays open. Backwash water valve stays closed. | Timer 3:00 elapsed |\n| 4 | **Air + low-rate wash (2 min)** | Start the duty backwash pump. Open the backwash water valve and ramp to the low-rate flow SP. Air continues. | Timer 2:00 elapsed |\n| 5 | **High-rate wash (8 min)** | Stop B-1, then close the air valve after the blower has run down or vented. Ramp the water valve (and pump speed, if on a VFD) to 50 m/h \u00d7 area. Hold under flow control. | Timer 8:00 elapsed (timer runs only while flow is within \u00b110% of SP) |\n| 6 | **Wash shutdown** | Ramp flow down, stop the pump, close the backwash water valve. | Valve closed and pump stopped |\n| 7 | **Settle (2 min)** | All valves closed except the drain. Media restratifies. | Timer 2:00 elapsed |\n| 8 | **Filter-to-waste** | Close the drain. Open the influent valve and the filter-to-waste valve. Slowly open the effluent rate control valve to the ripening flow. Effluent valve (to clearwell) stays closed. | `TT_n < 0.1 NTU` held for 2 min, or **30 min maximum** |\n| 9 | **Return to service** | Open the effluent to the clearwell, close the filter-to-waste valve, and ramp the rate control valve to take its share. Rebalance the other filters. Reset the run timer. Log the wash. | Flow stable, then go to Idle |\n\n**Filter-to-waste timeout (30 min without reaching 0.1 NTU):** I've chosen to raise a high-priority alarm and hold the filter out of service. An operator can then extend the filter-to-waste, retry the wash, or force it into service. The alternative is to return it to service automatically with an alarm, which is a risk call for the plant owner. Make this a configurable option.\n\n## 6. Interlocks\n\n- The air scour valve and backwash water valve are never both open before the Step 4 transition, and air is never run against a closed air valve (open the valve before starting B-1).\n- The influent valve must be closed before drain-down.\n- The drain valve and filter-to-waste valve are never open together.\n- The effluent valve and filter-to-waste valve are never both open to the clearwell and waste at the same time.\n- The backwash water valve is open only if the pump is running (or about to start). Start the pump against a partly open valve to avoid deadheading or surge.\n- The washing filter's media must not be drained below the media surface. The drain-down uses the level signal as primary and a timer as backup.\n- **Level signal:** the equipment list has only a headloss transmitter. If it isn't a true level measurement, add a filter level transmitter, or derive the level from the differential pressure. Otherwise the 0.3 m target can't be verified.\n\n## 7. Aborts and faults\n\n| Condition | Response |\n|---|---|\n| Clearwell low-low (< 2.5 m) | Stop the wash safely: stop the pump, close the water valve, stop the blower. Hold the filter in a \"wash incomplete\" state. Resume after the level recovers. |\n| Duty pump fail | Swap to standby, hold the timer, retry once. |\n| Both pumps fail | Safe stop, alarm, filter locked out until acknowledged. |\n| Blower fail | Skip air steps only if the operator has approved it. Otherwise lock out the filter. |\n| Valve fail to open or close (30 s) | Safe stop, alarm, lock out the filter. |\n| Wash flow outside \u00b110% for 60 s | Alarm. Abort after 3 min. |\n| Another filter trips or goes offline during a wash | Complete the wash, but hold the next one. If the remaining filters would exceed the maximum rate, abort and restore the washing filter to the \"ready\" state. |\n| Operator abort | Controlled stop from any step, with the filter left isolated and drained. |\n\nA safe stop always follows this order: stop the blower, ramp the water down, stop the pump, then close the valves.\n\n## 8. Structured Text skeleton\n\n```iecst\nCASE Step[n] OF\n  0: (* In service *)\n     IF BW_REQ[n] AND Permissive_OK(n) AND NOT BW_Active THEN\n        BW_Active := TRUE; Step[n] := 1;\n     END_IF;\n\n  1: (* Hand-off *)\n     Calc_Flow_Share(OnlineCount - 1);\n     IF FlowTransferDone OR T_Handoff.Q THEN Step[n] := 2; END_IF;\n\n  2: (* Drain down *)\n     Close(Influent[n]); Ramp_Close(Effluent[n]); Open(Drain[n]);\n     IF Level[n] <= 0.3 THEN Step[n] := 3;\n     ELSIF T_Drain.Q THEN Fault(n, 'DRAIN_TIMEOUT'); END_IF;\n\n  3: (* Air scour 3 min *)\n     Open(Air[n]);\n     IF Air_Proven[n] THEN Start(B1); T_Step(PT := T#3m); END_IF;\n     IF T_Step.Q THEN Step[n] := 4; END_IF;\n\n  4: (* Air + low rate 2 min *)\n     Start(DutyPump); Open(BWWater[n]); FlowSP := LowRate * Area[n];\n     T_Step(PT := T#2m);\n     IF T_Step.Q THEN Step[n] := 5; END_IF;\n\n  5: (* High rate 8 min *)\n     Stop(B1); Close(Air[n]); FlowSP := 50.0 * Area[n];\n     T_Step(IN := FlowInBand, PT := T#8m);\n     IF T_Step.Q THEN Step[n] := 6; END_IF;\n\n  6: (* Wash shutdown *)\n     Ramp_Down(FlowSP); Stop(DutyPump); Close(BWWater[n]);\n     IF BWWater_Closed[n] THEN Step[n] := 7; END_IF;\n\n  7: (* Settle 2 min *)\n     T_Step(PT := T#2m);\n     IF T_Step.Q THEN Step[n] := 8; END_IF;\n\n  8: (* Filter-to-waste *)\n     Close(Drain[n]); Open(Influent[n]); Open(FTW[n]);\n     Ramp_Open(Effluent[n], RipeningFlow);\n     T_Clear(IN := TT[n] < 0.1, PT := T#2m);\n     IF T_Clear.Q THEN Step[n] := 9;\n     ELSIF T_FTW.Q (* 30 min *) THEN Fault(n, 'FTW_TIMEOUT'); END_IF;\n\n  9: (* Return to service *)\n     Close(FTW[n]); Open_To_Clearwell(n); Rebalance_Flows();\n     RunTime[n] := T#0s; BW_REQ[n] := FALSE; BW_Active := FALSE;\n     Step[n] := 0;\nEND_CASE;\n```\n\n## 9. Items to confirm before commissioning\n\n1. The filter area, to set flow SPs. 50 m/h is a rate, so the SP is in m\u00b3/h.\n2. The low-rate value for the air + water step.\n3. The filter level instrument for the drain-down.\n4. The timeout policy for filter-to-waste.\n5. Whether the backwash pumps are VFD or fixed speed (this affects the ramp and the valve control).\n6. The maximum filtration rate with three filters online at 30 ML/d.\n7. The backwash waste handling (equalisation or recycle) and its capacity, which may limit back-to-back washes."
+}
