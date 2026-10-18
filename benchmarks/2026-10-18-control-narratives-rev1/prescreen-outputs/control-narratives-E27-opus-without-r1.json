@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E27-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E27",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 59332.5,
+  "duration_ms": 58557,
+  "duration_api_ms": 58284,
+  "cost_usd": 0.11328699999999998,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 770,
+   "cache_read_input_tokens": 2195,
+   "output_tokens": 5334,
+   "output_tokens_details": {
+    "thinking_tokens": 1289
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 770,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5334,
+     "cache_read_input_tokens": 2195,
+     "cache_creation_input_tokens": 770,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 770
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:02:36.590567+00:00",
+   "end": "2026-10-18T23:03:35.923093+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.11328699999999998,
+  "charged_usd": 0.11328699999999998,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Review: U-2 Unit Control Narrative (Sections 5.1\u20135.2)\n\nThe excerpt contains two errors that could kill people: the blowdown fail position and the automatic restart after ESD. It also has an architecture concern and several gaps that would stop this narrative from passing a HAZOP or FAT. Findings are grouped by severity.\n\n---\n\n## Critical: correct before anything else\n\n### C1. Blowdown valves are specified fail-closed\nBlowdown valves must **fail open**. Station block (isolation) valves must **fail closed**. If the station loses air, power, or control signal during an emergency, the station needs to isolate and depressurize. A fail-closed blowdown leaves the station's gas inventory trapped exactly when you need it gone, for example during a fire.\n- **Fix:** \"Blowdown valves are fail-open. Suction and discharge block valves are fail-closed.\"\n- Confirm that the actuator design, solenoid energization logic (de-energize to trip), and air/hydraulic reservoir sizing all match.\n\n### C2. Automatic restart after ESD\nThis must be removed. An ESD means something happened, such as gas release, fire, or a manual emergency action. Clearance of the initiating signal does not mean the hazard is gone. A gas detector can drop below setpoint while a leak persists or migrates. Restarting a turbine with an ignition source into that environment is a classic incident path.\n- **Fix:** \"ESD is latched. Reset requires (a) all ESD initiators healthy and cleared, (b) a deliberate manual reset (local reset at the station recommended), and (c) investigation per site procedure. Units shall not restart automatically after an ESD. Each unit restart requires an operator Start command with all permissives satisfied.\"\n- Apply the same latching principle to unit trips. A tripped unit should never self-restart.\n\n### C3. Station ESD runs in the same PLC as unit/station control\nA single PLC that does both control and ESD is a common-cause failure point. If the PLC faults, locks up, or gets a bad logic download, you lose control and protection at once. Under IEC 61511 / ISA 84, the ESD should be an independent safety instrumented function with its own logic solver (safety PLC or hardwired relay logic) sized to the SIL target from a LOPA. In the US, 49 CFR 192.167 also has specific ESD requirements for compressor stations, covered in M4.\n- **Fix:** At minimum, state the SIL target and justify the architecture. Preferably move ESD to a dedicated safety-rated logic solver with hardwired pushbutton trips to the final elements.\n\n### C4. No purge before ignition, either compressor case or turbine\n- **Compressor case:** After maintenance the case and piping may contain air. Pressurizing it straight to suction pressure creates a flammable mixture inside the case. The start sequence needs a case purge step: loading valve admits gas at low flow with the case vent or blowdown open for a set time or volume, then the vent closes, then the case pressurizes.\n- **Turbine/exhaust:** Before light-off, the starter should crank the engine for a timed purge of the combustor and exhaust ducting (vendor-specified, often 3 or more exhaust system volume changes). This prevents ignition of accumulated fuel from a previous failed start. The current Step 2 to Step 3 goes straight from crank to fuel.\n\n---\n\n## Major: missing or incorrect logic\n\n### M1. Start sequence gaps\n| Missing item | Why it matters |\n|---|---|\n| **Start permissives** (ESD reset, all unit trips reset, F&G healthy, enclosure ventilation running, valve positions proven by limit switches) | Prevents starting into an unsafe or unknown state |\n| **Lube oil pre-lube** with pressure/temperature permissive | Bearing damage on crank |\n| **Seal gas / dry gas seal** supply established and differential proven before pressurizing | Seal damage, gas leakage to the bearing housing or atmosphere |\n| **Fuel valve leak (proof) check** before light-off | Detects a leaking fuel valve that would flood the combustor |\n| **Trial-for-ignition timer** and maximum light-off attempts | Prevents repeated fuel admission without flame |\n| **Flame-out detection** during run | Fuel shutoff on loss of flame |\n| **Opening suction and discharge unit valves** | The sequence never actually connects the unit to the station headers |\n| **Blowdown valve closed** confirmation before loading | Otherwise you pressurize straight to vent |\n| **Step timeouts / start abort** | Each step needs a \"fail to achieve within X s, abort to safe state\" |\n\n### M2. Step 2: \"case pressure equals suction pressure\"\nTwo pressure readings will never exactly match. Specify a differential (e.g., \u0394P < X psi across the suction valve) with a timeout. Then open the suction valve, and then the discharge valve when its own \u0394P permissive is met. Check valve behavior should also be addressed.\n\n### M3. Step 3 combines two separate events\n\"On flame detection the starter disengages at self-sustaining speed\" describes two milestones that are seconds to minutes apart. The starter must keep assisting after light-off until the gas producer reaches self-sustaining speed. Split them:\n- Step 3a: Fuel admitted, ignition on. Flame proven within T s, otherwise abort and purge.\n- Step 3b: Starter continues assisting. At self-sustaining speed (N% NGP), starter disengages and ignition de-energizes.\n\n### M4. Step 4: loading by closing the recycle valve\n- Loading at idle is usually wrong. The unit should reach minimum governed / minimum load speed first, per the vendor.\n- Closing the recycle valve should be done by the **anti-surge controller**, ramped while keeping the operating point to the right of the surge control line. A step closure at low speed invites surge.\n- The narrative never mentions anti-surge control. It needs its own section: surge control line, margin, recycle valve fail position (normally fail-open), and fast-open on trip.\n\n### M5. Shutdowns are badly incomplete\nVibration alone is far from an adequate trip list. Typical unit shutdowns include:\n- Overspeed (NGP and NPT), with an independent overspeed trip\n- High exhaust temperature (T5 / T7 per vendor)\n- Flame-out / loss of flame\n- Low lube oil pressure, high lube oil temperature, low lube oil level\n- High bearing temperature\n- High axial displacement / thrust position\n- Seal gas failure / high seal vent flow\n- High discharge pressure, high discharge temperature, low suction pressure\n- Surge (repeated surge cycles)\n- Enclosure fire detection (UV/IR, heat) with fire suppression release\n- Enclosure gas detection (high-high)\n- Loss of enclosure ventilation\n- Station ESD (see M6)\n- Starter/start sequence failures (abort)\n\nAlso define the **shutdown categories**, because they behave differently:\n1. **Normal stop:** unload, cooldown at idle, stop, post-lube.\n2. **Fast stop / unit trip, non-pressurized hold:** immediate fuel cutoff, recycle opens, unit valves close, case stays pressurized.\n3. **Unit trip with blowdown:** as above, plus case blowdown (e.g., on fire or gas in enclosure).\n4. **Station ESD:** see M6.\n\nEvery shutdown needs **post-lube during coastdown**, or the bearings can be wiped.\n\n### M6. Station ESD actions are incomplete\nAs written, the ESD closes block valves and opens blowdown but never shuts down the units or the fuel. It should explicitly:\n- Trip all units and close fuel gas shutoff valves (including the station fuel gas header).\n- Isolate and blow down station piping. Sequence the block valve closure before or concurrently with blowdown opening, per the design basis.\n- Shut down gas-fired equipment and de-energize non-essential electrical equipment in classified areas, keeping emergency lighting and critical systems on battery/UPS.\n- Specify initiators: manual pushbuttons (at least two, at exits and outside the gas area), **fire detection** (missing in the draft), and gas detection with stated setpoints and voting (e.g., alarm at 20% LEL, ESD at 40\u201360% LEL, 2ooN voting).\n- If the station is under US jurisdiction, check against 49 CFR 192.167, which explicitly requires discharging gas from the station piping, shutting down gas compressing equipment and gas-fired equipment, and providing operation from at least two locations outside the gas area.\n\n### M7. Vibration trip: \"trip value see vendor data\"\nA control narrative has to be implementable and testable, and \"see vendor data\" is neither. Specify:\n- Sensor type and location for each point (proximity probe radial X/Y per bearing, seismic/velocity on the case, gas producer, power turbine, and compressor bearings). Two transmitters likely cannot cover the full train.\n- Alarm and trip setpoints with units (e.g., mils pk-pk or in/s).\n- Voting (e.g., 2oo2 on X/Y of the same bearing to avoid spurious trips, or 1oo2 with a delay) and trip time delay.\n- Sensor fault handling (open circuit / OK-status loss) and whether a fault alarms, trips, or degrades voting.\n- Start-up inhibit for critical speed passage, if any.\n- If the trip function goes through a dedicated machinery protection system (e.g., API 670 rack), say so and describe the PLC interface.\n\n---\n\n## Minor / editorial\n\n- **Tag every device:** loading valve, recycle valve, block valves, blowdown valves, fuel valves, PTs, flame detectors. The only tags given are VT-2201/2202.\n- **Fail positions for all final elements** (a table): loading, recycle (fail-open), unit suction/discharge (fail-closed), case vent/blowdown (fail-open), fuel SOVs (fail-closed).\n- **Define \"Start\" initiation:** local vs remote, and who has command authority (local/remote selector).\n- **State reset philosophy** in its own subsection: first-out annunciation, latching, and reset location.\n- **Cross-reference** the C&E matrix, SRS (for SIFs), anti-surge narrative, and vendor (Solar) control documentation so the narrative and vendor logic don't conflict. Solar's onboard controller typically handles much of the start sequence, so make clear which system owns each step.\n\n---\n\n## Suggested rewrite of 5.2 (skeleton)\n\n> **5.2 Shutdowns**\n> **5.2.1 Normal Stop.** Unit unloads via anti-surge controller, cools down at idle for X min, fuel shutoff, coastdown with post-lube for Y min.\n> **5.2.2 Unit Trips.** Initiators per Table 5-x (C&E). Actions: fuel SOVs close, recycle valve fast-opens, unit suction/discharge valves close, post-lube runs. Fire/gas-in-enclosure trips additionally open the case blowdown. Trips latch and require manual reset.\n> **5.2.3 Station ESD.** Executed by the independent safety system [SIL n]. Initiators: ESD pushbuttons (locations), confirmed fire detection, high-high gas detection (setpoint/voting). Actions: trip all units, close station fuel gas SOV, close station suction/discharge block valves (fail-closed), open station blowdown valves (fail-open), de-energize non-essential electrical. ESD latches. Reset requires all initiators clear plus a manual local reset. **No automatic restart.**\n> **5.2.4 Vibration.** VT-2201/2202 [locations, type]. Alarm X, trip Y [units], voting, delay Z s, fault handling.\n\nIf you can share the C&E matrix, the vendor start sequence, or the jurisdiction, I can tighten the setpoints and regulatory references."
+}

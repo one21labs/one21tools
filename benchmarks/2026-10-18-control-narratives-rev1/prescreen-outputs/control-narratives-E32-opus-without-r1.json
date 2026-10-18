@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E32-opus-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E32",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-opus-5-5",
+ "served_models": [
+  "claude-opus-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 57642.0,
+  "duration_ms": 56827,
+  "duration_api_ms": 56595,
+  "cost_usd": 0.116183,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 887,
+   "cache_read_input_tokens": 2195,
+   "output_tokens": 5432,
+   "output_tokens_details": {
+    "thinking_tokens": 1740
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 887,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 5432,
+     "cache_read_input_tokens": 2195,
+     "cache_creation_input_tokens": 887,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 887
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:04:38.829090+00:00",
+   "end": "2026-10-18T23:05:36.471087+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-opus-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.116183,
+  "charged_usd": 0.116183,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# FRS Section 4.x: Boiler Feedwater Pump Lead/Lag Control (P1/P2)\n\n> **Document status: DRAFT, reverse-engineered.** This section describes the behaviour of the legacy PLC logic as extracted. Several behaviours look like latent defects or safety concerns (Section 4.x.8). **Do not implement them verbatim.** Each open item needs a decision from Operations and the boiler safety responsible person before the new platform design is frozen. The extract may also be incomplete. Other parts of the program may write to the same tags (`P1.Run`, `P2.Run`, `LeadSel`, `LagLatched`, `LT100_Lo`), and this must be checked by a full cross-reference of the original program.\n\n---\n\n## 4.x.1 Purpose and Scope\n\nThis function controls two boiler feedwater pumps, P1 and P2, in a duty/standby (lead/lag) arrangement. It provides:\n\n- automatic lead pump operation,\n- lag pump start on low feedwater header pressure or lead pump fault,\n- lag pump stop on pressure recovery,\n- a pump stop on low level (LT100),\n- weekly automatic lead/lag rotation.\n\n## 4.x.2 Signals\n\n| Tag | Type (inferred) | Description | Units |\n|---|---|---|---|\n| `LT100` | AI | Level, labelled \"drum level\" in source comment (**see OI-1**) | % |\n| `PT101` | AI | Feedwater header pressure | bar(g) assumed |\n| `P1.Run`, `P2.Run` | DO | Pump run command | BOOL |\n| `P1.Fault`, `P2.Fault` | DI | Pump fault status | BOOL |\n| `AutoMode` | Internal/HMI | Automatic mode selected | BOOL |\n| `LeadSel` | Internal | Lead selection (1 = P1 lead, otherwise P2 lead) | BOOL/INT (**see OI-6**) |\n| `LagTmr` | Timer (TON) | Low-pressure lag start delay, 8 s | n/a |\n| `LagLatched` | Internal | Set when lag pump has been started | BOOL |\n| `Maint_B7` | Internal/HMI | Maintenance bit, purpose undocumented | BOOL |\n| `LT100_Lo` | Internal | Low-level flag. **Not used in this extract** (see OI-5) | BOOL |\n| `DayOfWeek`, `Hour`, `Minute` | System clock | Controller real-time clock | n/a |\n\n## 4.x.3 Lead/Lag Assignment\n\n**FR-01** When `LeadSel = 1`, P1 shall be the lead pump and P2 the lag pump. Otherwise, P2 shall be lead and P1 lag.\n\n**FR-02** Assignment is evaluated every scan. Changing `LeadSel` changes roles immediately, with no transition sequence (see 4.x.7).\n\n## 4.x.4 Lead Pump Control (as found)\n\n**FR-03** When `AutoMode` is TRUE and the lead pump has no active fault, the lead pump run command shall be set TRUE.\n\n**FR-04 (as found)** The logic only *sets* the lead run command. It never resets it:\n- Selecting manual (`AutoMode = FALSE`) does **not** stop the lead pump.\n- A lead pump fault does **not** remove the lead run command. It only prevents it being re-asserted.\n- The only reset in this extract is the low-level stop (FR-09).\n\n## 4.x.5 Lag Pump Control (as found)\n\n**FR-05 Lag start on low pressure:** If `PT101 < 18.5 bar` continuously for **8 s**, the lag pump run command shall be set TRUE. The timer resets as soon as pressure is at or above 18.5 bar.\n\n**FR-06 Lag start on lead fault:** If the lead pump fault is active, the lag pump run command shall be set TRUE immediately, with no delay.\n\n**FR-07** On either lag start condition, `LagLatched` shall be set TRUE.\n\n**FR-08 Lag stop on high pressure:** If `PT101 > 21.0 bar` and `LagLatched` is TRUE, the lag pump run command shall be set FALSE. This gives a start/stop hysteresis of 18.5 / 21.0 bar.\n\nNotes on as-found behaviour:\n- Lag start does **not** depend on `AutoMode`. The lag pump will auto-start in manual mode.\n- Lag start does **not** check the lag pump's own fault status.\n- `LagLatched` is never reset in this extract, so after the first lag start it stays TRUE permanently.\n- FR-08 comes after FR-06 in scan order. If the lead is faulted and pressure is above 21.0 bar, the lag pump is stopped. When pressure then falls, it restarts after 8 s. This can cause cycling of the only healthy pump (OI-3).\n\n## 4.x.6 Low-Level Pump Stop (as found)\n\n**FR-09** If `LT100 < 15.0 %`, the run commands for **both** P1 and P2 shall be set FALSE. The source comment says this is to \"protect pumps\".\n\nNotes on as-found behaviour:\n- This stop is evaluated last in the scan, so it overrides all other run logic while active.\n- It is **not latched** and has **no hysteresis or restart delay**. When `LT100` returns to 15.0 % or above, the lead pump restarts on the next scan (if in Auto). The level can then hover around 15 % and cycle the pump rapidly.\n- See **OI-1**. This interlock is critical and must be verified before re-implementation.\n\n## 4.x.7 Weekly Lead/Lag Rotation (as found)\n\n**FR-10** When `DayOfWeek = 1` and the time is 06:00, `LeadSel` shall be inverted.\n\nNotes on as-found behaviour:\n- There is no edge detection. The condition stays TRUE for the whole minute 06:00:00\u201306:00:59, so `LeadSel` toggles **every scan** for 60 seconds. The final lead pump depends on whether the scan count in that minute is odd or even, which is effectively random (OI-4).\n- Whether `DayOfWeek = 1` means Sunday or Monday depends on the legacy platform's convention. This must be confirmed.\n- No changeover sequence exists. The outgoing lead's run command stays set. Because `LagLatched` is permanently TRUE, the outgoing pump (now lag) stops only when `PT101 > 21.0 bar`. If the header normally runs between 18.5 and 21.0 bar, **both pumps will keep running** after rotation.\n\n## 4.x.8 Open Items / Issues Requiring Decision\n\n| ID | Severity | Issue | Recommendation |\n|---|---|---|---|\n| **OI-1** | **Critical (safety)** | `LT100` is labelled \"drum level\", but stopping feedwater pumps on **low drum level** is the opposite of correct boiler practice. Low drum level calls for *more* feed, plus a burner trip, and must not cut off feed. The comment \"protect pumps\" fits a low **suction-side level** (feedwater tank/deaerator), i.e. NPSH/dry-run protection. Either the tag is mislabelled or the logic is dangerous. | Field-verify which transmitter LT100 physically is (P&ID and loop check) before any design work. Review against the plant's boiler safety requirements (e.g. EN 12952/12953, IEC 61511 if a SIF). |\n| **OI-2** | High | Lead run command is never reset by manual mode or lead fault (FR-04). | Define required behaviour: stop on Auto\u2192Manual? Remove command on fault? Fault reset philosophy? |\n| **OI-3** | High | Lag can be stopped on high pressure while the lead is faulted, leaving no pump running and causing cycling. Lag start ignores Auto mode and lag fault. `LagLatched` never resets. | Inhibit the lag high-pressure stop while the lead is faulted (lag becomes duty). Define a reset for `LagLatched`. Add a lag-fault alarm (\"both pumps unavailable\"). |\n| **OI-4** | High | Rotation toggles repeatedly for 60 s, so the outcome is random. There is no controlled changeover. | Use a one-shot (rising edge) trigger. Define a changeover sequence: start new lead, prove running/pressure, then stop old lead. Allow rotation only if the standby pump is healthy. Confirm day/time. |\n| **OI-5** | High (safety) | `Maint_B7` forces `LT100_Lo` FALSE, which looks like a **maintenance bypass of a low-level signal**. `LT100_Lo` is not used in this extract, so it may feed another interlock, alarm, or burner trip elsewhere. There is no timeout, alarm, or permit. | Cross-reference all uses of `LT100_Lo` and `Maint_B7`. If it is a safety-function bypass, re-implement only under a formal bypass procedure (access control, alarm, time limit, logging). |\n| **OI-6** | Medium | `LeadSel` is compared to `1` and then inverted with `NOT`. If `LeadSel` is an INT, `NOT` is bitwise (NOT 1 = \u22122, NOT 0 = \u22121). If it starts at 0, rotation never selects P1. | Confirm the data type in the original program. Implement as BOOL on the new platform. |\n| **OI-7** | Medium | `Lead := P1` assigns pump structures. In standard IEC 61131-3 this **copies** the struct, so `Lead.Run := TRUE` would not reach the real `P1.Run`. The extract may have simplified pointer/REF_TO or indirect addressing. | Confirm how the original program maps Lead/Lag to physical outputs. |\n| **OI-8** | Medium | There is no hysteresis or delay on the low-level stop, no minimum run or anti-short-cycle timers, and no run feedback / fail-to-start detection. | Define required timers and feedback monitoring for the new platform. |\n| **OI-9** | Low | Units/range of PT101 (gauge vs absolute) and LT100 (0\u2013100 % of what span) are unconfirmed. | Confirm from instrument datasheets / loop sheets. |\n\n## 4.x.9 Recommended Re-implementation Approach\n\n1. Resolve OI-1 and OI-5 first. They decide whether this logic contains safety functions that must be handled under the plant's functional safety process rather than as ordinary control.\n2. Record the as-found behaviour (4.x.3\u20134.x.7) in the test specification, so the legacy and new systems can be compared during FAT/SAT.\n3. Write the **target** requirements as a separate, approved revision of this section, with each open item explicitly closed as either \"replicate as found\" or \"corrected behaviour: \u2026\"."
+}

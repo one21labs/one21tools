@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E23-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E23",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 16401.3,
+  "duration_ms": 15694,
+  "duration_api_ms": 15468,
+  "cost_usd": 0.0224015,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 792,
+   "cache_read_input_tokens": 2195,
+   "output_tokens": 1901,
+   "output_tokens_details": {
+    "thinking_tokens": 0
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 792,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 1901,
+     "cache_read_input_tokens": 2195,
+     "cache_creation_input_tokens": 792,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 792
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:00:56.843077+00:00",
+   "end": "2026-10-18T23:01:13.244416+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0224015,
+  "charged_usd": 0.0224015,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "## Problems found\n\n**Safety / logic errors (most serious)**\n\n1. **4.3.4 \u2013 Alarm/trip setpoints are inverted.** The high-high trip (9.0 barg) is *lower* than the high alarm (9.5 barg), so the trip would fire before the alarm ever could. A trip must be set above the alarm. Also, \"closes FV-812\" is ambiguous: say which action is taken (steam isolation) and whether it latches. The actual values need to be confirmed against the digester's design pressure and relief valve set pressure. I can't determine the correct numbers from this text.\n\n2. **4.3.5 \u2013 Fail-open on a steam valve is the wrong failure mode.** Losing instrument air would drive steam to the digester uncontrolled, which risks overpressure and overtemperature, and it conflicts with 4.3.4, where the trip is supposed to close FV-812. The valve should normally fail closed, with a safe-state action defined. \"Ensure the cook completes\" is not a valid safety rationale. Confirm against the valve's actual spec and the P&ID. If it really is fail-open, the narrative must describe the independent protection (e.g., a separate steam block valve that fails closed).\n\n3. **4.3.2 vs 4.3.7 \u2013 Contradictory H-factor target.** One says 1200, the other 1400. Pick one (a recipe parameter, not a hard-coded number, is preferable) and state it once.\n\n4. **4.3.3 \u2013 Vague, non-testable, and wrongly assigned.** \"Check pressure is OK\" and \"if possible\" have no defined limits. Venting is a process control action and should be automatic (pressure-controlled relief), with defined setpoints, valve tags, and the alarm that prompts the operator. Venting of non-condensable gases should also go through the proper NCG/turpentine recovery system, with tags specified.\n\n**Sequencing and clarity**\n\n5. **4.3.6 \u2013 Misplaced.** Fill-complete confirmation (LT-805 at 95%) is a precondition for 4.3.1 and should appear before it, as part of the start permissives. Also state whether this is a level reading or a \"\u2265\" condition, and what happens on instrument failure.\n\n6. **4.3.1 \u2013 Start conditions incomplete.** Chip fill complete plus capping valve closed should be written as explicit permissives, including the capping valve's closed-position feedback, level confirmation, and any liquor-fill/circulation requirement. The ramp should state its control basis (TT-810 PV against a ramp setpoint, with FV-812 as the output).\n\n7. **4.3.2 \u2013 No hold-time/temperature definition.** \"Continues at temperature\" needs a tolerance band and a defined behavior if temperature deviates (does H-factor accumulation continue?). H-factor should be computed in the DCS from TT-810.\n\n8. **4.3.7 \u2013 Blow handled inconsistently.** 4.3.2 says the blow sequence starts automatically, while 4.3.7 says the operator is sent a request. Choose one. Also, before a blow, the pressure and any interlocks need to be stated.\n\n9. **Style:** Mixed use of \"should\", \"OK\", and \"if possible\". Use \"shall\" for requirements and give units consistently (\u00b0C, bar(g)). Temperature is not \"C\".\n\n## Corrected version\n\n*Values in [brackets] are placeholders that must be confirmed against the design basis, P&ID, and cause-and-effect matrix. I have not invented them.*\n\n**4.3 Cooking Phase**\n\n**4.3.1 Start permissives.** The cooking phase shall start when all of the following are true:\n- Chip level LT-805 \u2265 95 % (fill complete)\n- Capping valve [tag] confirmed closed by position feedback\n- [Liquor fill/circulation conditions, if applicable]\n\n**4.3.2 Heat-up.** On start, the DCS shall control temperature TT-810 to follow a ramp setpoint of 1.5 \u00b0C/min up to the cooking setpoint of 170 \u00b0C, modulating steam valve FV-812.\n\n**4.3.3 Cook.** The DCS shall hold TT-810 at 170 \u00b0C (\u00b1[x] \u00b0C) and calculate H-factor from TT-810. The cook ends when H-factor reaches the recipe target of [1200 or 1400 \u2013 to be confirmed]. If TT-810 deviates beyond \u00b1[x] \u00b0C, the DCS shall raise an alarm [and hold/continue H-factor accumulation as defined by process].\n\n**4.3.4 Pressure control and relief.** PT-811 shall be controlled during heat-up and cook by automatic venting of relief gas to the turpentine/NCG system via [valve tag] at [setpoint] barg. Venting shall not depend on operator action.\n\n**4.3.5 Pressure protection.**\n- PT-811 high alarm at [x] barg.\n- PT-811 high-high trip at [y] barg, where y > x and y is below the relief valve set pressure. The trip shall close FV-812 [and steam block valve tag] and shall latch until reset by the operator.\n\n**4.3.6 Valve failure mode.** FV-812 shall fail closed on loss of instrument air or signal. [If the valve is fail-open by design, document the independent steam isolation that closes on air loss.]\n\n**4.3.7 Blow.** When the H-factor target is reached, the DCS shall [automatically start the blow sequence / issue a blow request to the operator for confirmation \u2013 select one], subject to the blow permissives [list].\n\n**Open items to resolve with the process and safety engineers:** the H-factor target, the alarm/trip pressures versus design pressure and relief valve set point, the actual FV-812 failure position, and the blow initiation mode."
+}

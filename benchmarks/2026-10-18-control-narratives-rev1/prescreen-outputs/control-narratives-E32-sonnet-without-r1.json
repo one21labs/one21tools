@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E32-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E32",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 24547.2,
+  "duration_ms": 23753,
+  "duration_api_ms": 23508,
+  "cost_usd": 0.0329375,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 891,
+   "cache_read_input_tokens": 2195,
+   "output_tokens": 2915,
+   "output_tokens_details": {
+    "thinking_tokens": 1038
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 891,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 2915,
+     "cache_read_input_tokens": 2195,
+     "cache_creation_input_tokens": 891,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 891
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:04:48.404480+00:00",
+   "end": "2026-10-18T23:05:12.951710+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0329375,
+  "charged_usd": 0.0329375,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# FRS: Boiler Feedwater Pump Lead/Lag Control\n\n**Source:** reverse-engineered from the extracted structured text only. Behaviour marked **[Confirm]** is inferred or looks unintended, and should be checked with operations before re-implementation.\n\n## 1. Scope\nThis section covers automatic lead/lag control of two boiler feedwater pumps, P1 and P2, using drum level LT100 (%) and FW header pressure PT101 (bar). It includes lead rotation and the low-drum-level pump trip.\n\n## 2. Signals\n\n| Tag | Description | Type / Unit |\n|---|---|---|\n| LT100 | Drum level | Analog, % |\n| PT101 | FW header pressure | Analog, bar |\n| LeadSel | Lead pump selector (1 = P1, otherwise P2) | Bool/Int |\n| AutoMode | Auto mode enable | Bool |\n| Px.Fault | Pump fault status | Bool |\n| Px.Run | Pump run command | Bool |\n| LagTmr | On-delay timer, 8 s | TON |\n| LagLatched | Lag-demand latch | Bool |\n| Maint_B7 | Maintenance flag/switch | Bool |\n| LT100_Lo | Low-level flag (use not shown in extract) | Bool |\n\n## 3. Functional Requirements\n\n**FR-1 Lead assignment.** If LeadSel = 1, P1 is lead and P2 is lag. Otherwise P2 is lead and P1 is lag.\n\n**FR-2 Lead start.** When AutoMode is active and the lead pump has no fault, the lead pump run command shall be set. The extract contains no logic that resets it, so it behaves as a set-only command. Stopping on leaving auto mode or on operator stop must be handled elsewhere, or defined in the new design **[Confirm]**.\n\n**FR-3 Lag start on low pressure.** If PT101 stays below **18.5 bar** continuously for **8 s**, the lag pump run command shall be set and LagLatched set. The timer resets whenever PT101 is \u2265 18.5 bar.\n\n**FR-4 Lag start on lead fault.** If the lead pump is faulted, the lag pump run command shall be set immediately, with no delay, and LagLatched set. This is not gated by AutoMode in the source **[Confirm]**.\n\n**FR-5 Lag stop.** If PT101 exceeds **21.0 bar** and LagLatched is set, the lag pump run command shall be cleared. Together with FR-3 this gives a hysteresis band of 18.5\u201321.0 bar. This rule is evaluated after FR-4, so with a faulted lead pump and PT101 > 21.0 the lag pump is stopped. It restarts once FR-3 or FR-4 conditions are met again.\n\n**FR-6 Low drum level trip.** If LT100 is below **15.0 %**, both P1 and P2 run commands shall be cleared. This is the last pump-command rule in the scan order, so it overrides FR-2, FR-3 and FR-4. No trip latch, reset or hysteresis exists in the source, so pumps are allowed to restart as soon as LT100 \u2265 15.0 % **[Confirm]**.\n\n**FR-7 Maintenance flag.** While Maint_B7 is active, LT100_Lo shall be set FALSE. LT100_Lo is not used by any other logic in this extract, and the flag does not bypass FR-6. Its purpose is unknown **[Confirm]**.\n\n**FR-8 Weekly lead rotation.** At DayOfWeek = 1, 06:00, LeadSel shall be inverted, swapping lead and lag roles.\n\n## 4. Issues to resolve before re-implementation\n\n1. **Rotation not edge-triggered (FR-8).** As written, the toggle executes on every scan during the 06:00 minute, so the final LeadSel value depends on the scan count (odd or even). The new design should toggle exactly once, using a one-shot or a \"done today\" flag.\n2. **DayOfWeek = 1.** Whether this is Monday or Sunday depends on the platform's convention. Confirm the intended day.\n3. **Rotation while running.** If the lead pump is running when roles swap, the old lead keeps its Run command (nothing clears it) while the new lead is also started, so both pumps run until something else stops one. Define the intended changeover behaviour.\n4. **LagLatched is never cleared** in this extract, so after the first lag start it stays true. The FR-5 stop is then always permitted. Define the reset condition, for example when the lag pump stops or AutoMode is lost.\n5. **Low-level trip chatter (FR-6).** Add a latched trip with a reset or hysteresis band, unless the existing plant behaviour must be preserved exactly.\n6. **Fault handling.** Behaviour when both pumps are faulted, or when the lag pump is faulted, is not defined. There is also no alarm output for lag demand or trip.\n7. **Order dependence.** The behaviour relies on last-write-wins ordering within one scan. The new platform must preserve this priority: low-level trip > lag stop > lag start > lead start.\n8. **Pump references.** Lead and Lag are aliases to P1 or P2. The new platform must either support references or implement the logic through explicit selection.\n\n## 5. Recommended verification\nBefore cut-over, compare this specification against the live PLC's other programs (including the stop and manual logic and the use of LT100_Lo) and against plant operating procedures, since the extract is only one part of the control behaviour."
+}

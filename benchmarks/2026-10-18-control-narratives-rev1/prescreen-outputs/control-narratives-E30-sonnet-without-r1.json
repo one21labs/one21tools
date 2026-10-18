@@ -1,0 +1,66 @@
+{
+ "cell": "control-narratives-E30-sonnet-without-r1",
+ "skill": "control-narratives",
+ "scenario": "control-narratives:E30",
+ "arm": "without",
+ "rep": 1,
+ "model": "claude-sonnet-5-5",
+ "served_models": [
+  "claude-sonnet-5-5"
+ ],
+ "effort": "medium",
+ "summary": {
+  "duration_ms_wall": 34502.6,
+  "duration_ms": 33655,
+  "duration_api_ms": 33432,
+  "cost_usd": 0.0450555,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 568,
+   "cache_read_input_tokens": 2195,
+   "output_tokens": 4256,
+   "output_tokens_details": {
+    "thinking_tokens": 491
+   },
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 568,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "global",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 4256,
+     "cache_read_input_tokens": 2195,
+     "cache_creation_input_tokens": 568,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 568
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard",
+   "fallback_credit": null
+  },
+  "stop_reason": "end_turn",
+  "timestamps": {
+   "start": "2026-10-18T23:03:45.280571+00:00",
+   "end": "2026-10-18T23:04:19.783174+00:00"
+  },
+  "error": null,
+  "served_models": [
+   "claude-sonnet-5-5"
+  ],
+  "retried": false,
+  "cell_cost_usd": 0.0450555,
+  "charged_usd": 0.0450555,
+  "prior_attempts_usd": 0.0
+ },
+ "response": "# Control Narrative Approach for Pumps and On/Off Valves\n\n## 1. The principle\n\nSplit the documentation into two layers and never copy text between them.\n\n| Layer | Contains | Written | Owned by |\n|---|---|---|---|\n| **A. Equipment Module Class Narrative** | Everything the library block does identically for every instance: states, modes, commands, fault handling, alarms, simulation and bypass behavior | Once per class and version | Brewery controls standard (not the integrator) |\n| **B. Instance Sheet** | Only what is specific to one tag: class and version, I/O tags, parameter values, interlocks and permissives, process notes, deviations | One short page per tag, ideally generated from the tag/IO database | Integrator, reviewed by the brewery |\n\n**Rules that stop drift:**\n1. The instance sheet references the class by ID and version (e.g. `EM-PUMP-VFD v2.3`). It never restates class behavior.\n2. Anything not stated in the instance sheet is the class default. Only non-default values are listed as overrides.\n3. If an instance behaves differently from the class, it must appear in the **Deviations** table with an ID and a justification. Prose elsewhere cannot change behavior.\n4. Interlock and permissive logic is written once per instance as a cause-and-effect table, not as paragraphs.\n5. Parameter values, I/O and tag names come from the PLC/tag database. Generate them into the sheet instead of typing them.\n6. Changing a class means a version bump and a list of affected instances. Instances are re-pinned deliberately, not silently.\n\n## 2. Class narrative skeleton (written once)\n\nSuggested classes: `EM-PUMP-FIXED` (DOL/starter), `EM-PUMP-VFD`, `EM-VALVE-ONOFF` (single or double solenoid, with or without feedback), and optionally `EM-VALVE-ONOFF-SEATLIFT` for mixproof valves.\n\nEach class document has the same numbered sections:\n\n1. **Purpose and scope**: which equipment it applies to.\n2. **Modes**: Auto, Manual, Out of Service, Simulation. Who can command in each, and what happens on mode change.\n3. **Commands and states**: state table (Stopped, Starting, Running, Stopping, Faulted, etc.) with transitions.\n4. **Permissives vs. interlocks**: definitions. Permissives are needed to start. Interlocks force a stop or trip while running. Behavior on trip, including whether reset is manual or auto.\n5. **Feedback supervision**: run feedback and VFD ready/fault, with default timeouts as class parameters.\n6. **Standard faults and alarms**: table of alarm name, trigger, default priority, reset type.\n7. **Speed control** (VFD class): setpoint source, ramps, min/max limits, behavior on loss of setpoint or comms.\n8. **Power loss and restart behavior.**\n9. **HMI faceplate and interface tags.**\n10. **Class parameters**: name, default, range, units.\n11. **Version history.**\n\n## 3. Instance sheet template\n\n```\nINSTANCE SHEET: <Tag> \u2013 <Description>\nDoc ID: <area>-EM-<tag>   Rev: <n>   Date: <date>\nClass: <EM-xxx>   Class version: <x.y>\nArea / Unit: <area>        P&ID: <dwg no.>        Controller: <PLC / program>\n\n1. SERVICE\n   One or two sentences: what it does in the process and which\n   procedures or phases command it. No class behavior.\n\n2. I/O AND TAGS                       (generated from tag database)\n   | Signal | Tag | Type | Range/Units | Notes |\n\n3. COMMAND SOURCES\n   Which phases, sequences or manual HMI commands can command it.\n\n4. PERMISSIVES (required to start)\n   | ID | Condition | Source tag | Action if false |\n\n5. INTERLOCKS (trip while running)\n   | ID | Condition | Source tag | Delay | Action | Reset |\n\n6. PARAMETER OVERRIDES               (only values differing from class default)\n   | Parameter | Class default | This instance | Units | Reason |\n\n7. PROCESS-SPECIFIC NOTES\n   Only what the class cannot know (e.g. required minimum flow,\n   interaction with a specific valve line-up).\n\n8. DEVIATIONS FROM CLASS\n   | Dev ID | Class section | Deviation | Justification | Approved by |\n   \"None\" is a valid and preferred entry.\n\n9. TEST REFERENCE\n   Class FAT script ID + instance-specific tests for items 4, 5, 6, 8.\n```\n\nFor on/off valves, the same template applies, with these additions or changes:\n- **Section 2** lists solenoid outputs and open/closed proximity feedback.\n- **Section 6** covers fail-safe position and travel timeouts.\n- **Section 7** covers the CIP line-up role.\n\n## 4. Worked example: P-4021\n\n*Values below are illustrative and must be confirmed against the P&ID, datasheet and process requirements. I assumed PT-4022 is on the pump suction, since that is the normal location for dry-run protection.*\n\n---\n\n**INSTANCE SHEET: P-4021 \u2013 CIP Supply Pump**\nDoc ID: CIP-EM-P4021  Rev: A  Date: 2026-10-18\n**Class:** `EM-PUMP-VFD`  **Class version:** 2.3\nArea / Unit: CIP / CIP Skid 1  P&ID: *[drawing no.]*  Controller: *[PLC / program]*\n\n**1. Service**\nSupplies CIP solution (water, caustic, acid, sanitizer) from the CIP supply tank to the selected CIP circuit. Commanded by the CIP circuit sequences. Flow or pressure setpoint is provided by the active CIP step.\n\n**2. I/O and tags** *(generated from tag database)*\n\n| Signal | Tag | Type | Range / Units | Notes |\n|---|---|---|---|---|\n| Run command | P4021_RUN | DO or fieldbus | \u2013 | To VFD |\n| Speed setpoint | P4021_SPD_SP | AO or fieldbus | 0\u2013100 % | |\n| Running feedback | P4021_RUN_FB | DI or fieldbus | \u2013 | From VFD |\n| VFD fault | P4021_VFD_FLT | DI or fieldbus | \u2013 | |\n| Suction pressure | PT-4022 | AI | *[range]* kPa | Dry-run protection |\n\n**3. Command sources**\nCIP circuit sequences (Auto), HMI (Manual). No other sources.\n\n**4. Permissives**\n\n| ID | Condition | Source | Action if false |\n|---|---|---|---|\n| PRM-1 | Suction pressure \u2265 start threshold | PT-4022 | Start inhibited, \"Low suction\" shown |\n| PRM-2 | CIP supply tank level above low-low | *[LT tag]* | Start inhibited |\n| PRM-3 | Discharge route proven (valve line-up confirmed) | *[CIP valve tags]* | Start inhibited |\n\n**5. Interlocks**\n\n| ID | Condition | Source | Delay | Action | Reset |\n|---|---|---|---|---|---|\n| ILK-1 | Suction pressure < trip threshold (dry run) | PT-4022 | 5 s | Stop pump, raise Dry-Run Trip alarm | Manual, only after PRM-1 is true |\n| ILK-2 | PT-4022 signal bad quality (out of range or wire break) | PT-4022 | 1 s | Stop pump, raise Instrument Fault alarm | Manual, after signal healthy |\n| ILK-3 | CIP supply tank level low-low | *[LT tag]* | 2 s | Stop pump | Auto when level recovers, per class default |\n\n*Note on ILK-2: loss of the dry-run instrument is treated as a trip, since protection is otherwise lost. See DEV-1 if the brewery decides otherwise.*\n\n**6. Parameter overrides**\n\n| Parameter | Class default | This instance | Units | Reason |\n|---|---|---|---|---|\n| Min speed | *[default]* | 35 | % | Minimum for seal cooling and stable flow *[confirm with pump datasheet]* |\n| Max speed | 100 | 90 | % | Limit to motor/pump rated duty *[confirm]* |\n| Accel ramp | *[default]* | 10 | s | Reduce pressure surge in CIP lines |\n| Dry-run start threshold | n/a | 40 | kPa | *[confirm]* |\n| Dry-run trip threshold | n/a | 20 | kPa | *[confirm]* |\n| Dry-run trip delay | n/a | 5 | s | Avoid trips on transient dips at start |\n| Start-up dry-run mask | *[default]* | 10 | s | Allows suction to stabilize on start *[confirm]* |\n\n**7. Process-specific notes**\n- Pressure thresholds apply across all CIP chemistries. Do not change per recipe step. Speed changes via the sequence setpoint only.\n- During the start-up mask, ILK-1 is suppressed but ILK-2 and ILK-3 remain active.\n\n**8. Deviations from class**\nNone.\n\n**9. Test reference**\nClass FAT script `FAT-EM-PUMP-VFD v2.3` (all steps). Instance tests: PRM-1 to PRM-3, ILK-1 to ILK-3 (simulate PT-4022 low, wire break, tank level low-low), and verification of parameter overrides in section 6.\n\n---\n\n## 5. What the integrator no longer writes\n\nFor P-4021, the following are not in the instance sheet because they live in `EM-PUMP-VFD v2.3`: how Auto/Manual works, start and stop sequencing, feedback timeout alarms, VFD fault handling, restart after power loss, and faceplate behavior. A reviewer reads one page of instance-specific content (about 2 pages per tag at most) instead of rereading a full pump paragraph, and any divergence from the library has to be declared in section 8.\n\n## 6. Practical suggestions\n\n- **Generate sections 2, 4, 5 and 6 from a spreadsheet or database** (one row per interlock or parameter) so the 120 pumps and 300 valves are bulk-maintained and diffable.\n- **Group identical instances.** For valves that differ only by tag and line-up, one sheet with a table of tags is acceptable, as long as the interlock content is truly the same.\n- **Make this a contract requirement.** The integrator submits instance sheets plus deviations, not freeform narrative.\n- **Review gate:** any non-empty Deviations table needs brewery controls approval, and a recurring deviation is a signal to update the class.\n- **Check the instance against the library.** Compare section 6 overrides against the actual PLC parameter values during FAT to catch drift between the document and the code.\n\nIf you'd like, I can draft the `EM-PUMP-VFD` class narrative in full, or the equivalent instance example for a CIP return valve with feedback."
+}
