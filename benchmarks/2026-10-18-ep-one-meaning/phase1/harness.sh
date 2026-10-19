@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# ep-slim-remeasure 3-arm hermetic executor (issue #248). Same hermetic recipe as
-# 2026-07-18-ep-partition/harness.sh (ADR 0023: external empty cwd, tool DENY list, user
-# CLAUDE.md relocated, NEUTRAL framing, prompt via STDIN so the variadic --disallowedTools
-# doesn't eat it). Arms = without / with-full / with-slim; PILOT runs a fixed 2-cell smoke test
-# (eval 5 without rep1, eval 5 with-slim rep1) into pilot-outputs/ and stops, before grid spend.
+# ep-one-meaning phase-1 3-arm hermetic executor, adapted from
+# 2026-07-18-ep-slim-remeasure/harness.sh (same ADR 0023 recipe). Arms = without / with-current /
+# with-plain; PILOT runs a fixed 2-cell smoke test (eval 5 without rep1, eval 5 with-plain rep1)
+# into pilot-outputs/ and stops, before grid spend.
 set -u
 BASE="$(cd "$(dirname "$0")" && pwd)"
 OUT="${HERMETIC_OUT:-$BASE/outputs}"; mkdir -p "$OUT"
@@ -40,7 +39,7 @@ run_cell(){
 
 if [ "${PILOT:-0}" = "1" ]; then
   PILOT_OUT="$BASE/pilot-outputs"; mkdir -p "$PILOT_OUT"
-  echo "PILOT: 2 cells (eval 5 without rep 1, eval 5 with-slim rep 1) -> $PILOT_OUT"
+  echo "PILOT: 2 cells (eval 5 without rep 1, eval 5 with-plain rep 1) -> $PILOT_OUT"
   run_cell "engineering-principles.5" "without" "1" "$PILOT_OUT"
   run_cell "engineering-principles.5" "with-plain" "1" "$PILOT_OUT"
   echo "PILOT DONE. review $PILOT_OUT before running the full grid."
