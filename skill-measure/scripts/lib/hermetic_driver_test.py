@@ -169,6 +169,18 @@ class SummarizeCall(unittest.TestCase):
         self.assertIsNone(summarize_call(call, requested_model="claude-opus-5-5")["error"])
         self.assertIsNone(summarize_call(call, requested_model="opus")["error"])  # alias: unchecked
 
+    def test_a_reply_at_the_output_cap_is_an_error_cell(self):
+        call = do_call("p", "sonnet", {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "32000"}, ".", run=fake_run())
+        call["envelope"]["usage"]["output_tokens"] = 31040  # 97% of the cap: partial capture
+        self.assertIn("32000-token cap", summarize_call(call)["error"])
+        call["envelope"]["usage"]["output_tokens"] = 31039
+        self.assertIsNone(summarize_call(call)["error"])
+
+    def test_no_cap_in_env_means_no_cap_check(self):
+        call = do_call("p", "sonnet", {}, ".", run=fake_run())
+        call["envelope"]["usage"]["output_tokens"] = 10 ** 6
+        self.assertIsNone(summarize_call(call)["error"])
+
 
 class NeutralCwd(unittest.TestCase):
     def test_creates_empty_scratch_dir(self):
