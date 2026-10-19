@@ -38,7 +38,9 @@ MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 EFFORT = "medium"
 REPS = 2
 TIMEOUT_S = 600
-MAX_OUTPUT_TOKENS = "32000"  # unframed, 4 of 80 prescreen replies ran to the 128k cap
+MAX_OUTPUT_TOKENS = "64000"  # was 32000: 7 with-arm replies hit it and only their last chunk was
+# captured (metadata.json deviations). A reply within 3% of the cap is an ERROR cell, never graded.
+CAP_HIT_TOKENS = int(int(MAX_OUTPUT_TOKENS) * 0.97)
 FAKE_TOOL_MARKUP = ("<invoke", "<function_calls", "</invoke>")
 MIN_REPLY_CHARS = 200
 ISOLATION = ("--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--effort", EFFORT)
@@ -94,6 +96,8 @@ def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap, est):
         # A no-tools cell that writes tool-call markup is acting out an agent loop, not answering:
         # infrastructure, never quality (#191). Recorded as ERROR so the next pass regenerates it.
         record["summary"]["error"] = "fake tool-call markup in a no-tools reply"
+    elif not summary["error"] and (summary.get("usage") or {}).get("output_tokens", 0) >= CAP_HIT_TOKENS:
+        record["summary"]["error"] = f"hit the {MAX_OUTPUT_TOKENS}-token output cap (partial capture)"
     elif not summary["error"] and len(call["response"]) < MIN_REPLY_CHARS:
         record["summary"]["error"] = f"reply under {MIN_REPLY_CHARS} chars"
     path.write_text(json.dumps(record, indent=1), encoding="utf-8")
@@ -132,6 +136,8 @@ def main():
         tasks = [(k, m, a, r) for held in (True, False) for m in MODELS for k in sel["surviving"][m]
                  if (int(k.split(":E")[1]) >= NEW_FROM_ID) == held
                  for a in ("with", "without") for r in range(1, REPS + 1)]
+        if meta.get("grid_scope") == "held-out only":  # fallback fired on the first grid pass
+            tasks = [t for t in tasks if int(t[0].split(":E")[1]) >= NEW_FROM_ID]
         for scope in ("full", "held-out only"):
             costs = [per[t[1]] for t in tasks]  # generation + judge per cell
             ok, projected = gate(len(tasks), [sum(costs) / len(costs)], remaining)
