@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Decision-logic tests for hermetic_driver.py (repo rule: no gating plumbing without a test)."""
 import json
+import math
 import os
 import subprocess
 import unittest
 import unittest.mock
 from types import SimpleNamespace
 
-from hermetic_driver import (CLAUDE_DENY_TOOLS, build_env, capture_artifacts, do_call,
-                             fresh_copy, neutral_cwd, summarize_call)
+from hermetic_driver import (CAP_HIT_FRACTION, CLAUDE_DENY_TOOLS, build_env, capture_artifacts,
+                             do_call, fresh_copy, neutral_cwd, summarize_call)
 
 ENVELOPE = {"result": "the answer", "total_cost_usd": 0.01, "duration_ms": 900,
             "duration_api_ms": 800, "usage": {"input_tokens": 5, "output_tokens": 7},
@@ -171,9 +172,10 @@ class SummarizeCall(unittest.TestCase):
 
     def test_a_reply_at_the_output_cap_is_an_error_cell(self):
         call = do_call("p", "sonnet", {"CLAUDE_CODE_MAX_OUTPUT_TOKENS": "32000"}, ".", run=fake_run())
-        call["envelope"]["usage"]["output_tokens"] = 31040  # 97% of the cap: partial capture
+        threshold = 32000 * CAP_HIT_FRACTION
+        call["envelope"]["usage"]["output_tokens"] = math.ceil(threshold)  # partial capture
         self.assertIn("32000-token cap", summarize_call(call)["error"])
-        call["envelope"]["usage"]["output_tokens"] = 31039
+        call["envelope"]["usage"]["output_tokens"] = math.ceil(threshold) - 1
         self.assertIsNone(summarize_call(call)["error"])
 
     def test_no_cap_in_env_means_no_cap_check(self):
