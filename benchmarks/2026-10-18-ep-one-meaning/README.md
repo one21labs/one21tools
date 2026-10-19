@@ -77,7 +77,9 @@ final read; no round tuned against it.
   the table above.
 - Treatment = SKILL.md body + 3 references (ssot-enforcement, design-review,
   root-cause-analysis), the ep-slim-remeasure construction at HEAD 84629e3. The shipped skill's
-  other references were absent in every arm.
+  other references were absent in every arm. `treatments.sha256` pins every treatment's bytes;
+  phase 2's `current` and `v0-glossary` arms are byte-identical to phase 1's `with-current` and
+  `with-plain`, so `phase2/run.py` reads those files rather than a second copy.
 
 ## Reproduce
 

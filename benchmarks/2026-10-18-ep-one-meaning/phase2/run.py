@@ -11,6 +11,9 @@ keys = [k for k, v in meta.items() if v["set"] == pset]
 DENY = ["Skill", "Task", "Read", "Grep", "Glob", "Bash", "Edit", "Write", "WebFetch", "WebSearch", "NotebookEdit"]
 BASE_SYS = "You are in a headless session with no file-system or code-execution tools; you cannot open the user's project or run anything. Respond in plain text."
 GRADE = open(os.path.join(BASE, "grade_prompt.txt")).read().split("=====\n")
+# Arms byte-identical to a phase-1 treatment live there only (one home); sha pins: treatments.sha256.
+SHARED = {"current": "../phase1/treatments/with-current.txt", "v0-glossary": "../phase1/treatments/with-plain.txt"}
+treatment = lambda arm: os.path.join(BASE, SHARED[arm]) if arm in SHARED else os.path.join(BASE, "treatments", arm + ".txt")
 
 def claude(args, stdin):
     env = dict(os.environ, CLAUDE_EFFORT="medium")
@@ -22,7 +25,7 @@ def claude(args, stdin):
 def gen(cell):
     k, arm, rep = cell; out = os.path.join(O, f"{k}.{arm}.{rep}.txt")
     if os.path.exists(out) and os.path.getsize(out) > 200: return
-    sys_p = BASE_SYS if arm == "without" else BASE_SYS + "\n\n" + open(os.path.join(BASE, "treatments", arm + ".txt")).read()
+    sys_p = BASE_SYS if arm == "without" else BASE_SYS + "\n\n" + open(treatment(arm)).read()
     for _ in range(3):
         txt = claude(["--append-system-prompt", sys_p], meta[k]["prompt"])
         if len(txt) > 200: break

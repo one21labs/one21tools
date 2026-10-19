@@ -24,7 +24,7 @@ for e in evals:
     print(f"{e:5}{w:9.2f}{c:9.2f}{p:9.2f}{c-w:+8.2f}{p-w:+9.2f}{p-c:+11.2f}")
 for k, v in S.items():
     n = len(v); m = statistics.fmean(v); se = statistics.stdev(v) / math.sqrt(n)
-    t = T975.get(n - 1, 1.96)
+    t = T975[n - 1]  # KeyError on any other prompt count, never a silent z fallback
     print(f"{k:22} mean {m:+.3f}  95% t-CI [{m - t*se:+.3f}, {m + t*se:+.3f}]")
 arm_all = {a: statistics.fmean([x for (e, aa), xs in frac.items() if aa == a for x in xs])
            for a in ("without", "with-current", "with-plain")}
