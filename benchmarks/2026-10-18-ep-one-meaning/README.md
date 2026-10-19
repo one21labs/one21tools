@@ -65,6 +65,8 @@ final read; no round tuned against it.
 ## Limits
 
 - Generators and judges were all sonnet (single family); the grok co-judge was not installed.
+- No user-level CLAUDE.md existed in the run container, so no arm loaded user memory; the
+  harness's relocation switch had nothing to move.
 - The pre-registration files were written before each phase's generation but are first
   committed here with the results, so git does not timestamp them ahead of the runs.
   `phase2/prompts.sha256` fixes the instrument; `sha256sum -c` passes on the committed files.
