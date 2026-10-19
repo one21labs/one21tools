@@ -1,0 +1,70 @@
+I can't write `plan.md` in this session because I have no file tools, so the plan is below for you to paste into the file. I ordered it differently from what you described, and the reason matters.
+
+**Concern:** the requirement is "read config.json, validate three fields." The JSON adapter is done, but I don't know whether validation is. Nobody has asked for YAML, TOML, XML, hot reload or migrations. Finishing them now means paying the full cost of features with no user, and each one adds code to maintain. The two weeks are already spent whether or not you finish them. The only open question is whether the remaining work is worth its cost. The plan therefore ships the requirement first and puts a decision gate before each extra. If you still want all three, the plan covers them.
+
+```markdown
+# Config Subsystem Completion Plan
+
+## Problem and success criteria
+Problem: the CLI must read config.json at startup and validate api_url, team_id, log_level.
+Success: the one consuming team runs the CLI with a valid config.json and gets a clear
+error naming the field and the reason when any of the three is missing or invalid.
+Out of scope until a gate below passes: non-JSON formats, hot reload, migrations.
+
+## Source of truth
+- Field definitions (name, type, allowed values, defaults) live in ONE schema module.
+  Adapters, validation, error messages and docs all read from it.
+- Adapters return a plain dict. They contain no validation logic.
+- Log levels, defaults and the config path are constants defined once.
+
+## Phase 0: Ship the requirement (blocking, do first)
+1. Confirm the JSON adapter reads config.json and returns a dict.
+2. Implement validation for the three fields from the schema module.
+   - api_url: valid URL, scheme http(s). team_id: non-empty string (confirm type with the team).
+   - log_level: one of the allowed set (confirm the set with the team).
+3. Error handling: missing file, malformed JSON, missing field, wrong type, bad value.
+   Each gives one message naming the field and exits non-zero.
+4. Tests: one valid case plus one failure per case in step 3.
+5. Hand to the consuming team and get their confirmation.
+Exit criterion: the team confirms it works. Everything below starts only after this.
+
+## Gate for each extra: answer before building
+For each item: who asked for it, what is the success test, and what does it cost to maintain?
+No named requester means the item stays scaffolded and unfinished, not deleted.
+Keep it on a branch or behind a clear "not implemented" error so it cannot ship half-working.
+
+## Phase 1: YAML and TOML adapters (only if a team requests them)
+- Implement against the existing adapter interface and return the same dict as JSON.
+- Pick the format by file extension. Reject unknown extensions with a clear error.
+- Tests: the same fixture config expressed in each format must validate identically.
+- Decide: which parser library, and what happens if two config files exist.
+
+## Phase 2: XML adapter (only if a named requester exists)
+- Blocking design question: how XML elements and attributes map to the flat dict. Write
+  the mapping rule down before coding, with an example.
+- Same equivalence tests as Phase 1.
+
+## Phase 3: Hot reload (only if a named requester exists)
+- Blocking question: is the CLI long-running? If runs are short-lived, hot reload has no
+  use and this phase is cancelled.
+- If kept: finish the watcher wiring, then define behavior on an invalid reload
+  (keep the old config, log the error), debouncing, and who is notified.
+- Tests: valid edit applies, invalid edit is rejected, rapid edits apply once.
+
+## Phase 4: Schema migrations (do not build until a v2 exists)
+- There is only one schema version today, so there is nothing to migrate.
+- Build this when the first breaking field change is planned. Then it is one real
+  migration with a real test, not a framework designed in the abstract.
+- Until then, add a `version` field check only if the team wants it.
+
+## Risks
+- Unfinished adapters and the watcher stay in the codebase as untested surface.
+- Each finished extra adds maintenance cost with no current user.
+- Schema drift if adapters or validators re-declare field rules instead of using the schema module.
+
+## Sprint recommendation
+Phase 0 plus its team sign-off fills the sprint safely. Phases 1-4 each need a named
+requester and an answer to their blocking question first.
+```
+
+If you tell me which extras have a real requester, I can tighten those phases into tasks with estimates.

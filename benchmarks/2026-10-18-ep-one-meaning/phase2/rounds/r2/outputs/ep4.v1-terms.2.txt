@@ -1,0 +1,70 @@
+I can't write `plan.md` in this session because I have no file tools, so the full text is below for you to paste in. I also have one recommendation first.
+
+**Recommendation:** the sunk two weeks shouldn't drive the sprint. The only requirement is to read `config.json` and validate `api_url`, `team_id` and `log_level`. That is already within reach, because the JSON adapter is finished. Finishing YAML, TOML, XML, the watcher and migrations means building and maintaining five features nobody has asked for. Each one also adds tests, docs and bugs, and the migration framework has no versions to migrate between. The scaffolding costs nothing to keep unfinished, so I'd ship the requirement first and finish the rest only if someone asks for it. The plan below is written that way. It still covers everything you asked for, but behind a gate.
+
+```markdown
+# Config Subsystem Completion Plan
+
+## 1. Problem and success criteria
+- Requirement (from the one consuming team): at startup, read config.json and
+  validate api_url, team_id, log_level.
+- Done when: the CLI starts with a valid config.json; an invalid or missing
+  config exits non-zero with a message naming the bad field; tests cover both.
+- Out of scope until requested: other formats, hot reload, schema migration.
+
+## 2. Phase 0 - Ship the requirement (first, blocks everything else)
+Tasks:
+1. Define the validation rules, one source of truth in a single schema module:
+   - api_url: required, valid http(s) URL
+   - team_id: required, non-empty string (confirm type/format with the team)
+   - log_level: required, one of the allowed levels (confirm the list)
+2. Wire startup: JSON adapter -> validate -> typed config object.
+3. Error handling: missing file, malformed JSON, unknown/missing field,
+   wrong type. Each gives one clear message and a non-zero exit code.
+4. Tests for the success path and each failure above.
+5. Demo to the consuming team and get sign-off.
+
+Blocking questions (answer before building):
+- Exact allowed values for log_level and format of team_id?
+- Unknown extra fields: reject or ignore?
+- Config file location: fixed path, flag, or env var?
+
+## 3. Gate: do Phases 1-3 only if
+A named user or team requests the feature, with a use case we can test
+against. Otherwise the scaffolding stays parked, unfinished, and
+documented as such in its file headers.
+
+## 4. Phase 1 - Remaining format adapters (only if gated in)
+Design first, per adapter:
+- Mapping rules to the same validated config object (the schema module
+  from Phase 0 stays the only place validation rules live).
+- XML needs an explicit decision on attributes vs elements and type
+  coercion (everything is a string); this is the riskiest adapter.
+- Format selection: by file extension, with a clear error for unknown ones.
+Per adapter: implement, run the Phase 0 validation tests against an
+equivalent fixture, add malformed-input tests.
+
+## 5. Phase 2 - Hot reload (only if gated in)
+Design questions to settle before finishing the watcher:
+- What happens when a reload fails validation? (Recommended: keep the last
+  good config and log the error.)
+- Which fields are safe to change at runtime? (e.g. log_level yes, api_url?)
+- How do consumers get the new values (callback, re-read, event)?
+- Debounce of editor save bursts; behavior if the file is deleted/renamed.
+Tests: valid edit, invalid edit, rapid edits, file removal.
+
+## 6. Phase 3 - Schema migration (only if gated in)
+Prerequisite: a second schema version must actually exist. With only one
+version there is nothing to migrate, so do not implement this before then.
+- Define the version field, the migration step interface, ordering, and
+  what happens on an unknown or newer version.
+- Implement the first real migration with before/after fixtures.
+
+## 7. Risks
+- Unrequested features add maintenance and test surface for zero current users.
+- Validation rules duplicated per adapter would drift; keep one schema module.
+- Half-wired watcher code in the main path can break startup; keep it
+  disabled or out of the startup path until Phase 2.
+```
+
+If a stakeholder has already decided all three features must ship this sprint, tell me. I'd then keep Phase 0 first and flag the open design questions in Phases 1–3 as blocking tasks ahead of the build tasks. Once I have file tools, I can also write this to `plan.md` for you.

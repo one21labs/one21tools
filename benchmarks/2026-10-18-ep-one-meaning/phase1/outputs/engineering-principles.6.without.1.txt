@@ -1,0 +1,30 @@
+I can't write `update.md` or edit anything. This session has no file or shell tools, and I haven't seen the full files, only the lines you quoted. Anything I called "complete updated content" would be invented. These steps will work in your terminal.
+
+**1. URL swap (all three spots, one command, about 5 seconds):**
+```bash
+sed -i 's#https://api.oldhost.com/v2#https://api.newhost.io/v2#g' scripts/fetch_users.py scripts/fetch_orders.py README.md
+grep -rn "oldhost" .   # should print nothing
+```
+
+**2. Retry and logging (optional).** Add this near the top of both scripts:
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
+
+session = requests.Session()
+session.mount("https://", HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])))
+```
+Then change the calls:
+- `fetch_users.py`: `requests.get(BASE + "/users")` becomes `session.get(BASE + "/users", timeout=10)`.
+- `fetch_orders.py`: `requests.get(url)` becomes `session.get(url, timeout=10)`.
+- After each call, add `resp.raise_for_status()` and `log.info("GET %s -> %s", resp.url, resp.status_code)`.
+
+**Recommendation:** run step 1 and test both scripts against the new host before you add step 2. That way, if something breaks before the demo, you'll know the cause is the retry and logging change and not the URL. The README needs only step 1.
+
+If you paste the full contents of the two scripts, I can give you the exact final versions to drop into `update.md`.

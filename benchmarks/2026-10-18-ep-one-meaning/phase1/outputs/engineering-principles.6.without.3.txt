@@ -1,0 +1,49 @@
+I can't write update.md. This session has no file or shell tools, and I can only see the snippets you pasted, not the full files. I won't invent complete file contents for you to paste over the real ones. Here's the fastest path you can run yourself.
+
+**1. URL swap (one command, covers all three spots):**
+```bash
+sed -i 's#https://api.oldhost.com/v2#https://api.newhost.io/v2#g' scripts/fetch_users.py scripts/fetch_orders.py README.md
+grep -rn oldhost . # should print nothing
+```
+
+**2. Retry and logging.** Add this block near the top of both scripts, after the imports:
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
+
+session = requests.Session()
+session.mount("https://", HTTPAdapter(max_retries=Retry(
+    total=3, backoff_factor=0.5, status_forcelist=(429, 500, 502, 503, 504))))
+```
+
+Then change the calls.
+
+In `fetch_users.py`:
+```python
+log.info("GET %s", BASE + "/users")
+resp = session.get(BASE + "/users", timeout=10)
+resp.raise_for_status()
+log.info("users: %s %d bytes", resp.status_code, len(resp.content))
+```
+
+In `fetch_orders.py`:
+```python
+log.info("GET %s", url)
+resp = session.get(url, timeout=10)
+resp.raise_for_status()
+log.info("orders: %s %d bytes", resp.status_code, len(resp.content))
+```
+
+Replace any existing `print` calls with `log.info`. I haven't seen the rest of your scripts, so I can't say where those are.
+
+**Notes:**
+- Do the sed step first and run both scripts once. That is the only change the demo depends on. If anything breaks after the retry and logging edits, you'll know which step caused it.
+- I added `timeout=10` because `requests.get` has no timeout by default. Without it, a hung connection stalls the demo.
+- I haven't run any of this.
+
+If you paste the full contents of the three files, I can give you the complete updated versions to drop into update.md.

@@ -1,0 +1,66 @@
+I can't write tasks.md. This session has no file-system or code-execution tools. The breakdown is below, ready to paste into `tasks.md`.
+
+I didn't reopen the plan. The plan leaves a few things unspecified, so I made each one an explicit task with a default you can accept or change. Those tasks are marked **[decide]**.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Goal: API endpoint that exports all of a user's data. Fast. Ship next week.
+
+## 0. Decisions (30 min total, do first; defaults in bold)
+- [ ] **[decide]** Format: **JSON** (easiest, lossless, nested data fits). Optional CSV later.
+- [ ] **[decide]** Who can call it: **authenticated user exporting only their own data**; admin export of any user is out of scope.
+- [ ] **[decide]** Sync vs async: **sync streaming if p95 export size is small; otherwise async job + download link** (see task 3).
+- [ ] **[decide]** Define "all of a user's data": list every table/store holding user data (task 1).
+
+## 1. Data inventory
+- [ ] List all tables/services/stores that hold user-owned data (profile, content, settings, activity, uploads metadata, etc.)
+- [ ] Mark per-source: include / exclude (e.g. internal flags, other users' data, secrets, password hashes, tokens)
+- [ ] Note any third-party stores that need separate handling
+- [ ] Estimate typical and worst-case export size per user
+
+## 2. Endpoint and auth
+- [ ] Add route, e.g. `GET /api/v1/users/me/export`
+- [ ] Authn + authz: user can only export their own data
+- [ ] Rate limit (e.g. 1-3 exports/hour/user) to protect the DB
+- [ ] Audit log entry for every export (user, time, IP)
+
+## 3. Export implementation
+- [ ] Per-source exporter functions returning plain serializable data
+- [ ] Assemble into one JSON document with a version field and timestamp
+- [ ] Stream the response (no building the full payload in memory); gzip
+- [ ] Paginate/batch DB reads for large tables
+- [ ] If worst-case size or latency is too high for sync: background job, status endpoint, expiring signed download URL
+
+## 4. Performance ("should be fast")
+- [ ] **[decide]** Target: **p95 under 5s for a typical user** (replace if the PM has a number)
+- [ ] Check indexes on user_id columns for every exported table
+- [ ] Avoid N+1 queries; use batched queries
+- [ ] Load test with a large synthetic user
+
+## 5. Security and privacy
+- [ ] Strip secrets, credentials, tokens, and internal-only fields
+- [ ] Make sure no other users' personal data leaks through shared records (comments, messages, etc.)
+- [ ] Set no-store cache headers; require recent auth or re-auth if the data is sensitive
+- [ ] Quick review by whoever owns privacy/compliance (the export likely backs GDPR/CCPA access requests)
+
+## 6. Testing
+- [ ] Unit tests per exporter
+- [ ] Integration test: user A cannot fetch user B's export
+- [ ] Test empty user, typical user, large user
+- [ ] Test rate limiting and unauthenticated access
+
+## 7. Docs and rollout
+- [ ] API docs and example response
+- [ ] Feature flag; enable internally first, then roll out
+- [ ] Basic metrics and alerts: latency, error rate, export size
+- [ ] Runbook note: how support handles failed or oversized exports
+
+## Suggested sequencing (about 1 week)
+- Day 1: tasks 0-1
+- Days 2-3: tasks 2-3
+- Day 4: tasks 4-5
+- Day 5: tasks 6-7, ship behind flag
+```
+
+The items I'd flag to the PM are the unspecified "all data" scope, the performance target, and who is allowed to call the endpoint. Settling them costs minutes now and avoids rework later. If you give me a working directory with file tools, I can write the file directly.

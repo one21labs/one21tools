@@ -1,0 +1,26 @@
+I'd build the seam now, not a full framework. With one exporter, any contract we design beyond the minimum is a guess about formats we haven't seen. The second exporter is what tells us whether the contract is right. The goal of "add a format without touching core" only needs three things.
+
+**Build now**
+1. **An exporter contract**: one small interface, e.g. `name`, `file_extension`, and `export(data, destination, options)`. It should also have a `validate_options` hook if exporters take settings.
+2. **A registry**: `register(exporter)` and `get(name)`, with a clear error listing available formats for unknown names. Core code only calls `registry.get(fmt).export(...)` and never imports a concrete exporter.
+3. **Discovery**: this decides whether core ever needs editing.
+   - If future devs work in this repo, drop-in discovery is enough. Core auto-imports every module in an `exporters/` package, and each module registers itself.
+   - If third parties ship separate packages, use the language's entry-point mechanism instead, such as Python entry points, npm package keywords, or Java ServiceLoader.
+4. **Port the existing exporter** onto the contract as the first plugin. This proves the seam works, and a contract test suite that any exporter must pass is the cheapest "documentation" for future devs.
+
+**Defer until a second exporter exists**
+- Contract versioning
+- Per-exporter config schemas
+- Lifecycle hooks
+- Sandboxing
+- Hot reload
+- Dependency resolution between plugins
+
+**Questions that change the design**
+- **Input shape**: what does the exporter receive? A fully materialized dataset, a stream, or a domain object? If the existing exporter reaches into core internals, the contract has to hide that, or a plugin can't be written without touching core.
+- **Output shape**: does it write to a file, a stream, or return bytes? Streaming and large-output needs are the most common reason a first contract breaks.
+- **Failure handling**: should a failing exporter abort the run, or report an error and continue? Who cleans up partial output?
+- **Audience**: in-repo devs or external packages? This picks the discovery mechanism in item 3.
+- **Selection**: is the format chosen by CLI flag, config, or file extension?
+
+I can't see your codebase in this session, so I haven't looked at the current exporter. If you tell me the language and paste the exporter (or its entry point), I'll turn this into a concrete interface, registry, and migration plan. Core code should also stop referring to the old exporter by name, so I'd check that too.

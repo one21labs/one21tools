@@ -1,0 +1,78 @@
+I can't write `plan.md` in this session because I have no file or code-execution tools. The full contents are below, so you can paste it into the file.
+
+I made one change to what you asked for. The plan ships the real requirement first, as a gated milestone. Then it covers the three unrequested components, each with a decision gate. The two weeks already spent don't change what finishing costs. YAML, TOML, XML, hot reload and migrations are about the same work whether or not the scaffolding exists. Each one also adds code to maintain, dependencies to track and failure modes to test, for a team that uses `config.json` and nothing else. If that cost isn't worth paying, I'd stop after Phase 0 and leave the scaffolding parked.
+
+```markdown
+# Config Subsystem Completion Plan
+
+## Problem
+The one consuming team needs the CLI to read `config.json` at startup and validate
+three fields: `api_url`, `team_id`, `log_level`. Nothing else has been requested.
+
+## Success criteria
+- Phase 0: CLI starts with a valid `config.json`, and exits non-zero with a clear
+  message naming the field when any of the three is missing or invalid.
+- Later phases: each is done only when its own criteria below are met.
+
+## Out of scope
+- Formats other than the ones named in a phase below.
+- Config writing, remote config, env-var overrides.
+
+## Source of truth
+- Field names, types and allowed values (`log_level` enum): one schema definition
+  in `config/schema.*`. Adapters, validators, migrations and docs refer to it.
+  None of them restate it.
+
+## Phase 0 — Ship the requirement (blocking, do first)
+| # | Task | Done when |
+|---|------|-----------|
+| 0.1 | Define the schema for the three fields (types, `api_url` format, `log_level` enum, required/optional, defaults) | Written in the schema file; the consuming team confirms it |
+| 0.2 | Wire the finished JSON adapter into startup | CLI loads `config.json` from the documented path |
+| 0.3 | Validation errors: field name, expected, actual; non-zero exit | Tests: missing file, malformed JSON, each field missing, each field invalid |
+| 0.4 | Release to the consuming team | Team confirms it works in their environment |
+
+Phases 1–3 do not start until 0.4 is done.
+
+## Phase 1 — Format adapters (YAML, TOML, XML)
+Decision gate: name the team or person who will use each format. A format with no
+named user is not built.
+| # | Task | Done when |
+|---|------|-----------|
+| 1.1 | Define the adapter contract: input bytes, output normalized dict, error type. Every adapter is checked against the same schema | Contract written once; JSON adapter conforms |
+| 1.2 | Format selection: by file extension, with explicit failure for unknown ones | Tested |
+| 1.3 | YAML adapter (pin the parser; use safe-load only) | Shared conformance suite passes |
+| 1.4 | TOML adapter | Shared conformance suite passes |
+| 1.5 | XML adapter (disable external entities; define how attributes/elements map to scalar fields) | Conformance suite passes, plus an XXE test |
+Open question: type coercion. YAML/TOML/XML parse scalars differently, such as
+`team_id: 007`. State the rule in the contract.
+
+## Phase 2 — Hot reload
+Decision gate: name the requirement. A CLI normally reads config once per run, so
+a long-running mode must exist first.
+| # | Task | Done when |
+|---|------|-----------|
+| 2.1 | Write the semantics: which fields may change at runtime, what happens on an invalid edit (keep last-good config and log), debounce interval, partial-write handling | Written and reviewed |
+| 2.2 | Finish watcher wiring against 2.1 | Tests: valid edit applies; invalid edit is rejected and the old config is kept; editor atomic-rename saves; file deleted |
+| 2.3 | Subscriber notification, with a defined unsubscribe | No leaked watchers after shutdown |
+
+## Phase 3 — Schema migrations
+Decision gate: there must be a second config version. With one schema version
+there is nothing to migrate.
+| # | Task | Done when |
+|---|------|-----------|
+| 3.1 | Choose where the version lives (`config_version` field) and the behavior for missing, unknown or newer versions | Written |
+| 3.2 | Implement the migration runner: ordered steps, each pure, fails closed | Tests for N→N+1 chains and a failing step |
+| 3.3 | Write the first real migration, driven by an actual schema change | Fixture of the old config migrates and validates |
+
+## Risks
+- Three unrequested subsystems add maintenance and test surface with no current user.
+- XML and YAML parsers bring security exposure (entity expansion, unsafe loaders).
+- Hot reload introduces concurrency and partial-read failure modes into a tool that
+  currently has none.
+
+## Order and review points
+Phase 0 → release → review whether Phases 1–3 still have a named requester →
+build only those that do.
+```
+
+Phase 0 is the only part I'd call sprint-critical. 0.1 is the item most likely to be skipped, because the schema for the three fields isn't written down anywhere you've mentioned. I also left out time estimates, since I don't know how much of each scaffold is already done.

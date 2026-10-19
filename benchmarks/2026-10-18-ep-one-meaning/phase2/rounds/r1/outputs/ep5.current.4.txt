@@ -1,0 +1,52 @@
+I can't write `tasks.md` from this session because I have no file-writing tool here. The full contents are below, so you can paste them in.
+
+I'm not relitigating the plan. But the plan as written leaves several things undefined that block the build, so I put them first as decision tasks. Each needs one short answer, not a meeting.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking, answer in <1 day, owner: PM/eng lead)
+
+- [ ] D1. Data scope: which tables/services count as "all of a user's data"? Include derived data, logs, third-party-held data? (Check whether this export is meant to satisfy GDPR/CCPA access requests; if so, scope is a legal requirement.)
+- [ ] D2. Format: confirm JSON as the "easiest" format (default assumption unless the PM says otherwise).
+- [ ] D3. Authorization: who may request an export? (Authenticated user for their own data only; admin/support access yes or no?)
+- [ ] D4. "Fast" target: define it. Sync response under N seconds, or async job with a download link? Give a max expected data size per user.
+- [ ] D5. Delivery: direct response, signed download URL, or email? Link expiry?
+- [ ] D6. Success criteria and rollback: what metric says it works, and what triggers pulling it?
+
+Defaults if no answer by end of Day 1: JSON, own-data-only, async job with expiring signed URL, scope = all tables keyed by user_id.
+
+## Phase 1: Design (after Phase 0)
+
+- [ ] T1. Inventory every data store holding user data and record the user key for each. Produce the single canonical list of exportable entities (one definition, referenced by the export code, not duplicated).
+- [ ] T2. Define the export schema/contract (fields, versioning, error responses). Exclude secrets: password hashes, tokens, internal flags.
+- [ ] T3. Write a short API spec: route, auth, request/response, status codes, rate limit.
+
+## Phase 2: Build
+
+- [ ] T4. Authentication/authorization check: the requester can only export their own data.
+- [ ] T5. Per-entity data collectors, driven from the T1 registry.
+- [ ] T6. Serializer for the chosen format.
+- [ ] T7. Endpoint implementation. If D4 is async, add job creation, status, and download.
+- [ ] T8. Performance: paginate or stream large datasets, with a query/timeout budget per D4.
+- [ ] T9. Rate limiting and abuse protection (e.g. 1 export per user per hour).
+- [ ] T10. Error handling and partial-failure behavior (fail the whole export rather than silently omit data).
+
+## Phase 3: Verify
+
+- [ ] T11. Unit tests per collector and serializer.
+- [ ] T12. Authorization tests: user A cannot fetch user B's export.
+- [ ] T13. Completeness test: a fixture user with data in every registered entity appears fully in the output.
+- [ ] T14. Load test against the D4 target, using the largest realistic user.
+- [ ] T15. Security review: sensitive fields excluded, download links expire, audit log written.
+
+## Phase 4: Ship
+
+- [ ] T16. Add audit logging and metrics (requests, duration, failures).
+- [ ] T17. Feature flag and staged rollout, with the rollback trigger from D6.
+- [ ] T18. Document the endpoint (generated from the spec in T3, not hand-copied).
+```
+
+The critical path to next week is D1, D3 and D4. If you can get those three answered today, the rest fits the timeline.

@@ -1,0 +1,133 @@
+I couldn't write `process-review.md`. This session has no file-writing tools, so the full document is below for you to save as-is.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because work spends most of its time waiting, not being worked on. Three queues stack up:
+
+1. The PR review queue (about 2 days).
+2. The wait on main for the release train (0 to 14 days, about 7 on average).
+3. The sequential sign-off chain at the end.
+
+Batching about 40 changes per release causes the stress. Every release is a large, hard-to-diagnose bet, so people add more manual ceremony, which makes releases heavier still. The fix is to make releases small, frequent and routine. The goal is to remove steps, not to add controls.
+
+## Current flow and where the time goes
+
+| Step | Cost | Value-adding? |
+|---|---|---|
+| PR opened, waits for review | ~2 days idle, per PR | Review is valuable. The waiting isn't. |
+| Merged, sits on main until the train | avg ~7 days idle, up to 14 | No, this is inventory |
+| Release manager hand-copies changelog from PR descriptions | ~40 manual copies per release | No |
+| QA, then EM, then PM sign-off in sequence | Each waits for the previous one | Mostly no. Only QA does verification. |
+| Hotfix follows the same path | An urgent one-line fix waits up to 14 days plus sign-offs | No, and it is risky |
+
+Lead time for a typical change is roughly 2 days of review wait, about 7 days waiting on main, and then the sign-off chain. Almost all of it is queue time.
+
+## Root cause analysis
+
+**Problem:** Shipping feels slow and each release is stressful.
+
+1. Why slow? Changes wait about a week on main after they are done.
+2. Why do they wait? Releases are on a fixed biweekly schedule, not triggered by readiness.
+3. Why a fixed train? Each release carries a fixed manual cost: a hand-built changelog and three sequential sign-offs. Batching amortizes that cost.
+4. Why is the cost fixed per release? Verification and approval happen at the release level, not at the change level. Nothing certifies a change as safe when it merges, so the release is where everything gets checked at once.
+5. **Root cause:** Safety is established at the end, in bulk and by people, not at merge time by the pipeline. That makes release cost high, which forces batching. Batching makes each release riskier, which justifies the heavy sign-offs.
+
+This is a loop that reinforces itself. Fixing a symptom, such as adding a faster sign-off, won't break it. The per-release fixed cost has to go away.
+
+**Secondary cause (hotfixes):** There is only one path, and it is designed for the batch. The system gives urgent work no way to bypass the train.
+
+**Secondary cause (changelog):** The changelog is a copy. The same fact is written in the PR description and again in the release document, by hand. Copies drift, and 40 hand copies per release is pure waste.
+
+## Recommendations
+
+Ordered by remove, then prevent, then detect.
+
+### 1. Make the changelog generated (remove the manual copy)
+- Make the PR the single source of truth for its changelog entry. Use a required PR-template field, or a label such as `changelog: feature|fix|none` plus the PR title.
+- Generate the release document from merged PRs. Delete the hand-copying step.
+- Add a CI check that fails a PR with no changelog field. That is cheap prevention, and the generator is the removal.
+- Effect: removes about 40 manual copies per release and the transcription errors that come with them.
+
+### 2. Release more often, in smaller batches (remove the train)
+- Move from biweekly to weekly, then to a trigger of "main is green and has changes".
+- Do this in stages, so each step is checked: weekly, then twice weekly, then on demand.
+- Use feature flags for work that isn't ready, so merge and release are decoupled.
+- Effect: a 40-change release becomes a 5-to-10-change release. Failures are easier to find and to roll back, and the stress drops.
+
+### 3. Shift verification to merge time (prevent)
+- Run automated tests, build and a staging deploy on every PR.
+- Have QA define and automate release-readiness checks, such as smoke tests and critical-path tests. QA stops signing off by hand on every release and owns the suite instead.
+- Add automated rollback or a documented one-step rollback, and canary or staged rollout where possible.
+- Effect: the release step becomes a button, not a ceremony.
+
+### 4. Replace three sequential sign-offs with a gate that matches risk
+- Today, all three people approve every release in sequence. That is three waits and mostly duplicate approval.
+- Proposed split:
+  - **Routine release** (green pipeline, no flagged high-risk change): no human sign-off. The automated gate is the approval.
+  - **High-risk release** (schema migration, auth or payments change, anything labelled `high-risk`): QA lead plus one accountable owner, in parallel, not in sequence.
+- The PM's job is deciding what ships, which flags and launches to turn on. That is a product decision, made separately from deploying code.
+- Effect: removes up to three sequential waits for routine releases.
+
+### 5. Add a hotfix path (remove the wait for urgent work)
+- Define a hotfix as an urgent production fix, with explicit criteria.
+- Path: PR, fast review (on-call reviewer, target under 2 hours), automated tests, deploy. Notify the EM and QA after, not before.
+- Keep a short post-hoc review so the fast path isn't abused.
+- Effect: an urgent fix ships in hours, not up to 14 days.
+
+### 6. Cut review wait (the 2 days)
+- Set a review SLA, for example first response within 4 working hours, and make it visible.
+- Keep PRs small. Small PRs get reviewed faster and are safer. With smaller releases, this follows naturally.
+- Rotate a daily review owner so PRs don't wait for a volunteer.
+- Add auto-assignment (CODEOWNERS or similar) and a stale-PR nudge.
+
+## Sequencing
+
+Do these in this order, because each step makes the next safer:
+
+1. **Generated changelog** (1). Low risk, immediate saving, and no policy change needed.
+2. **Hotfix path** (5). It fixes the worst failure mode and needs little else.
+3. **Review SLA** (6). Process-only, quick to start.
+4. **Automate release-readiness checks** (3). This is the prerequisite for items 5 and 6 below.
+5. **Risk-tiered sign-off** (4), once the automated gate can be trusted.
+6. **Increase release cadence** (2), stepping from biweekly to weekly to on-demand.
+
+## Success criteria and how to check them
+
+I haven't measured the current numbers beyond the averages you gave, so first capture a baseline. Then predict each result and compare after four to six weeks.
+
+| Metric | Today | Target |
+|---|---|---|
+| PR time to first review | ~2 days | under 4 working hours |
+| Merge-to-production lead time | ~7 days avg, up to 14 | under 1 day |
+| Changes per release | ~40 | under 10 |
+| Hotfix time to production | up to 14 days plus sign-offs | under 4 hours |
+| Manual changelog entries per release | ~40 | 0 |
+| Change failure rate and time to restore | unknown | measure first, then hold or improve |
+
+**Check for the hotfix path:** trigger a dry-run urgent fix (a trivial change labelled hotfix) and confirm it reaches production within the target without the train or the three sign-offs. Don't rely on "we'll see how it goes".
+
+## Risks and open questions
+
+- **Quality risk.** Faster releases are only safe if the automated gate is good. If test coverage is weak, fix that first (step 4) and release faster after it.
+- **Compliance.** I don't know if the three sign-offs exist for audit or regulatory reasons. If so, keep the evidence but collect it automatically (pipeline logs, PR approvals), and don't keep the sequential waits.
+- **Unknowns to confirm before building:**
+  - Current test coverage, test runtime and CI reliability.
+  - Whether deployment is already automated, and how rollback works today.
+  - The reason each approver is required (QA: verification. EM: capacity or risk. PM: what ships).
+  - Whether feature flags are available.
+  - Change failure rate today, so improvement can be shown.
+- **Change management.** The sign-off roles lose a ritual, not their influence. Explain what each role now owns, such as the QA suite, the risk tiers and the launch decisions.
+
+## What not to do
+
+- Don't add a faster or parallel version of all three sign-offs and stop there. It speeds up the wrong step and leaves the batching in place.
+- Don't speed up the train without the automated gate. That makes the stressful release more frequent without making it safer.
+- Don't leave the changelog as a manual task with a better template. Generate it.
+
+---
+
+If you'd like, I can also turn this into an HTML page you can share with the team once you've confirmed the baseline numbers.

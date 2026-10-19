@@ -1,0 +1,63 @@
+I can't write `plan.md` in this session because I have no file tools. The full contents are below, so you can paste them in. I wrote the plan you asked for, but one thing needs your call first.
+
+**My recommendation is not to finish the YAML, TOML, XML, hot-reload and migration work this sprint.** Nobody has asked for any of it. The two weeks already spent are gone whether or not you finish, and completing the work only adds more code to test and maintain. The team's actual requirement (read `config.json`, validate three fields) is already met by the finished JSON adapter plus a validator. So the plan puts shipping that requirement first and puts each speculative item behind a gate that needs a named requester. If you want everything built regardless, Phases 2 to 4 are the full completion plan.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Goal and success criteria
+- Requirement (from the one consuming team): at startup, read `config.json` and validate `api_url`, `team_id`, `log_level`.
+- Done when: a valid file loads; each invalid or missing field fails fast with a message naming the field and the problem; the team confirms it works in their environment.
+
+## Status
+| Component | State |
+|---|---|
+| Adapter architecture + JSON adapter | Done |
+| YAML / TOML / XML adapters | Scaffolded only |
+| Hot-reload watcher | Half wired |
+| Migration framework | Interfaces only |
+| Validation of the 3 fields | Not started (verify) |
+
+## Open decisions (resolve before Phases 2-4)
+1. Who requested YAML/TOML/XML, hot reload, or migrations? If nobody, each phase stays deferred.
+2. Validation rules: `api_url` (scheme required? https only?), `team_id` (type/format), `log_level` (allowed values, case sensitivity).
+3. Error contract: exit code and message format on invalid config.
+4. Unknown fields: reject, warn, or ignore?
+5. Ownership and maintenance: who owns four formats, a watcher, and migrations after this sprint?
+
+## Phase 1: Ship the requirement (this sprint, required)
+1. Define the three-field schema in one place (SSoT); validator, errors and docs all reference it.
+2. Implement the validator and fail-fast startup path using the JSON adapter.
+3. Tests: valid file; each field missing; each field wrong type or value; malformed JSON; missing file.
+4. Hand to the consuming team and get written confirmation.
+Exit: team confirms; Phase 1 tests pass.
+
+## Phase 2: Remaining adapters (gate: a named requester for a specific format)
+Build per format only when requested. For each of YAML, TOML, XML:
+- Complete the adapter against the existing interface.
+- Normalize to the same internal structure as JSON, then reuse the Phase 1 validator unchanged.
+- Cross-format conformance test: the same logical config in every format yields identical results.
+- Document format quirks (XML attribute vs element mapping, YAML implicit typing such as `no` becoming boolean, TOML datetimes).
+- Add the parser dependency and review its security posture (XML especially: disable external entities).
+Order by demand; XML is likely the costliest.
+
+## Phase 3: Hot reload (gate: a requester with a use case that restart can't meet)
+- Finish watcher wiring; debounce rapid writes; handle atomic-replace saves (editors that write temp file and rename).
+- On reload, validate before swapping; on failure keep the last good config and log the error.
+- Define how consumers learn of changes (callback or event) and whether log_level changes apply live.
+- Tests: valid change, invalid change, deleted file, rapid successive writes, watcher shutdown without leaks.
+
+## Phase 4: Migrations (gate: a second config version actually exists)
+- No implementation until there is a real v2 to migrate to; interfaces are untestable without one.
+- When triggered: version field in the file, ordered migration steps, dry-run, backup before rewrite, tests for each step plus a chain from v1 to latest.
+
+## Risks
+- Untested speculative code ships to users and breaks without anyone noticing.
+- Added parser dependencies widen the attack surface (XML and YAML especially).
+- Half-wired watcher can fail at runtime if it is reachable from startup now; confirm it is disabled or unreferenced for Phase 1.
+
+## Recommended handling of unfinished code
+Leave scaffolds in a branch or behind an unexported module, marked unsupported, rather than deleting them; revisit at each gate.
+```
+
+If you want, give me the schema rules for the three fields. I can then tighten Phase 1 into a task breakdown with estimates.

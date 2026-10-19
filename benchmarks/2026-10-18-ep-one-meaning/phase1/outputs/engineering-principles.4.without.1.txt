@@ -1,0 +1,89 @@
+I can't write `plan.md` in this session because I have no file tools, so the full text is below to paste in. I made one structural choice: the plan ships the real requirement first, then completes the three unrequested pieces behind it. The two weeks of work aren't wasted either way, but nothing unrequested should be able to block the sprint's one real deliverable.
+
+```markdown
+# Config Subsystem: Sprint Completion Plan
+
+## Goal
+Finish the config subsystem this sprint. The one consuming team needs exactly this:
+read `config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+Everything else (YAML/TOML/XML adapters, hot reload, migrations) is architecture
+we built ahead of demand. We complete it, but only after the requirement ships.
+
+## Current state
+| Component | Status |
+|---|---|
+| Format-adapter architecture | Done |
+| JSON adapter | Done |
+| YAML / TOML / XML adapters | Scaffolded only |
+| Hot-reload file watcher | Half wired |
+| Schema-migration framework | Interfaces only, no implementation |
+| Validation of api_url / team_id / log_level | Confirm status (see Phase 0) |
+
+## Phase 0: Ship the requirement (first, release-blocking)
+- [ ] Startup path: locate and read `config.json` through the JSON adapter.
+- [ ] Validate `api_url` (present, well-formed URL, scheme allowed).
+- [ ] Validate `team_id` (present, expected type and format).
+- [ ] Validate `log_level` (present, one of the allowed levels).
+- [ ] Clear, actionable errors: name the field, the bad value, and the expected form. Non-zero exit on failure.
+- [ ] Tests: valid config, each field missing, each field invalid, missing file, malformed JSON.
+- [ ] Cut a release and notify the consuming team.
+
+Exit criteria: the team can use the tool with their `config.json`. This phase
+must not depend on any later phase.
+
+## Phase 1: Remaining adapters (YAML, TOML, XML)
+Order by likely future demand and implementation risk: YAML, TOML, XML.
+For each adapter:
+- [ ] Implement parse into the same internal config model the JSON adapter produces.
+- [ ] Map parse errors to the shared error type, with file position where available.
+- [ ] Decide and document type-coercion rules (YAML implicit typing, e.g. `no` -> false; XML attributes vs. elements).
+- [ ] Format auto-detection by extension; the explicit format flag wins.
+- [ ] Shared conformance suite: the same logical config in all four formats must yield an identical model and identical validation results.
+- [ ] Use a vetted parser library per format. Do not hand-roll parsers. For XML, disable external entities (XXE).
+
+Exit criteria: the conformance suite passes for all four formats.
+
+## Phase 2: Hot-reload watcher
+- [ ] Finish wiring the watcher to the loader and validator.
+- [ ] Debounce rapid events (editors write via temp-file-and-rename).
+- [ ] Validate before applying. An invalid new config keeps the last good one and logs the error.
+- [ ] Apply atomically so readers never see a half-updated config.
+- [ ] Define the subscriber/notification contract for components that care about changes.
+- [ ] Handle delete, rename, and permission errors.
+- [ ] Off by default behind a flag (`--watch-config`) until the team wants it.
+- [ ] Tests: rapid writes, invalid edit, delete and recreate, watcher shutdown (no leaked handles).
+
+Exit criteria: editing a valid file updates the running config. An invalid edit is rejected with the old config retained.
+
+## Phase 3: Schema-migration framework
+- [ ] Define the version field and the behavior when it is absent (treat as v1).
+- [ ] Implement the migration runner: ordered, chained steps from vN to current.
+- [ ] Migrate in memory by default. Writing back to disk is opt-in and keeps a backup.
+- [ ] Refuse configs with a version newer than the tool supports.
+- [ ] Ship with a no-op v1 baseline and one real example migration, to prove the path.
+- [ ] Tests: each step, chained steps, missing version, future version, a failing step (no partial state).
+
+Exit criteria: a v1 config loads through the runner, and a synthetic v1->v2 migration is tested end to end.
+
+## Sequencing and checkpoints
+1. Phase 0 completes and releases first.
+2. Phases 1-3 are independent of each other and can run in parallel.
+3. Mid-sprint checkpoint: if Phase 0 has slipped, pause Phases 1-3.
+4. Anything unfinished at sprint end ships disabled or unexported, not half-working.
+
+## Risks
+- Unrequested features carry ongoing maintenance and bug surface for a tool with one user.
+  Mitigation: keep them off by default and fully covered by tests.
+- YAML typing quirks and XML mapping ambiguity can produce silent misreads. Mitigation: the conformance suite.
+- Migrations with no real prior versions are speculative. Mitigation: keep them minimal until a v2 schema exists.
+
+## Open questions for the team
+- Does the consuming team want any of YAML/TOML/XML, hot reload, or migrations? If not, who is the intended user?
+- Should the unfinished pieces be documented as experimental?
+```
+
+Before the sprint starts, you might check Phase 0. You described the adapter, watcher and migration work in detail but didn't say whether the three-field validation is finished. If it isn't, that's the only part anyone is waiting on.
+
+I also wouldn't count the unrequested work as waste. The adapters, watcher and migrations are speculative, and finishing them costs real time and adds maintenance for a tool with one user. If the sprint is tight, the cheapest option is to release Phase 0 now and leave the scaffolding in place until someone asks for it.
+
+If you give me a writable environment, I can save this as `plan.md` and tailor it to your repo's file and module names.

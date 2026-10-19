@@ -1,0 +1,51 @@
+I can't open your project in this session, so this is the design to agree on before any code. The checklist has gaps only you can fill, and I've listed them at the end without proposing defaults.
+
+## Design: exporter plugin framework
+
+**Problem:** Adding an exporter format currently means editing core code. Success is when a new format ships as a separate module or package, with zero diffs in core.
+
+**Not in scope:** importers, plugin sandboxing, and a plugin marketplace.
+
+### Components, each with one reason to change
+
+| Component | Responsibility | Changes when |
+|---|---|---|
+| **Exporter contract** | The interface every exporter implements: a `format_id`, a `contract_version`, and an `export(input, destination, options)` method | The export semantics change |
+| **Registry** | Maps `format_id` to exporter. Rejects duplicate IDs. Is the only way core looks up an exporter | Lookup rules change |
+| **Discovery** | Finds and loads plugins and registers them. This is the mechanism that makes "no core changes" true | The packaging or loading mechanism changes |
+| **Core caller** | Asks the registry for `format_id` and calls `export`. It never imports a concrete exporter | The export workflow changes |
+| **Current exporter** | Becomes the first plugin, loaded through discovery like any other | Its own format changes |
+| **Contract test suite** | A reusable test that any exporter can run against itself | The contract changes |
+
+**Port the existing exporter as plugin #1.** If core still imports it directly, the framework is unproven and "no core changes" is untested. This also removes the special case from core, so there is one path rather than two.
+
+### Single sources of truth
+- **Contract:** one definition. Plugins import it, and core and the docs refer to it.
+- **Format IDs:** each exporter declares its own ID once. Core has no list or enum of formats. The CLI and UI help text should be generated from the registry.
+- **Contract version:** one constant. Discovery compares it with each plugin's declared version.
+
+### Data flow and failure modes
+`core → registry.get(format_id) → exporter.export(...)`
+
+Define each of these failures explicitly:
+- Unknown `format_id`: a clear error that lists the registered formats.
+- Duplicate ID: fail at load time, not silently last-wins.
+- Plugin fails to import or has a version mismatch: skip it and log, or abort the run. This needs a decision.
+- Exporter raises mid-export: a contract-level error type, and a rule for partial output cleanup.
+
+### Quality
+- **Testability:** the contract test suite is the main deliverable for future developers.
+- **Docs:** one short "write an exporter" page that links to the contract rather than restating it.
+- **Verification of "no core changes":** add a throwaway second exporter in a test, outside core, and confirm it is picked up with no core diff.
+
+## Open questions (answers needed before building)
+1. **Language and runtime:** this decides the discovery mechanism (entry points, a plugin directory, a manifest, or something else).
+2. **Where plugins live:** in-repo, separate packages, or both. Who installs them?
+3. **Export inputs and outputs:** what data does an exporter receive, and does it write a file, a stream, or return bytes?
+4. **Per-format options:** how are they declared and validated? Does core need to know about them (CLI flags, for example)?
+5. **Failure policy:** should a broken plugin stop the run or just be skipped?
+6. **Trust:** are plugins only ever first-party code, or could third-party code be loaded?
+7. **Contract stability:** is there any external consumer who would need versioning guarantees?
+8. **Success measure:** is "a new format needs zero core diff" enough, or is there more?
+
+Send me the language, the existing exporter's code or its interface, and answers to the questions above. Then I'll turn this into an ordered task list: decisions first, then the contract and registry, then discovery, then porting the exporter, then the contract tests and the proof-of-concept second exporter.

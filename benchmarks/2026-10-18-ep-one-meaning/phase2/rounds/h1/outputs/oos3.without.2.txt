@@ -1,0 +1,70 @@
+I can't open your project in this session, so I haven't seen the existing exporter or the language it's written in. Here is the design I'd build. I've sketched it in Python, and it translates directly to other languages.
+
+## Design
+
+**1. A small contract.** Every exporter implements one interface, and core code only ever sees that interface.
+
+```python
+# core/exporters/base.py
+from abc import ABC, abstractmethod
+from typing import ClassVar, IO
+
+class Exporter(ABC):
+    name: ClassVar[str]              # "csv", "json", ...
+    file_extension: ClassVar[str]    # ".csv"
+    api_version: ClassVar[int] = 1   # lets core reject incompatible plugins
+
+    def __init__(self, options: dict | None = None):
+        self.options = options or {}
+
+    @abstractmethod
+    def export(self, records: Iterable[Record], out: IO) -> None: ...
+```
+
+**2. A registry.** It maps names to classes and is the only thing core talks to.
+
+```python
+# core/exporters/registry.py
+_registry: dict[str, type[Exporter]] = {}
+
+def register(cls):
+    if cls.name in _registry:
+        raise ValueError(f"Duplicate exporter: {cls.name}")
+    _registry[cls.name] = cls
+    return cls
+
+def get(name: str) -> type[Exporter]:
+    try:
+        return _registry[name]
+    except KeyError:
+        raise UnknownExporter(name, available=sorted(_registry))
+
+def available() -> list[str]:
+    return sorted(_registry)
+```
+
+**3. Discovery with no core edits.** I'd use two sources:
+- **Entry points** (`importlib.metadata.entry_points(group="one21tools.exporters")`) for third-party packages. A dev ships a package, and core never changes.
+- **A plugin directory** (`exporters/` scanned with `pkgutil.iter_modules`) for in-repo formats. Dropping in a file is enough, and the `@register` decorator runs on import.
+
+A broken plugin gets logged and skipped, so one bad exporter can't take down the tool.
+
+**4. Core is format-agnostic.**
+- The CLI or API takes `--format <name>`, with choices built from `registry.available()`.
+- The existing exporter is migrated to a registered plugin, with no behavior change and its old tests kept.
+- If `--format` is missing, the current exporter stays the default, so nothing breaks for existing users.
+
+**5. Developer experience.**
+- A `tests/test_exporter_contract.py` runs against every registered exporter. It checks the required attributes, that output is written to the stream, and that empty input works. A new plugin gets coverage for free.
+- A short `docs/writing-an-exporter.md` with a ~20-line template.
+- Optional per-exporter options validation, using a `dict` or a dataclass schema.
+
+## Things I'd deliberately leave out for now
+Plugin sandboxing, hot reload, and dependency resolution between plugins. None of them are needed with one exporter in place, and they are easy to add later behind the same registry.
+
+## What I need from you
+1. **Language and layout:** is this Python, and where does the current exporter live? Pasting the file, or its path if you give me access, is the fastest way.
+2. **Third-party plugins:** will they ship as separate packages (entry points), or only live in this repo (directory scan)? If you're unsure, I'd do both as above.
+3. **Input and output shape:** does the exporter write to a file path, a stream, or return bytes? This decides the `export` signature.
+
+Once I have those, I'll implement the base class, registry, discovery, the migration of the current exporter, the contract tests, and the docs.

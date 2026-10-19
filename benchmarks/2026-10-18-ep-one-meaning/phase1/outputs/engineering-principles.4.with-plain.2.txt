@@ -1,0 +1,85 @@
+I can't write `plan.md` in this session because I have no file tools here. The full text is below, ready to paste. I did one thing you didn't ask for: the plan puts the actual requirement first and makes the optional work a gated stretch.
+
+I did that because the two weeks already spent are gone whether or not you finish the extras. Finishing YAML, TOML, XML, hot reload and migrations adds code to maintain for a team that asked for none of it. Your remaining sprint time buys a shipped tool or a bigger unused subsystem. If you still want the full build, Phases 2–4 are written so you can do it.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Problem and requirement (source of truth)
+The one consuming team needs the CLI to read `config.json` at startup and
+validate three fields: `api_url`, `team_id`, `log_level`.
+Nothing else has been requested. Other formats, hot reload and migrations are
+speculative: no user, no stated need.
+
+## Success criteria
+- CLI starts with a valid `config.json` and exposes the three fields.
+- CLI exits non-zero with a message naming the field and the problem when
+  any field is missing or invalid.
+- The consuming team confirms it works in their environment.
+
+## Scope
+In: Phase 1 (required), Phases 2-4 (optional, gated).
+Out: any format, reload or migration behavior beyond what is listed below.
+
+## Phase 0: Decision gate (day 1, 30 min)
+Ask the consuming team: do you need YAML/TOML/XML, live reload, or versioned
+config upgrades? Record the answer here.
+- All "no": do Phase 1 only. Park Phases 2-4 on a branch, unmerged.
+- Any "yes": do only the matching phase(s), and add that team's
+  need as the success criterion for the phase.
+
+## Phase 1: Ship the requirement (required)
+1. Define the three-field schema once (single module, e.g. `schema.*`):
+   types, allowed `log_level` values, `api_url` format rule, `team_id` rule.
+   Every adapter and the validator refer to it; no field rules elsewhere.
+2. Wire the finished JSON adapter -> schema validation -> startup.
+3. Error handling: missing file, unreadable file, malformed JSON, missing
+   field, wrong type, bad value. Each gives one message naming the field.
+4. Tests: one per failure case above plus a valid config.
+5. Hand to the consuming team for confirmation.
+Exit: success criteria met.
+
+## Phase 2: Other format adapters (only if Phase 0 says yes)
+Per requested format only (not all three by default):
+- Implement the adapter to return the same plain structure the JSON
+  adapter returns; validation stays in the shared schema, not in adapters.
+- Format selection: by file extension, one rule, defined in the adapter registry.
+- Tests: valid file and malformed file per format, plus the same three-field
+  validation cases through that adapter.
+- XML only: decide before building how attributes, repeated elements and
+  namespaces map to the structure; write that mapping down first.
+Exit: requesting team confirms their file loads and fails correctly.
+
+## Phase 3: Hot reload (only if Phase 0 says yes)
+Decide before building (currently undefined):
+- On a change that fails validation: keep the last good config and log the error.
+- How consumers learn of a change (callback, re-read on access).
+- Debounce interval and editors that save via rename/replace.
+- Which fields are safe to change at runtime (e.g. is `api_url`?).
+Then finish the half-wired watcher to that spec.
+Tests: valid edit applies, invalid edit is rejected and old config kept,
+rapid successive saves, file replaced by rename, file deleted.
+Exit: tests pass and the requesting team confirms the behavior.
+
+## Phase 4: Schema migration (only if Phase 0 says yes)
+Precondition: a second config version actually exists. Without one there is
+nothing to migrate to, so do not implement.
+- Define where the version number lives in the file and what a missing
+  version means.
+- Implement one migration for the real v1 -> v2 change, with a test
+  using a real v1 file.
+- Failure: unknown or newer version gives a clear error and no partial write.
+Exit: real v1 file loads as v2.
+
+## Risks
+- Unused code paths rot and add review/maintenance cost for no user.
+  Mitigation: Phase 0 gate; unneeded work stays unmerged.
+- Format adapters drift in validation behavior. Mitigation: validation lives
+  only in the shared schema.
+
+## Open questions (must be answered before the matching phase)
+- Does the consuming team need any of Phases 2-4? (Phase 0)
+- Validation rules for each of the three fields (Phase 1, item 1).
+```
+
+Two things to confirm. First, I don't know whether the three-field validation itself is done, because you said only that the JSON adapter is finished. If validation is missing, Phase 1 is your real remaining work. Second, the Phase 0 question to the consuming team costs almost nothing and settles most of this. If they say yes to something, that phase gets built against a real user.

@@ -1,0 +1,50 @@
+I can't write `tasks.md` from this session because I have no file tools here. The full contents are below, ready to paste. I'm not reopening the plan. The approved plan leaves several things unstated, though, and building without them will cause rework. I've put those first as short decision tasks, each with a proposed default so nobody has to stall on them. Confirm or override the defaults in minutes, not another meeting.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (blocking, ~1 hour total)
+Each has a proposed default. Confirm or override, then record the answer in the one place noted.
+
+- [ ] D1. Scope of "all of a user's data": list every table/store that holds user data.
+      Default: every table with a user_id FK, plus uploaded files as links, excluding other users' data and internal/audit fields.
+      Record in: `export/manifest.*` (single source of truth for what is exported, see T2).
+- [ ] D2. Format. Default: JSON (one file, versioned schema). Revisit CSV only if a stakeholder asks.
+- [ ] D3. Who can call it, and for whom. Default: authenticated user exports only their own data; admin export is out of scope.
+- [ ] D4. "Fast" as a number. Default: p95 under 5s for the median user. Anything larger runs as an async job.
+- [ ] D5. Sync or async delivery. Default: sync below a row-count threshold, async job plus download link above it.
+- [ ] D6. Sensitive fields (password hashes, tokens, other users' PII in shared records). Default: excluded. Confirm with security/legal.
+- [ ] D7. Abuse limits. Default: 1 export per user per hour.
+- [ ] D8. Success criteria and rollback. Default: feature flag, off-switch without redeploy.
+
+## Phase 1: Foundation
+- [ ] T1. Add feature flag `user_data_export` (default off).
+- [ ] T2. Create the export manifest: one definition of which entities and fields are exported (from D1/D6). Serializers, tests, and docs all read it; do not repeat the list anywhere else.
+- [ ] T3. Define the export schema and version number in one place (from D2).
+
+## Phase 2: Build
+- [ ] T4. Data collectors: one per entity in the manifest, streaming/paginated reads, scoped strictly to the requesting user_id.
+- [ ] T5. Serializer: assemble collector output into the schema (T3), streaming to avoid loading everything into memory.
+- [ ] T6. Endpoint `GET/POST /users/me/export`: authn/authz (D3), rate limit (D7), request validation.
+- [ ] T7. Sync path (below threshold) and, if D5 chooses it, async job, status endpoint and expiring download link.
+- [ ] T8. Error handling: partial-failure behavior (fail the whole export, never return a silently incomplete one), clear error codes.
+- [ ] T9. Audit log entry for every export request.
+
+## Phase 3: Verify
+- [ ] T10. Tests: user A cannot get user B's data; excluded fields never appear; every manifest entity is present; schema validates.
+- [ ] T11. Performance test against D4 using a large synthetic user; confirm the threshold in D5.
+- [ ] T12. Failure-injection test: make one collector fail and confirm the export errors instead of returning partial data.
+
+## Phase 4: Ship
+- [ ] T13. API docs generated from the schema (T3); no hand-copied field lists.
+- [ ] T14. Metrics and alerts: request count, latency, failures.
+- [ ] T15. Staged rollout behind the flag; internal users first, then percentage, then all.
+- [ ] T16. Rollback check: turn the flag off and confirm the endpoint returns disabled.
+
+## Critical path for next week
+D1–D8 (today) → T2/T3 → T4–T6 → T10 → T15. T7 async, T9, and T14 can slip a day if needed. T10, T12, and the scoping tests in T10 should not slip.
+```
+
+D1, D3, and D6 carry the most risk. The plan says "all of a user's data" with no scope or access rule, and that is where a data-export endpoint turns into a privacy incident if it's wrong. If you tell me your answers to those three, I can tighten the tasks. If you give me a working directory with file tools, I can write the file myself.

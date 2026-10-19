@@ -1,0 +1,151 @@
+I can't write `rca.md` in this session because it has no file-writing tools. The full document is below, ready to save as `rca.md`.
+
+---
+
+# Post-Incident Analysis: Empty customer export delivered to client (third occurrence)
+
+**Date:** 2026-10-18
+**Status:** Draft for team review
+**Blameless:** This analysis asks what let the failure happen, not who triggered it.
+
+## 1. Summary
+
+For the third time in two months, the nightly customer-export job wrote an empty file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first.
+
+The trigger was different each time:
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed without the manual verification step (wiki: "run once by hand, eyeball row count") | Empty file, exit 0, client noticed |
+
+Only the trigger varies. The failure path is identical every time.
+
+## 2. Impact
+
+- Clients received empty exports on three occasions. We found out from the client each time.
+- **To fill in:** affected clients, the delay before correct data was delivered, any SLA or contract consequences, and the time to detect and to remediate each occurrence.
+
+## 3. Root cause analysis
+
+### Branch A: why did an empty file reach the client?
+
+1. **Why did the client get an empty file?** The job wrote zero rows and delivery proceeded normally.
+2. **Why did delivery proceed?** Nothing between "file written" and "file delivered" checks that the file has content.
+3. **Why did the job exit 0 on zero rows?** The job treats "no error raised" as success. Zero rows is not defined as a failure, and in incident 2 a credential error was swallowed.
+4. **Why was that never caught?** The job has no stated success criterion beyond "didn't crash." An export that returns no rows for a populated customer base was never defined as invalid.
+5. **Root cause A:** The job's definition of success is "exited without exception" rather than "produced a valid export." Delivery is not gated on output validity.
+
+### Branch B: why did nobody get alerted?
+
+1. **Why did nobody know until the client called?** No alert fired.
+2. **Why no alert?** Monitoring checks only the exit code.
+3. **Why only the exit code?** It is the cheapest signal available, and it was assumed to mean "the job worked."
+4. **Root cause B:** Monitoring observes process health, not output health. With A in place, process health is a false signal.
+
+### Branch C: why did the third trigger (the unverified query change) reach production?
+
+1. **Why was the broken query deployed?** The verification step wasn't run.
+2. **Why wasn't it run?** It is a manual step that exists only in a wiki page.
+3. **Why does a manual wiki step guard a client deliverable?** The guard depends on people remembering, finding and following it. Nothing enforces it in the change path, and it is not part of review, CI or deployment.
+4. **Why was a six-week engineer relying on it?** Onboarding and review don't surface it, and nothing forces it.
+5. **Root cause C:** The control for query changes is a human memory task, not a system property. The step also asks for an eyeball check ("looks like a plausible row count"), which has no defined pass threshold.
+
+"Priya skipped the step" is not a root cause. The system allowed a single skipped step to reach a client, and any new or rushed engineer would have been equally exposed.
+
+### Why A, B and C share a pattern
+
+Incidents 1 and 2 had triggers that no wiki step would have caught. A schema rename and an expired credential can happen with no query change at all. This is why the problem recurred: each time we fixed or documented the trigger, and the unguarded failure path stayed open. Root causes A and B are the ones that let all three incidents through. C only explains why the third trigger was possible.
+
+## 4. Countermeasures
+
+Ordered by the elimination ladder: remove the failure path first, then prevent it, then detect it. Guards are added only where deletion isn't possible.
+
+### Eliminate
+
+**E1. Make delivery impossible for an invalid export.** The delivery step refuses to send a file that fails validation, and this check lives in the pipeline, not in anyone's memory.
+- Minimum validation: row count > 0, plus a header/schema check.
+- Better: compare the row count against an expected baseline, such as a tolerance band around the trailing N-day count or a count straight from the source table. Zero rows should fail by definition, but a 95% drop should also fail.
+- This removes the "empty file silently delivered" outcome for every trigger, including ones we haven't seen yet.
+
+**E2. Delete the swallowed-error path.** Remove the catch-and-continue behavior around credentials and DB access so the job fails loudly. Audit every `try/except` or equivalent in the job and delete any handler that turns an error into a normal return.
+
+**E3. Delete the manual wiki verification step as a control.** Replace it with E1. The step can stay in the wiki as optional guidance, but nothing should depend on it.
+
+### Prevent
+
+**P1. Pre-deploy query check.** When the export query changes, CI runs it against a test or staging dataset and asserts non-empty, schema-correct output. This is the automated version of "run it by hand and eyeball the count," with a defined pass condition.
+
+**P2. Schema-change coupling.** Schema renames should run the export's contract test, so incident-1-style breakage fails before deploy. **To confirm:** whether a place exists where schema migrations and export queries can be linked.
+
+### Detect
+
+**D1. Alert on output, not process.** Alert on:
+- zero rows
+- row count outside the expected band
+- a missing or late file
+- a delivery that happened without a passing validation record
+
+**D2. Fail closed on missing signal.** If the validation record is absent, treat it as a failure, not a pass.
+
+**D3. Alert routing.** Alerts go to the on-call channel for the data platform, not just a dashboard someone has to look at.
+
+### Process
+
+**PR1. Define the job's success criteria in writing.** One definition of "valid export" (non-empty, schema match, count within the baseline). The job, CI and the monitors all reference this one definition and don't restate it. This is the single source of truth, so the three checks can't drift apart.
+
+**PR2. Review the checklist gap, not the person.** Add "how would this change fail silently?" to the review template for changes to client-facing jobs. Treat Priya's onboarding as a data point that implicit knowledge isn't reaching new engineers, and fix it by moving that knowledge into the pipeline (E1, P1) instead of into more docs.
+
+**PR3. Audit sibling jobs.** Any other job with exit-code-only monitoring and an external delivery is exposed to the same failure. List them, rank by client impact, and apply E1 and D1 to the top ones first.
+
+## 5. Priorities
+
+Highest value first:
+1. **E1 + D1** (validation gate and output alert). These close the failure path for all three past triggers and for unknown future ones.
+2. **E2** (stop swallowing errors).
+3. **P1** (CI check on query changes).
+4. **PR1 and PR3.**
+5. Everything else.
+
+## 6. Verification
+
+"We'll monitor going forward" doesn't count as verification. Each test below injects the failure and confirms the safeguard fires:
+
+| Countermeasure | Test | Pass condition |
+|---|---|---|
+| E1 | Run the job against a query that returns zero rows (reproduces incident 3) | Delivery is blocked, nothing sent to the client, the job is marked failed |
+| E1 | Point the job at a renamed or missing column (reproduces incident 1) | Same: blocked and failed |
+| E2 | Run the job with an expired or invalid credential (reproduces incident 2) | The job exits non-zero with the real error, and nothing is delivered |
+| D1 | Run the zero-row case in a staging environment wired to the real alerting | An alert reaches the on-call channel within the agreed time |
+| D2 | Delete the validation record and trigger delivery | Delivery is blocked and an alert fires |
+| P1 | Open a PR with a deliberately broken query | CI fails |
+
+Run all of these in staging before closing the incident, and re-run them after any change to the job, the validator or the alerting.
+
+## 7. Open questions
+
+These need answers before the design is final. They are not assumed here:
+1. What is the expected row-count range for this export, and does it vary by day or client?
+2. Is there a single export or one per client? Per-client baselines change the validator design.
+3. What does the contract with the client say about empty or late deliveries?
+4. Who owns the delivery step, and can it be gated without a change on the client's side?
+5. Do the other jobs (PR3) share the same delivery or monitoring code?
+6. How long did each of the three incidents last before the client noticed?
+
+## 8. Action items
+
+| # | Action | Owner | Due |
+|---|--------|-------|-----|
+| 1 | Add validation gate to delivery (E1) | TBD | TBD |
+| 2 | Output-based alerting (D1, D2, D3) | TBD | TBD |
+| 3 | Remove swallowed-error handling (E2) | TBD | TBD |
+| 4 | CI check for query changes (P1) | TBD | TBD |
+| 5 | Write the single success-criteria definition (PR1) | TBD | TBD |
+| 6 | Audit sibling jobs (PR3) | TBD | TBD |
+| 7 | Run the verification table in staging | TBD | TBD |
+| 8 | Client communication and remediation for incident 3 | TBD | TBD |
+
+---
+
+I left owners, dates, impact figures and the open questions blank because I don't have that information. If you give me a writable location or the missing details, I can save this to `rca.md` and fill those in.

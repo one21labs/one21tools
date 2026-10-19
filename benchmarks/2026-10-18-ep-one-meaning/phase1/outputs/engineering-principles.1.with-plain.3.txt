@@ -1,0 +1,149 @@
+I can't write `rca.md` in this session because I have no file tools here. The full document is below, ready to paste into `rca.md`. Details I don't have are marked **[fill in]**.
+
+---
+
+# Post-Incident Analysis: Empty customer export delivered to client (third occurrence)
+
+**Status:** Draft
+**Owner:** [fill in]
+**Date of incident:** [fill in]
+
+## 1. Summary
+
+The nightly customer-export job wrote a zero-row file, exited 0, and the file was delivered to a client. Nobody on the team was alerted, and the client noticed first. This is the third occurrence in two months. The triggers differed each time. The outcome and the failure path were the same each time.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, delivered, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, delivered, client noticed |
+| 3 | Export SQL changed by Priya; wiki verification step not run | Empty file, exit 0, delivered, client noticed |
+
+## 2. Impact
+
+- Clients affected: [fill in]
+- Time from delivery to client report: [fill in]
+- Time from client report to our awareness and to a corrected file: [fill in]
+- Contractual or trust consequences: [fill in]
+
+## 3. Timeline
+
+[fill in: change merged, job run, delivery, client report, detection, remediation]
+
+## 4. Root cause analysis
+
+### Why the same outcome keeps recurring
+
+```
+Problem: Client received an empty export file, 3 times in 2 months
+↓ Why?
+The job wrote zero rows and the file was delivered anyway
+↓ Why?
+Nothing between "query returned" and "deliver to client" treats zero rows as a failure
+↓ Why?
+The job exits 0 on zero rows (and, in incident 2, swallowed an auth error)
+↓ Why wasn't it caught afterward?
+Monitoring checks only the exit code, so it can't see a bad output
+↓ Why?
+Correctness of the output is not defined anywhere in the system.
+Root cause: "A valid export is non-empty" is not enforced by the job, the
+delivery step, or monitoring. The only check is a manual wiki step.
+```
+
+**Root cause:** The pipeline has no automated definition of a valid output. Any upstream change (schema, credentials, query) that produces zero rows passes through undetected. The only safeguard is a human memory step.
+
+### The three triggers are the same failure
+
+Schema rename, expired credential and a query change are three different ways to produce zero rows. Fixing the triggers one by one (a schema-change checklist, credential-expiry reminders, query-change training) would address a symptom each time. The next trigger would be a fourth variant. The fix has to sit at the point all three share: the output.
+
+### On "Priya didn't run the verification step"
+
+This is not the root cause. It is the third trigger, and a contributing condition at most. Reasons not to stop here:
+
+- The step lives only in the wiki, and nothing enforces or prompts it. It depends on a new engineer (six weeks in) finding it and remembering it.
+- The first two incidents had no human step to skip. A fix aimed at "people must follow the wiki" would not have prevented them.
+- A manual "eyeball the row count" step is also weak as a control. It checks one query run on one day, not the nightly run.
+
+Question for the review: what system change makes this error impossible or immediately visible, regardless of who changes the query?
+
+### Contributing factors
+
+1. **Exit-code-only monitoring** is a detection gap. It reports that the process ended, not that the output is good.
+2. **Swallowed exceptions** (incident 2) turn a loud failure into a silent one.
+3. **Delivery is unconditional.** The file goes to the client with no gate.
+4. **Process knowledge lives in the wiki.** There is no automated check and no PR-time prompt.
+5. **The client is the only effective monitor.** Detection time depends on when the client opens the file.
+
+## 5. Fixes
+
+Ranked as remove, then prevent, then detect. Each fix names its own verification, and the verification triggers the failure condition. "We'll monitor going forward" does not count.
+
+### A. Remove: the ability to deliver an empty file (highest priority)
+
+Put one validation gate between export and delivery. It fails the job (non-zero exit, no delivery) when the output is invalid. The invariants:
+
+- Row count is greater than 0.
+- Row count is within a tolerance of a baseline (for example, the trailing average). This catches partial exports as well as empty ones. The tolerance value is a decision for item Q2 below.
+- Expected columns are present.
+
+This gate is the **single source of truth** for what a valid export is. The monitoring (C) and the CI test (B) refer to it. They do not restate the thresholds.
+
+**Verify:** run the job against a query that returns zero rows. Confirm that the exit code is non-zero, nothing is delivered, and an alert fires. Repeat with a renamed column and with an invalid credential.
+
+### B. Remove: swallowed errors in the job
+
+Remove the catch-all that hid the expired credential. Errors from auth and query execution must propagate and fail the job. Any exception that stays caught needs a written reason.
+
+**Verify:** run with a deliberately invalid credential. Confirm the job fails loudly and no file is delivered.
+
+### C. Prevent: replace the manual wiki step with an automated check
+
+Delete the "run it by hand and eyeball the row count" step. In its place, run the export query in CI on every change to the query or to the schema it depends on, against a fixture or staging data. The CI job fails if the output violates gate A's invariants (it calls gate A, so the rules are not copied). Remove the wiki text once CI enforces it, so the two cannot disagree.
+
+**Verify:** open a PR that breaks the query to return zero rows. Confirm CI fails and blocks the merge.
+
+### D. Detect: monitor the output, not the exit code
+
+Alert on output properties (row count, file size, delivery status), reading the values that gate A produces. Page the team, not the client. Treat "job exited 0" as one signal among several, never the only one.
+
+**Verify:** inject an empty output in staging and confirm the alert reaches the on-call channel within [target, fill in] minutes.
+
+### E. Detect (secondary): recover faster if something still slips through
+
+Add a post-delivery check that the delivered object matches the validated one. Document a client-notification and re-delivery runbook, so the team can reach the client before they find the problem.
+
+## 6. Decisions needed before building
+
+These are open items. Listing them as blocking avoids building the gate on wrong assumptions.
+
+- **Q1:** Is zero rows ever a legitimate export for any client? If yes, the gate needs a per-client rule. Where is that rule defined, and by whom?
+- **Q2:** What is the baseline and tolerance for row count, and where does the baseline come from?
+- **Q3:** On gate failure, does the job retry, hold the previous day's file, or notify the client of a delay? This is a business decision. Name the owner.
+- **Q4:** Who is the on-call owner for export alerts?
+- **Q5:** Are other jobs delivering to clients with the same exit-0-on-empty pattern? If so, the gate should be shared code, not an export-job-specific fix. Audit them.
+
+## 7. Success criteria
+
+- No empty or invalid file reaches a client. All three past failure modes (schema change, bad credential, bad query) are reproduced in tests and blocked.
+- Any invalid export is detected by the team before the client, within [target].
+- The wiki contains no manual verification step for this job. It refers to the CI check.
+
+## 8. Action items
+
+| # | Action | Fix | Owner | Due |
+|---|--------|-----|-------|-----|
+| 1 | Resolve Q1–Q5 | – | [fill in] | [fill in] |
+| 2 | Implement the validation gate and the failure-mode tests | A | [fill in] | [fill in] |
+| 3 | Remove swallowed exceptions | B | [fill in] | [fill in] |
+| 4 | Add the CI check and delete the wiki step | C | [fill in] | [fill in] |
+| 5 | Output-based alerting | D | [fill in] | [fill in] |
+| 6 | Client notification and re-delivery runbook | E | [fill in] | [fill in] |
+| 7 | Audit other client-facing jobs for the same pattern | Q5 | [fill in] | [fill in] |
+
+## 9. What went well / what to change in how we review
+
+- Priya's change was reasonable. The system allowed a silent failure, and that is where the fix belongs. This review does not assign individual blame.
+- Two earlier incidents did not lead to a fix at the output level. When an incident has the same outcome with a different trigger, fix the shared failure path, not the individual trigger.
+
+---
+
+If you give me the missing facts (timeline, impact, owners) I can fill in the **[fill in]** markers. I'd also treat Q1 as the first thing to settle, because the gate design depends on it.

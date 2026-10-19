@@ -1,0 +1,60 @@
+# Postmortem: Production `order_events` tables dropped (staging cleanup, OPS-881)
+
+**Status:** Draft for review. **Severity:** SEV-1 (checkout down, permanent partial data loss). **Audience:** VP Eng, all engineering.
+
+## Summary
+During a staging cleanup, a `DROP TABLE` ran against production instead of staging and deleted `order_events` and `order_events_archive`. Checkout errored from 22:15. The nightly backup had been failing for days with no one alerted, so recovery needed a 9-day-old backup plus Kafka replay. About 2 days of events were partially lost.
+
+## Impact
+- Checkout errors from about 22:15 until data was reconstructed at 01:55, roughly 3h40m.
+- Partial, permanent loss of about 2 days of order events. Exact count: TBD.
+
+## Timeline (local)
+| Time | Event |
+|---|---|
+| 18:30 | Dev runs a prod query. `PGHOST=db-prod-1` stays exported in that shell. |
+| 22:04 | Dev starts staging cleanup per OPS-881. |
+| 22:06 | Dev opens a terminal that still has the prod `PGHOST`. Prod and staging prompts look identical. |
+| 22:07 | Dev runs `DROP TABLE order_events_archive, order_events;`. The ticket's script listed both names on one line, and Dev intended only the archive table, on staging. The ops role has DROP on prod and there is no confirmation step. |
+| 22:15 | Checkout errors spike and on-call is paged. |
+| 22:41 | Cause identified. |
+| 22:50 | Restore from nightly backup started. |
+| 23:20 | Restore fails. The latest usable backup is 9 days old. |
+| 01:55 | Data rebuilt from Kafka (7-day retention) plus the old backup. About 2 days are partially lost. |
+
+## Root causes
+The incident needed four independent failures. Any one of them, fixed, would have prevented it or made it recoverable.
+
+1. **Nothing distinguished prod from staging.** The shell inherited a stale prod `PGHOST`, and the prompts were identical.
+2. **The ticket was hazardous.** It listed a prod-critical table next to the one to drop, on a single line.
+3. **Standing destructive access to prod.** The routine ops role can DROP production tables, and there is no confirmation step.
+4. **Backups were unmonitored.** The job has been failing, and its alert went to a Slack channel that was archived in a cleanup. Nobody knew we had no recent backup. This turned a short outage into permanent data loss.
+
+Dev's command was the trigger, not the root cause. Each of the four failures above would have caught or contained the same mistake from any engineer.
+
+## Action items
+Ordered by strength: removing the hazard, then preventing the mistake, then detecting it.
+
+| # | Action | Owner | Due |
+|---|---|---|---|
+| 1 | Remove standing DROP/TRUNCATE on prod from the ops role. Destructive DDL goes through a break-glass role with a second approver. | TBD | TBD |
+| 2 | Fix the backup job and take a fresh backup. Route its alerts to the paging system, not a Slack channel. Add a "last successful backup older than 26h" alert. | TBD | TBD |
+| 3 | Add a weekly automated restore test that fails loudly. | TBD | TBD |
+| 4 | Stop exporting `PG*` variables in shells. Use a wrapper or profile that sets the target explicitly, with a color-coded prod prompt and a confirmation on prod connections. | TBD | TBD |
+| 5 | Audit Slack channel archival and the alert routes that feed into them. Alerts must not depend on a channel. | TBD | TBD |
+| 6 | Change the ticket and runbook template so destructive scripts name the target environment and list one object per line. Review OPS-881's script. | TBD | TBD |
+| 7 | Extend Kafka retention for `order_events` to at least the backup interval plus margin. | TBD | TBD |
+
+**Verification:**
+- **#1:** Attempt a DROP on a prod-like database with the ops role and confirm it is refused.
+- **#2:** Force the backup job to exit non-zero and confirm a page fires.
+- **#3:** Run a restore from the latest backup and confirm the row counts match.
+- **#4:** Export a prod `PGHOST`, open a new shell, and confirm it is not inherited.
+
+## Open questions
+- The backup is described as failing "since the 3rd" but the usable backup is 9 days old. Please confirm the dates, because they imply different gaps. If the failure began earlier than the usable backup, we should find out why.
+- Exact data lost and customer impact (orders affected, support contacts).
+
+---
+
+**Note on framing:** I did not make "Dev ran the wrong command, retrain Dev" the root cause or the action item, even though management agreed on it. Retraining is not a control: the same shell state, ticket and permissions would trap the next person. Naming one engineer in a document the whole org reads also discourages people from reporting their own mistakes. The postmortem still states plainly what Dev did and when. If you want retraining or a runbook refresher included, I'd add it as a low-priority item alongside #4 and #6 and not as the headline. Owners and dates are blank because I don't know them.

@@ -1,0 +1,88 @@
+I can't write `rca.md` in this session because I have no file tools. The full analysis is below, ready to save as `rca.md`.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+## Problem Statement
+The nightly customer-export job wrote a zero-row file and exited 0. The file was delivered to a client automatically, and the client noticed before we did. This is the third occurrence in two months.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, no alert, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, no alert, client noticed |
+| 3 | Export SQL changed without the wiki's manual verification step | Empty file, exit 0, no alert, client noticed |
+
+The triggers differ, but the outcome is the same every time. That points to a systemic cause rather than three separate mistakes.
+
+## Analysis (branching 5 Whys)
+
+**Branch A: why did a bad file reach the client?**
+1. Why was an empty file delivered? Delivery runs automatically after the job exits 0.
+2. Why did the job exit 0? It treats "finished running" as "succeeded." Zero rows is not an error condition in the code.
+3. Why is zero rows not an error? No definition of a valid export exists, such as a minimum row count or an expected range. Success criteria were never specified.
+4. Why wasn't this caught after occurrences 1 and 2? Each was fixed at its trigger (the rename, the credential) rather than at the shared outcome.
+- **Root cause A:** The pipeline has no output validity gate. Nothing between "job ran" and "client receives file" checks that the output is plausible.
+
+**Branch B: why did nobody find out before the client did?**
+1. Why no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It was the cheapest available signal, and it was never revisited against the failure we actually care about (wrong or empty data).
+3. Why does it matter that the job swallows errors? The job hides failures (expired credential) from the one signal we monitor.
+- **Root cause B:** Monitoring measures process health, not output correctness. Silent failure paths in the job make even that signal unreliable.
+
+**Branch C: why did the query change ship unverified?**
+1. Why wasn't the row count checked? The verification step lives in a wiki and relies on a person remembering to run it and eyeball the result.
+2. Why did Priya not run it? She joined six weeks ago, and the step is easy to miss in onboarding. We don't treat this as an individual error. A control that depends on memory and judgement fails eventually for anyone.
+3. Why is there no automated check? Nothing in the change path (CI, review, deploy) runs the query or asserts on its result.
+- **Root cause C:** The only control for query changes is a manual, unenforced step. A system that allows an unverified query change to reach production is the problem.
+
+## Root Cause Summary
+The export pipeline treats "the process ran" as "the output is correct." There are no output validity criteria, no gate before delivery, no output-based monitoring, and no automated pre-deploy check. Every trigger that produces an empty file (schema change, bad credential, bad query) falls through the same gap, so fixing triggers one at a time cannot work.
+
+## Countermeasures (ranked: eliminate, then prevent, then detect)
+
+**1. Eliminate: remove the path that lets an unvalidated file reach a client.**
+- Make delivery depend on validation. The job writes to a staging location and only a passing validation step promotes the file to the client-facing location. A failed validation leaves nothing deliverable.
+- Delete the swallowing error handlers in the job. Credential and query errors must propagate as non-zero exits. Failing loudly is the intended behavior.
+- Delete the wiki's manual step as a control. Keep at most a pointer to the automated check, so the instructions don't say two different things.
+
+**2. Prevent: define what a valid export is, in one place.**
+- Define the validity criteria (row count > 0, a minimum or expected range based on historical volume, required columns present) once, in a single config the job, the CI check and the monitor all read. Don't copy thresholds into three places.
+- Add a CI check on any change to the export query or schema mapping that runs it against a representative dataset and asserts those criteria. A schema rename then breaks CI, not the client delivery.
+
+**3. Detect: monitor the output as well as the exit code.**
+- Alert on output signals (row count, file size, deviation from the trailing average), and page when validation fails.
+- Alert when an expected delivery doesn't happen, so a blocked export is noticed rather than assumed fine.
+
+**Why this order:** item 1 makes the incident class impossible by construction. Items 2 and 3 catch problems earlier and make the failure visible, but would only warn us if used on their own.
+
+## Action Items
+
+| Action | Type | Owner | Due |
+|--------|------|-------|-----|
+| Staging plus gated promotion of export file | Eliminate | TBD | TBD |
+| Remove error-swallowing in the job; non-zero exit on failure | Eliminate | TBD | TBD |
+| Define validity criteria in a single shared config | Prevent | TBD | TBD |
+| CI check for export query/schema changes | Prevent | TBD | TBD |
+| Output-based alerting and missing-delivery alert | Detect | TBD | TBD |
+| Retire the wiki step as a control | Eliminate | TBD | TBD |
+| Notify and make amends with affected client(s) | Response | TBD | TBD |
+
+## Verification
+"We'll monitor going forward" does not count as verification. Actively trigger each failure and confirm the safeguard fires. Run these in staging before closing the incident:
+1. **Empty query:** point the export at a query that returns zero rows. Expected: the job exits non-zero, nothing is promoted, an alert fires, and the client-facing location is untouched.
+2. **Schema rename:** rename a column the query depends on. Expected: CI fails on the change, and if it is forced through, the job fails and does not deliver.
+3. **Expired credential:** use an invalid credential. Expected: non-zero exit, an alert, and no delivery.
+4. **Under-threshold output:** produce a file with far fewer rows than the expected range. Expected: validation fails and the file is held.
+5. **Missing delivery:** suppress the job entirely. Expected: the missing-delivery alert fires.
+
+Record the result of each test in this document. The incident is closed only when all five pass.
+
+## Open Questions (to confirm before finalizing)
+- How should validity thresholds be set for customers whose volume legitimately varies, including legitimately empty exports?
+- What is the client communication and remediation plan for this occurrence and the previous two?
+- Who owns the export pipeline's definition of "valid," and who reviews changes to it?
+
+---
+
+To save it, paste this into `rca.md`. If you give me a working directory with file access, I can write it there. Owners, dates and the open questions need your team's input, since I don't have that information.

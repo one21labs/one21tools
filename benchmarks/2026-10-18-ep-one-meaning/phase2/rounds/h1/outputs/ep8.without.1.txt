@@ -1,0 +1,49 @@
+Using the strictest validator everywhere would break signup. Don't do that. The three copies look like versions of one function, but they do two different jobs.
+
+- **Billing** needs a gate on what goes to the payment provider. The value must be exactly E.164.
+- **Signup** needs to accept what people type, like `(415) 555-0134`. The strict E.164 regex rejects that format, and it's what most of your 4,000 daily submissions look like. You'd be rejecting most of your signups.
+- **Support** is just billing's validator with a `.strip()`.
+
+## Design: two functions, not one
+
+```python
+# company_phone/__init__.py
+import phonenumbers
+
+_E164 = re.compile(r'\+[1-9]\d{7,14}')
+
+def is_e164(s: str) -> bool:
+    """Strict check: already-normalized E.164. Use this as the gate before calling the payment provider."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str = "US") -> str | None:
+    """Parse human input ('(415) 555-0134', '415.555.0134', '+44 20 7946 0958')
+    and return E.164, or None if it isn't a valid number."""
+    try:
+        n = phonenumbers.parse(raw.strip(), default_region)
+    except phonenumbers.NumberParseException:
+        return None
+    if not phonenumbers.is_valid_number(n):
+        return None
+    return phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+```
+
+- **Normalize, don't just validate.** Signup should store `normalize_phone(input)`, not the raw string. That way anything that later reaches billing is already E.164, and billing's strict check stays strict.
+- **`phonenumbers` instead of a hand-rolled regex.** A regex can't turn `(415) 555-0134` into `+14155550134` because it doesn't know the country. Make `default_region` an explicit parameter so the US default isn't hidden.
+- **`fullmatch`, not `match` with `$`.** In Python, `$` matches before a trailing newline. So billing's current `valid_phone("+14155550134\n")` returns True, and that string goes to the provider. Support avoids this only because of its `.strip()`. Signup's `LOOSE` regex has no anchors at all, so `"555-1234 then any garbage"` passes. The shared library fixes both.
+- **Don't strip inside `is_e164`.** Stripping inside the strict check hides dirty data. Callers that want leniency should call `normalize_phone`.
+
+## Rollout
+
+1. **Build and publish `company-phone` 1.0.0 to your private PyPI.** Include tests for the cases above: formatted US numbers, trailing newline, garbage after a valid prefix, and international numbers. Each service pins `~=1.0`. Treat any change in what counts as valid as a major version bump, since consumers deploy on their own schedules.
+2. **Support, then billing: swap in `is_e164`.** These are almost no-ops. The only behavior change is that the trailing-newline hole closes. Billing and support are deploy-independent, so order doesn't matter.
+3. **Signup: shadow mode first.** For a few days, keep the old validator as the decision-maker. Also run `normalize_phone` and log disagreements, either old-accepts/new-rejects or the reverse. Check that the old-accepts/new-rejects rate is small and contains junk rather than real numbers. Then switch signup to validate and store with `normalize_phone`.
+4. **Handle existing data.** Signup's stored numbers are probably in mixed formats. Backfill them with `normalize_phone` and review the ones that return `None`.
+5. **Delete the three local `validate.py` copies** once each service is cut over.
+
+## Two things to check
+
+- **How do phone numbers reach billing today?** If billing reads numbers that signup collected, any loosely formatted ones are already failing there, or are being sent to the provider some other way. Find out before step 4. The backfill may fix charge failures you didn't know about.
+- **Is US the right default region?** If you get international signups without a `+`, you'll need to pass the region from a country selector or the user's locale. Otherwise `normalize_phone` will misinterpret or reject them.
+
+I can write out the library skeleton and test file if you'd like.

@@ -1,0 +1,54 @@
+**Not ready to go.** The core design has a correctness hole on the one hard requirement, and most of the six weeks goes to features the stated volume doesn't need.
+
+## Blocking: the design can send invoices twice
+
+Finance's requirement is "never send an invoice twice." The design does this:
+
+1. The worker calls the provider.
+2. If there's no response in 5s, it marks the job failed and re-enqueues.
+
+A timeout doesn't mean the email wasn't sent. The provider may have accepted it and responded slowly, so the retry sends a second copy. That's exactly the duplicate scenario Finance described. Two related holes:
+
+- **Crash after send.** If the worker dies after the provider accepts the email but before the DB commit, the job is either stuck or retried. The design has no lease or visibility timeout, so a crashed worker's job can be lost.
+- **No `processing` state or lock.** `SKIP LOCKED` only protects the claim transaction. If the HTTP call happens inside that transaction, you hold a connection and row lock for the whole call. If it happens outside, you need an explicit `running` status with a lease expiry.
+
+**Fix (must be in the design before building):**
+- Give each job a deterministic idempotency key, such as `invoice:{invoice_id}`, with a unique constraint at enqueue time.
+- Pass that key to the provider if it supports idempotency keys. If it doesn't, record a "send attempted" marker before the call. After an ambiguous timeout, check the provider's message log or events instead of blindly retrying.
+- For invoice jobs, treat an ambiguous failure as "needs reconciliation," not "retry." Password resets can tolerate at-least-once delivery. Invoices can't.
+- Add lease/heartbeat semantics for crashed workers.
+- Write down the delivery guarantee explicitly: at-least-once, with idempotency making invoices effectively once.
+
+## Scope: build vs. buy
+
+200 to 500 jobs a day is about one every few minutes. With two engineers, an in-house queue with plugins, weighted scheduling and a dashboard is mostly overbuilt:
+
+| Item | Verdict |
+|---|---|
+| Plugin system with YAML manifests | Cut. No second team or job type is named. Add it when a real consumer exists. |
+| 5 priority levels with weighted fair scheduling | Cut. There's no contention at this volume. Two levels at most (e.g. password reset ahead of bulk). |
+| React dashboard with throughput charts | Cut. A `psql` query or a simple read-only page covers inspection and manual retry. |
+| 500ms polling | Unnecessary load for 200/day. Use `LISTEN/NOTIFY` plus a slower poll, or just poll every few seconds. |
+| Custom queue itself | Question it. pg-boss, Graphile Worker, River or Oban are Postgres-backed and already solve `SKIP LOCKED`, leases, retries and dead-letter handling. |
+
+A reasonable v1 is an existing Postgres queue library plus an idempotent email-send job, which is likely 1 to 2 weeks. If you do want in-house, the minimal version is the table, the worker, leases, and idempotency.
+
+## Gaps to fill before building
+
+- **Success criteria.** Examples: zero duplicate invoices, password reset delivered within X seconds, no lost jobs.
+- **Retry policy per type.** Timeouts and 4xx versus 5xx need different handling. A 4xx (bad address) shouldn't retry five times.
+- **Dead-letter and alerting.** What happens after attempt 5? Who gets paged when an invoice email fails permanently?
+- **Status model.** Define the states (`pending / running / succeeded / failed / dead`) and the allowed transitions.
+- **Observability.** At minimum, queue depth, oldest pending age, and failure count, with alerts.
+- **PII.** Payloads contain customer emails and invoice data. Set retention and consider storing IDs instead of content.
+- **Provider facts.** Does the provider support idempotency keys? What are its rate limits and its webhook/event delivery? The whole duplicate-safety approach depends on this, so check it first.
+- **Who the "other teams" are.** If there aren't any yet, the plugin system is speculative.
+
+## Recommendation
+
+1. Confirm the provider's idempotency and event-lookup capabilities.
+2. Decide whether an existing library covers the need. It probably does.
+3. Rewrite the design around the delivery guarantee and the invoice dedup path.
+4. Defer plugins, priorities and the dashboard until a concrete need appears.
+
+I'm happy to draft a revised, trimmed design or a task breakdown once the provider question is answered.

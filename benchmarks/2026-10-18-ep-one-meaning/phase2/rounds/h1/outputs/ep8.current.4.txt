@@ -1,0 +1,63 @@
+# Shared phone validation: design and rollout
+
+## Don't pick the strictest
+
+The three copies aren't drifted versions of one rule. Billing and support enforce a wire format (E.164, which the payment provider requires). Signup accepts human input. If you put the strict regex everywhere, signup rejects `(415) 555-0134` and `415.555.0134`, which is most of your 4,000 daily submissions. The loose regex has the opposite problem: it can't be used where the provider needs E.164.
+
+The fix is to define one canonical form (E.164) and one function that converts human input into it. Validation then happens on the canonical form. Consistency comes from every service storing and sending the same normalized value. It doesn't have to come from every service accepting the same input.
+
+## Bugs in the current copies
+
+- **Billing and support:** `$` matches before a trailing newline, so `"+14155550134\n"` passes. Use `fullmatch`.
+- **Signup:** `LOOSE.match` is anchored only at the start, so `"5550134abc!!!"` passes. The character class also accepts `"+++++++"` and `"() ()-()"`.
+- **Billing:** `valid_phone` returns a bool and the caller sends the raw string. Support's copy strips whitespace, but billing's doesn't. If you add stripping to billing's check without sending the stripped value, you'd accept input you then forward to the provider unmodified. A bool-returning API invites that bug.
+- **Signup input has no country code.** `(415) 555-0134` can't become E.164 without a default region. That has to be an explicit parameter.
+
+## Library design (`company-phone`, on your private PyPI)
+
+```python
+import re
+
+_E164 = re.compile(r'\+[1-9]\d{7,14}')
+
+class InvalidPhone(ValueError): ...
+
+def is_e164(s: str) -> bool:
+    """Strict wire-format check. No stripping, no normalization."""
+    return _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str | None = None) -> str:
+    """Human input -> E.164 string, or raise InvalidPhone.
+    Callers must use the RETURN VALUE, never the raw input."""
+    ...
+```
+
+- **`is_e164`** is what billing and support use at the point of use. It's the same regex as today with `fullmatch`.
+- **`normalize_phone`** strips formatting characters (spaces, `()`, `.`, `-`). It applies `default_region` when there's no leading `+`, and it always ends by checking `is_e164`. Implement it with the `phonenumbers` package rather than by hand. National-prefix rules (the `0` trunk prefix, `1` for NANP) are exactly where hand-rolled code goes wrong. Keep the final E.164 shape check as the contract with the provider, since `phonenumbers` validity and the provider's acceptance can differ.
+- It returns a string and raises on failure. It doesn't return a bool, so callers can't forward the raw input by accident.
+- Make `default_region` explicit with no hidden default, so each service has to say what it assumes.
+- Add a shared test table of accept/reject cases, including the trailing-newline and trailing-garbage cases above. This table is the executable spec.
+
+## Rollout
+
+Each service deploys independently, so the library has to be backward-compatible and each adoption has to be safe on its own. Pin with `company-phone>=1.0,<2` and use semver. Changing what is accepted is a major version.
+
+1. **Publish v1.0** with the test table. Nothing consumes it yet.
+2. **Support.** It's a copy of billing, so this is the lowest-risk first adopter. Replace its local code with `is_e164(normalize_phone(...))`, or just `is_e164`. Behavior changes only for the newline edge case.
+3. **Billing.** Switch to the library and send the value that `is_e164` or `normalize_phone` approved, not the raw string. Before shipping, check how billing reads phone numbers stored by signup. If signup has been storing loose formats like `(415) 555-0134`, billing may currently be handing the provider things the provider rejects, or billing may only ever see numbers that were entered elsewhere. Query the signup DB for rows that fail `is_e164`. That tells you the size of the backfill problem.
+4. **Signup, in shadow mode first.**
+   - Release 1: keep the old check as the gate. Also run `normalize_phone(raw, default_region=...)` and log disagreements, meaning cases where the old check accepts and the new one raises. Run for about a week. At 4,000 submissions a day that's plenty of data. Confirm the rejects are real junk (`123`, `+++++++`) and not legitimate formats like extensions or international numbers.
+   - Release 2: gate on `normalize_phone` and store the E.164 result, not the raw input.
+   - Run a backfill job over existing rows, and flag the ones that can't be normalized for follow-up instead of dropping them.
+5. **Delete the three local `validate.py` copies** once each service is on the library. Add a lint or CI check that fails on a new `re.compile` for phones.
+
+## Decisions to make before you build
+
+These are open questions that block step 4. Don't leave them as assumptions.
+
+- **`default_region`:** US-only, or international users? If international, what does signup do with a number without a `+` (ask for a country selector, or infer from locale)?
+- **Rejection UX:** what does the form say when a number is rejected, and does failure block signup or just flag it? A hard block on a marketing form costs conversions.
+- **Success criteria:** for example, signup phone-rejection rate no more than X% above baseline, and zero billing provider rejections for phone format.
+- **Extensions and non-mobile numbers:** are they in scope? E.164 can't represent extensions.
+
+If you want, I can write the library code and the shared test table next.

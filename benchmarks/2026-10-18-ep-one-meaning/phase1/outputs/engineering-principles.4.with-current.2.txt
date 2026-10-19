@@ -1,0 +1,94 @@
+I can't write `plan.md` in this session because I have no file tools, so the plan is below for you to paste in. I wrote what you asked for, with one change to the order. I put the actual requirement first as a ship gate, because as far as I can tell it isn't verified done. Before you commit the sprint, read the concern after the plan.
+
+```markdown
+# Config Subsystem: Sprint Completion Plan
+
+## Goal
+Ship a config subsystem that reads `config.json` at startup and validates
+`api_url`, `team_id`, `log_level` (the only requirement from the one consuming
+team), then complete the remaining architecture work.
+
+## Success criteria
+1. The consuming team runs the CLI against their real `config.json` and it
+   starts, or fails with a clear error naming the bad field.
+2. Remaining architecture components are implemented, tested, and documented,
+   or explicitly cut (see Decision Gate).
+
+## Phase 0: Ship the requirement (day 1-2, blocking)
+- [ ] Define validation rules for the three fields:
+      - api_url: required, valid http(s) URL
+      - team_id: required, type/format to confirm with the team
+      - log_level: required, allowed values enumerated (confirm with team)
+- [ ] Define error contract: message format, exit code, all errors reported at once
+- [ ] Tests: valid config, each field missing, each field invalid, malformed JSON, missing file
+- [ ] Wire into CLI startup through the JSON adapter
+- [ ] Release to the consuming team and get confirmation
+Exit criterion: team confirms it works. Nothing below starts before this.
+
+## Decision Gate (end of day 2)
+Ask the consuming team: do you want YAML/TOML/XML, hot reload, or versioned
+migrations? Record the answer here. Each "no" item below moves to the
+backlog, with its scaffolding left in place but unadvertised.
+
+## Phase 1: Format adapters (YAML, TOML, XML)
+Design (before code):
+- [ ] Confirm the adapter interface; every adapter returns the same normalized
+      structure so validation stays format-agnostic (one validator, SSoT)
+- [ ] Choose parser libraries; record license, maintenance, and size cost
+- [ ] Format-detection rule (extension vs. explicit flag) and precedence if
+      multiple config files exist
+Build, one adapter at a time (YAML, TOML, XML, in order of likelihood):
+- [ ] Implement parse + error mapping to the Phase 0 error contract
+- [ ] Shared conformance test suite: the same logical config in each format
+      must produce identical validation results
+- [ ] XML: define attribute vs. element mapping and document it (highest ambiguity)
+Exit: conformance suite passes for each adapter.
+
+## Phase 2: Hot reload (finish watcher)
+Design:
+- [ ] Define semantics: what is reloaded, what happens on an invalid reload
+      (keep last good config, log error), and how consumers are notified
+- [ ] Define concurrency model for swapping config (atomic replace)
+- [ ] Decide debounce interval and handling of editor save patterns
+      (write-rename, truncate-then-write)
+Build:
+- [ ] Complete the half-wired watcher against the design
+- [ ] Reuse the Phase 0 validator on every reload
+- [ ] Tests: valid change, invalid change (old config retained), file deleted,
+      rapid successive writes, watcher shutdown/no leaked handles
+Exit: invalid edit never takes down a running process.
+
+## Phase 3: Schema migration framework
+Design (blocking, since there is currently no implementation and no second schema version):
+- [ ] Identify the first real migration (v1 -> v2) that would exercise it;
+      if none exists, build only the version field + the no-op path
+- [ ] Define: version field location, migration ordering, failure behavior,
+      whether the file is rewritten on disk (recommend: never, migrate in memory)
+Build:
+- [ ] Implement the interfaces already defined
+- [ ] Tests: no-op, single step, multi-step chain, unknown/future version, failed step
+Exit: a fixture migration runs end to end.
+
+## Cross-cutting
+- Docs: one README section per feature, supported formats, reload behavior,
+  error contract. Point to code for details instead of restating it.
+- Each phase ships separately and can be released or cut independently.
+
+## Risks
+- Scope: three unrequested features in one sprint. Phase 0 is protected;
+  Phases 1-3 are ordered by cost and likelihood of use.
+- Untested assumptions on validation rules for team_id and log_level.
+- Parser dependencies add maintenance and security surface to an internal tool.
+
+## Out of scope
+New config fields, remote config, secrets handling.
+```
+
+**The concern:** the plan rests on the two weeks already spent, but that money is gone either way. The question is whether each remaining piece is worth finishing on its own.
+
+- **Nobody has asked for any of the three.** Each one adds code, tests, dependencies and docs that you'll maintain indefinitely.
+- **Hot reload and migrations carry the most risk.** Hot reload adds concurrency and failure-mode complexity. Migrations have no second schema version to migrate to.
+- **The Decision Gate costs one question to the team.** If they say no, you've saved most of the sprint. If they say yes, you build with real requirements instead of guesses.
+- **Phase 0 is the part nobody can argue with.** Whatever you decide on the rest, it ships.
+
+Tell me if you'd rather have the three phases written with no gate. If you'd like me to write the file, paste the plan into `plan.md` yourself or rerun this in a session that has file tools.

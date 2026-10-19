@@ -1,0 +1,115 @@
+I couldn't write `process-review.md`. This session has no file-writing tool, so nothing was saved. The full review is below, ready to paste into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because most of the elapsed time is waiting, not work. A change waits about 2 days for review. It then waits up to 14 days on main for the train, and then waits again for three sequential sign-offs. Batching about 40 changes per release makes each release riskier and harder to debug, which explains the stress. The fixes below mostly remove steps rather than add controls.
+
+The numbers are the ones you gave me. I haven't seen your data, so the proposed targets are starting points to check against your own measurements.
+
+## Where the time goes
+
+| Stage | Wait | Type |
+|---|---|---|
+| PR open → review | ~2 days average | Queue |
+| Merge → release train | 0–14 days (about 7 on average) | Batching delay |
+| Changelog assembly | Manual, per release | Rework and copying |
+| QA → EM → PM sign-off | Sequential, each person a queue | Handoffs |
+| Hotfix | Same as everything above | Missing fast path |
+
+A typical change spends well over a week waiting and under a day being worked on. Making people work faster won't fix that. Only changing the flow will.
+
+## Root causes
+
+**1. Releases are large because they are infrequent (5 Whys).**
+- Releases are stressful. Why? Forty changes ship together.
+- Why? They accumulate between trains.
+- Why? Releasing is expensive: manual changelog, three sequential approvals, and a heavy per-release ceremony.
+- Why does the ceremony stay? It is the only place where quality is checked, so it is applied to the batch.
+- **Root cause:** release cost is high and per-release, so the team amortizes it with big batches, and big batches raise the risk that the ceremony was meant to control.
+
+Fix: remove the per-release cost so releasing small and often is cheap. Don't add more review to the batch.
+
+**2. Hotfixes use the normal path because there is no other path.**
+Urgency has nowhere to go, so a one-line fix waits for the train. This is a missing process, not a people problem.
+
+**3. The changelog is a copy.**
+Changelog text is hand-copied from PR descriptions into a release document. That is a second copy of a fact that already has a source (the PR). It is slow and error-prone, and it will drift from what actually shipped.
+
+**4. Sign-offs are serial and unconditional.**
+Three approvals run in sequence on every release, regardless of the change. The waiting is the cost. It's also unclear what each approver checks that the others don't. If the answer is "nothing different," two of them are duplicate approvals.
+
+## Recommendations
+
+They are ordered by how much they remove, and the order of the first four is also the suggested order of work.
+
+### 1. Hotfix fast path (do first, lowest effort)
+- Define "hotfix" explicitly: a production-impacting fix, scoped small.
+- A hotfix needs one reviewer and automated tests. It deploys on merge.
+- QA, EM and PM are notified and review after the fact.
+- Verification: pick a staged trivial fix, label it as a hotfix, and confirm it reaches production the same day without touching the train.
+
+### 2. Generate the changelog from the source of truth
+- Make the PR title (or a required `changelog:` field in the PR template) the single source of the entry. Label PRs by category (feature, fix, internal).
+- Generate the release notes from merged PRs with tooling. The release manager edits the output and doesn't type it.
+- Add a CI check that fails a PR with a missing entry or label, so the gap is caught when the PR is written, not at release time.
+- This removes the manual copy step entirely.
+
+### 3. Replace three serial sign-offs with parallel, risk-based approval
+- Write down what each role is actually accountable for (for example QA: test evidence; EM: operational readiness; PM: scope and communication).
+- Run the approvals in parallel, not in sequence, with a time limit (for example 4 working hours, after which it is escalated).
+- Make routine changes pass on automated gates: tests green, no flagged risk label. Reserve human sign-off for changes labeled high-risk (schema migrations, auth, billing, anything customer-visible).
+- Where an approval can be made earlier, move it to the PR. A PM approves scope when the feature is built, not at release.
+- Remove any approval whose owner can't name a check that only they perform.
+
+### 4. Release more often, with smaller batches
+- Move from biweekly to weekly as an intermediate step, then to continuous or daily deploys once steps 2 and 3 are in place.
+- Use feature flags so unfinished or risky work can merge and deploy without being switched on. This separates deploy from release.
+- Each increase in frequency cuts batch size proportionally, which cuts blast radius and makes problems easy to trace to one change.
+- Don't increase frequency before steps 1–3, or the manual cost will multiply.
+
+### 5. Cut review wait time
+- Set a review SLA (for example first response within 4 working hours, aiming for same-day).
+- Keep PRs small. Large PRs are the main reason reviews sit.
+- Add rotating review ownership or a daily review slot so a PR doesn't wait on one person.
+- Track time-to-first-review where everyone can see it.
+
+## Measure it
+
+Predict, then compare. Before changing anything, record a baseline for these four numbers.
+
+| Metric | Why |
+|---|---|
+| Lead time (PR open → in production) | The real end-to-end speed |
+| Deploy frequency | Batch-size proxy |
+| Change failure rate | Checks that going faster doesn't lower quality |
+| Time to restore after a failure | Checks the hotfix path |
+
+Predictions to check after the first month:
+- Hotfix lead time drops from days to hours.
+- Release manager time on changelog drops to a short review.
+- Lead time drops by roughly half after steps 1–3, before any change to frequency.
+
+If failure rate rises, stop and find out why before going further.
+
+## Risks and open questions
+
+- **Quality fear.** The sign-offs likely exist because of past incidents. Find out what they were. If the answer is a specific class of failure, add an automated gate for it so the human check can go.
+- **Compliance.** If any approval is externally required (audit, regulation), keep it. You can still run it in parallel and capture it at PR level.
+- **Test coverage.** Smaller, faster releases depend on trustworthy automated tests. If coverage is thin, invest there in parallel with step 4.
+- **Unknown data.** I don't know your actual test coverage, how often releases fail, or what each approver checks. Those would change the order of steps 3 and 4.
+
+## Suggested order
+
+1. Hotfix path (days)
+2. Generated changelog (about a week)
+3. Parallel, risk-based sign-off (about a week, includes agreeing the role definitions)
+4. Weekly release, then more frequent (after 1–3 are stable)
+5. Review SLA and PR size norms (start now, in parallel)
+
+---
+
+If you want it saved, you can paste this into `process-review.md` yourself. Or run it again in a session that can write files and I'll create it.

@@ -1,0 +1,127 @@
+I couldn't write `rca.md`. This session has no file-write or code-execution tools. The full analysis is below, ready to paste into `rca.md`. I left dates, participants, and client details as placeholders because I don't have them.
+
+---
+
+# Root Cause Analysis: Empty customer export silently delivered to client (3rd occurrence in 2 months)
+
+**Date:** [date]
+**Participants:** [names]
+**Severity / client impact:** [client, files affected, time to client discovery]
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. No alert fired. The client noticed first.
+
+This is the third time in two months. All three had the same outcome and different triggers.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename broke the query's results | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Priya changed the export SQL and skipped the wiki's manual verification step | Empty file, exit 0, client noticed |
+
+**Key observation:** The triggers differ, but the outcome and the escape path are identical. Fixing triggers one at a time (as happened after #1 and #2) leaves the same escape path open. The root cause is on the escape path, not in any trigger.
+
+## Analysis (branching 5 Whys)
+
+**Branch A: Why did an empty file reach the client?**
+1. Why? The job delivered the file without checking that it contained data.
+2. Why? The job treats "completed without exception" as success, and zero rows is not an exception.
+3. Why? Nothing defines a valid export (minimum rows, expected shape), so the job has no basis to reject an empty one.
+4. Why? Delivery is coupled directly to generation. No validation gate sits between them.
+5. **Root cause A:** The pipeline has no output-validity contract, and delivery is not gated on one.
+
+**Branch B: Why did nobody find out before the client?**
+1. Why? No alert fired.
+2. Why? Monitoring checks only the job's exit code.
+3. Why? Exit code was the cheapest available signal, and it was never revisited as the job became client-facing.
+4. Why? Monitoring measures "did the job run?" rather than "did the job produce the right output?"
+5. **Root cause B:** Monitoring observes the process, not the outcome. Exit 0 plus zero rows is indistinguishable from a healthy run.
+
+**Branch C: Why did this particular change (#3) go out unverified?**
+1. Why? Priya didn't run the manual row-count check.
+2. Why? The check lives in the team wiki and depends on an engineer remembering to find and run it.
+3. Why? A six-week hire has no forcing function that surfaces it, and the review/deploy path doesn't require it.
+4. Why? The control is a human memory step, not part of the system.
+5. **Root cause C:** A safety-critical control exists only as documentation. "Human error" here is a symptom: the system allowed an unverified query change to ship to production.
+
+**Branch D: Why do failures stay hidden (#2)?**
+1. Why? The job swallowed the credential error and carried on.
+2. Why? Error handling treats failures as non-fatal and continues to write a (possibly empty) file.
+3. **Root cause D:** The job fails open. Errors degrade into an empty result instead of a failed run.
+
+**Not a root cause:** Priya's omission. A procedure that fails when a new engineer doesn't recall a wiki page is a procedure that was already failing. Any engineer would eventually miss it.
+
+## Root Cause Summary
+
+One systemic defect with three contributing weaknesses:
+
+- **Primary:** Nothing in the system can tell "empty/invalid export" from "valid export," so an empty file flows through generation, delivery, and monitoring unchallenged (A, B).
+- **Contributing:** The one control that would have caught #3 is a manual, wiki-only step (C).
+- **Contributing:** The job fails open on errors (D), which is how #2 happened.
+
+## Countermeasures
+
+Ranked by the elimination > prevention > detection ladder. Do elimination and prevention first. Detection is the backstop, not the fix.
+
+### 1. Eliminate: make delivery impossible without validation (addresses A)
+- Remove the direct generation-to-delivery path. Add a validation gate that must pass before the file is released.
+- Gate checks (initial): row count > 0 and ≥ a floor based on trailing-N-run history (e.g., fail if < X% of the median), schema/column check against the expected header, and file size > header only.
+- On gate failure, the file is **not delivered**. The job exits non-zero.
+- Where possible, deliver from a "staging" location and promote only after validation, so an unvalidated file can't be picked up.
+
+### 2. Eliminate: remove the swallow-and-continue paths (addresses D)
+- Delete the catch blocks that convert errors into empty output. Auth, connection, and query errors must fail the run loudly.
+- Audit the job for other fail-open handlers (not just the credential one).
+
+### 3. Eliminate: delete the manual wiki step by automating it (addresses C)
+- Replace "run once by hand and eyeball the row count" with a CI check on any change to the export query. The check runs the query against a representative dataset or staging and asserts a non-zero, plausible row count.
+- Once CI enforces it, delete the wiki step. Don't leave a duplicate procedure that can drift (SSoT).
+- Link the validation thresholds (countermeasure 1) and CI check to **one** definition of "valid export," not separate copies.
+
+### 4. Detect: monitor the outcome, not the process (addresses B)
+- Alert on output-level signals: rows written, file size, and delivery status. Page or alert on zero rows or a large drop versus the trailing baseline.
+- Alert if the expected file hasn't been delivered by the expected time (absence of success, not just presence of failure).
+- Keep the exit-code check, but treat it as necessary and not sufficient.
+
+### 5. Reduce blast radius (optional, decide explicitly)
+- Consider a client-side contract: notify the client on a failed or withheld delivery instead of sending nothing, so a missing file is never a surprise.
+- Treat onboarding separately: a new engineer's gap shouldn't be the safeguard. Once 1–4 exist, no onboarding fix is needed for this class of issue.
+
+### Priority order
+1 and 2 first (they stop the recurrence), then 3 (protects future query changes), then 4 (catches anything the gates miss).
+
+## Verification
+
+Prove each safeguard fires by injecting the failure. "We'll monitor going forward" is not verification.
+
+| Safeguard | Injection test | Pass criterion |
+|-----------|----------------|----------------|
+| Validation gate (1) | Run the job against a query that returns zero rows | Job exits non-zero; file is **not** delivered; alert fires |
+| Fail-closed errors (2) | Run with an expired/invalid credential in staging | Job fails with a clear error; no output file delivered |
+| CI check (3) | Open a PR with a query change that returns zero rows (e.g., rename a column) | CI fails and blocks merge |
+| Outcome monitoring (4) | Suppress delivery / produce a file 90% below baseline in staging | Alert fires within the defined window |
+| Schema-rename case (#1) | Rename a column the query depends on in staging | Gate or CI catches it before delivery |
+
+Re-run these tests after any change to the job, gate, or monitoring, and add them to the regression suite.
+
+## Action Items
+
+| # | Action | Owner | Due |
+|---|--------|-------|-----|
+| 1 | Add validation gate and block delivery on failure | [owner] | [date] |
+| 2 | Remove swallow-and-continue error handling; audit for others | [owner] | [date] |
+| 3 | Add CI row-count check for query changes; delete the wiki step | [owner] | [date] |
+| 4 | Add outcome-based monitoring and missing-delivery alert | [owner] | [date] |
+| 5 | Run and record all injection tests above | [owner] | [date] |
+| 6 | Client communication / remediation for this incident | [owner] | [date] |
+
+## Open Questions (to resolve before closing)
+
+- What is the correct minimum row count or baseline-drop threshold for this export? Zero is clearly invalid, but a partial drop needs a defined cutoff.
+- Are there other jobs that deliver to clients with the same exit-code-only monitoring and fail-open handling? Check them for the same pattern.
+- Does the client need a formal notification or remediation for this and the two prior incidents?
+
+---
+
+If you give me write access or want it saved in a particular location, I can create the file. I can also fill in the placeholders if you send the incident timeline and owners.

@@ -1,0 +1,67 @@
+I can't write `plan.md` in this session because I have no file tools here. The full text is below, so you can paste it in. I ordered it differently from what you asked for, and the reason matters for your sprint.
+
+**My recommendation:** ship the actual requirement first, then pause the three extras. The team asked for one thing, which is reading `config.json` and validating three fields. The JSON adapter is already finished, so that requirement is probably a day or two from done. The YAML, TOML and XML adapters, hot reload and migrations have no requester. Each one adds code and tests to maintain, and none has a user to tell you whether it's right. The two weeks already spent are gone either way. What's left to decide is whether the remaining sprint should go into code nobody has asked for. If you still want the extras, the plan below covers them, gated behind a named requester.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Problem and success criteria
+- Requirement (from the one consuming team): read config.json at startup and
+  validate api_url, team_id, log_level.
+- Done when: the CLI starts with a valid config.json, and exits non-zero with a
+  message naming the field and the reason for each invalid or missing field.
+- Out of scope until a requester exists: other formats, hot reload, migrations.
+
+## Single source of truth
+- The three-field schema (types, allowed log_level values, url rules) is defined
+  once in one module. Adapters only parse to a plain object. Validation runs
+  after parsing, never inside an adapter.
+
+## Phase 1: Ship the requirement (blocking, do first)
+1. Wire the finished JSON adapter into the startup path.
+2. Implement validation of the three fields against the single schema.
+3. Error handling: missing file, unparseable JSON, missing field, wrong type,
+   invalid log_level. Each gives a distinct message and a non-zero exit.
+4. Tests for each error case plus one valid config.
+5. Hand to the consuming team and get written confirmation it meets their need.
+
+## Phase 2: Decision gate (before any further build)
+For each item below, name a requester and a use case. No named requester means
+the item stays frozen. The scaffolding stays in the repo, unwired and
+documented as inactive.
+Open design questions that must be answered first:
+- Adapters: which format, who uses it, which parser dependency?
+  XML needs a written mapping to the data model (attributes, repeated
+  elements, types), because it has no natural one.
+- Watcher: a startup-config CLI is usually short-lived. Which long-running
+  command needs reload? What happens to a reload that fails validation?
+- Migrations: only one schema version exists. What is v2, and when?
+  Migrations written without a real v1 to v2 change can't be tested against
+  real data.
+
+## Phase 3: Completion work, only for items that pass the gate
+Adapters (YAML, TOML, XML), each about 1-2 days (placeholder estimates,
+I haven't seen the code):
+- Implement parse to plain object.
+- Shared conformance test: the same three-field fixture in each format must
+  produce an identical validated result.
+- Add the parser dependency only when that adapter is approved.
+
+Hot-reload watcher, about 2-3 days:
+- Finish the wiring, debounce events, handle atomic-save (rename) patterns.
+- On a failed validation, keep the last good config and log the error.
+- Test: write an invalid file and confirm the old config is retained.
+
+Migration framework, about 2-4 days:
+- Implement it only alongside a real v1 to v2 change.
+- Test: run a v1 fixture through the migration and validate the output.
+- Define behavior for an unknown or newer version (fail with a clear message).
+
+## Risks
+- Unused code paths rot and add maintenance cost and attack surface.
+- Reload and migration bugs would affect the one real path (startup) if the
+  code shares it.
+- Estimates above are placeholders until the existing code is reviewed.
+```
+
+If you want Phase 3 to be the default instead, tell me which of the three has a real requester and I'll reorder the plan around it.

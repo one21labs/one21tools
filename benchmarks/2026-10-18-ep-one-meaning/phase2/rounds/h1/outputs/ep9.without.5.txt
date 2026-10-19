@@ -1,0 +1,42 @@
+**Not yet.** The design has one correctness bug that violates the finance requirement, and most of the 6 weeks goes to things you don't need at this volume.
+
+## Blocking: the retry design can double-send invoices
+
+"No response within 5s, mark failed, re-enqueue" treats a timeout as "not sent." A timeout only means you don't know. The provider may have accepted the request and the response was slow or lost. The retry then sends the invoice again, which is the chargeback scenario Finance described. Related gaps:
+
+- **Worker crash after the provider call but before the status commit.** Any reaper that re-runs stuck jobs causes the same duplicate.
+- **No `running` state or lease.** `SKIP LOCKED` only protects you while the transaction is open. If the HTTP call happens inside that transaction, you hold a connection and row lock for up to 5s per job. If it happens outside, you need an explicit `running` status with `locked_at` and a lease timeout.
+- **No retry classification.** A 4xx (bad address, rejected) shouldn't be retried. A 5xx or timeout is ambiguous.
+
+**What to do instead:**
+1. Give every invoice email a deterministic dedupe key, such as `invoice:{invoice_id}:email`. Put a unique constraint on it in the jobs table so double-enqueue is impossible.
+2. Pass that key to the provider as an idempotency key, if it supports one. Check this first, because it decides the rest of the design. Postmark, SES and SendGrid differ here.
+3. If the provider has no idempotency support, make invoices at-most-once on ambiguous outcomes. Mark the job `unknown` after a timeout. Reconcile it by querying the provider or waiting for its delivery webhook. Alert a human rather than auto-retrying.
+4. Retries on connection-refused and clear 5xx failures are safe, because nothing was sent. Retries on timeouts are safe only with an idempotency key.
+5. Raise the timeout well above 5s. Email APIs can be slow, and a short timeout makes the ambiguous case more frequent.
+
+Add a test that kills the worker mid-send and asserts exactly one provider call per invoice.
+
+## Build vs. buy
+
+At 200–500 emails/day (about one every 3 minutes), you don't need your own queue. Use a Postgres-backed library that already handles locking, backoff, leases and dead-lettering. Examples are graphile-worker, pg-boss, River or Oban, depending on your stack. If you're on AWS, SQS plus a small consumer also works. You will still have to build the idempotency layer above, because no queue gives you exactly-once side effects.
+
+## Cut from v1
+
+- **Plugin system and YAML manifests.** No other team has asked for it. Add job types as code until one does.
+- **5 priority levels and weighted fair scheduling.** At this load nothing waits long enough for it to matter. Two lanes are enough, for example time-sensitive (password reset) and everything else. Or just use `run_at` ordering.
+- **React dashboard with throughput charts.** Start with a SQL view, Metabase or whatever BI tool you already have, plus the library's built-in UI if it has one. Build a manual-retry button only if support needs one. For invoices, manual retry should go through the same dedupe check.
+- **500ms polling.** About 170k empty queries a day. Poll every 1–5s, or use `LISTEN/NOTIFY`.
+
+## Add instead
+
+- Enqueue in the same transaction as the business event (invoice created, reset requested), so you can't create an invoice without its email job or the reverse.
+- Alerts on dead-lettered or `unknown` jobs. Silent failure of a password reset is a support ticket.
+- A retention policy for payloads, since they contain emails and invoice details.
+- Handling of provider bounce and delivery webhooks, if you don't already have it.
+
+## Suggested plan
+
+Roughly 1–2 weeks instead of 6: adopt a library, add the dedupe key and idempotency handling, add alerting and the kill-the-worker test, then cut over one email type at a time, starting with a low-risk one such as receipts. Revisit plugins, priorities and the dashboard when there's real demand.
+
+Which email provider are you using? Whether it supports idempotency keys determines which of the two invoice strategies you'll need.

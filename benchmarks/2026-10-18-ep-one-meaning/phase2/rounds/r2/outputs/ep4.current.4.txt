@@ -1,0 +1,100 @@
+I can't write `plan.md` from this session because it has no file tools, so the full text is below for you to paste in. I sequenced it so the real requirement ships first and the unrequested work comes after, with each piece gated.
+
+My one pushback is that the two weeks already spent are sunk. The only remaining question is whether the extra work is worth its cost. No consumer has asked for YAML, TOML, XML, hot reload or migrations, so finishing them adds maintenance and test surface for no user. The plan covers all three as you asked. Phase 0 is the part that has to land either way.
+
+---
+
+```markdown
+# Config Subsystem – Completion Plan
+
+## Problem and success criteria
+- **Requirement (the only one with a consumer):** at startup, read `config.json` and
+  validate `api_url`, `team_id`, `log_level`.
+- **Actor:** the one internal team using the CLI.
+- **Done means:** the CLI exits non-zero with a clear message on a missing/invalid
+  field, and starts normally on a valid file. Verified by the acceptance tests in Phase 0.
+
+## Scope
+In: JSON loading, 3-field validation (Phase 0); remaining adapters, watcher,
+migrations (Phases 1-3, gated).
+Out: any format, reload behavior, or schema version no consumer has requested.
+
+## Phase 0 – Ship the requirement (first, ungated)
+1. Define the validation rules once (single source of truth, e.g. `config/schema.*`):
+   - `api_url`: required, valid http(s) URL
+   - `team_id`: required, non-empty string (confirm type with the team)
+   - `log_level`: required, one of the allowed levels (list them in one constant)
+2. Wire startup: JSON adapter -> validator -> typed config object. Errors name the
+   field and the rule.
+3. Acceptance tests: valid file; each field missing; each field invalid; file missing;
+   malformed JSON.
+4. Confirm with the team: config location, error format, whether unknown keys are
+   rejected or ignored.
+
+Exit criterion: Phase 0 merged and the team can run it.
+
+## Phase 1 – Remaining adapters (YAML, TOML, XML)
+Gate: a named consumer or decision to proceed. Until then, scaffolds stay unregistered.
+- Finalize the adapter interface using the JSON adapter as the reference.
+- For each format: parse -> same normalized structure -> same validator (no per-format
+  validation rules; Phase 0's schema is the only definition).
+- Format selection by file extension; unknown extension is an explicit error.
+- Tests: one shared conformance suite run against every adapter, plus per-format
+  malformed-input cases.
+- Decisions needed first: XML-to-dict mapping rules (attributes, repeated elements,
+  type coercion, since XML has no native types) and TOML/YAML type edge cases
+  (YAML 1.1 booleans, e.g. `no` -> false).
+- Order: YAML, TOML, XML (XML has the most ambiguity; do it last or cut it).
+
+## Phase 2 – Hot-reload watcher
+Gate: a consumer need (e.g. a long-running mode). A CLI that reads config at startup
+doesn't need this.
+- Decide the semantics before wiring more code:
+  - Is the process long-running at all? What reads config after startup?
+  - On a change: re-validate, then swap atomically; on an invalid change, keep the
+    last good config and log the error.
+  - Debounce (editors write via temp-file + rename), and handle delete/recreate.
+- Finish wiring: watcher -> adapter -> validator -> atomic swap -> subscriber notify.
+- Tests: valid edit, invalid edit (old config retained), rapid successive edits,
+  rename-style save, file deleted, watcher teardown on exit (no leaked handles).
+
+## Phase 3 – Schema-migration framework
+Gate: a second schema version actually existing. With one version, there is nothing
+to migrate.
+- Define: where the version lives (`schema_version` field), default when absent,
+  behavior on a newer-than-supported version (reject).
+- Implement the interfaces: ordered migration steps, each version N -> N+1, pure and
+  idempotent, applied before validation.
+- Decide whether migrations rewrite the file on disk or only migrate in memory.
+- Tests: each step with fixtures; chained migration from the oldest version;
+  unsupported version; no-op on current version.
+- Do not build without a real v1 -> v2 change to drive it.
+
+## Cross-cutting
+- Error types and messages: defined once, shared by all adapters and the watcher.
+- Documentation: one doc stating supported formats and behavior; no per-feature copies.
+- Each phase ends with a demo against the same acceptance suite to confirm the
+  Phase 0 behavior didn't regress.
+
+## Risks
+| Risk | Mitigation |
+|------|------------|
+| Phases 1-3 consume the sprint and Phase 0 slips | Phase 0 is first and has its own exit criterion |
+| Unused code paths rot or hide bugs | Gates above; unregistered scaffolds aren't shipped |
+| XML/YAML type ambiguity yields surprising configs | Decide mapping rules before implementing |
+| Watcher races (partial writes, rename saves) | Debounce plus atomic swap, covered by tests |
+
+## Open questions
+1. Is Phase 0 actually shipped and used by the team today?
+2. Who is the consumer for each of Phases 1-3, and by when?
+3. Is the CLI ever long-running?
+4. Is a second schema version planned?
+```
+
+---
+
+Two things would change how I'd sequence this:
+- **Phase 0 status:** if the JSON path with 3-field validation isn't shipped yet, that comes before anything else.
+- **Named consumers:** if you can name one for any of Phases 1-3, that phase's gate is met. The remaining unrequested ones can then stay as scaffolds until someone asks for them.
+
+If you'd like, I can also write a shorter variant that only covers Phase 0 plus a "parked" list.

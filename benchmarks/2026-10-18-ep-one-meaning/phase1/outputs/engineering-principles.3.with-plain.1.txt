@@ -1,0 +1,123 @@
+I couldn't write `process-review.md`. This session has no file-writing tool. The full review is below, so you can save it as that file as-is.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The release train batches about 40 changes into one release every two weeks. That batching is the root cause. It explains why shipping feels slow, why each release is stressful, why hotfixes are slow, and why the sign-offs and changelog are so heavy. The best fixes are to shrink the batch, give hotfixes their own path, and remove the hand-copied changelog.
+
+## Current process and where time goes
+
+| Stage | Cost | Type |
+|---|---|---|
+| PR waits for review | ~2 days average | Waiting |
+| Merged change waits for the train | 0–14 days, ~7 on average | Waiting |
+| Release manager hand-copies ~40 changelog entries | Hours per release | Copying |
+| QA, then EM, then PM sign-off, in sequence | Unmeasured, probably days | Waiting, repeated approval |
+| Hotfix follows the same path | Up to 14+ days for a one-line fix | Wrong path for the work |
+
+A typical change takes about 2 days, plus about 7 days waiting for the train, plus preparation and sign-off time. That is roughly 10–14 days from "done" to "shipped". These are estimates, so measure the real figures first (see Metrics). The team is busy because work is always in progress, but little of it is shipped. Most of the elapsed time is waiting, not work.
+
+## Root cause analysis
+
+**Problem:** Shipping feels slow and each release is stressful.
+
+1. Why is it slow? Changes wait for the train and for serial sign-offs.
+2. Why wait for the train? Releasing is expensive: manual changelog, three approvals, and a large blast radius.
+3. Why is it expensive? Each release carries about 40 changes, so every approver and the release manager must cover all of them.
+4. Why 40 changes? The cadence is calendar-based, so batch size is whatever accumulates in two weeks.
+5. **Root cause:** Release cost is per release, not per change, and the process responds by releasing less often. That makes each batch bigger, and bigger batches raise cost and risk. It reinforces itself.
+
+Stress follows the same chain. With 40 changes in a release, a failure is hard to localize and hard to roll back, so everyone is nervous.
+
+**Branch: hotfixes.** Hotfixes wait because the process has one path, with no urgency lane. The cause is a missing design case, not people.
+
+**Branch: changelog.** The PR description is the only place the change is described, and the release document is a copy of it made by hand. Copies drift, and the manual step costs time and invites errors.
+
+## Waste identified
+
+- **Waiting:** the review queue, the train wait, and the sequential sign-offs. Sequence means the PM waits on the EM, who waits on QA, even when the three checks are independent.
+- **Copying:** the manual changelog is the same fact written twice.
+- **Over-processing:** every release gets the same three approvals regardless of risk. A 40-change release gets the same sign-off as a one-line fix would.
+- **Defects and rework:** large batches make failures harder to diagnose, and the cost shows up as stress.
+
+## Recommendations
+
+The order below is by priority. Within each item I prefer removing a step over guarding it, and guarding over monitoring.
+
+### 1. Create a hotfix path (do first, lowest effort)
+
+- Define "hotfix" in writing: production-impacting, with a small, targeted change.
+- Hotfixes skip the train. They need one reviewer, automated checks, and one approver. QA, EM, and PM review after release rather than before.
+- The target is hours from merge to production, not days.
+- This removes the most embarrassing symptom now, while the larger changes take longer.
+
+### 2. Make the PR the source of truth for the changelog and generate the release notes
+
+- Add a required "Changelog entry" field (or label plus title convention) to the PR template. CI fails if it is missing.
+- A script builds the release document from merged PRs, so the release manager reviews a draft instead of typing it.
+- This removes the copy. Edits happen in the PR, and the release document is derived from it.
+
+### 3. Replace serial sign-offs with parallel, criteria-based ones
+
+- First write down what each sign-off checks. If QA, EM, and PM can't say what they are verifying, the approval is ceremony.
+- Move QA to per-PR or per-change automated and manual testing, so the QA sign-off confirms results rather than starting testing.
+- Run the remaining approvals in parallel and asynchronously, with a time limit (for example, no response in 1 business day means proceed, with escalation).
+- Take the PM and EM out of the per-release path unless the release meets stated risk criteria (for example, a migration or a user-visible change). Product approves scope via feature flags or at planning time.
+
+### 4. Shrink the batch
+
+- Move from biweekly to weekly, then twice weekly, and then to releasing on merge when confidence allows.
+- Use feature flags so that code can ship dark and the "release" of a feature is a flag flip. This separates deploying from releasing and lets unfinished work merge safely.
+- With 5–10 changes per release instead of 40, failures are easy to localize, rollback is simple, and the stress goes away.
+
+### 5. Cut review wait
+
+- Set a first-response target of 4 business hours and a total of 1 business day.
+- Rotate a daily reviewer, and keep PRs small (a soft limit of about 400 lines changed).
+- Limit work in progress per developer: finish and merge before starting something new.
+
+## Design gaps to settle before changing anything
+
+This is a process change, so it needs a design before it is built. These questions are open:
+
+- **Success criteria:** what are the targets, for example median lead time under 3 days and hotfix time under 4 hours?
+- **Scope:** which services does this apply to? Does everything share one release train?
+- **Sign-off purpose:** what does each of the three approvals protect against, and who is accountable if it fails?
+- **Rollback:** what is the rollback plan for a bad release, and has anyone tried it?
+- **Compliance:** is any sign-off required by audit or regulation? If so, record it automatically and keep it.
+- **Owners:** who owns the hotfix definition, the changelog tooling, and the metrics?
+
+## Rollout order
+
+1. Baseline the metrics (week 1).
+2. Hotfix path and changelog generation (weeks 1–2).
+3. Sign-off criteria and parallel approvals (weeks 2–4).
+4. Review SLA (weeks 2–4).
+5. Weekly cadence, then feature flags, then more frequent releases (month 2 onward), one step at a time, checking the metrics each time.
+
+## Metrics
+
+Track these four, measured from the Git history and the deploy tool:
+
+- Lead time from PR open to production
+- Deploy frequency
+- Change failure rate
+- Time to restore service
+
+Also track PR time-to-first-review and the number of changes per release.
+
+## Verification
+
+Test each fix by triggering the condition it is meant to handle:
+
+- **Hotfix:** run a real or dummy one-line fix through the new path and time it from merge to production. It should meet the target.
+- **Changelog:** open a PR without a changelog entry and confirm CI blocks it. Then generate release notes from a sample set of merged PRs and compare them with the last hand-made document.
+- **Sign-offs:** simulate one approver not responding and confirm the escalation or timeout fires.
+- **Smaller batches:** compare change failure rate and time to restore before and after each cadence step. Do not move to the next step if either gets worse.
+
+---
+
+If you want, I can turn this into a file once I have write access, or tailor it to your tooling (GitHub, GitLab, Jira) with specific PR template and CI examples.

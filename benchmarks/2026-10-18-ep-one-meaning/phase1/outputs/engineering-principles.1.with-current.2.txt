@@ -1,0 +1,138 @@
+I can't write `rca.md` in this session because I have no file tools, so the full document is below to save as `rca.md`. I haven't seen the job's code, pipeline or wiki, so anything I inferred is marked as an assumption to confirm.
+
+---
+
+```markdown
+# Root Cause Analysis: Empty customer export delivered to client (3rd occurrence)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft. Items marked (assumption) need confirmation.
+
+## Problem Statement
+
+For the third time in two months, the nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client found it |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client found it |
+| 3 | Export SQL changed without the wiki's manual verification step | Empty file, exit 0, client found it |
+
+The triggers differ and the outcome is identical, so the triggers are not the root cause. Three different upstream failures reached the client through the same path. That path is the systemic issue.
+
+## Analysis
+
+### Branch A: Why did an empty file reach the client?
+
+1. Why did the client receive an empty file? Delivery shipped whatever the job wrote.
+2. Why? Nothing between "job finished" and "file delivered" checks the output. (assumption: delivery is triggered by job success only)
+3. Why? Job success is defined as exit code 0, and the job exits 0 when it writes zero rows.
+4. Why? "Zero rows" was never defined as a failure. The job treats "ran without throwing" as "produced a valid export".
+5. **Root cause A:** The system has no definition of a valid export, and nothing enforces one at the point of delivery. Delivery is fail-open.
+
+### Branch B: Why did nobody find out before the client did?
+
+1. Why was nobody alerted? Monitoring watches only the exit code.
+2. Why? The exit code is the only signal the job emits, and the job exits 0 on empty output.
+3. **Root cause B:** Monitoring checks that the job ran, not that it produced what it should. Branch A's gap means there was nothing better to observe.
+
+### Branch C: Why did the trigger in this incident (an unverified query change) get through?
+
+1. Why was the query change not verified? The check is a manual step in the wiki: run it once by hand and eyeball the row count.
+2. Why did the step get skipped? It relies on memory and on a new engineer (six weeks in) finding and following a wiki page. (assumption: it is not part of review or CI)
+3. Why does a skipped manual step reach production? Nothing automated backs it up, and the change process has no gate that requires evidence of the check.
+4. **Root cause C:** A critical control is a human-memory step outside the delivery path. Skipping it was predictable, and it will happen again to anyone, not just newcomers.
+
+### Contributing factors (not root causes)
+
+- **Swallowed credential error (incident 2):** the job catches an error and continues. This is a separate defect that turns a loud failure into a silent one.
+- **Schema rename (incident 1):** a query that silently returns zero rows against a changed schema. It is a trigger, but with a valid-export gate it becomes a failed job.
+- **Onboarding:** Priya's tenure is a trigger detail, not a cause. The system allowed the skip, and the same skip could have been made by anyone.
+
+### On "human error"
+
+Skipping the manual step is where the investigation starts, not where it ends. Two earlier incidents had no human skip at all and produced the same outcome. A fix aimed at the person would have prevented at most one of three.
+
+## Root Cause
+
+Delivery is fail-open and exit-code-only monitoring is blind to content. Any failure that yields an empty or wrong file, whatever its trigger, reaches a client unnoticed. The manual verification step was the only safeguard, and it sits outside the system.
+
+## Countermeasures
+
+Ranked per the poka-yoke ladder: eliminate the path first, then prevent, then detect.
+
+### 1. Eliminate (do first)
+
+| Action | Removes |
+|--------|---------|
+| **Make delivery unreachable for invalid output.** Put a validation gate (row count > 0, file exists, header present) between job completion and delivery. Fail closed: if validation fails, the file is not sent. | The path by which any empty file can reach a client (root cause A) |
+| **Delete the swallow-and-continue handling** in the job so credential and connection errors propagate and fail the job. | Incident 2's silent-failure mode |
+| **Make zero rows a non-zero exit by default.** If a legitimately empty export is possible, require an explicit, named per-export opt-in (e.g. `allow_empty: true` in config) instead of a default. | The ambiguity of "empty is fine" |
+| **Delete the wiki's manual verification step** once the automated gate exists. Do not keep it as a parallel copy. | A control that depends on memory (root cause C), and a second source of truth about what "verified" means |
+
+### 2. Prevent
+
+- Add a CI check for the export query: run it against a fixture or staging dataset and assert a non-empty result with the expected columns. A query change that breaks this cannot merge.
+- Add a schema-contract test so a column rename fails CI in the upstream repo or the export repo. (assumption: the schema owner is a different team, so agree on this with them)
+
+### 3. Detect (only for what cannot be eliminated)
+
+- Alert on output content, not just exit code: row count of 0, or a row count that deviates sharply from the trailing average (e.g. below 50% of the 7-day median, threshold to be agreed). This catches a partial result the gate cannot, for example a filter that wrongly drops most rows.
+- Alert when a scheduled export does not produce a delivered file by its expected time (a dead-man's check).
+- Route alerts to an owned on-call channel. Name the owner.
+
+### Immediate remediation (this week)
+
+- Re-send the correct file to the affected client and send a short, honest communication about the delay.
+- Check what the client did with the empty file and whether the two earlier empty files caused downstream issues. (assumption: not yet done)
+- Backfill any exports missed in the earlier incidents.
+
+## Decisions needed before building
+
+Settle these first, because the gate depends on them:
+
+1. **Definition of a valid export.** Is any non-zero count valid, or is there a per-client minimum? Who owns this definition? It lives in one place (the export config) and the gate, alert and tests all read it.
+2. **Can an export be legitimately empty?** If so, for which clients, and who approves the opt-in?
+3. **Ownership.** Who owns the export job, the alert routing and the schema contract?
+4. **Client communication.** Who tells clients about the earlier incidents?
+
+## Single source of truth
+
+Define "valid export" once, in the export job's config (row-count rule, required columns, empty-allowed flag). The delivery gate, the monitoring alert and the CI test all read that definition. They do not restate thresholds. The wiki links to the config and does not describe the rule in prose.
+
+## Verification
+
+Do not treat "we'll monitor going forward" as verification. Inject each failure and confirm the safeguard fires.
+
+| Test | Expected result |
+|------|-----------------|
+| Point the job at a query that returns zero rows | Job exits non-zero, no file delivered, alert fires |
+| Revoke or expire the credential in staging | Job fails loudly, no file delivered, alert fires |
+| Rename a column the query uses, in staging | CI schema-contract test fails, or the job fails and delivery is blocked |
+| Submit a PR with a query change that returns zero rows | CI fails and merge is blocked |
+| Make a run produce a file with 10% of the usual rows | Anomaly alert fires |
+| Run a legitimately empty export with `allow_empty: true` | Delivered with no alert, and the opt-in is logged |
+| Stop the scheduler before the job runs | Dead-man alert fires at the expected time |
+
+Re-run these tests after any change to the job, the gate or the alert rules. This incident is closed only when every row passes in staging and the gate is live in production.
+
+## Follow-ups
+
+| Item | Owner | Due |
+|------|-------|-----|
+| Delivery gate (fail-closed) | [TBD] | [TBD] |
+| Remove error swallowing; zero-rows exit non-zero | [TBD] | [TBD] |
+| CI query and schema tests | [TBD] | [TBD] |
+| Content-based and dead-man alerts | [TBD] | [TBD] |
+| Delete wiki step, link to config | [TBD] | [TBD] |
+| Client communication and re-send | [TBD] | [TBD] |
+| Failure-injection verification run | [TBD] | [TBD] |
+```
+
+---
+
+- **Blame:** the analysis does not blame Priya. Two earlier incidents had no skipped step, so the skip is a trigger, not the cause.
+- **Elimination first:** the main fixes remove the fail-open path and the swallowed error instead of adding more monitoring. Monitoring comes last, for what can't be removed.
+- **Open assumptions:** I assumed delivery fires on job success alone and that the manual step isn't in CI or review. Correct these in the document if either is wrong.
+- **Owners and dates:** these are left as `[TBD]` because I don't know your team.

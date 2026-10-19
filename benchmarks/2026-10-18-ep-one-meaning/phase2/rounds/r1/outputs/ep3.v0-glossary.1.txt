@@ -1,0 +1,95 @@
+I couldn't write `process-review.md` because this session has no file-write tool. The full review is below, ready to save as that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The process is slow and stressful for one reason: every release is expensive, so releases are rare, so each one is big, so each one is risky and gets heavy sign-off. This loop feeds itself. Fixing a single step won't break it. The cost per release has to drop, and then releases can get smaller and more frequent.
+
+## Current process and where time goes
+
+| Stage | Delay or cost | Value added? |
+|---|---|---|
+| PR waits for review | about 2 days on average | Review is valuable, but the wait is not |
+| Merged change waits on main for the train | 0–14 days, about 7 on average | None, because the change is finished and idle |
+| Release manager hand-copies about 40 changelog entries | Manual, repeated every release | None, because it only restates PR descriptions |
+| Three sign-offs in sequence (QA, then EM, then PM) | Each waits on the one before | Partial |
+| Hotfix goes through the same path | Up to 14 days for a one-line fix | Negative |
+
+A typical change takes about 9 days from PR open to production, plus the sign-off chain. Active work is probably minutes to hours. The "busy but slow" feeling comes from this: most of the elapsed time is waiting, not working.
+
+## Root causes (5 Whys)
+
+**Problem:** Shipping feels slow and each release is stressful.
+
+1. Why stressful? About 40 changes ship together, so any failure is hard to trace and roll back.
+2. Why 40 at once? Releases happen only every two weeks.
+3. Why only every two weeks? Each release carries a large fixed cost: manual changelog assembly plus three serial sign-offs.
+4. Why are the sign-offs per release? Approval attaches to the batch, not the change. With 40 changes, nobody can be confident without a human gate.
+5. Why is the changelog manual? The facts are written in PR descriptions, and nothing makes them machine-readable. A person copies them.
+
+**Root cause:** The cost of a release is high and independent of release size, and approval is bound to the batch instead of the change. This pushes the team toward big, rare releases, which makes them riskier, which justifies the heavy gates.
+
+**Second branch (hotfixes):** There is only one path, so urgency has no route. This is a missing design, not a people problem.
+
+## Recommendations
+
+Ordered by the rule "remove beats prevent, prevent beats detect."
+
+### 1. Remove the hand-copied changelog
+- Each PR description already holds the entry. Make that the source of truth and generate the release document from it. A copy maintained by hand will drift from the source.
+- Add a required `Changelog:` line (or a label such as `changelog:user-facing` / `changelog:none`) to the PR template. CI fails the PR if it is missing.
+- A script assembles the release notes from merged PRs. The release manager reviews them and no longer retypes them.
+- **Verify:** Merge a PR with no changelog line and confirm CI blocks it. Generate notes for the last release and diff them against the hand-written ones.
+
+### 2. Give hotfixes their own path
+- A hotfix is the same change with a shorter route: after review, it goes to production straight from its own branch or a fast lane. It does not wait for the train.
+- A single approver (the on-call engineer or EM) covers the pre-release gate. QA and PM are notified and review afterward within a set window.
+- Define what qualifies: a production incident or security issue, with a link to the incident. Without that definition, the fast lane becomes the normal route.
+- **Verify:** Run a drill with a trivial fix and measure merge-to-production time. Target: under 1 hour.
+
+### 3. Move approval from the release to the change
+- **QA:** Convert the QA lead's sign-off into automated checks that run on each PR (regression suite, smoke tests). The QA lead owns the suite and its coverage instead of approving each batch.
+- **PM:** The PM's real concern is when a feature becomes visible to users. Put new features behind flags, so the PM approves enabling a flag, not deploying code.
+- **EM:** Replace the release sign-off with a release-health check (CI green, no open blocker). Make it a status, not a person waiting.
+- **Interim, if gates stay:** Run the three sign-offs in parallel, since they are independent reviews. That alone cuts the sign-off time to the slowest single reviewer.
+- **Verify:** Deliberately break a regression test in a PR and confirm that PR can't merge.
+
+### 4. Shrink the batch
+- Move from biweekly to weekly, then to every few days, then to release on merge, behind flags. Each step should follow the cost reductions above, not precede them.
+- At 40 changes, a failure has about 40 suspects. At 5 changes, the cause is nearly obvious and the rollback is small. This is what removes the release stress.
+- **Verify:** Track changes per release and release-day incidents. Both should fall.
+
+### 5. Cut the PR review wait
+- Set a review target of one business day, with a visible queue of PRs waiting longer than that.
+- Keep PRs small, since small PRs get reviewed faster.
+- Consider a rotating "reviewer of the day."
+- **Verify:** Measure PR open-to-first-review time weekly.
+
+## Design gaps to close before changing anything
+
+These items from a design checklist are not stated in the process as described. Please fill them in before rollout:
+
+- **Success criteria:** No target is defined. Suggested measures are lead time (PR open to production), deploy frequency, change failure rate, and time to restore service.
+- **Rollback:** There is no stated way to undo a release. Batches of 40 make this hard. Flags and smaller releases help, but a rollback procedure should be written down.
+- **Hotfix definition:** It is not defined what qualifies, and who may approve.
+- **Ownership:** Who owns the changelog tooling, the QA suite, and the flag policy?
+- **Compliance:** If the three sign-offs exist for audit or regulatory reasons, these recommendations must keep an auditable record, such as automated check results and a flag-change log. Please confirm whether that's the case.
+
+## Suggested sequence
+
+| Phase | Change | Effort | Effect |
+|---|---|---|---|
+| 1 (this week) | Hotfix path, parallel sign-offs, PR changelog field | Low | Removes the worst waits |
+| 2 (next 2–4 weeks) | Generated release notes, review SLA, weekly releases | Medium | Halves batch size |
+| 3 (next quarter) | Automated QA gates, feature flags, release on merge | Higher | Removes the batch problem at its root |
+
+## Caveats
+
+The numbers above (2-day review wait, biweekly train, about 40 changes) are the ones you gave me. I don't have data on defect rates, rollback history, or why the three sign-offs were introduced. If a past incident motivated them, that incident should shape which automated gates replace them. Baseline the metrics above before changing anything, so you can confirm the improvement.
+
+---
+
+If you give me a working directory with file access, I can save this as `process-review.md` there.

@@ -1,0 +1,120 @@
+I can't write `rca.md` in this session because I have no file-writing tool here. The full document is below as Markdown, so you can save it as-is. It uses only the facts you gave me. I haven't seen logs, the job code, or the delivery path, so items marked "to confirm" are assumptions.
+
+---
+
+# Root Cause Analysis: Empty customer export delivered to client (third occurrence)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft
+
+## Problem Statement
+
+For the third time in two months, the nightly customer-export job wrote an empty output file, and that file was delivered to a client. The job exited 0 each time. Monitoring checks only the exit code, so no one on the team was alerted. The client noticed before we did.
+
+| # | Trigger | Job behavior | Outcome |
+|---|---------|--------------|---------|
+| 1 | Schema rename | Query returned no rows; exit 0 | Empty file delivered, client noticed |
+| 2 | Expired credential, swallowed by the job | Error caught and ignored; exit 0 | Empty file delivered, client noticed |
+| 3 | Export SQL changed by Priya; the wiki's manual check ("run once by hand, eyeball the row count") was not run | Zero rows written; exit 0 | Empty file delivered, client noticed |
+
+## Analysis
+
+The three incidents have different triggers and an identical outcome. That points to a system cause, not to any one trigger. Branching the 5 Whys:
+
+### Branch A: Why did an empty file reach the client?
+
+1. Why? The delivery step sent a zero-row file.
+2. Why? Nothing between "job finished" and "file delivered" checks that the file has content.
+3. Why? The pipeline treats "exit 0" as "output is valid."
+4. Why? The job treats zero rows as success, and it swallows some errors (the credential case).
+5. **Root cause A:** Success is defined as "the process didn't crash," not as "the output is correct." The job and delivery step have no output contract, so an empty file is a legal result.
+
+### Branch B: Why did nobody on the team find out first?
+
+1. Why? No alert fired.
+2. Why? Monitoring checks only the exit code.
+3. Why? The exit code is the only signal the job emits.
+4. **Root cause B:** The monitored signal (exit code) is not the thing that matters to the client (a non-empty, plausible file). Because of root cause A, the exit code can't carry that information anyway.
+
+### Branch C: Why did the trigger in this incident (a query change) go unverified?
+
+1. Why? Priya skipped the manual check.
+2. Why? The check is a manual wiki step: "run once by hand and eyeball the row count."
+3. Why was a manual step the only guard? No automated test or CI gate exists for query changes.
+4. Why does a new engineer's skipped step reach production? Nothing in the change process requires the check or fails without it. Onboarding (six weeks in) is also a plausible factor, to confirm.
+5. **Root cause C:** The only protection against bad query changes is a human remembering a wiki step. "Human error" is not the root cause. The system allowed a change to ship without evidence that it works.
+
+### Why the first two incidents matter
+
+The schema rename and the swallowed credential error are separate triggers. Both were caught by none of root causes A, B, or C's controls. Fixing the query-change check alone (C) would have prevented only incident 3. Fixing A and B addresses all three.
+
+## Root Causes (summary)
+
+- **A (primary):** An empty or invalid output is treated as a successful run, and some failures are swallowed.
+- **B:** Monitoring watches the exit code, not the output.
+- **C:** Query changes rely on a manual, optional wiki check.
+
+## Fixes
+
+Ranked: remove, then prevent, then detect. Monitoring is the last line of defense, not the fix.
+
+### Remove (eliminate the path that allowed the failure)
+
+1. **Remove the "zero rows = success" path.** The job must exit non-zero when it writes zero rows, unless the export is explicitly configured as allowed-empty (to confirm whether any legitimate empty export exists; if none, no exception is needed).
+2. **Remove the swallowed-error path.** Delete the catch-and-continue around the credential/connection failure so errors propagate and fail the job. Audit the job for any other broad `except`/ignore handlers.
+3. **Remove the manual verification step from the wiki, replacing it with item 5.** Stale docs describing a check that is now automated are waste and a source of conflicting guidance.
+4. **Remove the ungated delivery path.** Delivery runs only after validation passes, so a bad file is physically unable to reach the client (a gate, not a notification).
+
+### Prevent (make the failure hard to cause)
+
+5. **Automated check on query changes in CI.** Run the export query against a fixed test dataset or staging and assert row count > 0 and expected columns. This replaces the human "eyeball." A query change can't merge without it.
+6. **Output validation before delivery (the contract).** Assert: non-empty, expected schema/columns, and a row count within a tolerance band of recent runs (e.g., not below X% of the trailing median). Fail and hold the file if not.
+7. **Schema-change guard.** Make the export query fail loudly on a missing column or table (explicit column list, no silent fallbacks), and run the CI check on upstream schema changes where possible (to confirm what's feasible).
+
+### Detect (last line, for what slips through)
+
+8. **Alert on output, not exit code.** Emit row count and file size as metrics per run. Alert on zero rows, and on a large deviation from baseline. Page on a failed/held delivery.
+9. **Client-facing safety net (optional).** If a delivery is held, notify the owning team immediately so the client is told proactively, not after they discover it.
+
+## Owners and Timeline
+
+| Fix | Owner | Due |
+|-----|-------|-----|
+| 1, 2, 4 (job and delivery changes) | [name] | [date] |
+| 5 (CI check) | [name] | [date] |
+| 6, 7 (validation contract, schema guard) | [name] | [date] |
+| 8, 9 (metrics and alerts) | [name] | [date] |
+| 3 (wiki cleanup, after 5 ships) | [name] | [date] |
+
+## Immediate Actions
+
+- Re-run tonight's export with the corrected query and confirm the client has a valid file.
+- Check whether any other recent deliveries were empty or short (a lookback over output sizes for the last 60 days).
+- Tell the client what happened and what is changing.
+
+## Verification
+
+Each fix is tested by triggering the original failure and confirming it is caught. "We'll monitor going forward" is not verification.
+
+1. **Zero-row query:** run the job against a query that returns zero rows. Expect a non-zero exit, no file delivered, and an alert.
+2. **Expired credential:** run the job with a deliberately expired credential in staging. Expect the job to fail (not exit 0) and an alert.
+3. **Schema rename:** rename a column the query uses in staging. Expect failure at the CI check or at run time, and no delivery.
+4. **Bad query change:** open a PR that changes the query to return zero rows. Expect CI to fail and block the merge.
+5. **Baseline deviation:** feed a file with 5% of the normal row count. Expect the validation gate to hold it and alert.
+6. **Alert path:** confirm the alert reaches the on-call channel end to end, not just that the metric is emitted.
+
+## Notes on Blame
+
+Priya followed the process as it exists, and the process depends on memory. Skipping the manual check was possible and consequential only because the system had no guard. Incidents 1 and 2 had nothing to do with Priya and had the same outcome. No individual follow-up is recommended; the fix is the system changes above.
+
+## Open Questions
+
+- Is there any legitimate case for an empty export (a client with no new data)? This decides whether item 1 needs an exception.
+- Where does delivery run today, and can it be gated on validation without major rework?
+- Is there a staging dataset suitable for the CI check in item 5?
+- Are other jobs in the platform using the same exit-code-only monitoring and the same zero-rows-is-success pattern? If so, the fix should be a shared mechanism, not a per-job copy.
+
+---
+
+If you want, I can tighten this into a shorter client-safe summary, or publish it as a page for the team.

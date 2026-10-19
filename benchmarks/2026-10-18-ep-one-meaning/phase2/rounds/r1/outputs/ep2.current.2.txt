@@ -1,0 +1,59 @@
+I can't write `docs-plan.md` in this session because I have no file tools, so the full plan is below. Paste it into `docs-plan.md`, or tell me to write it once file access is available.
+
+```markdown
+# Docs restructuring plan
+
+Rule applied: every fact has one home. Other docs point to it by path or
+heading and restate nothing. Backstory lives in git history, not in docs.
+
+## Decisions
+
+| # | Fact | Canonical location | README.md | CONTRIBUTING.md | CLAUDE.md |
+|---|------|--------------------|-----------|-----------------|-----------|
+| 1 | Local setup steps | README.md, "Setup" section | Keep, and fix to the verified truth (see below) | Delete its copy. Replace with one line: "Setup: see README.md#setup" | Do not add |
+| 2 | API request timeout | The constant in `src/http/client.js` | Delete the sentence "API requests time out after 30 seconds". Do not substitute the right number. | Delete the "45 seconds" sentence. Same rule. | Do not add |
+| 3 | Support email | README.md, once | Keep | Link to README if contributors need it. Do not repeat the address. | Do not add |
+| 4 | "Call `recalcTotals()` after any mutation to line items" | A header comment at the top of `src/billing.js` | n/a | n/a | Delete the rule. It only matters in one file, so it loads only when someone opens that file. |
+| 5 | "Lessons learned" section (2025-11 `npm start` → `npm run dev`, 2026-01 export module rename, etc.) | None. Git history already holds this. | n/a | n/a | Delete the whole section. Do not move or condense it into an ADR, CHANGELOG, comment or new history file. |
+
+## Details
+
+**1. Setup steps (contradiction: `npm install` / `.env.example` / `npm run dev` vs `npm ci` / hand-made `.env` / `npm start`)**
+- README is the canonical home because it is the first thing a newcomer reads. CONTRIBUTING gets a pointer only.
+- Verify before writing the final text (this is the one thing I couldn't check):
+  - Run command: `npm run dev`, since the CLAUDE.md draft says `npm start` was retired. Confirm it matches the `scripts` block in `package.json`.
+  - `.env`: confirm `.env.example` exists. If so, "copy `.env.example`" is right and "create by hand" is stale.
+  - `npm install` vs `npm ci`: pick one. `npm ci` is the better fit if a lockfile is committed and you want reproducible installs. `npm install` is fine otherwise. Either way the choice appears only in README.
+- Where `npm start` stays valid (for example production), that belongs in the deploy docs or `package.json`, not in the dev setup.
+
+**2. Timeout (contradiction: 30s vs 45s)**
+- The code is the authority, and neither doc is guaranteed to be right. Read the constant in `src/http/client.js`.
+- Delete the number from both docs. Writing the correct number into README would just recreate the duplicate and drift again.
+- If a doc must mention it, write "see `<CONSTANT_NAME>` in `src/http/client.js`" with the name and path only.
+- If the value ought to be configurable, that is a separate change and out of scope here.
+
+**3. Support email**
+- It appears once, in README. Nothing to reconcile today. This entry stops anyone adding a second copy to CONTRIBUTING.
+
+**4. `recalcTotals()` rule**
+- It is misplaced in CLAUDE.md. It applies to exactly one file, so it goes in `src/billing.js` as a header comment, e.g. `// Invariant: call recalcTotals() after any mutation to line items.`
+- Remove it from CLAUDE.md in the same change so the rule never exists in two places.
+- Optional follow-up, separate scope: remove the need for the rule by making line-item mutations go through a function that recalculates totals itself. Deleting the way to get it wrong beats documenting it.
+
+**5. Lessons learned**
+- Delete it outright. It is backstory, and git is the single source for it.
+- Anything in it that is still true today is already covered elsewhere:
+  - "Use `npm run dev`" is in README Setup (item 1).
+  - If the port clash left a live constraint, such as the dev server needing a specific port, state that one present-tense fact in README next to the setup step or in the config that sets the port. Don't retell the incident.
+- The export-module rename is only history, so it goes.
+
+## Resulting CLAUDE.md
+Only rules that apply repo-wide, and each stated once. After this change it contains nothing from items 4 and 5. It may carry a path-only pointer such as "Setup: README.md#setup".
+
+## Verification after the edits
+- `grep -rn "seconds" README.md CONTRIBUTING.md CLAUDE.md` returns no timeout value.
+- `grep -rnE "npm (ci|install|start|run dev)" *.md` hits only the README Setup section.
+- `grep -rn recalcTotals` hits only `src/billing.js` and its callers, not CLAUDE.md.
+- `grep -rn "Lessons" CLAUDE.md` returns nothing.
+- Following README Setup on a clean clone gets the app running.
+```

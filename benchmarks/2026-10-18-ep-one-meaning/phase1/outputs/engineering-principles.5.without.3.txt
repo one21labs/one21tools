@@ -1,0 +1,43 @@
+I can't write `tasks.md` from this session because I have no file-writing tools here. The breakdown is below, ready to paste into `tasks.md`. I took the plan as approved. Where it leaves a detail open, I made that a short task with a default instead of reopening the plan.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Goal: API endpoint that exports all of a user's data. Fast. Ship next week.
+
+## Defaults (change if the team disagrees)
+- Format: JSON (easiest, and it is machine-readable).
+- A user can export only their own data. Admin export is out of scope.
+- Large exports are streamed, so memory stays flat and the first bytes arrive quickly.
+
+## Day 1: Scope and design
+- [ ] T1. Inventory every table/store holding user data (DB tables, blob storage, logs, third-party systems). Output: checklist of sources with owner and join key. (S)
+- [ ] T2. Decide per source: include, exclude (e.g. internal flags, other users' data, secrets/password hashes), or defer. Document exclusions. (S)
+- [ ] T3. Define the JSON schema and the endpoint contract (e.g. `GET /api/v1/users/me/export`), including status codes, errors and a version field. (S)
+
+## Days 1-3: Build
+- [ ] T4. Authentication and authorization: the caller can export only their own data, with a test for cross-user access. (S)
+- [ ] T5. One exporter function per data source, each returning a stream or iterator for a given user id. (M)
+- [ ] T6. Streaming JSON assembler that combines the exporters into one response without loading everything into memory. (M)
+- [ ] T7. Endpoint wiring: route, handler, `Content-Disposition` header, and gzip. (S)
+- [ ] T8. Rate limiting (e.g. 1 to 3 exports per user per hour) so a heavy query can't be abused. (S)
+- [ ] T9. Audit log entry for each export (user, time, size, status). (S)
+
+## Days 3-4: Performance
+- [ ] T10. Check for missing indexes on `user_id` for each exporter query. (S)
+- [ ] T11. Load test with a large synthetic user. Set a latency target (e.g. first byte < 1s, p95 total < 10s for a typical user). (M)
+- [ ] T12. Decision point: if the large-user case misses the target, add an async path (job, then download link or email). If not, skip it. (S, conditional M/L)
+
+## Days 4-5: Verify and ship
+- [ ] T13. Tests: unit tests per exporter, integration test for the full export, auth/isolation tests, and an empty-user case. (M)
+- [ ] T14. Data-completeness check: compare the export against the T1 inventory so no source is silently missing. (S)
+- [ ] T15. Review for sensitive fields leaking (tokens, hashes, internal notes). (S)
+- [ ] T16. API docs and a short runbook (how to debug a failed export). (S)
+- [ ] T17. Feature flag, staging deploy, smoke test, then production rollout. (S)
+
+## Risks to watch
+- "All of a user's data" may carry legal or compliance requirements (privacy/data-access requests). If so, T1 and T2 decide whether the output counts as complete.
+- Without T8 and T10, a slow query on a big account can degrade the database for other users.
+```
+
+Sizes are rough: S is under half a day, M is about 1 to 2 days. T1 to T3 are the critical path, because every later task depends on knowing what "all data" means. Once the files are writable in this session, I can save this to `tasks.md` for you.

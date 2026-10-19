@@ -1,0 +1,90 @@
+I can't write `plan.md` in this session because I have no file tools here. Below is the full text, ready to paste. I made two choices you should check before using it.
+
+- **Sequencing:** the plan ships the actual requirement first (Phase 0). The sprint isn't at risk from the extra work, and the one team that uses the tool gets what it asked for.
+- **Gates on the extras:** the unrequested work is in the plan, but each piece has a stated consumer and a done-test. The two weeks already spent are sunk either way. What matters is whether finishing each piece costs less than the value it returns. For all three pieces, nobody has asked for them, so right now that value is zero.
+
+---
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Goal
+Ship the config subsystem this sprint. The only stated requirement (from the
+one consuming team): read `config.json` at startup and validate `api_url`,
+`team_id`, `log_level`.
+
+## Status
+| Component | State | Requested by anyone? |
+|---|---|---|
+| Adapter architecture + JSON adapter | Done | Yes (JSON) |
+| YAML / TOML / XML adapters | Scaffolded | No |
+| Hot-reload watcher | Half wired | No |
+| Schema-migration framework | Interfaces only | No |
+| Field validation (3 fields) | Not confirmed done | Yes |
+
+## Phase 0: Ship the requirement (blocking, do first)
+1. Confirm the validator covers the three fields. Write down the rules:
+   - `api_url`: valid URL, allowed schemes
+   - `team_id`: type and format
+   - `log_level`: allowed enum values
+2. Define the failure contract: on invalid or missing config, print which
+   field failed and why, then exit non-zero.
+3. Tests: valid file, each field missing, each field invalid, malformed JSON,
+   file not found.
+4. Hand to the consuming team and get their sign-off.
+Done when: the consuming team runs the tool against their real config.json.
+
+## Phase 1: Decision gate (30 min, before any Phase 2 work)
+For each unrequested component, record a named consumer and a need-by date.
+No consumer means it stays scaffolded and is marked "parked" in the README.
+The remaining phases run only for components that pass the gate.
+
+## Phase 2: Remaining components (each independent, each gated)
+
+### 2a. Format adapters (YAML, TOML, XML)
+Design questions to answer first:
+- XML has no native mapping to flat key/value config. Decide the mapping
+  (attributes vs elements) or drop XML.
+- Which format does the first real requester want? Do that one first.
+Work per adapter: implement parse, normalize to the same internal shape as
+JSON, run the same three-field validator, add error messages with line/column.
+Done when: the same fixture config in each format yields identical validated
+output, and malformed input fails with the Phase 0 error contract.
+
+### 2b. Hot-reload watcher
+Design questions to answer first:
+- Is reload in scope for a CLI that starts, runs, and exits? Name the
+  long-running command that needs it.
+- Behavior on an invalid reload: keep the last good config and log the error
+  (recommended), or fail?
+- Debounce interval; handling of editors that save via rename.
+Work: finish wiring, route reloads through the same validator, add atomic swap
+of the active config, tests for rapid writes, invalid edits, file deletion.
+Done when: editing the file during a run updates behavior, and a bad edit
+leaves the last good config active.
+
+### 2c. Schema migrations
+Design questions to answer first:
+- There is only one schema version today, so there is nothing to migrate.
+  Do not implement until a v2 schema exists.
+- Where is the version stored (`schema_version` field?) and what happens to
+  files that lack it?
+Work (when triggered): implement the runner, write the first real migration,
+test upgrade from v1 to v2, test the no-version case, and test downgrade
+refusal.
+Done when: a real v1 file upgrades to v2 and validates.
+
+## Risks
+- Unrequested features add maintenance surface (3 parsers, a concurrency
+  path, a migration runner) for one consumer using one format.
+- Hot reload adds race conditions to a startup-only tool.
+- The migration framework can't be validated without a second schema version.
+
+## Recommended sprint scope
+Phase 0 plus Phase 1. Schedule Phase 2 items only where the gate names a
+consumer.
+```
+
+---
+
+If you want the full build-out of all three components this sprint regardless of the gate, I can rewrite the plan with Phase 2 as unconditional, ordered by effort (YAML, TOML, watcher, XML, migrations). I'd still keep Phase 0 first and the design questions in place. For example, a migration framework with no second schema version has nothing to test against.

@@ -1,0 +1,68 @@
+Don't pick the strictest one for everyone. These three aren't copies of the same validator. Signup and billing answer different questions:
+
+- **Billing** asks whether this string is safe to send to the payment provider. That needs strict E.164.
+- **Signup** asks whether this is something a person typed that we can turn into a phone number. That needs tolerance.
+
+If signup used the billing regex, `(415) 555-0134` and `415.555.0134` would both be rejected. That is most of your ~4,000 daily mobile submissions. Support is a 2023 copy of billing, so it's the only true duplicate.
+
+## Design: separate "parse" from "validate"
+
+The library gets one tolerant function that produces a canonical E.164 string, and one strict check. Each service then calls the one that fits its contract.
+
+```python
+# phone_validation/__init__.py
+import re
+
+_E164 = re.compile(r'\+[1-9][0-9]{7,14}')          # ASCII digits only
+_SEPARATORS = re.compile(r'[ ()\-.]')
+
+def is_e164(s: str) -> bool:
+    """Strict: s is already canonical E.164. No stripping, no normalizing.
+    Use at any boundary where the value goes to a downstream system."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str = "US") -> str | None:
+    """Tolerant: turn user-typed input into canonical E.164, or None."""
+    if not isinstance(raw, str):
+        return None
+    s = _SEPARATORS.sub("", raw.strip())
+    if s.startswith("+"):
+        candidate = s
+    elif default_region == "US" and re.fullmatch(r'1?[2-9][0-9]{9}', s):
+        candidate = "+1" + s.removeprefix("1")
+    else:
+        return None
+    return candidate if is_e164(candidate) else None
+```
+
+If you expect international signups, implement `normalize_phone` with the `phonenumbers` package (libphonenumber) instead of hand-rolling region rules. Keep the same signature so services don't care.
+
+The old code has latent bugs that this fixes:
+
+- **Trailing newlines:** `$` in billing's regex matches before a trailing `\n`. `fullmatch` doesn't.
+- **Unicode digits:** `\d` matches non-ASCII digits like `٤١٥…`. Billing would pass those to the provider. `[0-9]` doesn't.
+- **Signup's unanchored regex:** `LOOSE.match` has no `$`, so `"5551234 anything"` passes. It also accepts `"+++---"`-style junk of 7+ characters.
+
+## Per-service usage
+
+- **billing:** `is_e164(phone)`. Strict, no normalizing, and the provider only ever sees canonical values.
+- **support:** `normalize_phone(raw) is not None`, or `is_e164(raw.strip())` to match today's behavior exactly.
+- **signup:** `normalize_phone(raw)`. Store the returned E.164 value, not the raw string, so downstream services get something billing accepts.
+
+The signup change matters most. Today signup accepts values that billing would reject later, and storing the canonical form removes that gap. Confirm whether signup-collected numbers ever reach billing or support. I'm assuming they do.
+
+## Rollout
+
+Each service deploys independently, so no step needs to happen in lockstep.
+
+1. **Publish `phone-validation 1.0.0` to your private PyPI.** Include tests that characterize the old behavior. Cases should include `+14155550134`, `(415) 555-0134`, `415.555.0134`, a trailing `\n`, Arabic-Indic digits, and `"5551234 junk"`. Pin consumers to `>=1,<2`. Treat any change to what counts as valid as a major version bump, because it changes behavior in services that deploy separately.
+2. **Support first.** It's nearly identical and low risk.
+3. **Billing next.** It's a one-line swap. The only behavior change is rejecting the newline and Unicode-digit edge cases. Before deploying, check logs or recent charge data for any such numbers. If there are any, those customers were already at risk of provider errors.
+4. **Signup last, in shadow mode.** For a few days, keep the old validator as the source of truth. Also run `normalize_phone` and log disagreements (old accepts and new rejects, or the reverse). Review them, since this is where default-region assumptions show up, such as 10-digit numbers with no country code. Then switch to storing the normalized value.
+5. **Backfill.** Run `normalize_phone` over stored signup numbers. Flag the ones that return `None` for follow-up rather than dropping them.
+6. **Delete the three local `validate.py` files** once each service is switched.
+
+## Decisions for you
+
+- **Default region:** is US-only fine, or do you need international signups? That decides between the hand-rolled version and `phonenumbers`.
+- **Extensions** like `x123` are rejected by both versions. Say so if signup should accept them.

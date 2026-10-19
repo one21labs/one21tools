@@ -1,0 +1,129 @@
+I can't write `rca.md` in this session because I have no file tools, so the full document is below. Paste it into `rca.md`. I wrote it from your description only, without seeing the job, its code, or the wiki. Facts I assumed are listed under "Open questions".
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client
+
+**Date of incident:** [fill in]
+**Owner:** [fill in]
+**Status:** Fixes proposed, not yet implemented
+
+## Problem statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. No alert fired. The client noticed first. This is the third occurrence in two months.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL query changed, manual check skipped | Empty file, exit 0, client noticed |
+
+The triggers differ and the outcome is identical. Three different triggers producing one outcome point to a system condition, not three separate mistakes.
+
+## Impact
+
+- A client received an empty export three times. [Fill in: clients affected, data-freshness impact, contractual or SLA exposure.]
+- In all three cases detection came from the client, not from us.
+
+## Analysis
+
+### Branch A: why was an empty file produced?
+
+1. Why was the file empty? The query returned no rows (rename, auth failure, or a broken query).
+2. Why did the job continue? It treats zero rows as success. In occurrence 2 it also swallowed the credential error.
+3. Why does the job allow that? No definition of "valid output" exists in the job, so only "the process didn't crash" is checked.
+4. **Root cause A: the job has no output contract. Success means "didn't crash", not "produced a valid export".**
+
+### Branch B: why was the empty file delivered?
+
+1. Why was it delivered? Delivery runs after the job exits 0.
+2. Why is nothing between job and delivery? The pipeline trusts the exit code, and the exit code is wrong (Branch A).
+3. **Root cause B: delivery to the client is not gated on any check of the file itself.**
+
+### Branch C: why did nobody find out before the client?
+
+1. Why no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It is the cheapest signal. Nothing defined which outcome matters, which is the file's content.
+3. **Root cause C: monitoring measures the process, not the product. It cannot see the one failure that matters.**
+
+### Branch D: why did the query change reach production unchecked?
+
+1. Why did Priya's change ship unchecked? The only safeguard was a manual wiki step ("run once by hand, eyeball the row count"), and it was skipped.
+2. Why was it skippable? It lives in a wiki, not in the change path. Nothing in review, CI, or deploy requires it or notices its absence.
+3. Why was it skipped? A person six weeks into the job had no forcing function. Whether they had read that page, or whether it is discoverable, is an onboarding question to confirm. See "Open questions".
+4. **Root cause D: a critical safeguard depends on human memory, and the system lets the change proceed without it.**
+
+"Priya skipped a step" is not a root cause. Any engineer can miss a manual step, and the system must still prevent the outcome when they do. This analysis assigns no individual blame. Branches A to C would have produced this incident from a perfectly executed query change.
+
+## Contributing factors
+
+- The previous two incidents did not lead to a fix that addressed the shared outcome. Each trigger was handled on its own, so the common failure remained. [Confirm what was done after #1 and #2.]
+- The credential error was swallowed (occurrence 2). This is a specific defect inside Root cause A.
+
+## Fixes
+
+Ranked as: remove the failure path, then prevent it, then detect it. Detection is the last resort and is not the primary fix.
+
+### Remove (do first)
+
+1. **The job fails loudly on zero rows.** If the result is empty and an empty result is not a valid business outcome, exit non-zero and write no deliverable. This removes the "empty file, exit 0" path that all three incidents share. It would have stopped all three occurrences regardless of trigger.
+2. **Stop swallowing errors.** Remove the catch-and-continue around credential and query failures. Let them propagate to a non-zero exit.
+3. **Gate delivery on the file, not the exit code.** The delivery step validates the artifact (see the contract below) and refuses to send if validation fails. This is independent of fix 1, so a future bug in the job cannot reach the client.
+4. **Remove the manual wiki step.** Replace "run once by hand and eyeball the row count" with the automated check in fix 5, then delete the wiki instruction so no stale duplicate remains.
+
+### Prevent
+
+5. **Automated query check in CI.** Any change to the export SQL runs against a fixture or non-prod dataset and asserts: row count above the minimum, required columns present, and expected types. A schema rename (occurrence 1) fails here instead of in production.
+6. **Credential expiry check ahead of the run.** Verify the credential and warn before expiry. Treat a failed auth as a hard failure (fix 2).
+
+### Detect (backstop)
+
+7. **Monitor the output, not the exit code.** Alert on zero rows, and on file size or row count deviating sharply from a trailing baseline (for example under 50% of the 14-day median). Page the data platform on-call, not the client.
+8. **Alert on "job did not deliver by deadline"** so that a loud failure also reaches a human.
+
+### Single source of truth for the output contract
+
+Define "valid export" once, in one place (a config or schema file next to the job): minimum row count, required columns, and file-size floor. The job, the delivery gate, the CI check, and the monitor all read from it. Do not restate the thresholds in the wiki, the alert config, and the code. The wiki should point to this file and carry none of its values.
+
+## Verification
+
+"We'll monitor going forward" does not count as verification. Each fix is proven by triggering the failure condition and confirming it is caught:
+
+| Fix | Test | Pass condition |
+|-----|------|----------------|
+| 1, 2 | Run the job with a query that returns zero rows, then with an expired or invalid credential | Non-zero exit, no deliverable written |
+| 3 | Place a zero-row file where the job output goes and run delivery | Delivery refuses, nothing sent to client |
+| 5 | Open a test PR renaming a column the export uses, and another that breaks the filter | CI fails on both |
+| 6 | Run with a credential near or past expiry | Warning or failure fires before or at the run |
+| 7, 8 | Replay a zero-row run and a half-size run in staging | Alert reaches on-call within the agreed time |
+
+Run the three historical triggers (schema rename, expired credential, bad query) as a regression suite. All three must be caught before this is closed.
+
+## Open questions
+
+These must be answered before the fix list is final.
+
+1. **Is a zero-row export ever valid?** If a client can legitimately have no data on some nights, fixes 1 and 3 need a per-client rule such as "zero rows allowed for client X". That rule belongs in the output contract, not in the code. This blocks fix 1.
+2. **What are the real minimums and baselines?** The 50% figure is a placeholder.
+3. **Where does the credential live, and who renews it?** The expiry fix needs an owner.
+4. **Did Priya have access to the wiki page, and was it part of onboarding?** This decides whether onboarding needs a change. With fix 4 in place the answer matters less, because the check no longer depends on onboarding.
+5. **What was done after incidents 1 and 2?** If fixes were made, why did they not cover this outcome?
+6. **Client communication.** Has the client been notified and sent a corrected file? Is a customer-facing note needed?
+
+## Action items
+
+| Action | Owner | Due |
+|--------|-------|-----|
+| Answer open questions 1 and 2 (blocks fix 1) | [ ] | [ ] |
+| Zero-row failure and error propagation (fixes 1, 2) | [ ] | [ ] |
+| Delivery gate (fix 3) | [ ] | [ ] |
+| Output contract file, single source of truth | [ ] | [ ] |
+| CI query check (fix 5) | [ ] | [ ] |
+| Output-based monitoring and missed-delivery alert (fixes 7, 8) | [ ] | [ ] |
+| Credential expiry check (fix 6) | [ ] | [ ] |
+| Delete wiki step, link to the contract (fix 4) | [ ] | [ ] |
+| Run the three-trigger regression suite | [ ] | [ ] |
+
+---
+
+Once you've filled in the incident date, owners, and open questions, tell me what changes. I can also tighten this for a different audience, such as a short client-facing summary.

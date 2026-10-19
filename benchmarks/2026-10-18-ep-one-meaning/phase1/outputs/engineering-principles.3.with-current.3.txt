@@ -1,0 +1,107 @@
+I couldn't write `process-review.md` because this session has no file-writing tools. The full review is below, formatted so you can save it as that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because most of the elapsed time is waiting, not work. A change waits about 2 days for review. It then waits up to 2 weeks on main for the train. Then it waits through three sequential sign-offs. The stress is a side effect of the same design: shipping about 40 changes at once makes each release high-risk and hard to debug. The fix is to make releases smaller, more frequent and cheaper, not to add more checking.
+
+## Waste in the current process
+
+| Waste | Where it shows up |
+|---|---|
+| **Waiting** | 2-day PR review. Up to 14 days on main. Sign-offs run in sequence (QA, then EM, then PM), so each approver's delay adds to the next. |
+| **Inventory** | About 40 finished but unreleased changes sit on main. They deliver no value and carry risk. |
+| **Overprocessing** | Three sign-offs on every release, including one-line fixes. |
+| **Manual transport** | The release manager hand-copies a changelog entry per PR, so about 40 copies per release. |
+| **Defects and rework** | A 40-change batch makes a bad release hard to bisect. A rollback reverts all 40 changes, not one. |
+
+## Root cause
+
+1. Why is each release stressful? Because about 40 changes ship together.
+2. Why are there 40 per batch? Because releases happen only every two weeks.
+3. Why so infrequent? Because each release is expensive: manual changelog, three sequential human approvals, and a coordination cost per train.
+4. Why do approvals sit at the release and not on each change? Because there appears to be no trusted per-change signal (automated tests, flags, canaries) that lets the team approve earlier or smaller.
+5. **Root cause:** a high fixed cost per release pushes the team toward big batches, and big batches raise the risk per release. That risk is then answered with more sign-offs, which raises the fixed cost further.
+
+This loop reinforces itself. Fixing any one symptom, such as a faster QA lead, won't break it. The fixed cost per release has to come down.
+
+## Recommendations
+
+They are ordered by impact and effort, applying elimination first (delete the step), then prevention, then detection.
+
+### 1. Give hotfixes their own path (do this first; days of effort)
+A one-line urgent fix should not wait for the train. The train is a cadence for features, not a law for fixes.
+- Define a hotfix as a fix for a user-impacting or security issue, labelled as such.
+- Require one reviewer, passing CI and one accountable approver, such as the on-call EM or QA. Do not require all three sign-offs.
+- Ship it immediately from main or a release branch.
+- Notify QA, EM and PM afterward, and review hotfixes weekly to catch abuse of the label.
+- **Prediction:** hotfix lead time drops from up to 14 days to under a day.
+
+### 2. Delete the manual changelog (SSoT)
+The PR description already holds the changelog text. Copying it into a release document creates a second copy that can drift or contain typos, and it costs the release manager hours per release.
+- Add a required "Changelog" field or a `release-note` label to the PR template. Fail CI if it is missing.
+- Generate the release document from the merged PRs with a script or a tool such as release-drafter or changesets.
+- The PRs remain the single source, and the release document becomes a generated view.
+- **Prediction:** the release manager's changelog work drops from hours to minutes of review.
+
+### 3. Rework the sign-offs (weeks)
+- First, ask what each of the three roles actually checks. If a sign-off has no distinct criterion, delete it.
+- Run the remaining sign-offs **in parallel**, not in sequence. That alone cuts the worst-case approval wait to the slowest single approver.
+- Move quality gates **earlier and per change**. QA criteria become automated tests and PR checks. PM review of scope happens at feature-flag launch, not at the release train.
+- For routine releases, replace the three sign-offs with one accountable release owner plus a veto window for the others.
+- Keep full sign-offs for risky releases, such as migrations, billing or auth.
+
+### 4. Shrink the batch (the main lever; a quarter)
+Smaller batches are the largest risk reduction available.
+- Step the cadence from biweekly to weekly, then twice weekly, then on demand, as release cost falls.
+- Adopt feature flags so unfinished work can merge to main without being exposed. This separates deploy from release.
+- Add automated rollback or a quick revert path, so a bad small release is cheap to undo.
+- **Prediction:** at weekly releases, batch size is about 20 changes. At daily releases, it is a handful. Incidents get easier to bisect and releases stop feeling like events.
+
+### 5. Cut PR review wait (weeks)
+- Set a first-response target, for example 4 business hours, and a review rota or "review before starting new work" norm.
+- Keep PRs small. Small PRs are reviewed faster and are easier to reason about.
+- Limit work in progress. Open PRs awaiting review count as the team's inventory.
+- Auto-assign reviewers and ping on stale PRs.
+- **Prediction:** the average wait drops from 2 days to under 1 day.
+
+### 6. Measure it
+Track these each week, and compare results against the predictions above:
+- PR open-to-first-review time and open-to-merge time
+- Merge-to-production lead time
+- Release batch size
+- Release frequency
+- Change failure rate
+- Time to restore service
+- Release manager hours per release
+
+## Suggested sequence
+
+| Phase | Actions |
+|---|---|
+| Now | Hotfix fast path. Start tracking the metrics. |
+| Weeks 1–3 | Generated changelog. Parallel sign-offs. PR review target. |
+| Weeks 3–8 | Per-change automated gates. Feature flags. Move to a weekly train. |
+| After that | Move toward on-demand releases. Reduce sign-offs to exceptions. |
+
+## Gaps and open questions
+
+This review is based only on the process description, with no data or incident history. These answers could change the priorities:
+- What does each sign-off check, and has any sign-off ever blocked a release? If none has, that is evidence it adds little.
+- How good are the automated tests, and is deployment automated? Weak tests make the per-change gates in recommendation 3 harder to introduce.
+- What is the incident history? Do bad releases come from large batches, or from specific risky areas?
+- Are there compliance or audit requirements that mandate the sign-offs? If so, keep them but make them lightweight, for example recorded approvals in the PR.
+- What does "2 days" for review consist of? It could be reviewer capacity, time-zone gaps or large PRs, and the fix differs for each.
+
+## Risks of changing this
+
+- Moving faster without per-change automated checks shifts risk instead of removing it. Do recommendations 3 and 4 together.
+- A hotfix label can become a loophole. The weekly review and the single-approver rule guard against this.
+- Cadence changes need agreement from QA, EM and PM, whose sign-offs are being restructured. Present the metrics and the predictions to them, not only the conclusions.
+
+---
+
+If you'd like, I can write this to `process-review.md` once file tools are available, or tailor it after you answer the open questions.

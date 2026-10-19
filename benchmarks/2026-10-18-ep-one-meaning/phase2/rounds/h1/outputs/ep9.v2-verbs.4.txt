@@ -1,0 +1,36 @@
+**Not ready to build.** The design has one correctness bug that violates Finance's requirement, and most of the 6 weeks goes to features that nothing in the proposal justifies.
+
+## 1. Blocker: the retry logic can send an invoice twice
+
+"No response within 5s → mark failed and re-enqueue" treats an unknown outcome as a failure. A timeout doesn't tell you the provider didn't send the email. It often did, and the response was just slow. Retrying then sends a second invoice, which is the chargeback scenario Finance described. The same thing happens if a worker crashes after the provider accepts the request but before the job row is updated.
+
+Required changes:
+- **Idempotency key:** Generate a stable key per logical email, such as `invoice:{invoice_id}`, and send it to the provider on every attempt. Check that your provider honors idempotency keys and for how long. If it doesn't, invoices can't be retried safely.
+- **Dedupe at enqueue time:** Add a unique constraint, for example on `(type, dedupe_key)`. This stops the same invoice from being enqueued twice, which no worker logic can do.
+- **Separate "failed" from "unknown":** Use explicit states: `pending`, `sending`, `sent`, `failed_definite` (4xx or connection refused, safe to retry), and `unknown` (timeout or crash mid-send). For invoices, `unknown` should be resolved by looking up the provider's message log, or by a human. It should never be retried automatically.
+- **Lease on `sending`:** Don't hold the row lock for the whole HTTP call. Claim the row by setting `sending` plus a lease expiry, then commit. Decide explicitly what happens when a lease expires.
+- **Retry policy per type:** Password resets can tolerate a duplicate and invoices can't. A per-type `max_attempts` and `safe_to_retry_after_unknown` flag covers this without a plugin system.
+- **Test:** Add a test that makes the provider accept the request but delay the response past the timeout. Assert that exactly one email goes out.
+
+## 2. Scope is sized for a different problem
+
+At 200/day (500/day next year) the load is about one job every 7 minutes.
+- **Polling every 500ms:** About 170,000 polls a day to find 200 jobs. A 5–10s poll, or `LISTEN/NOTIFY` plus a slow fallback poll, is plenty.
+- **5 priority levels with weighted fair scheduling:** There's no contention to schedule around. One queue, or two lanes at most (urgent vs bulk), is enough.
+- **Plugin system with YAML manifests:** No other team is named, and no requirement or use case is stated. Removing it also removes a second place where job types are defined, next to the code.
+- **React dashboard with throughput charts:** At this volume, a SQL view or a few saved queries covers inspection. Keep manual retry as a small CLI or script, and gate it for invoice-type jobs given the duplicate risk.
+- **The queue itself:** Mature Postgres-backed queues already do `SKIP LOCKED`, backoff, and dead-lettering. Examples are Graphile Worker, pg-boss, River, and Oban, depending on your stack. Building your own is only worth it if you can say what they can't do. The proposal doesn't say that.
+
+My recommendation is to delete the plugin system, priorities, and dashboard from v1 rather than defer them. If another team asks for one of them later, design it then, with that team's actual requirements. A realistic v1 is the table (or a library) plus idempotent sending, dedupe, the state machine above, and alerting. That is likely 1–2 weeks.
+
+## 3. Gaps against the design checklist
+
+- **Success criteria:** None are defined. Suggested: zero duplicate invoices, an alert if a job is `unknown` or dead for more than N minutes, and a delivery latency target for password resets.
+- **Dead-letter and alerting:** After 5 attempts, what happens? Nothing in the design says who finds out.
+- **Payload contents:** Store IDs (`invoice_id`, `user_id`) and render at send time, rather than copying email addresses and invoice data into the payload. That avoids a stale-copy problem and keeps PII out of a table that admins will browse. Define a retention period for completed jobs.
+- **Migration:** How do the current senders cut over, and what is the rollback? Plan for a period where old and new paths must not both send.
+- **Provider webhooks:** If the provider reports delivered or bounced, decide whether those update job state. This is also the best way to settle `unknown` outcomes.
+
+## Verdict
+
+Revise before building. The idempotency and state-machine design (section 1) is the part that needs the most attention, and I'd write it up in detail first. The rest is mostly cutting scope. I can draft the revised v1 design doc with the state diagram and task list if you'd like.

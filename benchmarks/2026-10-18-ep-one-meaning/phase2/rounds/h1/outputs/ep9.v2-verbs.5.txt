@@ -1,0 +1,40 @@
+**Not ready to build.** The design has a correctness bug that breaks the finance requirement, and most of the 6 weeks goes to features nobody has asked for.
+
+## Blocker: the timeout path sends duplicate invoices
+
+"No response in 5s → mark failed and re-enqueue" treats an unknown outcome as a failure. The provider may have accepted and sent the email even though the response was slow. The retry then sends the invoice again. That is the duplicate-send scenario Finance prohibited, and it will happen at a low but nonzero rate.
+
+A worker crash between "provider accepted" and "status updated" causes the same duplicate. So does a second worker picking up a job whose lock has expired.
+
+Fixing this changes the core design, not just a detail:
+- **Add an "unknown" outcome.** A timeout or crash for an invoice job must not auto-retry. Park it in a state like `outcome_unknown`, then reconcile by looking up the provider's record of the message, or alert a human.
+- **Add a dedupe key.** Add a unique constraint on something like `(type, business_key)`, for example the invoice ID, so the same invoice can't be enqueued twice. Pass the same key to the provider as an idempotency key if the provider supports it.
+- **Set retry policy per job type.** Password resets can retry safely. Invoices can't.
+- **Add a lease.** SKIP LOCKED only protects you while a transaction is held open. If you set a `running` status instead, you need a lease and a reaper, and the reaper must follow the same unknown-outcome rule.
+
+You can't get true exactly-once delivery over HTTP. The realistic goal for invoices is at-most-once, with alerting and reconciliation for the unknown cases. Finance should confirm that trade-off.
+
+## Waste: remove these from v1
+
+At 200/day (500/day next year), you have about one job every 7 minutes. That makes these items unjustified:
+- **Plugin system with YAML manifests:** no team has asked for it. Build it when a second consumer exists.
+- **5 priority levels with weighted fair scheduling:** there is no contention to schedule around. Drop it, or keep a single `run_at` ordering.
+- **React dashboard and throughput charts:** a saved SQL query or a read-only view covers inspection. Manual retry can be a CLI command or a SQL statement. Charts add nothing at this volume.
+- **500ms polling:** about 170k polls a day to serve 200 jobs. Poll every few seconds, or use LISTEN/NOTIFY.
+
+Also check whether to build this at all. Mature Postgres-backed queues exist (pg-boss, Graphile Worker, River, Oban, depending on your stack). Alternatively, a transactional outbox table plus one worker may be all you need. Two engineers for 6 weeks on infrastructure that serves transactional email is a high cost for a small problem. The reduced version is probably 1–2 weeks.
+
+## Gaps to settle before building
+
+Everything below is open. I'm not proposing defaults for any of it.
+- **Problem statement and success criteria:** what is wrong with sending today, and how will you know v1 fixed it?
+- **Provider semantics:** does the provider support idempotency keys? Can you look up a message by key or ID? What does it return on timeout?
+- **Invoice policy:** what happens to a job in the unknown state, and who owns resolving it?
+- **Job state model:** the status values and transitions, including a terminal dead-letter state after 5 attempts. Also decide whether `attempts` is the only source of truth for retry state.
+- **Alerting:** who is notified of stuck, dead, or unknown jobs, and how?
+- **Data handling:** payloads contain customer email addresses and invoice data. What are the retention period and access controls?
+- **Migration and rollback:** how existing send paths move over, and how you revert.
+- **Tests:** at minimum, a test that simulates timeout-after-accept and a worker crash mid-send, and shows no second invoice goes out.
+- **Ownership:** who is on call for this, and who maintains it after v1.
+
+I'd rewrite the design around the send-outcome model and the dedupe key, cut the scope to a queue table, a worker, a retry policy per type, and an alert, and re-review it. Do you want me to draft that revised design?

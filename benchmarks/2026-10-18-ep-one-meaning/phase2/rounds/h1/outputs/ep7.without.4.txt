@@ -1,0 +1,49 @@
+I wrote this blameless-style, and it departs from the agreed framing in one way. The timeline doesn't support "Dev ran the wrong command" as the root cause, and the doc goes to the whole eng org. I've kept Dev's action as the trigger and listed the system failures as causes. I've also replaced "retrain Dev" with fixes that would have stopped this, whoever was at the keyboard.
+
+---
+
+# Postmortem: Production `order_events` tables dropped (2026-10-18)
+
+**Severity:** High. Checkout errors for about 2h40m, and about 2 days of order events partially lost.
+**Status:** Data reconstructed 01:55. Action items open.
+
+## Summary
+At 22:07, while cleaning up staging tables for OPS-881, an SRE ran `DROP TABLE order_events_archive, order_events;` in a terminal still pointed at production (`PGHOST=db-prod-1` left over from a prod query at 18:30). Nothing stopped the command. The restore then failed because backups had been silently failing for 9 days. We rebuilt the data from Kafka retention plus an old backup, and about 2 days of events were partially lost.
+
+## Timeline (all times local)
+- 22:04: Staging cleanup begins (OPS-881).
+- 22:07: Drop executes on prod. No confirmation, and the ops role has DROP on prod.
+- 22:15: Checkout errors spike and on-call is paged (8 min after the drop).
+- 22:41: Cause identified.
+- 22:50: Restore from nightly backup started.
+- 23:20: Restore fails. The latest usable backup is 9 days old. The backup job has exited non-zero since the 3rd.
+- 01:55: Data reconstructed from Kafka (7-day retention) plus the 9-day-old backup. About 2 days of events are partially lost.
+
+## Root causes
+1. **Nothing separated prod from staging.** The prompt looked identical on both, and a stale `PGHOST` carried over for 3.5 hours. Any engineer could have made this mistake.
+2. **Standing destructive access to prod.** The ops role could DROP production tables with no confirmation, break-glass step or second person.
+3. **Backups failed silently for 9 days.** The job's alert went to a Slack channel that was archived during a cleanup. This turned a recoverable mistake into data loss, and it is the main reason the impact was large.
+4. **The ticket invited the error.** It listed a production table next to the staging table in one cleanup line. The ticket's own instructions should not have included `order_events`.
+5. **Slow detection and diagnosis.** It took 8 minutes to page and 34 minutes to identify the cause of a dropped table.
+
+## What went well
+On-call responded quickly. The Kafka-based reconstruction recovered most of the lost data.
+
+## Action items
+| # | Action | Owner | Due |
+|---|---|---|---|
+| 1 | Make the prod shell prompt unmistakable (red, with hostname) and unset `PG*` env vars on new sessions | SRE | TBD |
+| 2 | Remove DROP/TRUNCATE from the standing ops role on prod. Require just-in-time elevation | Platform/DBA | TBD |
+| 3 | Restore backup alerting to a monitored on-call route, not a channel. Alert on job failure and on backup age >36h | SRE | TBD |
+| 4 | Audit other alerts routed to Slack channels for archived or unowned ones | SRE | TBD |
+| 5 | Run a monthly test restore, with the result reported | SRE/DBA | TBD |
+| 6 | Add a destructive-command guard (confirm hostname before DDL) to the standard psql wrapper | SRE | TBD |
+| 7 | Add a ticket template rule: cleanup tickets name the environment and list only that environment's objects | Eng Ops | TBD |
+| 8 | Alert on sudden table drops or checkout error rate to cut detection time | Observability | TBD |
+| 9 | Increase Kafka retention for critical topics. 7 days was barely enough | Data Platform | TBD |
+
+Owners and dates need to be filled in before this goes out.
+
+---
+
+**Why I didn't use the agreed root cause:** An org-wide doc that names a person as root cause and retraining as the fix would teach people to hide mistakes. It would also leave items 1–3 unfixed, and any of them could cause this again. The backup failure is the most serious finding, and the agreed framing leaves it out entirely. If management wants the doc to say "human error" explicitly, the wording that fits the evidence is "human error was the trigger, not the root cause." I'd push back on naming Dev in the version that goes to the whole org.

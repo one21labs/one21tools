@@ -1,0 +1,95 @@
+# Python 3.8 → 3.12 Sprint Plan (Mon Oct 19 – Fri Oct 30)
+
+## Decisions to get from the director first
+
+I kept the freeze and the two-week window. I changed two things, and the plan is built on those changes:
+
+1. **Deploy in waves on Tue–Thu of week 2, not one big bang on Friday.**
+   - Your on-call rollback requirement is hard to meet with a big bang. If the 40 services flip together, a bad dependency interaction (payments plus an upstream caller, say) forces you to roll back everything or debug live over the weekend.
+   - A Friday deploy also leaves on-call with the weekend as the soak period.
+   - Everyone still upgrades inside the sprint, and Friday becomes buffer and verification.
+   - If the answer is still "Friday big bang," see the fallback at the bottom.
+2. **Add a per-service Python version to the Helm chart.**
+   - The base image is currently one pin in `values.yaml`, so changing it flips everything at once.
+   - Add a single `pythonVersion` default plus an optional per-service override. The image tag is derived from that one value, so there is no duplicated literal and no per-service image strings.
+   - Rollback for a service is then one value flipped back, or `helm rollback`.
+   - This is Day 1 work and it blocks everything else.
+
+## Open gaps (answer by Tuesday)
+
+- **Payments webhook receiver, no tests:** who owns it, and is there recorded production traffic (payloads and signatures) to build tests from?
+- **libgeo-py:** who owns it, is there a build pipeline for cp312 wheels, and does it use any C API removed between 3.8 and 3.12? This is the critical path.
+- **Data compatibility:** do any services share pickles, caches or queues across processes? Mixed 3.8 and 3.12 pods must coexist during the waves.
+- **Staging parity:** does staging run the same chart with real dependencies? Without it, "tests pass" is the only gate.
+- **Success criteria:** error rate, p99 latency and payment success rate stay within baseline for 24h after each wave.
+
+## Workstreams and owners
+
+| WS | Scope | Work |
+|---|---|---|
+| A | 31 Flask/FastAPI services | Bump the CI matrix to 3.12, re-resolve the lockfile, fix deprecations and warnings, and run pytest. The "pure-Python deps" label doesn't guarantee 3.12 compatibility. Expect pydantic, Werkzeug and SQLAlchemy major-version changes to cause most failures. |
+| B | 4 asynctest services | Replace `asynctest` with `unittest.IsolatedAsyncioTestCase` or `pytest-asyncio`, and with `unittest.mock.AsyncMock`. This is mechanical but touches every async test. |
+| C | 2 libgeo-py services | Build cp312 wheels (add 3.12 to the wheel matrix), publish them to the internal index, then test both services. |
+| D | 1 distutils service | Change `setup.py` to `setuptools`, ideally moving to `pyproject.toml`. About half a day. |
+| E | 2 untested services | Write characterization tests before upgrading, with golden payloads for the payments webhook (signature verification, idempotency, retries). Run them on 3.8 first to prove they pass, then on 3.12. |
+| F | Platform: chart and rollback | Add the per-service `pythonVersion` override, build and publish `python:3.12-slim`, run a rollback drill, and set up per-service dashboards and the wave runbook. |
+
+## Day-by-day
+
+**Week 1: upgrade and prove it**
+
+- **Mon:**
+  - F: chart override merged with default still 3.8 (no behavior change), and 3.12 image built.
+  - Everyone else: an hour of triage, then start. Each team runs its service's CI on 3.12 to get a baseline red/green list.
+  - C: confirm libgeo-py ownership and start the wheel build.
+  - E: pull payload samples.
+- **Tue:**
+  - Gaps above answered.
+  - A, B and D in full swing.
+  - Rollback drill on one low-risk service in staging: flip to 3.12, then back.
+- **Wed:**
+  - First 3.12 wheels for libgeo-py in the index, or escalate immediately if the build is hard.
+  - E: characterization tests green on 3.8.
+  - A: aim for most services green in CI.
+- **Thu:**
+  - Remaining red services triaged, with a hard list of stragglers.
+  - E: tests green on 3.12.
+  - Every service that is green deploys to staging on 3.12.
+- **Fri:**
+  - All 40 on 3.12 in staging, soaking over the weekend.
+  - **Gate 1:** the list of services not ready is reviewed, with a decision on each.
+
+**Week 2: deploy in waves**
+
+- **Mon:** Staging soak review. Fix findings. Rollback runbook finalized. On-call briefed.
+- **Tue, Wave 1 (about 10 low-risk services):** deploy in the morning, watch for 24h. Flip back immediately on any regression.
+- **Wed, Wave 2 (about 20 services, including the asyncio and distutils ones):** same procedure.
+- **Thu, Wave 3 (libgeo-py services, then the payments webhook receiver last):** payments gets a canary (one pod or 5–10% of traffic) held for at least 2 hours before full rollout. Don't flip it unattended.
+- **Fri, buffer:** no deploys except fixes. Verify metrics, close out stragglers, and run a short retro. The freeze lifts when Wave 3 is stable, not before.
+
+## Rollback
+
+- **Mechanism:** each service's `pythonVersion` override reverts to 3.8, or `helm rollback`. Rollback takes minutes and needs no rebuild.
+- **Kept alive for rollback:** the 3.8 image tag, the cp38 wheels, and the old lockfiles on a tagged branch. Don't delete any of them until at least a week after Wave 3.
+- **Drill:** run the rollback once per wave type (plain service, libgeo service, payments) in staging before the wave.
+- **Trigger:** on-call rolls back without needing approval if error rate or latency exceeds the agreed thresholds. Debugging happens after the rollback.
+- **Mixed versions:** pods on 3.8 and 3.12 run side by side during waves. Confirm there are no cross-process pickles or caches (see gaps).
+
+## Go/no-go gates
+
+- **Gate 1 (Fri wk1):** the service is green on 3.12 in CI and staging, and has a rollback entry in the runbook. A service that misses this gate does not go in its wave. It moves to a follow-up and stays on 3.8 via the override.
+- **Gate 2 (before payments):** webhook characterization tests green on 3.12, canary plan agreed with the payments owner, and rollback tested.
+
+## Main risks
+
+1. **libgeo-py wheels** (critical path). If cp312 builds slip past Wednesday, those two services ship in a later sprint on 3.8. The per-service override makes this safe.
+2. **Payments with no tests.** Characterization tests plus a canary are the minimum. Don't ship it on "it started up."
+3. **Transitive dependency surprises** in the 31, concentrated in the 60–70% coverage services. Budget the most triage time for them.
+4. **A 14-day freeze with all hands on one change** leaves little slack. Protect the Friday buffer.
+
+## Fallback if the director insists on a Friday big bang
+
+- Deploy as one coordinated change, but only after Waves 1–3 have all been proven in staging on the exact chart.
+- Keep per-service overrides so the rollback is a values revert, not a rebuild.
+- Do the payments canary first and keep the whole team on call through the weekend.
+- Document in writing that rollback is all-or-nothing in this mode, and who accepted that risk.

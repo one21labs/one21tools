@@ -1,0 +1,53 @@
+I can't write `tasks.md` from here because this session has no file tools. The full contents are below, so you can paste them into the file.
+
+I didn't reopen the plan. But "all of a user's data, whatever format, fast" leaves several things undefined, and the build tasks depend on them. I've put those first as short decision tasks, each with a default so they can be settled in minutes instead of another meeting. If the PM agrees with the defaults, nothing slips.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (blocking, ~1 day, owner: PM + tech lead)
+Each has a proposed default. Confirm or override; don't debate.
+
+- [ ] D1 Data scope: list the tables/services that count as "all of a user's data".
+      Default: every table with a user_id FK, plus uploaded files. Exclude derived or internal data (audit logs, analytics).
+- [ ] D2 Format: default JSON, one file, with a top-level key per data type and a `schema_version` field.
+- [ ] D3 Success criteria: default p95 < 10s for a typical user, and large exports run async.
+- [ ] D4 Sync vs async: default sync under a size threshold, otherwise async job + download link.
+- [ ] D5 Authorization: default is that a user can export only their own data. Admin/support export is out of scope.
+- [ ] D6 Sensitive fields: default is to exclude password hashes, tokens, and other users' data (e.g. messages from others).
+- [ ] D7 Rate limit: default 1 export per user per hour.
+- [ ] D8 Compliance check: confirm whether this export must satisfy GDPR/CCPA access requests, since that changes D1 and D6.
+
+## Phase 1: Design (after Phase 0, ~0.5 day)
+- [ ] T1 Write a one-page design: endpoint contract (request, response, error codes), data flow, failure modes, source of truth for the field list.
+- [ ] T2 Define the export schema once (single schema/type file). The serializer, docs, and tests all import it.
+
+## Phase 2: Build
+- [ ] T3 Per-data-type exporter modules, one per table or service in D1, each returning its section of the schema.
+- [ ] T4 Export orchestrator: collects all sections for a user_id, applies D6 exclusions, and streams the output instead of building it in memory.
+- [ ] T5 API endpoint with authN/authZ per D5. A user can only export their own data.
+- [ ] T6 Rate limiting per D7.
+- [ ] T7 Async job + status/download endpoint (if D4 says async), with expiring, user-scoped download links.
+- [ ] T8 Error handling: partial failure behaviour (fail the whole export; never return a silently incomplete file), timeouts, clear error responses.
+- [ ] T9 Logging and metrics: export requested/completed/failed, duration, size. Audit-log each export.
+
+## Phase 3: Verify
+- [ ] T10 Tests: each exporter, authZ (user A cannot get user B's data), excluded fields absent, schema validation of output.
+- [ ] T11 Completeness test: fails if a new table with a user_id FK isn't covered by an exporter or an explicit exclusion.
+- [ ] T12 Performance test against D3 using a large-user fixture.
+- [ ] T13 Security review of the endpoint and download links.
+
+## Phase 4: Ship
+- [ ] T14 API docs generated from the T2 schema (no hand-copied field lists).
+- [ ] T15 Feature flag, staged rollout, rollback criteria (e.g. error rate > X% or p95 > D3).
+- [ ] T16 Post-launch check: confirm the metrics from T9 show up on a real export.
+
+## Risks
+- Scope (D1) is the biggest schedule risk. If it isn't settled on day 1, T3 can't start.
+- "All data" on large accounts may blow the "fast" goal. D4 is the mitigation.
+- Skipping D5/D6 risks a data leak, which is much costlier than a few days' delay.
+```
+
+**Timeline:** Phase 0 is the only addition that touches the schedule, and it's about a day. After that, T3–T9 can be split across people. If you give me the codebase, or tell me which tables hold user data, I can turn T3 into a concrete per-table list.

@@ -1,0 +1,58 @@
+**Not good to go.** The design has one correctness bug that breaks the finance requirement. It also puts about 6 weeks into features that 200 emails a day doesn't need.
+
+## 1. Blocking: the retry path will send duplicate invoices
+
+"No response within 5s → mark failed and re-enqueue" treats a timeout as "not sent." A timeout only means you don't know. The provider often accepts the request and delivers the email, and only the response is slow or lost. Your retry then sends the invoice again. That is the chargeback scenario Finance ruled out. The same thing happens if a worker crashes after the provider accepts but before the job is marked done.
+
+At-least-once delivery is the best a queue like this can give, so "never twice" has to be enforced at the send step. Before building, decide each of these:
+
+- **Idempotency key.** Does your email provider support one? If so, send a deterministic key such as `invoice:{invoice_id}:email` on every attempt. If it doesn't, you can't safely retry a timed-out invoice send automatically.
+- **Unknown outcome is its own state.** Add `status = 'unknown'`, or a `sending` state with a lease. A timeout moves the job there, not back to the queue. For invoices, resolve it by checking the provider (message lookup by key or metadata) or by a human, never by blind retry.
+- **Database uniqueness.** Put a unique constraint on `(type, dedupe_key)` so a second invoice job for the same invoice can't be enqueued.
+- **Different retry policy per type.** Password resets are safe to retry, and a second reset email is harmless. Invoices are not. The policy should be set per job type, not as a global "max 5 attempts."
+- **Longer timeout.** 5s is aggressive for an HTTP email API. A longer timeout reduces how often you land in the unknown state, but it doesn't remove it.
+
+## 2. Remove what the scale doesn't need
+
+At 500/day, about one job every 3 minutes, most of this is waste. Per the engineering principles, remove it rather than make it faster:
+
+| Item | Verdict |
+|---|---|
+| Plugin system with YAML manifests | **Remove.** No other team has asked for it. Add job types in code. Build it when a second consumer exists. |
+| 5 priority levels with weighted fair scheduling | **Remove.** At this volume, queue contention doesn't exist. If password resets must jump ahead, a `run_at` ordering or a two-value flag is enough. |
+| React dashboard with throughput charts | **Remove.** Use SQL queries or a saved view in your existing DB tool. Keep manual retry as a small script or CLI, and gate it on job type so no one retries an invoice by hand without checking. |
+| 500ms polling | **Reduce.** 2 polls per second for 200 jobs a day is mostly empty queries. Use `LISTEN/NOTIFY` plus a slow fallback poll (e.g. 10s). |
+| Building the queue at all | **Question it.** Graphile Worker, pg-boss and River already implement SKIP LOCKED, backoff and retries on Postgres. The only custom part you need is the invoice dedupe logic from section 1. Weigh "adopt a library plus a send-guard" against 6 weeks of custom code, and write down why if you still build it. |
+
+## 3. Checklist gaps to fill before building
+
+- **Problem statement and success criteria.** None are written. Suggested: zero duplicate invoice emails, 99%+ of password resets sent within 1 minute, and every failure visible to someone.
+- **Crashed workers.** `FOR UPDATE SKIP LOCKED` only holds while the transaction is open. If the HTTP call happens inside it, you hold a DB transaction open for the whole call. If you commit a `running` status first, you need a lease or heartbeat to recover stuck jobs. Choose one and write it down, because it interacts with section 1.
+- **Terminal states.** There is no dead-letter or `failed_permanent` state, and no alerting when attempts run out. Someone needs to learn that an invoice email never went out.
+- **Staleness.** A password reset retried 20 minutes later may carry an expired token. Give job types an expiry (`expires_at`) after which they're dropped, not sent.
+- **Payload data.** Payloads contain customer emails and possibly invoice details. Decide on retention, deletion of completed jobs, and log redaction.
+- **Migration and rollback.** How do the three email types move from the current send path? Cut over one type at a time, starting with the low-risk one (receipts). Keep a flag to fall back.
+- **Ownership and testing.** Name an owner and an on-call path. Plan failure-injection tests (see below).
+
+## 4. Suggested v1 (roughly 1 week)
+
+1. `jobs` table with `id, type, payload, status, attempts, run_at, expires_at, dedupe_key` and a unique index on `(type, dedupe_key)`.
+2. Statuses: `queued, sending, sent, failed, unknown`.
+3. One worker, SKIP LOCKED, slow fallback poll plus NOTIFY.
+4. Send with an idempotency key if the provider supports it. Per-type retry policy: retry resets and receipts, never auto-retry an invoice that ends in `unknown`.
+5. Alert on any `unknown` or `failed` invoice job.
+6. No plugins, no priority tiers, no dashboard.
+
+Add the dropped features only when a real second consumer or an observed problem justifies them.
+
+## 5. Verification to include in the plan
+
+Prove the fix by triggering the failure: point the worker at a fake provider that accepts the request, then delays its response past the timeout. The test passes only if the invoice ends up in `unknown` and exactly one email was delivered. Run a second test that kills the worker between provider acceptance and the status update.
+
+## Open questions for you
+
+- Does the provider support idempotency keys or message lookup?
+- What does the current send path do today, and where did the past duplicates come from? If it's the same timeout-and-retry pattern, this design would repeat the cause.
+- Who owns an invoice job stuck in `unknown`?
+
+Once the send-guard and per-type retry policy are written into the design, I'd approve a trimmed v1 and revisit the rest later.

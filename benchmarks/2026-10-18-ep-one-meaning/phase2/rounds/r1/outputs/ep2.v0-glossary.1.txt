@@ -1,0 +1,55 @@
+I couldn't write `docs-plan.md`. This session has no file tools, so the plan is below as plain text. Save it as `docs-plan.md` as is.
+
+# docs-plan.md
+
+## Principle
+Each fact is defined in one place. Every other place refers to it by path or name and doesn't restate it. History is not documented, because git is the source of truth for history.
+
+## Decisions
+
+| Fact | Canonical location | Other copies |
+|---|---|---|
+| Local setup steps | `README.md` (Setup section) | Delete the steps from `CONTRIBUTING.md`. Replace them with one line: "Setup: see README.md#setup". |
+| API request timeout | The constant in `src/http/client.js` | Delete the sentence from `README.md` and from `CONTRIBUTING.md`. |
+| Support email | `README.md`, once | It's in no other file, so nothing changes. Don't add it to `CONTRIBUTING.md`. |
+| `recalcTotals()` rule for line items | Header comment at the top of `src/billing.js` | Remove it from `CLAUDE.md`. |
+| Lessons learned / history | Git history | Delete the whole section from `CLAUDE.md`. |
+
+## Reasoning per item
+
+1. **Setup steps.**
+   - The README version (`npm install`, copy `.env.example`, `npm run dev`) is the current one. The "Lessons learned" text says `npm start` was replaced by `npm run dev`, so the `CONTRIBUTING.md` version (`npm start`, `.env` by hand) is the stale, drifted copy.
+   - Don't merge the two versions. Keep the README one and make `CONTRIBUTING.md` refer to it.
+   - Command names are defined by the `scripts` block in `package.json`, and env variables by `.env.example`. Before you finalize, check that `npm run dev` exists in `package.json`.
+   - README says `npm install` and `CONTRIBUTING.md` says `npm ci`. If you want reproducible installs, change that one word in the README. Don't keep both.
+
+2. **Timeout.**
+   - The two docs disagree (30 vs 45 seconds), and the code is the source of truth. Don't pick either number, because either one would just be a copy that drifts again.
+   - Delete the sentence from both docs. If readers need to know the value, write "see `TIMEOUT_MS` in `src/http/client.js`", using the constant's real name. Don't restate the number.
+   - Check the constant's actual value. It may match neither doc, which would explain why they drifted.
+
+3. **Support email.** This is a single fact in a single place, and README is where a reader looks for it. No action is needed except not duplicating it.
+
+4. **`recalcTotals()` rule.**
+   - It only matters in `src/billing.js`, so it belongs in that file's header comment. It loads only when someone works on that file.
+   - Keeping it in `CLAUDE.md` would load it for every task in the repo.
+   - Better still, remove the need for the rule. Route all line-item mutations through one function that calls `recalcTotals()`, so a caller can't forget it. Then the header comment only says "mutate via X". This is optional and separate from the doc restructuring.
+
+5. **Lessons learned.**
+   - Delete the whole section. Don't move or shorten it into an ADR, CHANGELOG, comment or new history file. That would only move the copy.
+   - The `npm start` → `npm run dev` entry is replaced by the current setup steps in the README. The port-clash story is deleted, not kept.
+   - The "renamed the export module" entry is replaced by the code itself, which already shows the current name. If a stale reference to the old name survives somewhere, fix that reference.
+
+## Resulting state
+- **README.md:** setup steps and the support email. No timeout number.
+- **CONTRIBUTING.md:** contributor-specific content only, plus a link to the README setup. No setup steps and no timeout number.
+- **CLAUDE.md:** only rules that apply repo-wide and aren't owned by a more specific file. After this restructuring nothing from the draft qualifies, so either leave it minimal or don't create it yet. Don't fill it with copies.
+- **src/billing.js:** header comment with the `recalcTotals()` rule.
+- **src/http/client.js:** the timeout constant, unchanged.
+
+## Verification
+- Search the docs for `30 seconds`, `45 seconds`, `npm ci`, `npm start` and `create .env`. Each search should return nothing outside the intended single location.
+- Check that `CONTRIBUTING.md` contains no setup commands.
+- Check that `CLAUDE.md` contains no dates and no `recalcTotals`.
+- Check that `src/billing.js` carries the rule in its header.
+- To confirm the rule is findable, open `src/billing.js` fresh and see that the rule is the first thing you read.

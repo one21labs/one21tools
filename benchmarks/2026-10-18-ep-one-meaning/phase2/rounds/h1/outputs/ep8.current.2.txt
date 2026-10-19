@@ -1,0 +1,66 @@
+**Don't use the strictest validator everywhere.** The three copies aren't duplicates of one rule. They answer two different questions:
+
+- **Billing and support:** is this exactly what the payment provider accepts, which is E.164?
+- **Signup:** can we make sense of what a person typed?
+
+If signup uses the billing regex, `(415) 555-0134` and `415.555.0134` are rejected, and so is any number without a `+country` prefix. With about 4,000 mostly mobile submissions a day, that would be a conversion drop you'd notice quickly. The fix for duplication is one library with two functions that are each defined once. Signup uses the normalizer to turn typed input into E.164, and billing and support use the strict check.
+
+## Bugs in the current copies
+
+The shared version should fix these:
+
+- **Billing and support let a trailing newline through.** `$` matches before a final `\n`, so `"+14155550134\n"` passes and goes to the provider. Use `fullmatch`.
+- **`\d` matches non-ASCII digits in Python 3 `str` patterns.** Use `[0-9]`.
+- **Billing doesn't strip whitespace but support does.** The same input gets different answers today.
+- **Signup's `LOOSE` regex has no end anchor.** `match` only checks the prefix, so `"4155550134 lol drop table"` passes. It also accepts `(((((((`, which is seven characters from the allowed set.
+
+## Shared library: `acme_phone` on your private PyPI
+
+```python
+import re
+import phonenumbers  # pin in pyproject
+
+_E164 = re.compile(r"\+[1-9][0-9]{7,14}")
+
+def is_e164(s) -> bool:
+    """Strict. Exactly what the payment provider accepts. No stripping, no repair."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw, default_region: str = "US") -> str | None:
+    """Lenient input -> canonical E.164, or None if it can't be made into one."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        n = phonenumbers.parse(raw.strip(), default_region)
+    except phonenumbers.NumberParseException:
+        return None
+    if not phonenumbers.is_possible_number(n):
+        return None
+    out = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+    return out if is_e164(out) else None
+```
+
+Design points:
+
+- **`is_e164` is the only thing billing and support call.** The provider contract lives in one place.
+- **`normalize_phone` always returns something `is_e164` accepts, or `None`.** The two functions can't drift apart.
+- **`default_region` is an explicit argument.** `(415) 555-0134` has no country code, so someone must decide what region it means. Signup passes its own value, and the library has no hidden default policy.
+- **I used `is_possible_number` rather than `is_valid_number`.** The stricter check can reject real numbers when the metadata is stale. You can tighten it later as a major version bump.
+- **Add a table-driven test file in the library.** Include your three regexes' accepted and rejected inputs, the newline case, Unicode digits, and 20 or so real-looking signup strings. I haven't run any of this, so test fictional `555-01xx` numbers specifically, since libphonenumber may treat them differently from real ones.
+
+## Data flow change
+
+Signup should store the normalized E.164 value, and keep the raw input if you want it for debugging. Today billing sends "whatever `valid_phone` accepted" to the provider. Once billing is strict, any legacy record saved from a loose signup would start failing at charge time. **Before billing cuts over, measure how many existing records fail `is_e164`.** Backfill those with `normalize_phone`, and queue the unparseable ones for review.
+
+## Rollout
+
+The repos deploy independently, so avoid any step where two services must change together.
+
+1. **Publish `acme_phone` 1.0.0** with tests. Services depend on `acme_phone~=1.0`. Any change in which inputs are accepted is a major bump, because a validator's behavior is its API.
+2. **Shadow mode in all three services.** Call the new function next to the old one, keep returning the old result, and log a counter or sample when they disagree. Run for a week or so. This tells you the real impact, including the legacy-record count, before anything user-visible changes.
+3. **Support first.** It's a copy of billing, so the only differences are the newline and Unicode fixes. Cut over.
+4. **Signup second.** Replace `valid_phone` with `normalize_phone`. Persist the E.164 value, and change the form so users see a "check your number" message only when it returns `None`. Backfill existing rows.
+5. **Billing last.** Once the shadow logs show that disagreements are only real-garbage inputs and the backfill is done, switch to `is_e164`. Billing is the riskiest to break, and it benefits from signup having already cleaned the data.
+6. **Delete the three local `validate.py` copies.** Add a lint rule or CI grep so a fourth phone regex can't appear.
+
+If you want, I can sketch the shadow-mode wrapper, the backfill script, or the test table next.

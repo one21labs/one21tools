@@ -1,0 +1,55 @@
+I can't write `tasks.md` from this session because I have no file-system tools. The full content is below, so you can paste it in.
+
+I'm not reopening the approved scope. But the plan leaves several things undefined that block the build, so I made them Phase 0 decision tasks. Each is a quick call, not a redesign, and some have a default so work can start now.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking; owner = PM/tech lead; target: day 1)
+
+- [ ] D1. Data scope: list every table/service holding user data and mark in/out of scope (profile, content, activity logs, third-party/derived data, other users' data referencing this user). Default: everything keyed by user_id, excluding other users' private data.
+- [ ] D2. Format: confirm JSON as "easiest" (default). Document the schema in one place (see T2).
+- [ ] D3. "Fast" target: define a number (e.g., p95 < X s for a median user; max supported export size). Default: sync response for small exports, async job for large.
+- [ ] D4. Authorization: who may export (the user themselves only? admins?). Default: authenticated user, own data only.
+- [ ] D5. Purpose/compliance: is this for GDPR/CCPA access requests? If yes, confirm legal requirements (completeness, deadline, identity verification, sensitive-field handling).
+- [ ] D6. Success criteria and rollback: how we know it works, and the flag/kill switch to disable it.
+
+## Phase 1: Design (small; day 1-2)
+
+- [ ] T1. One-page design: components, data flow, sync vs. async, failure modes. Review against D1-D6.
+- [ ] T2. Define export schema (single source of truth), versioned. Reference it from code and docs; don't duplicate it.
+- [ ] T3. Define API contract: route, method, auth, response codes, error format, rate limit values (stored in one config location).
+
+## Phase 2: Build
+
+- [ ] T4. Data collectors: one per data source from D1, each behind a common interface (single responsibility each).
+- [ ] T5. Export assembler: combines collectors into the T2 schema; streams output rather than building it fully in memory.
+- [ ] T6. Endpoint: authn/authz per D4, input validation, error handling per T3.
+- [ ] T7. Sensitive-data handling: exclude/redact secrets (password hashes, tokens, internal flags); apply D5 rules.
+- [ ] T8. Performance: pagination/streaming, query review (no N+1), timeouts, size cap; async job + download link if D3 requires it.
+- [ ] T9. Abuse protection: per-user rate limit, audit log entry for every export.
+- [ ] T10. Feature flag / kill switch (D6).
+
+## Phase 3: Verify
+
+- [ ] T11. Unit tests per collector; contract test for schema.
+- [ ] T12. Authorization tests: user A cannot export user B's data.
+- [ ] T13. Completeness test: seed a user with data in every source, assert all appear in the export.
+- [ ] T14. Load test against the D3 target, including a very large account.
+- [ ] T15. Security review of T7/T9.
+
+## Phase 4: Ship
+
+- [ ] T16. API docs (generated from T3/T2, not hand-copied).
+- [ ] T17. Staged rollout behind flag; monitor latency, errors, and export size.
+- [ ] T18. Post-launch check against D6 success criteria.
+
+## Critical path
+D1, D3, D4, D5 -> T1 -> T2/T3 -> T4-T6 -> T7-T9 -> T11-T14 -> T17
+```
+
+**What blocks the build:** D1, D4 and D5 matter most. "All of a user's data" is undefined without D1. D4 is a security risk if left open, since an export endpoint is a data-leak vector. D5 can change the whole shape of the work if this is a legal request. If the PM can answer those three in one short conversation, the schedule stays realistic.
+
+If you give me a writable path or tools, I'll save this to `tasks.md`.

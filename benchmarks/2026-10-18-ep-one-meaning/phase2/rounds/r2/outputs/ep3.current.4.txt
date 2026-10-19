@@ -1,0 +1,116 @@
+I can't write `process-review.md` in this session because I have no file-writing tool here, so nothing was saved. The full review is below, ready to paste into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because work spends most of its life waiting. A change waits about 2 days for review, then up to 14 days on main for the train, then in a sign-off queue. The release itself is manual and happens in batches of about 40. Batching also causes the stress: when 40 changes ship together, any failure is hard to attribute and hard to roll back.
+
+The main fix is to shrink batch size and delete steps, not to speed up each step. I recommend the following, in order of payoff:
+
+1. Separate a hotfix lane from the train (a quick win).
+2. Generate changelogs from a single source instead of hand-copying them (a quick win).
+3. Cut sign-offs from three sequential to one, risk-based.
+4. Release more often, ideally continuously behind feature flags.
+5. Reduce PR review wait with explicit expectations.
+
+## Current flow and where time goes
+
+| Stage | Wait or effort | Waste type |
+|---|---|---|
+| PR open → review | ~2 days average | Waiting |
+| Merge → release train | 0–14 days (average about 7) | Inventory (finished, unshipped work) |
+| Changelog assembly | Manual copy of ~40 entries | Overprocessing, and an SSoT violation |
+| QA → EM → PM sign-off | Three sequential approvals | Waiting, redundant approvals |
+| Hotfix | Same path as everything else | Process doesn't match risk |
+
+A typical change takes about 2 days of review plus about 7 days of train wait. Add the sign-off sequence and the release prep, and it is roughly 10 or more days from "done" to "in production". Actual hands-on work is likely a small fraction of that.
+
+## Findings
+
+### 1. The biweekly train is the largest source of delay and risk
+- Merged code is finished work that delivers no value until it ships. Every change averages a week of idle time.
+- A batch of 40 makes failures hard to diagnose, because you have to bisect 40 candidates. It also makes rollback all-or-nothing, and it makes each release feel high-stakes. That is the stress the team describes, and it is structural.
+- Releases are rare, so the process is rehearsed rarely and stays manual and fragile.
+
+### 2. Hotfixes use the normal path
+An urgent one-line fix waits for the train, which is the clearest mismatch between the process and the risk. Teams in this situation usually end up bypassing the process informally, which is worse than having a defined fast lane.
+
+### 3. Changelog copying violates single source of truth
+The changelog entry is written once in the PR description and then re-typed into the release document. That is manual, error-prone, and scales with batch size (40 entries per release). The two copies can drift, and nobody can say which is correct.
+
+### 4. Three sequential sign-offs add latency without clear added assurance
+- Sequential approvals mean waiting time stacks. If each approver takes a day, that's 3 days before anything ships.
+- Approving a 40-change batch is a weak control. Nobody can meaningfully review 40 changes at once, so the sign-off tends to become ceremonial.
+- I don't know what each role actually checks. If the checks differ (QA: test results, EM: readiness, PM: scope), they don't need to be sequential, and some may belong at PR time instead.
+
+### 5. The 2-day review wait is a secondary but real drag
+It feeds the "busy but slow" feeling because developers context-switch while blocked. It matters less than the train, but it's cheap to improve.
+
+## Recommendations
+
+I ranked these by the principle that removing a step beats guarding it, and guarding beats monitoring.
+
+### A. Create a hotfix lane (do first; days of effort)
+- Define a hotfix as a small, urgent fix to a production problem.
+- Path: one reviewer, automated tests passing, a single on-call approver (EM or QA lead), and ship the same day.
+- The other sign-offs become after-the-fact notification, not gates.
+- Write the criteria down so it can't become a way around the process for ordinary work.
+
+### B. Make the changelog single-source and generated (do second; about a day or two)
+- Pick one authoritative place for the entry. The best candidate is a required changelog line, or a label like `feature`/`fix`/`internal`, on the PR itself, enforced by a PR template or CI check.
+- Generate the release document from merged PRs by script. The release manager reviews and edits the output instead of typing it.
+- Entries are never retyped, so there is nothing to keep in sync.
+
+### C. Replace three sequential sign-offs with one risk-based gate
+- Move what can be automated or done at PR time out of the release gate: automated test suites, QA checks on risky PRs, and PM review of user-facing scope at feature-flag enablement.
+- Keep one release approver, with others notified, not blocking.
+- If a role must keep approving, run the approvals in parallel, not in sequence.
+- Before deciding, ask each approver what they check and what they would do differently if they found a problem. If the answer is "nothing", the gate can be deleted.
+
+### D. Increase release frequency (the structural fix; roll out over weeks)
+- Step 1: move from biweekly to weekly. That halves batch size and wait time with little other change.
+- Step 2: move to several times per week.
+- Step 3: release on merge, with unfinished or risky work behind feature flags so shipping code and exposing features are separate decisions.
+- Prerequisites: reliable automated tests, a one-command deploy, and a fast rollback. Items B and C help build these.
+- Expected effect: smaller batches mean easier diagnosis and rollback, less stress, and less idle work.
+
+### E. Reduce review wait
+- Set an expectation, for example first response within 4 working hours, and make it visible.
+- Keep PRs small (smaller PRs get reviewed faster), and use a review rota or auto-assignment so PRs don't wait on one person.
+- Measure review wait weekly. Make the target a number, not a feeling.
+
+## Suggested sequence
+
+| Order | Change | Effort | Effect |
+|---|---|---|---|
+| 1 | Hotfix lane (A) | Low | Removes the worst mismatch right away |
+| 2 | Generated changelog (B) | Low | Removes manual toil and drift |
+| 3 | Review SLA (E) | Low | Cuts about 1 day or more from every change |
+| 4 | Sign-off consolidation (C) | Medium, needs stakeholder buy-in | Cuts days of release latency |
+| 5 | Weekly, then more frequent releases (D) | Medium–High | Fixes the underlying batching problem |
+
+## Open questions and gaps
+
+These are not answerable from the description. Resolve them before finalizing the plan:
+
+- **Success criteria.** I suggest tracking lead time (merge to production), release frequency, change failure rate, and time to restore. Record today's baseline, since I only have the PR review average.
+- **What each sign-off actually catches.** How often has a sign-off blocked or changed a release in the last six months? That tells you whether the gates are controls or ceremony.
+- **Test and deploy readiness.** How good is test coverage, and how fast and reversible is a deploy? This sets how quickly you can move to frequent releases.
+- **Compliance constraints.** Is any sign-off required by audit or regulation? If so, keep it, but move it to an automated or parallel form.
+- **Root cause of the train cadence.** Why biweekly? If the answer is "the release is painful, so we do it rarely", that is a loop: pain causes infrequency, which causes bigger batches, which cause more pain. Automating the release breaks it.
+
+## How to check it worked
+
+Predict the outcome before each change, then compare:
+
+- Hotfix lane: a test hotfix should reach production the same day. Try it with a trivial real fix.
+- Changelog: generate the next release's changelog from PRs and diff it against what the release manager would have written by hand.
+- Release frequency: after moving to weekly, check that change failure rate hasn't risen. If it has, fix test and rollback gaps before going faster.
+- Overall: median time from merge to production should fall from about 7 days to under 2.
+
+---
+
+If you'd like, I can write this to `process-review.md` once file tools are available, or turn it into a shareable page.

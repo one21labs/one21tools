@@ -1,0 +1,38 @@
+I can't see your codebase from this session, so here is the design to settle before any code. Per the design-first rule, the plugin seam gets written down first.
+
+## Design: exporter plugin framework
+
+**Problem:** Adding an exporter format currently means editing core code. Success is when a new format is one new file (or package) and zero edits to core.
+
+**Scope:** The framework covers only the exporter contract, registration, and lookup. Moving the existing exporter onto it is in scope, since it proves the seam works. Plugin marketplaces, hot-reload, sandboxing, and version negotiation are out of scope.
+
+**Recommended shape (smallest thing that meets the goal):**
+1. **Contract:** one interface or abstract class, `Exporter`. It has a `name` (the format key), a `file_extension`, and `export(data, destination, options)`. Core depends only on this.
+2. **Registry:** one module holds the `name → exporter` map, with `register()` and `get()`. It rejects duplicate names loudly.
+3. **Discovery:** use the language's native mechanism, for example entry points in Python or a package-scan directory elsewhere. Core never imports a concrete exporter by name.
+4. **Core call site:** `registry.get(fmt).export(...)`. Nothing else in core mentions a format.
+5. **Existing exporter:** re-implemented as the first plugin through the same public path. It gets no special access, so the framework is tested by real use.
+
+**Single source of truth:** The registry is the only place the list of formats lives. The CLI `--format` choices, help text, docs, and error messages must all derive from it. If any of those hardcodes "json" or "csv", we've created the copy problem again.
+
+**Contract tests:** Ship one reusable test suite that any exporter can run against itself. This is what lets future developers add formats safely without reading core.
+
+**Failure modes:** These need explicit behavior:
+- Unknown format: a clear error that lists the registered names.
+- Plugin fails to load: it is skipped with a warning, and one broken plugin doesn't take down the others.
+- Duplicate name: fail at registration.
+- Exporter raises mid-write: no partial output file is left behind.
+
+**One caution:** With a single exporter, the contract is a guess. The riskiest part is designing an interface that fits one format and breaks on the second, for example one that assumes text output when a format needs binary, streaming, or multiple files. To limit that risk, keep the contract minimal and sketch a second hypothetical format (say, one binary and one multi-file) against it on paper before locking it in. Skip the elaborate loader, config schema, and lifecycle hooks until a real second exporter needs them.
+
+## Open questions (need your answers before tasks are written)
+
+1. What language and runtime is this, and how are exporters invoked today (CLI, library call, service)?
+2. What is the exporter's current input and output? Is the data in memory or streamed, and does it write to a file path, a stream, or return bytes?
+3. Who writes plugins: in-repo developers only, or third parties installing separate packages? This decides whether discovery is a directory scan or a package entry point.
+4. Is there a stability promise on the contract (semver, compatibility), or is it internal and free to change?
+5. What should happen when a plugin fails to load: warn and continue, or abort?
+6. Do exporters need per-format options? If so, who validates them, core or the plugin?
+7. What are the success criteria beyond "new format needs no core edits"? For example, should adding a format take under N lines?
+
+If you point me at the repo (or paste the current exporter and its call sites), I can turn this into a concrete task list ordered with the decisions first.

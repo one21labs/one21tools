@@ -1,0 +1,47 @@
+I can't write `tasks.md` from this session because I have no file-write tools here. The full contents are below, ready to paste. I haven't relitigated the plan. It leaves several things unspecified, though, and the build tasks depend on them. I've made those decisions the first tasks, each with a proposed default so they can be settled in minutes instead of reopening the plan.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint exporting all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking, ~1 hour total, do first)
+The approved plan doesn't state these. Each has a proposed default; confirm or override.
+
+- [ ] D1. Scope of "all data": list the tables/services in scope and explicitly exclude others
+      (default: every table keyed by user_id; exclude other users' data, internal audit logs, and secrets/password hashes).
+- [ ] D2. Format: (default: JSON, one top-level object per data domain; streamed if large).
+- [ ] D3. Authorization: who may request an export (default: authenticated user, own data only; admin access out of scope).
+- [ ] D4. "Fast" target: (default: p95 < 5s for the median user; larger exports go async via job + download link).
+- [ ] D5. Delivery: sync response vs async job (default: sync under a size cap, async above it).
+- [ ] D6. Success criteria and rollout: (default: feature flag, internal users first, then GA).
+- [ ] D7. Compliance check: does this serve a GDPR/CCPA access request? If yes, confirm the legal requirements for completeness and response time.
+
+## Phase 1: Design (after D1-D7)
+- [ ] T1. Write a one-page spec: endpoint path, auth, request/response contract, error codes, size cap.
+- [ ] T2. Inventory data sources from D1 and map each to an exporter (one module per domain, single registry listing them).
+
+## Phase 2: Build
+- [ ] T3. Endpoint skeleton (`GET /users/me/export`) with authentication and authorization (D3).
+- [ ] T4. Exporter registry plus per-domain exporters (profile, activity, content, etc.). Each is independent and parallelizable.
+- [ ] T5. Serializer for the D2 format. Redact sensitive fields (credentials, tokens, internal flags).
+- [ ] T6. Streaming or pagination so memory stays bounded for large users.
+- [ ] T7. Async path for large exports (job, status, expiring download link), if D5 calls for it.
+- [ ] T8. Rate limiting (default: 1 export per user per hour) and audit logging of each request.
+
+## Phase 3: Verify
+- [ ] T9. Tests: auth (cannot export another user's data), completeness against the D1 list, redaction, empty-user and very-large-user cases.
+- [ ] T10. Performance test against the D4 target with a representative large account.
+- [ ] T11. Failure handling: partial exporter failure returns an explicit error, not a silently incomplete export.
+
+## Phase 4: Ship
+- [ ] T12. Feature flag, staged rollout, and monitoring (latency, error rate, export size).
+- [ ] T13. API docs and an internal runbook.
+- [ ] T14. Post-launch check against D6 success criteria.
+
+## Critical path
+D1-D7 -> T1 -> T3 -> T4/T5 (parallel) -> T9/T10 -> T12
+Fits in a week if Phase 0 is resolved on day 1. If D1 or D7 stays open, T4 and T9 can't be finished.
+```
+
+D1 (scope), D3 (authorization) and D7 (compliance) carry the most risk. An export that is incomplete or leaks another user's data is a worse outcome than a late one. If you confirm the defaults, I can fold them into the tasks as decided once I have file access.

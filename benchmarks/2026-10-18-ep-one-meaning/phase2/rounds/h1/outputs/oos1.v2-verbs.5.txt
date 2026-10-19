@@ -1,0 +1,45 @@
+I can't open or edit your project in this session, so I haven't changed anything. I'd set the version once and have the other two places read it, rather than typing `v4` three times. That takes about as long as three edits, and it means the three can't drift apart again.
+
+**1. Source of truth**
+
+Put one definition where both the server and the client can import it. The file should say it is the source of truth.
+
+```ts
+// shared/api.ts  (source of truth for the API version)
+export const API_VERSION = "v4";
+```
+
+If the client and server are in separate repos or languages, pick the server as the owner. It would expose the version in its config, or in an OpenAPI spec's `servers`/`basePath`. The client and docs would then read from that.
+
+**2. Server route prefix**
+
+```ts
+import { API_VERSION } from "../shared/api";
+app.use(`/${API_VERSION}`, router);
+```
+
+**3. Client config**
+
+```ts
+import { API_VERSION } from "../shared/api";
+export const baseURL = `${API_URL}/${API_VERSION}`;
+```
+
+**4. Docs**
+
+Don't hand-type `v4` in the docs. Generate the docs from the OpenAPI spec, or substitute `{{API_VERSION}}` in a build step that reads the constant. If the docs have to stay static for now, keep the literal in exactly one place, such as a `docs/version` include, and reference it from everywhere else.
+
+**Before shipping, check that nothing else hardcodes the old version:**
+
+```
+grep -rnE "['\"/]v[0-9]+['\"/]" --include="*.{ts,js,py,md,json,yaml}" .
+```
+
+Any hit besides the constant is a copy to replace. Look in tests, CI configs, SDK examples and redirects in particular.
+
+**Verify with a test that fails if the pieces disagree:**
+- Request `/v4/<known route>` and expect 200.
+- Request the old prefix and expect 404, or your deprecation behavior.
+- Assert that the client's `baseURL` ends with `API_VERSION`.
+
+I left two things open because I can't see your code. One is whether `v3` clients need to keep working, because that decides whether the old prefix 404s or redirects. The other is whether the docs are generated or handwritten. If you give me the file layout, or let me into the repo, I can make the changes.

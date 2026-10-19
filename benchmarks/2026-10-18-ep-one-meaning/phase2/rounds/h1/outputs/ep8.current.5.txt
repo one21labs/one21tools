@@ -1,0 +1,87 @@
+# Shared phone validation: design and rollout
+
+## Don't use the strictest rule everywhere
+
+The three copies aren't duplicates of one rule. They enforce two different contracts:
+
+- **Billing and support** need a canonical E.164 string, because the payment provider requires it.
+- **Signup** needs to accept what people type.
+
+If you apply billing's regex to signup, `(415) 555-0134` and `415.555.0134` fail. That's most of your 4,000 daily mobile submissions, so you'd lose signups.
+
+The real inconsistency is that signup accepts values billing later can't use. The fix is to normalize once at the edge and validate the normalized value everywhere else.
+
+## Bugs in the current copies
+
+- **Signup:** `LOOSE.match` has no `$` anchor, so it only checks a prefix. `"555-1234 DROP TABLE"` passes.
+- **Billing and support:** `$` matches before a trailing newline, so `"+14155550134\n"` passes. Use `fullmatch`.
+- **Billing:** it doesn't `strip()`, but support does. If you add `strip()` to the check and still send the raw string to the provider, you validate one value and charge with another.
+- **Billing:** `valid_phone` returns a bool, and billing sends the original string. Your library should return the normalized value, and callers should send that.
+
+## The shared function
+
+```python
+# phonekit/__init__.py   (private PyPI package "phonekit")
+import re
+
+_E164 = re.compile(r'\+[1-9]\d{7,14}')          # the single definition
+_SEPARATORS = re.compile(r'[ ()\-.]')
+
+def is_e164(s: str) -> bool:
+    """Strict. No stripping, no repair. For stored/canonical values."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str = "US") -> str | None:
+    """User-typed input -> canonical E.164, or None if it can't be made one."""
+    if not isinstance(raw, str):
+        return None
+    s = _SEPARATORS.sub('', raw.strip())
+    if s.startswith('00'):
+        s = '+' + s[2:]
+    if not s.startswith('+'):
+        if default_region == "US" and re.fullmatch(r'[2-9]\d{9}', s):
+            s = '+1' + s
+        elif default_region == "US" and re.fullmatch(r'1[2-9]\d{9}', s):
+            s = '+' + s
+        else:
+            return None
+    return s if is_e164(s) else None
+```
+
+Each service uses the function that matches its contract:
+
+| Service | Call | Behavior |
+|---|---|---|
+| signup | `normalize_phone(form_value)` | Store the returned E.164. On `None`, show "enter a full number". |
+| billing | `is_e164(stored)`, then send that same value to the provider | Strict. No silent repair at charge time. |
+| support | `normalize_phone` for lookups, `is_e164` for stored values | Replaces its copy of billing's code. |
+
+Two assumptions to check:
+
+- **Region:** I assumed US as the default for numbers without a country code. If signup has meaningful non-US traffic, pass the region from locale or a form field. Or swap the body of `normalize_phone` for the `phonenumbers` package, keeping the same signature. That is a drop-in change because callers only see the function.
+- **Local-only numbers:** The rejection of 7-digit numbers like `555-0134` is a product decision. Reject them at the form, or accept them as unverified.
+
+## Tests
+
+Put one table of cases in the library and treat it as the contract:
+
+- `'(415) 555-0134'` and `'415.555.0134'` → `'+14155550134'`
+- `'+14155550134\n'` → `is_e164` is False
+- `'555-1234abc'` → `None`
+- `'+0123456789'` and `''` → `None`
+- A non-string input → `None`
+
+## Rollout
+
+1. **Publish `phonekit` 1.0.0.** Services pin `phonekit>=1,<2`. Any future change to what counts as valid is a major version bump, because billing's acceptance set is effectively an API contract with the payment provider.
+
+2. **Shadow mode in each service, behind a flag.** Call the old `valid_phone` and the new function, log every disagreement, and still return the old result. Run it for a few days. This tells you how many existing records or requests would change outcome. Check before any flip that billing never receives values that signup stored unnormalized. If it does, you already have failing charges to find.
+
+3. **Flip in this order, one service per deploy:**
+   1. **Support.** Its logic is the same as billing's, so the only difference is the strip and `fullmatch` behavior. Lowest risk.
+   2. **Billing.** The only behavior change is that trailing-newline values are now rejected. It also starts sending the validated value rather than the raw one. Confirm in shadow logs that no real traffic hits that case.
+   3. **Signup.** This is the user-visible change. Deploy it last, so everything downstream already expects E.164. Watch the rejection rate and compare it to the pre-flip baseline. If it jumps, your region assumption or the regex is wrong. Roll back by flipping the flag.
+
+4. **Backfill.** Normalize existing signup records with the same function, and report the rows that return `None`. Those are the users who would fail at billing today.
+
+5. **Delete the local `validate.py` copies.** Add a CI check or lint rule that fails on a new `re.compile` of a phone pattern, so a copy can't creep back.

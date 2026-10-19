@@ -1,0 +1,122 @@
+I can't write `process-review.md` in this session because I have no file-writing tool. The full content is below, ready to save as that file. I haven't seen your repo, CI setup or timing data, so where I assume something, I say so.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team is busy and shipping feels slow because work spends most of its life waiting. A change waits about 2 days for review. It then sits on main for up to 14 days. It then waits for three sign-offs in sequence. The release manager also does manual copying, and hotfixes get no shortcut.
+
+The root cause is that **a release is a rare, large, manually approved event**. Batching 40 changes makes each release risky, which is why three sign-offs feel necessary. The sign-offs add more delay, which makes batches larger. Most of the recommendations below break that loop.
+
+## Current process and where time goes
+
+| Stage | Wait or effort | Type of waste |
+|---|---|---|
+| PR open → review | ~2 days average | Waiting |
+| Merge → release train | 0–14 days (avg ~7) | Waiting; finished work held as inventory |
+| Changelog assembly | Manual, one entry per PR (~40 per release) | Copying; a second copy of facts already in PRs |
+| Sign-offs: QA → EM → PM | Sequential, so delays add up | Waiting; repeated approval |
+| Hotfix | Same path as everything else | An urgent fix waits for the train |
+
+Estimated lead time from PR open to production is about 2 + 7 + sign-off time, with a worst case of 16 days or more plus sign-offs. I'm assuming the sign-offs take at least a day or two each. Please replace that with real numbers (see "Measure first").
+
+## Root causes
+
+1. **Releasing is coupled to a calendar, not to readiness.** Nothing is wrong with a change after merge, but it still waits for the train.
+2. **Large batches.** 40 changes per release makes failures hard to isolate and rollbacks coarse. This is the source of the stress.
+3. **Approval is applied to the release, not to the change.** QA, EM and PM each sign off on 40 things at once, so none can really verify them. These sign-offs are ceremony, not checks.
+4. **No risk tiers.** A one-line hotfix and a large feature get identical treatment.
+5. **The changelog is a hand-made copy.** The PR description is the source of truth. The release document restates it by hand, which costs time and risks drift.
+6. **Review has no service level.** A 2-day average hides a long tail, and nothing makes review a priority.
+
+## Recommendations (ranked: remove > prevent > detect)
+
+### 1. Remove the batch: release on merge, or at least weekly → daily
+Move toward continuous or at-least-daily releases of small changes. Mixed-readiness code ships behind feature flags, so merging is decoupled from user exposure. If you can't go there at once, step down: biweekly → weekly → twice weekly. Each step cuts batch size and stress roughly proportionally. This is the highest-leverage change because it addresses root causes 1 and 2.
+
+### 2. Remove the release-level sign-offs; move the checks into the pipeline and the PR
+- **QA:** turn QA's release checklist into automated tests that gate merge or deploy. QA's time goes to test design and exploratory testing on risky changes, not to sign-off on a batch.
+- **EM:** accountability moves to code review plus branch protection (required reviews and passing CI). A separate EM sign-off adds no information.
+- **PM:** the PM decides *what is exposed to users*, which is a feature-flag decision, not a deploy gate. The PM approves flag rollout, not code release.
+- If any sign-off must stay for compliance, make it **parallel, not sequential**. Give it a time limit (for example 4 working hours) after which it is treated as approved. Name which requirement it satisfies.
+
+### 3. Make the changelog generated, with the PR as the single source of truth
+- Require a one-line user-facing summary and a category label (feat/fix/chore, or "no changelog") in the PR template, enforced by a CI check.
+- Generate the release notes from merged PRs automatically (for example GitHub release notes, release-please or changesets).
+- The release document then *refers* to the generated output. Nobody copies by hand, which removes a whole task.
+
+### 4. Create a hotfix lane
+- Define a hotfix as: fixes a production defect, is small, and has a named reason.
+- Path: PR → one reviewer (an on-call reviewer with a 1-hour target) → automated tests → deploy immediately. No train, no three-way sign-off.
+- Notify EM and PM after the fact. Review it in a weekly look-back to check the lane isn't abused.
+- Success criterion: hotfix lead time under 4 hours.
+
+### 5. Put a service level on code review
+- Target: first review within 4 working hours, and 90% of PRs reviewed within 1 working day.
+- Practices: small PRs (a soft cap of ~300 lines changed), a daily review slot, a visible queue of waiting PRs, and rotating review ownership.
+- Small PRs also feed recommendation 1, because they make smaller releases possible.
+
+### 6. Make safe release cheap (what makes 1 and 2 safe)
+- Automated rollback or a one-click revert.
+- Feature flags for anything user-visible.
+- Staged rollout (canary, then percentage) with automatic halt on error-rate regression.
+- Monitoring and alerts that tell you a release is bad faster than a person would.
+
+## Suggested sequencing
+
+| Step | Change | Effort | Effect |
+|---|---|---|---|
+| 1 | Generated changelog (#3) | Low | Removes manual work immediately |
+| 2 | Hotfix lane (#4) | Low | Fixes the most painful failure case |
+| 3 | Review service level (#5) | Low | Cuts ~2 days of waiting |
+| 4 | Parallelize and time-box sign-offs; start converting them into automated checks (#2) | Medium | Cuts sign-off delay |
+| 5 | Move the train to weekly, then more often; add flags and rollback (#1, #6) | Medium–High | Cuts batch size and stress |
+
+Steps 1–3 need no one's approval beyond the team's and can start this week.
+
+## Design gaps to settle before building
+
+These weren't stated and should be answered first:
+
+- **Why do the three sign-offs exist?** Is there a compliance or contractual requirement, or is it a habit after a past incident? The answer decides what can be removed outright and what must be kept as a parallel or time-boxed check.
+- **What is the current automated test coverage and CI reliability?** Continuous release depends on it. If tests are weak, the first investment is there, not in the process.
+- **Are feature flags available?** If not, introducing them is a prerequisite for decoupling deploy from exposure.
+- **Who owns the release process?** One named owner per stage, plus a rollback owner.
+- **Is there a regulated or customer-facing release window?** This could limit how frequently you can ship.
+
+## Success criteria
+
+Measure first, to get a baseline, and then re-measure after each step.
+
+| Metric | Today (estimate) | Target |
+|---|---|---|
+| PR open → first review | ~2 days average | < 4 working hours; 90% < 1 day |
+| Merge → production | 0–14 days | < 1 day |
+| Changes per release | ~40 | < 10, then continuous |
+| Hotfix lead time | Up to ~16 days | < 4 hours |
+| Release manager manual changelog time | Several hours per release | 0 |
+| Change failure rate and time to restore | Unknown | Track; should not rise |
+
+## Measure first
+
+Before changing anything, pull from your tooling: time from PR open to first review, time from merge to release, time spent in each sign-off, and how often a sign-off has actually blocked or changed a release. If sign-offs rarely block anything, that is the strongest evidence for removing them.
+
+## How to verify each change works
+
+- **Generated changelog:** open a PR with no summary and confirm CI fails. Merge a labeled PR and confirm it appears in the generated notes with no manual step.
+- **Hotfix lane:** run a dry-run hotfix through the lane and time it from PR open to production.
+- **Review service level:** check the review-time metric weekly. Escalate any PR over the limit.
+- **Rollback and flags:** deliberately ship a failing change to staging behind a flag and confirm it can be turned off, and that automated halt triggers.
+- **Reduced sign-offs:** track change failure rate for 4–6 releases. If it rises, strengthen the automated checks. Don't restore the sign-off.
+
+## Risks
+
+- Faster releases without better automated tests will raise incidents. Do recommendation 6 and strengthen tests in step with recommendation 1.
+- Removing sign-offs may meet resistance. Frame it as moving the check earlier and making it automatic, not as removing oversight.
+- Hotfix-lane abuse: limit it with the definition above and a weekly look-back.
+
+---
+
+If you want, I can save this to `process-review.md` once file access is available. I can also adapt it once you have real timing data.

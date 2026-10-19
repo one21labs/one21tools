@@ -1,0 +1,55 @@
+I can't write `tasks.md` from this session because it has no file-write tools. The full contents are below, so you can paste them into the file.
+
+I haven't reopened the plan. But the approved text leaves several things undefined, and the build tasks depend on them. I've put those first as short decision tasks (Phase 0), each with a default so nobody is blocked waiting. Each should take minutes, not another meeting.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (block the build tasks; each has a default)
+
+- [ ] D1. Scope of "all of a user's data": list every table/store holding user data
+      (incl. third-party systems, logs, backups). Default: all first-party tables keyed by user_id; exclude backups/logs.
+- [ ] D2. Format. Default: JSON (one file, versioned schema). Output schema is the contract; document it once (SSoT).
+- [ ] D3. "Fast" target: define a number (e.g. p95 < X s for a typical user, max Y MB). Default: sync below a size threshold, async job above it.
+- [ ] D4. Who may call it: user exporting their own data only? Admin/support on behalf? Default: authenticated user, own data only.
+- [ ] D5. Sensitive fields: passwords/hashes, tokens, other users' data embedded in the user's records (messages, shared docs). Default: exclude secrets and third-party personal data.
+- [ ] D6. Delivery and retention: direct response vs. expiring download link; how long files live. Default: expiring signed link, 24h.
+- [ ] D7. Success criteria and rollback: what makes the ship "done" (e.g. legal/compliance requirement met? which regulation?) and the kill switch (feature flag).
+
+## Phase 1: Design (small)
+
+- [ ] T1. One-page design: components, data flow, failure modes, error contract. Depends on D1-D6.
+- [ ] T2. Define the export schema (JSON) and version field. Depends on D1, D2, D5.
+- [ ] T3. Define the API contract: route, auth, request/response, status codes, error format, rate limit. Depends on D3, D4, D6.
+
+## Phase 2: Build
+
+- [ ] T4. Data collector per store listed in D1, behind one interface (one collector per source; each returns records for a user_id).
+- [ ] T5. Field filter/redaction per D5 (a single allowlist or denylist, defined in one place).
+- [ ] T6. Serializer to the T2 schema, streaming rather than building the full payload in memory.
+- [ ] T7. Endpoint implementing T3 with authn/authz (D4); the user ID comes from the session, never from a request parameter.
+- [ ] T8. Async job + status endpoint + storage/signed link + expiry cleanup (if D3 says async). Skip if sync-only.
+- [ ] T9. Rate limiting and per-user concurrency limit (export is an expensive query).
+- [ ] T10. Audit log entry for every export request (who, when, outcome; no payload contents).
+- [ ] T11. Feature flag / kill switch (D7).
+
+## Phase 3: Verify
+
+- [ ] T12. Tests: authz (user A cannot get user B's data), redaction, empty user, very large user, partial collector failure.
+- [ ] T13. Completeness test: every table identified in D1 appears in the export or is explicitly excluded in the code (fails when a new user-data table is added without a decision).
+- [ ] T14. Performance test against the D3 target with a realistic large user.
+- [ ] T15. Security review of the endpoint (IDOR, enumeration, link leakage).
+
+## Phase 4: Ship
+
+- [ ] T16. API docs generated from the T3 contract.
+- [ ] T17. Staged rollout behind the flag; monitor latency, errors, and export size.
+- [ ] T18. Post-ship check against the D7 success criteria.
+
+## Critical path for next week
+D1-D7 (today) -> T1-T3 -> T4-T7, T9-T11 in parallel -> T12-T15 -> T17.
+```
+
+D1, D4 and D5 matter most. "All of a user's data" has no boundary until D1 is settled. Without D4 the endpoint can leak one user's data to another. D5 decides whether secrets or other people's data end up in the file. If the PM or owner confirms the defaults, Phase 0 closes in one message and nothing slips.

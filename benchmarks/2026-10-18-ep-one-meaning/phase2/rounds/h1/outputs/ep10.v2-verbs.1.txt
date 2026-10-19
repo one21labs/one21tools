@@ -1,0 +1,130 @@
+# Python 3.8 → 3.12 Sprint Plan (40 services)
+
+Assumptions: the sprint runs Mon 2026-10-19 to Fri 2026-10-30, with a feature freeze except for a hotfix lane. I don't know your headcount, so I assigned work by workstream rather than by person.
+
+## Recommended change to the director's plan
+
+I kept the director's scope: all 40 services upgraded in this sprint, with feature work frozen. I changed one thing. Deploys are staged over Mon–Thu of week 2, and nothing deploys on Friday.
+
+A single big-bang Friday deploy fails the on-call requirement. If the 3.8 base image is one pinned value in the chart's `values.yaml`, flipping it moves all 40 services at once. Rollback then means reverting all 40 at once, at the start of a weekend, with a payments receiver included. There is also a hard dependency: two services can't run on 3.12 until the `libgeo-py` wheels exist. If those slip, a big-bang deploy has no way to leave them behind.
+
+The pitch to the director is that the end state and the deadline are unchanged. The sprint still ends with 40 of 40 on 3.12. The deploy order just means one bad service doesn't take the rest down with it.
+
+## Design
+
+**Problem:** Python 3.8 is end-of-life, and all 40 services must run on 3.12.
+
+**Success criteria:**
+- 40/40 services run 3.12 in production by end of sprint.
+- Every deploy has a rehearsed rollback.
+- No payment webhook loss during the cutover.
+- No error-rate or latency regression beyond the agreed threshold. *(Open question 5)*
+
+**Out of scope:** feature work, refactors unrelated to 3.12, and dependency upgrades beyond what 3.12 requires.
+
+### Three design rules
+
+1. **Single source of truth for the Python version.**
+   - The chart gets one default value, for example `python.baseImage`, plus an optional per-service override.
+   - Services must not hardcode the version elsewhere. That includes Dockerfiles, CI configs, `python_requires`, and tox.
+   - CI reads the version from the same place.
+   - The override is what lets 38 services move while two wait, and it is also the rollback lever.
+
+2. **Decouple code changes from the runtime flip.**
+   - Phase 1 makes every service's code and dependencies work on both 3.8 and 3.12. CI runs a 3.8 and 3.12 matrix.
+   - Phase 2 flips only the image.
+   - Rollback is therefore just reverting the image value. It doesn't depend on reverting code.
+   - This only holds if the chosen dependency versions still support 3.8. Where a bump would drop 3.8, such as the latest FastAPI or pydantic majors, pick the newest version that supports both. If none exists, flag that service as needing a full-release rollback instead.
+
+3. **Keep the 3.8 image buildable until the sprint closes.** Don't delete anything that rollback needs.
+
+## Work by inventory group
+
+| Group | Count | Work | Risk |
+|---|---|---|---|
+| Flask/FastAPI, pure-Python | 31 | Bump deps, fix 3.12 removals, matrix CI | Low. "Pure-Python" should be verified by installing on 3.12, because transitive native deps (pydantic-core, cryptography, uvloop) sometimes hide. |
+| asynctest suites | 4 | Migrate to `unittest.IsolatedAsyncioTestCase`, `AsyncMock`, or pytest-asyncio | Medium. It's test-only, but coverage must stay comparable. |
+| `libgeo-py` dependents | 2 | Build cp312 wheels for the internal C extension, then upgrade the services | **High. Critical path.** The wheels may fail to compile against 3.12's C API. |
+| No tests | 2 | Write characterization tests first, then upgrade | **High for payments webhook receiver.** |
+| `distutils` in setup.py | 1 | Move to setuptools or pyproject.toml | Low |
+
+Known 3.12 breakages to scan for in all 40:
+- Removed modules: `distutils`, `imp`, `asyncore`, `asynchat`, `smtpd`.
+- Removed `unittest` aliases such as `assertEquals`.
+- Behaviour changes: `datetime.utcnow()` deprecation warnings, and stricter `ast` and `typing` behavior.
+
+## Schedule
+
+### Week 1: make the code ready, with no production deploys
+
+**Mon 10/19**
+- Kickoff, announce the feature freeze, and define the hotfix lane.
+- Platform:
+  - Add the chart default and per-service override. The default stays 3.8, so nothing changes in prod.
+  - Publish the 3.12 base image.
+  - Publish a CI matrix template.
+- Run all 40 services on 3.12 in CI. Use the output as the real failure list, replacing the spreadsheet's estimates.
+- Start the `libgeo-py` cp312 wheel build immediately. Its owner reports status daily.
+- Start characterization tests for the two untested services. For payments, capture real webhook payloads (sanitized) as fixtures.
+
+**Tue 10/20 – Wed 10/21**
+- The 31 standard services: bump deps, fix failures, and get the 3.8+3.12 matrix green. Merge to main. Production still runs 3.8.
+- The 4 asynctest services: migrate the suites.
+- The distutils service: convert the packaging.
+- Checkpoint Wed EOD: report the `libgeo-py` wheel status. **If cp312 wheels aren't building by now, escalate.** The fallback is that those two services stay on the 3.8 override and move as a follow-up. Decide this Wednesday, not the final Friday.
+
+**Thu 10/22**
+- Everything non-blocked is merged and green on the matrix.
+- Deploy the 3.12 image to **staging** for all ready services.
+- Run the payments characterization tests and the webhook replay in staging.
+
+**Fri 10/23: Go/no-go checkpoint**
+- Staging has soaked on 3.12.
+- **Rehearse rollback in staging** for at least one service per group: flip the override back to 3.8 and confirm it recovers. Do this before any prod deploy.
+- Output: a wave list and the status of the `libgeo-py` wheels.
+
+### Week 2: staged production deploys
+
+| Day | Wave | Services | Gate to proceed |
+|---|---|---|---|
+| Mon 10/26 | 1 (canary) | 4–5 low-traffic, low-criticality standard services | Error rate and latency flat after 4+ hours. Rollback confirmed. |
+| Tue 10/27 | 2 | Remaining standard services, in two batches (~13 each). Plus the 4 asynctest services and the distutils service. | Same gate per batch. |
+| Wed 10/28 | 3 | The two `libgeo-py` services (if wheels are verified), then the untested non-payments service | Staging soak plus replay. If the wheels aren't ready, stay on override. |
+| Thu 10/29 | 4 | **Payments webhook receiver** | See the payments controls below. |
+| Fri 10/30 | Buffer | **No deploys.** Soak, fix stragglers, retro. | Close the sprint by removing overrides so every service follows the single default. |
+
+**Payments webhook controls:**
+- Deploy in a low-traffic window, with on-call present.
+- Use a canary, or deploy one replica first.
+- Confirm that provider-side retries or a replay path cover any webhook dropped during the swap.
+- Have the rollback command written down and tested before the deploy.
+
+**Rollback per deploy:** set the service's image override back to 3.8, or run `helm rollback`. Each wave starts with the on-call engineer confirming the rollback is ready.
+
+## Hotfix lane during the freeze
+
+- Production fixes are allowed. They must pass the 3.8+3.12 matrix so they don't break the upgrade.
+- Any service already in a wave gets hotfixes on the runtime it is running.
+
+## Risks
+
+1. **`libgeo-py` wheels.** This is the critical path, and 2 of 40 services depend on it. Mitigation: the Wednesday checkpoint and the override fallback.
+2. **Payments has no tests.** Mitigation: characterization tests plus webhook replay in staging, and it deploys last.
+3. **Dependency bumps that drop 3.8.** This weakens the rollback story, so check each service in the Monday CI run.
+4. **Hidden native deps** among the "pure-Python" services. The Monday 3.12 CI run surfaces them.
+5. **Staging not matching production** in traffic and data. A green staging soak is evidence, not proof.
+
+## Open questions
+
+These need answers before the plan can be called complete. I haven't filled in defaults.
+
+1. Who owns `libgeo-py`? Does its C code compile against the 3.12 C API?
+2. How many engineers per workstream are available, and is anyone on PTO?
+3. Do the payments provider's retry or replay semantics cover a brief outage during deploy?
+4. Is there a staging environment that mirrors production for all 40 services?
+5. What are the error-rate and latency thresholds that trigger rollback?
+6. What are the traffic patterns, so waves and windows can be chosen?
+7. Does anything outside these 40 services (cron jobs, workers, scripts) also run on 3.8?
+8. What is the interface for hotfix approval during the freeze?
+
+If you answer these, I can fill in dates, owners, and thresholds. I can also draft a short note to the director on why Friday moves from "deploy day" to "buffer day".

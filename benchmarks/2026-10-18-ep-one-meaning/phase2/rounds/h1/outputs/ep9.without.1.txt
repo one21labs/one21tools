@@ -1,0 +1,45 @@
+**Not yet.** The retry design can break your one hard requirement, and the scope is far larger than 500 emails/day needs.
+
+## Blocker: the retry path can send invoices twice
+
+"No response within 5s, mark failed, re-enqueue" treats a timeout as "not sent". A timeout only means you don't know. The provider may have accepted the request and sent the email while the response was slow. The retry then sends a second invoice, which is the chargeback case Finance described.
+
+Other paths to a duplicate:
+- **Crash between send and status update.** The email goes out, the worker dies, and the job is picked up again. If the worker holds the `FOR UPDATE` row lock across the HTTP call, a crash rolls back the transaction and the job looks untouched.
+- **Slow call plus a lease or visibility timeout.** A second worker picks up a job the first one is still running.
+- **Manual retry from the dashboard.** Nothing stops an operator from re-sending a delivered invoice.
+
+**Fix, in order of preference:**
+1. **Idempotency key.** Enqueue with a deterministic key such as `invoice:{invoice_id}:email`. Put a unique constraint on `(type, dedupe_key)` so a duplicate enqueue is impossible. Pass the key to the provider if it supports idempotency. Check this first, because many email APIs don't.
+2. **Record intent before the call.** Move the job to `sending` with a stored attempt ID and commit. Don't hold a transaction open during the HTTP call. Send, then mark `sent` with the provider message ID.
+3. **Treat the ambiguous outcome as its own state.** If the job is `sending` and the outcome is unknown (timeout, or a crash found by a sweeper), don't auto-retry invoices and receipts. Mark it `unknown`, query the provider by message ID or search for the recipient and subject, and alert a human if you can't resolve it. Password resets are safe to retry blindly, since a duplicate is harmless.
+4. **Make the semantics per type.** Invoices get at-most-once with reconciliation. Password resets get at-least-once.
+5. **Block manual retry** on any job that has a provider message ID.
+
+You can't get exactly-once over HTTP. The goal is to make duplicates very unlikely and make the ambiguous cases visible instead of silent.
+
+## Scope: this is a 1-week problem, not 6 weeks
+
+At 500/day you send about one email every 3 minutes. Cutting:
+- **Plugin system with YAML manifests.** There is no second team or second job type yet. Use a handler registry in code and add the abstraction when someone needs it.
+- **5 priorities with weighted fair scheduling.** At this volume there's no contention. If password resets need to jump ahead, `ORDER BY priority, run_at` is enough. You could even use two classes.
+- **React dashboard with throughput charts.** Start with a SQL view or a saved query, plus alerts on `failed`/`unknown` counts. Build the UI if you feel the pain.
+- **Building the queue at all.** Evaluate **pg-boss, Graphile Worker or River** (depending on your stack). They give you `SKIP LOCKED`, backoff, retries, dead-letter handling and scheduling already tested. You'd add the dedupe key and the send-state logic on top. The 2 engineers × 6 weeks is better spent elsewhere.
+
+## Smaller gaps
+- **Dead-letter state and alerting.** Nobody finds out a password reset failed five times unless something alerts.
+- **Provider webhooks** for bounces and delivery status. These matter more for deliverability than queue throughput does.
+- **500ms polling** is fine, but 1–2s polling or `LISTEN/NOTIFY` is just as good.
+- **Payload retention.** Invoices contain PII, so decide how long to keep job payloads.
+- **Timeout.** 5s may be too tight for some providers. It's safe to raise once idempotency is in place.
+
+## Suggested v1
+- Jobs table (or a library's) with a `dedupe_key` unique constraint.
+- Statuses: `queued`, `sending`, `sent`, `failed`, `unknown`.
+- A sweeper that finds stale `sending` jobs and reconciles them with the provider.
+- Per-type retry policy.
+- Alerts, and a SQL view for inspection.
+
+That's roughly a week. Add the plugin system, priorities and dashboard later if a real need shows up.
+
+**Questions that would sharpen this:** Which email provider is it, and does it support idempotency keys or lookup by message ID? What's your stack, so I can narrow the library choice? Is there a concrete second team waiting on the plugin system?

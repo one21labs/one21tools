@@ -1,0 +1,99 @@
+I couldn't write `rca.md` because this session has no file-writing tools. The full document is below, ready to save as `rca.md`.
+
+---
+
+# Root Cause Analysis: Empty Customer Export Delivered to Client (3rd occurrence in 2 months)
+
+**Date:** 2026-10-18
+**Participants:** Data platform team
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. Monitoring did not alert. The client noticed first.
+
+This is the third occurrence in two months. The outcome was identical each time: empty file, exit 0, no alert, client found it.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed by Priya (6 weeks on team); wiki step "run once by hand and eyeball the row count" not performed | Empty file, exit 0, client noticed |
+
+## Analysis
+
+The triggers differ, so they are not the cause. The repeated outcome means a system cause is shared across all three.
+
+**Branch A: why the client received an empty file**
+1. Why did the client get an empty file? The job produced one and delivery sent it.
+2. Why was it delivered? Nothing between "file written" and "file sent" checks that the file has content.
+3. Why is there no check? The job treats "query ran without exception" as success. Zero rows is not an error to it.
+4. Why does the job treat that as success? The export was built without a definition of what a valid export is (minimum rows, expected volume). The job also swallows some errors (the credential case).
+5. **Root cause A:** Delivery is not gated on output validity. Job success is defined as "did not crash", not "produced a valid export".
+
+**Branch B: why nobody was alerted**
+1. Why no alert? Monitoring only checks the exit code.
+2. Why is the exit code enough for monitoring? The job's exit code is assumed to mean "export is good".
+3. Why is that assumption false? The job exits 0 on zero rows and on swallowed errors.
+4. **Root cause B:** The only monitored signal does not carry the information that matters. A failure and a success look the same to it.
+
+**Branch C: why this instance happened**
+1. Why was the bad query shipped? It was not verified after the change.
+2. Why not? The only control was a manual wiki step, which depends on someone remembering to run it.
+3. Why did a six-week engineer not run it? The step lives in the wiki, not in the change workflow. Nothing forces it or reminds anyone of it.
+4. **Root cause C:** The control that would have caught this is a manual, memory-dependent step outside the path a change travels. It is not a person's mistake. "Priya forgot" is a human-error stop point, and the real question is why the system allowed it.
+
+Branches A and B explain all three incidents. Branch C explains only this trigger. Fixing only C (reminding people to follow the wiki) would leave incidents 1 and 2 as they were, and would have failed to prevent them.
+
+## Root Cause
+
+The pipeline has no automated definition of a valid export. Job success, delivery and monitoring all rest on "exit code 0", which the job returns for empty and failed exports. The wiki step is a manual patch for that gap, and it did not hold.
+
+## Fixes
+
+Ranked by remove > prevent > detect.
+
+**1. Remove: the path that delivers an unvalidated file (addresses A, all three incidents)**
+- Delivery to the client runs only after a validation step passes. There is no code path where a file is sent without validation.
+- Validation fails if the row count is 0 or below the expected minimum, or if the file is missing or has no data beyond the header.
+- On failure the file is held, not delivered, and the owning team is alerted.
+
+**2. Remove: swallowed errors in the job (addresses incident 2)**
+- Delete the catch-and-continue around credential and connection errors. Failures propagate to a non-zero exit.
+- Search the job for other broad exception handlers that hide failures, and remove them in the same change.
+
+**3. Make zero rows a failure (addresses A and B)**
+- The job exits non-zero when it writes zero rows, so the existing exit-code monitor starts working for this case with no new tooling.
+
+**4. Prevent: replace the manual wiki step with automation (addresses C and incident 1)**
+- Run the export query in CI or a dry-run on every change to it, and assert a row count above the threshold.
+- A schema rename that breaks the query then fails the change before it reaches the nightly run.
+- Delete the wiki step once automated. A manual step that duplicates an automated one is waste and invites drift.
+
+**5. Detect: monitor the output, not just the process (addresses B)**
+- Alert on output metrics: row count, file size, and deviation from the trailing average (for example, below 50% of the 7-day median).
+- This catches partial or silently truncated exports that are not literally empty.
+
+**Single source of truth.** Put the validation rules (minimum rows, volume tolerance) in one config file. The job, the delivery gate, the CI check and the monitor all read from it. Do not hard-code the threshold in each place. Alert routing is defined once, not copied per check.
+
+**Documentation.** The wiki gets one line pointing to where the validation lives. It does not restate the thresholds.
+
+## Verification
+
+Run these tests and record the results in this document. Watching the dashboard going forward does not count as verification.
+
+1. **Empty-result test:** point the job at a query that returns zero rows. Confirm it exits non-zero, delivery does not happen, and an alert fires.
+2. **Swallowed-credential test:** use an expired or invalid credential in staging. Confirm a non-zero exit, no delivery, and an alert.
+3. **Schema-rename test:** rename a column in a staging copy. Confirm the CI check fails the change.
+4. **Gate-bypass test:** confirm no code path or flag sends a file without passing validation.
+5. **Anomaly test:** feed a file at 10% of normal volume. Confirm the output monitor alerts.
+
+## Open Items
+
+- Decide the minimum row count and tolerance for each client export, and who owns them.
+- Confirm with the account owner what to tell the client about the third occurrence, and whether any earlier empty deliveries went unnoticed.
+- Assign an owner and date for each fix above (not yet set).
+- Check whether other scheduled jobs share the "exit 0 on empty" pattern.
+
+---
+
+If you want it on disk, give me a session with file access and I'll write it to `rca.md`.

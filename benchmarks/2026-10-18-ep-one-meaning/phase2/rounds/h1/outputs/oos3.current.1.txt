@@ -1,0 +1,27 @@
+I'd build a small seam now, not a full plugin framework. With one exporter, we can't yet tell which parts of the contract need to be generic, so anything beyond a seam is a guess. The seam still gets you "add a format without touching core code."
+
+**Proposed design (smallest version that meets the goal)**
+
+1. **One interface**: `Exporter` with `name`, `file_extension`, and `export(data, destination, options)`. Its shape comes from what the current exporter takes and returns. I'd read that code before fixing the signature.
+2. **One registry**: a single place where exporters register by format name. Core code only calls `registry.get(format).export(...)`. It never imports a concrete exporter or branches on format.
+3. **Discovery**: this is the one real fork.
+   - **In-repo devs only**: a drop-in `exporters/` package where each module self-registers, or an explicit list in one file. This is the cheapest option, and I'd start here.
+   - **Third-party or separately installed packages**: use entry points (Python `importlib.metadata`), a `package.json` field (Node), or similar. That's more machinery, so only add it if you need it.
+4. **Refactor the existing exporter** to implement the interface and register itself. It becomes the reference implementation and the contract test.
+5. **Shared contract test**: a parametrized test that runs every registered exporter against the same fixture. A new exporter then gets coverage by existing.
+
+**What I'd leave out until a second exporter exists**
+- Versioned plugin APIs, lifecycle hooks, and a config schema system.
+- Sandboxing or isolation.
+- Capability negotiation.
+
+Adding these later is easy once two real exporters show where they differ. Adding them now means maintaining abstractions nobody has tested.
+
+**Questions I need answered before writing code** (these affect the interface):
+1. Who writes future exporters: your team in this repo, or external developers?
+2. What is the input to an exporter? Is it a stable internal data model, or does each format need different pieces of it?
+3. What does the output look like: a file, bytes, or a stream? Do exporters need per-format options such as CSV delimiter or PDF page size?
+4. How should failures be reported: exceptions, a result object, or partial output?
+5. Does the format get chosen by the user (CLI flag, API param) or inferred? That determines the lookup key.
+
+If you tell me the language and point me at the current exporter, I can turn this into a concrete interface, registry, and migration plan. I can't see the project from this session, so I haven't touched any files.

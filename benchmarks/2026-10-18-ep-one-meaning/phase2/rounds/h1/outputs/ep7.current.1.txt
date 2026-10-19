@@ -1,0 +1,60 @@
+I wrote the root cause as system failures, not as Dev's command, and replaced the retraining action item. Management can still disagree, but I'd push back. Retraining doesn't stop the next person with a stale `PGHOST` from doing the same thing. The trigger was one command, but three separate system gaps turned it into a data-loss incident. The post is also blameless, which is what makes the org willing to report incidents like this one.
+
+---
+
+# Postmortem: Production `order_events` table dropped (OPS-881)
+
+**Severity:** High. Checkout was down from 22:07 to about 01:55, and some order events were permanently lost.
+**Status:** Resolved. Action items are open.
+
+## Summary
+During a staging cleanup (OPS-881), an SRE ran a `DROP TABLE` that went to production instead of staging. It dropped `order_events` and `order_events_archive`. Checkout failed. The restore from backup failed because the backup job had been broken for days without anyone being alerted. We rebuilt the data from Kafka and an old backup. About 2 days of events are only partially recovered.
+
+## Impact
+- Checkout errors from 22:15 until about 01:55, roughly 3h40m.
+- Partial, permanent loss of about 2 days of order events.
+- Open question: whether the lost events affect customer orders or billing. This needs confirming before we close the incident.
+
+## Timeline (all times last night, except as noted)
+| Time | Event |
+|---|---|
+| 18:30 | Earlier prod query leaves `PGHOST=db-prod-1` exported in the shell. |
+| 22:04 | Staging cleanup starts per OPS-881. |
+| 22:06 | New terminal inherits `PGHOST`. The prod and staging prompts look identical. |
+| 22:07 | `DROP TABLE order_events_archive, order_events;` runs on prod. The ticket's script listed both names on one line. No confirmation was required, and the ops role has DROP on prod. |
+| 22:15 | Checkout errors spike and on-call is paged. |
+| 22:41 | Cause identified. |
+| 22:50 | Restore from nightly backup started. |
+| 23:20 | Restore fails. The latest usable backup is 9 days old. |
+| 01:55 | Data reconstructed from Kafka (7-day retention) plus the old backup. |
+
+## Root causes
+1. **Nothing separated prod from staging in the shell.** The environment was selected by an inherited env var, the prompt looked the same for both, and a routine ops session had a standing path to prod.
+2. **Destructive access to prod had no guardrail.** The everyday ops role can DROP production tables, and there was no confirmation or break-glass step.
+3. **The backups were silently broken.** The job has been failing since the 3rd. Its alert went to a Slack channel that was archived in a cleanup, so no one saw it for days. This turned a short outage into data loss.
+4. **The ticket was ambiguous.** It listed the live table and the archive table on one line, which made the over-broad command easy to write.
+
+The wrong-command step was the trigger, not the root cause. Fixing 1 and 2 means a mistaken command like this can't reach prod tables, and fixing 3 means we can recover if one does.
+
+## What went well
+- On-call responded within 8 minutes, and the cause was identified in 34 minutes.
+- Kafka retention made a partial recovery possible.
+
+## Action items
+Items are ranked by how much they remove the problem (eliminate, then prevent, then detect). Owners and dates are to be assigned.
+
+| # | Action | Addresses | Type |
+|---|---|---|---|
+| 1 | Remove standing DROP/TRUNCATE on prod from the ops role. Use a separate, time-limited elevated role for destructive changes. | 2 | Eliminate |
+| 2 | Stop selecting the environment through ambient env vars. Use named connection profiles per environment, and require a different prod credential or host alias. | 1 | Eliminate |
+| 3 | Put the environment name in the shell and psql prompt, in red for prod. | 1 | Prevent |
+| 4 | Fix backup alerting. Route it to a paging target (not a Slack channel). Alert on missing backups and on a failed job, not only on job exit. | 3 | Detect |
+| 5 | Run a monthly restore test, and run one now. | 3 | Detect |
+| 6 | Audit all alert destinations for archived or dead channels. Block archiving of a channel that is an alert target. | 3 | Prevent |
+| 7 | Raise Kafka retention, or add a point-in-time recovery or WAL archive, so a failed nightly backup doesn't leave a multi-day gap. | 3 | Mitigate |
+| 8 | Ticket template for destructive work: one object per line, with the target environment named explicitly. | 4 | Prevent |
+
+## Open items before this goes out
+- The dates don't add up. The backup "has been failing since the 3rd", but the latest usable backup is 9 days old. Please verify the last-good backup date.
+- Confirm exactly which events were lost and whether they affect customer orders or billing.
+- Assign owners and due dates to the action items.

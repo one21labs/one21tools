@@ -1,0 +1,118 @@
+I couldn't write `process-review.md`. This session has no file-writing tools, so nothing was saved. The full review is below, so you can paste it into the file as is.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because most of the elapsed time is spent waiting, not working. A change takes about 2 days to get reviewed and then sits on main for up to 14 days. After that it waits on three sequential sign-offs. The batch is the root problem: about 40 changes per release makes each release risky, which is why three approval gates were added, and those gates make the release slower still. Shrinking the batch fixes the stress and removes the need for most of the other controls.
+
+## Current flow and where time goes
+
+| Stage | Wait or effort | Type of waste |
+|---|---|---|
+| PR awaiting review | ~2 days average | Waiting |
+| Merged on main until the train | 0–14 days, ~7 on average | Inventory (finished work not delivered) |
+| Release manager copies changelog entries | Hours per release, once per PR | Manual duplication and overprocessing |
+| QA, then EM, then PM sign-off | Sequential, so wait times add up | Waiting and redundant approvals |
+| Hotfix on the same path | Up to 14 days plus sign-offs for a one-line fix | Process mismatched to risk |
+
+Estimated lead time for a typical change is about 9 days or more. That is roughly 2 days of review plus about 7 days on main, plus sign-off latency. Active work is probably a small fraction of that. These figures come from the numbers you gave me, not from measurements, so treat them as estimates.
+
+## Root cause analysis
+
+```
+Problem: Shipping feels slow and releases are stressful
+├─ Why slow? Changes wait ~7 days on main for the train
+│  └─ Why? Releases are biweekly, batched by calendar
+│     └─ Why? Each release is expensive: manual changelog + 3 sequential sign-offs
+│        └─ Why? Releases are large and risky (~40 changes), so heavy controls were added
+│           └─ ROOT: Batch size is large, which drives risk, which drives controls, which drives cost per release, which drives infrequent releases (a self-reinforcing loop)
+│
+└─ Why stressful? 40 changes ship at once
+   └─ Why? When something breaks, it is hard to tell which change caused it
+      └─ ROOT: Same loop. Big batches mean hard diagnosis and hard rollback.
+```
+
+Two secondary causes are the changelog and the hotfix path. The changelog is manual because the PR description is treated as input to copy, not as the source of truth. Hotfixes are slow because there is only one path, so urgency and risk are not distinguished.
+
+## Recommendations
+
+They are ordered by impact, with the first one having the largest effect.
+
+### 1. Release more often, in smaller batches (highest leverage)
+
+- Move from biweekly to weekly as a first step, then to continuous or on-demand releases from main. Release when ready, and don't wait for a date.
+- Put risky changes behind feature flags so merging and exposing a change are separate decisions. This is what lets you release often without exposing unfinished work.
+- Aim for 3–5 changes per release instead of 40. A failure then points to a few suspects, and rollback is cheap.
+- Prerequisite: automated tests and a fast, repeatable deploy, plus a rollback procedure you have actually tried. If these are thin, build them first, because they are what makes smaller batches safe.
+
+### 2. Generate the changelog from the PR, not by hand (SSoT)
+
+The PR description is already the source of truth. Copying it into a release document makes a second copy that can drift.
+
+- Require a changelog line or label in a PR template field (for example `changelog: user-facing / internal / none`, plus a one-line summary).
+- Generate the release notes automatically from merged PRs since the last release tag. Conventional-commit tooling or GitHub's generated release notes can do this.
+- Fail the PR check if the field is missing. The check then moves the work to the author at merge time, when they have the most context.
+- Result: the release manager's hand-copying is eliminated, not just reduced.
+
+### 3. Replace the three sequential sign-offs with checks that run on every PR
+
+Ask what each sign-off actually protects against, and then move that check earlier.
+
+| Sign-off | Likely intent | Replacement |
+|---|---|---|
+| QA lead | Regression and quality | Automated test gate in CI. QA owns test strategy and exploratory testing on risky changes, and doesn't approve whole releases. |
+| Eng manager | Readiness and risk | Required PR review plus CI status. EM sets policy once instead of approving each release. |
+| Product manager | Right things shipped, comms | Approve at the feature-flag or launch level, and only for user-visible launches. |
+
+- If any sign-off must remain, run them in parallel, not in sequence, and give each one a time limit with a named backup approver. Sequential approval makes the total wait the sum of all three.
+- Before removing any of them, confirm with each approver what they check. If nobody can name a defect a sign-off has caught, it is a ritual and not a control.
+
+### 4. Add a separate, fast hotfix path
+
+- Define the criteria: production incident or security issue, small diff, targeted fix.
+- Path: one reviewer, CI must pass, deploy immediately, and the sign-offs become a short notification afterward.
+- Keep a record: link the incident, and do a brief post-hoc review in the next sync. Speed doesn't mean skipping the audit trail.
+- A one-line urgent fix should reach production in hours, not up to two weeks.
+
+### 5. Cut PR review wait from ~2 days toward under 4 working hours
+
+- Set a team norm: a first response within one working day at most, and ideally within a few hours.
+- Keep PRs small. Small PRs get reviewed faster and are easier to review well. This also supports recommendation 1.
+- Use a daily review rotation or a review-request channel, and auto-assign reviewers via CODEOWNERS.
+- Let CI handle style and lint so human review covers design and correctness.
+
+## Design-first gaps to settle before changing anything
+
+Before implementation, these are unspecified in the process as described, and they should be decided up front:
+
+- **Success criteria.** Pick measurable targets. A good starting set is lead time from PR open to production, deployment frequency, change failure rate, and time to restore service. Baseline them now so you can tell whether the changes help.
+- **Rollback plan.** How is a bad release reverted today, and how long does that take?
+- **Scope.** Does this cover all services or one? Release trains often hide different risk levels across components.
+- **Ownership.** Who owns the pipeline, the PR template and the hotfix policy?
+
+## Suggested rollout (PDSA, one change at a time)
+
+| Step | Change | Prediction to check |
+|---|---|---|
+| 1 | Measure baseline lead time, batch size, and release-manager hours | Confirms where the time actually goes |
+| 2 | Automate changelog from PR fields | Release-manager prep drops from hours to minutes |
+| 3 | Add the hotfix path | Hotfix lead time drops from days to hours |
+| 4 | Make sign-offs parallel with time limits, and begin moving checks into CI | Sign-off wait drops from the sum of three to the max of three |
+| 5 | Weekly releases, then smaller and flag-gated | Batch size falls toward 10 or fewer, and releases feel routine |
+| 6 | Review-time norm and small-PR guidance | Review wait approaches same-day |
+
+Steps 2 and 3 are cheap and low-risk, so start there for early wins. Step 5 gives the biggest payoff and depends on the test and rollback foundation being solid.
+
+## Risks and open questions
+
+- Fewer approvals can look like less control. Show the replacement checks in CI, and keep the audit trail, to address that.
+- Check whether any sign-off is a regulatory or contractual requirement. If so, keep it, but automate evidence collection and run it in parallel.
+- How good is the automated test coverage? That determines how fast you can safely move.
+- I don't have measured data, only the averages you gave me. Pulling real PR and release timestamps would tighten these estimates.
+
+---
+
+If you'd like, I can write this to a file once a file-writing tool is available, or tailor it to your actual tooling (GitHub Actions, Jira, and so on) if you tell me what you use.

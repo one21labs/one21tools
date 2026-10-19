@@ -1,0 +1,33 @@
+I can't open your project in this session, so this is a design sketch to confirm before anyone writes code. I can't tell what the current exporter looks like.
+
+**Recommendation:** build the extension seam, not a full framework. With one exporter, you can't yet know which parts of the contract are general and which are specific to that format. Keep the first version small enough to be right: a contract, a registry, and the existing exporter moved behind them. Add discovery and lifecycle features when a second exporter shows they're needed.
+
+**Minimal design**
+
+1. **Contract (the one thing plugins depend on).** A single `Exporter` interface with:
+   - `name` (the format id, e.g. `"csv"`)
+   - `export(data, options) -> output`
+   - optionally `file_extension` and `content_type`
+
+   Define it in one module. That module is the source of truth for the contract, and everything else imports from it.
+2. **Registry.** A `register(exporter)` function and a `get(name)` lookup. Core code only ever calls `get(format).export(...)`. It never branches on format names, which is what makes "add a format without touching core" true.
+3. **Discovery.** Pick one mechanism:
+   - Entry points or package metadata (e.g. Python `entry_points`, an npm convention) if plugins ship as separate packages.
+   - A plugins directory scanned at startup if they live in-repo.
+
+   For in-repo exporters, I'd start with explicit registration at import time and defer dynamic discovery.
+4. **Migrate the existing exporter** to implement the contract and register itself. It acts as the reference implementation and the test fixture.
+5. **Contract test suite.** One reusable test any exporter can run against itself. It's cheap and is what keeps future plugins honest.
+
+**Open questions that block the design**
+- **Data scope:** What does the exporter receive, the domain objects or a serialized form? This sets the contract's input type.
+- **Output shape:** Is the output a string, bytes, a file path, or a stream? Large exports may need streaming.
+- **Options:** Do formats need their own config (delimiter, schema version)? If so, where is it declared and validated?
+- **Errors:** Which failures does the contract define (unknown format, bad data, partial write), and how does core report them?
+- **Plugin source:** Are future devs adding in-repo modules or separate packages? This decides the discovery mechanism, and it's the largest cost driver.
+- **Success criterion:** For example: "adding a format requires only one new file and zero edits outside it." Is that the bar?
+- **Trust:** Do third-party plugins ever run, or only code reviewed in this repo? That decides whether sandboxing matters. I'd assume not.
+
+**Deferred on purpose:** plugin versioning, hot reload, dependency ordering between plugins, and a plugin CLI. Add any of these only when a real second or third exporter needs it.
+
+If you share the current exporter's code and say how plugins will be added, I can turn this into a concrete task breakdown. The first task would be extracting the contract from the existing exporter.

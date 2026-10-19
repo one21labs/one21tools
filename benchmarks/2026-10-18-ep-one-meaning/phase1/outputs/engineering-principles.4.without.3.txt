@@ -1,0 +1,71 @@
+I can't write `plan.md` from this session because I have no file-system tools. The full plan is below, so you can paste it into the file.
+
+I ordered it so the real requirement (read `config.json`, validate three fields) ships first. It's a day or so of work, and it doesn't depend on any of the unrequested pieces. The adapters, watcher and migrations come after it, each with an exit gate. If the sprint slips, you can cut from the end without losing the deliverable.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Context
+- Requirement (from the one consuming team): read `config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+- Built so far: format-adapter architecture (JSON done; YAML/TOML/XML scaffolded), hot-reload watcher (half wired), migration framework (interfaces only).
+- Nobody has requested other formats, hot reload, or migrations. Everything after Phase 1 is speculative and is scheduled behind the shipped requirement.
+
+## Phase 0: Scope check (30 min)
+- Confirm with the consuming team that JSON-only, load-at-startup meets their need, and ask whether they expect any of YAML/TOML/XML, hot reload, or versioned configs.
+- Record the answers here. They set the priority and cut line for Phases 2-4.
+
+## Phase 1: Ship the actual requirement (Days 1-2)
+- [ ] Wire the JSON adapter into CLI startup.
+- [ ] Validators:
+  - `api_url`: required, valid absolute http(s) URL
+  - `team_id`: required, non-empty string (confirm format with the team)
+  - `log_level`: required, one of the agreed levels (e.g. debug/info/warn/error)
+- [ ] Clear errors: name the field, the problem, and the file path. Non-zero exit on invalid config.
+- [ ] Tests: valid config, each field missing, each field invalid, malformed JSON, missing file.
+- [ ] Short README section with the config shape and an example.
+- Exit gate: the consuming team runs the tool against their real config. Release this before starting Phase 2.
+
+## Phase 2: Remaining format adapters (Days 3-5)
+Order by likelihood of use: YAML, TOML, XML.
+For each adapter:
+- [ ] Implement parse to the common internal config model, through the same validation path as JSON.
+- [ ] Map parse errors to the shared error type, with line/column where the library gives it.
+- [ ] Format selection: by file extension, with an explicit override flag. Define behaviour for unknown or ambiguous extensions.
+- [ ] Shared conformance test suite run against every adapter (same logical config in each format yields identical validated output).
+- [ ] Decide dependency choices up front: one maintained parser per format, pinned.
+- XML specifics: decide the mapping convention (attributes vs elements, repeated nodes, types are all strings). Document it. If the mapping can't be made unambiguous cheaply, cut XML.
+- Exit gate: conformance suite is green for each adapter.
+
+## Phase 3: Hot-reload watcher (Days 6-7)
+- [ ] Finish wiring: watcher -> adapter -> validation -> swap.
+- [ ] Atomic swap: only replace the live config if the new one validates. Otherwise keep the old config and log the error.
+- [ ] Debounce rapid events (editors write temp-file-then-rename, so handle rename/replace, not just modify).
+- [ ] Define what "reload" means for consumers: change notification callback or re-read on access. Document which fields are safe to change live (`log_level` yes; `api_url` and `team_id` need a decision).
+- [ ] Off by default behind a flag until proven.
+- [ ] Tests: valid edit, invalid edit, atomic-rename save, rapid edits, file deleted and recreated, watcher shutdown with no leaked handles.
+- Exit gate: the tool survives 100 rapid edits and an invalid edit with no crash and no config corruption.
+
+## Phase 4: Migration framework (Days 8-9)
+- [ ] Define the version field (`config_version`, defaulting to 1 when absent so existing files keep working).
+- [ ] Implement the migration runner: ordered, idempotent steps, from file version to current, and fail clearly on a newer-than-supported version.
+- [ ] Dry-run / diff output. Never silently rewrite the user's file. Writing back is opt-in, with a backup.
+- [ ] At least one real migration to prove the framework (or a no-op v1 -> v2 fixture if none exists yet).
+- [ ] Tests: no-op, single-step, multi-step chain, failed step leaves the original intact, unknown future version.
+- Exit gate: round-trip tests pass. Decide whether to keep it, since without a real second schema version this is the most speculative piece.
+
+## Phase 5: Integration and hardening (Day 10)
+- [ ] End-to-end tests: each format x (startup load, hot reload, migration).
+- [ ] Docs: supported formats, reload semantics, migration policy.
+- [ ] Remove or clearly mark dead scaffolding.
+- [ ] Final review of the public surface. Anything exposed now becomes maintenance.
+
+## Cut line (if time slips)
+Cut from the bottom: Phase 4, then XML, then Phase 3. Phases 0-1 are the commitment. Unfinished pieces stay on a branch, not in the release, since half-wired code in the startup path is a liability.
+
+## Risks
+- Maintenance surface: three extra parsers, a watcher and a migration engine are all long-lived code with no current consumer.
+- Behaviour drift between formats (type coercion, e.g. YAML `no` -> false, or TOML dates). The conformance suite is the mitigation.
+- Hot reload introduces concurrency bugs into a tool that currently only needs a startup read.
+```
+
+Phases 2-4 are about eight working days of unrequested work, against about two days for what the team asked for. The two weeks already spent aren't recoverable either way. What matters is whether finishing is worth about 8 more days plus ongoing maintenance, or whether to park the scaffolding on a branch and revisit when someone asks. The plan works for either choice, because Phase 1 ships first. If you want the cheaper route, I can draft a version that stops after Phase 1 and parks the rest.
