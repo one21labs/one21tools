@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """run.py ROUND ARMS(comma) PROMPTSET(dev|holdout) REPS -> rounds/ROUND/{outputs,verdicts.jsonl}.
 Arm 'without' = no skill; any other arm = treatments/<arm>.txt appended to the system prompt."""
-import json, os, re, subprocess, sys, hashlib, statistics, math
+import json, os, re, subprocess, sys, hashlib
 from concurrent.futures import ThreadPoolExecutor
 BASE = os.path.dirname(os.path.abspath(__file__)); CWD = os.path.join(BASE, "cwd")
 rnd, arms, pset, reps = sys.argv[1], sys.argv[2].split(","), sys.argv[3], int(sys.argv[4])
