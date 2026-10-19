@@ -47,8 +47,8 @@ Advocacy wording is itself a contamination channel: agents read it.
 Blind authoring removes coupling to the skill's wording, not wrong criteria. Before the
 prescreen, a domain reader strikes any expectation that rewards what the output's receiver
 would reject. A judge complaint is a symptom, not a spec: read paired outputs before revising
-to it. (2026-10-18: expectations wanting "provisional setpoints" scored a revision that invented
-trip values as a gain.)
+to it. (Live instance: expectations wanting "provisional setpoints" scored a revision that
+invented trip values as a gain.)
 
 ## Infrastructure is never quality (#191)
 

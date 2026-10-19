@@ -205,7 +205,7 @@ def summarize_call(call, requested_model=None):
 
     A reply whose output tokens reach CAP_HIT_FRACTION of the call's CLAUDE_CODE_MAX_OUTPUT_TOKENS
     is an ERROR cell too: past the cap the CLI returns only the reply's LAST chunk, so a grader
-    scores a fragment (measured 2026-10-18: 7 with-arm cells, all graded as quality)."""
+    scores a fragment."""
     env = call.get("envelope")
     served = sorted(((env or {}).get("modelUsage") or {}).keys())
     error = call.get("error")
