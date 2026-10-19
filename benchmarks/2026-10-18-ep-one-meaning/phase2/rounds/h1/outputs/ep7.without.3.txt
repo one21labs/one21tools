@@ -1,0 +1,58 @@
+Before the draft, one thing about the framing. I wrote it blameless, with Dev's command as the trigger and not the root cause. The timeline doesn't support "wrong command" as the cause, and this goes to the whole eng org. A retraining-only action item would leave every control that failed in place. The same slip would cause the same outage for anyone, and the backup failure would still be silent. Management can still adjust the wording, but I'd push back on sending the retraining-only version. Naming Dev in a doc this widely read is also likely to discourage people from reporting incidents.
+
+---
+
+# Postmortem: Production table drop and failed restore (OPS-881 cleanup)
+
+**Severity:** SEV-1 (fill in) | **Status:** Draft | **Owner:** TBD
+
+## Summary
+During a routine staging cleanup (OPS-881), an engineer's shell was still pointed at the production database from an earlier session. A `DROP TABLE` meant for one staging table instead dropped `order_events_archive` and `order_events` in production. Checkout errored from 22:15. The nightly backup had been failing for days without anyone being alerted, so the restore used a 9-day-old backup. Data was rebuilt from Kafka by 01:55, but about 2 days of events were only partially recovered.
+
+## Impact
+- Checkout errors from 22:15. Confirm the time of recovery and the number of failed checkouts.
+- About 3h40m from first error to data reconstruction at 01:55.
+- Partial permanent loss of about 2 days of `order_events`. Quantify what is unrecoverable.
+
+## Timeline (all times local)
+| Time | Event |
+|---|---|
+| 18:30 | Earlier prod query leaves `PGHOST=db-prod-1` exported in a long-lived shell |
+| 22:04 | Staging cleanup begins per OPS-881 |
+| 22:06 | New terminal inherits `PGHOST=db-prod-1`. The prompt looks the same for prod and staging |
+| 22:07 | `psql -c 'DROP TABLE order_events_archive, order_events;'` runs against prod. The ticket's script listed both names on one line, and only the archive was intended. No confirmation step, and the ops role has DROP on prod |
+| 22:15 | Checkout errors spike and on-call is paged |
+| 22:41 | Cause identified |
+| 22:50 | Restore from nightly backup started |
+| 23:20 | Restore fails. The latest usable backup is 9 days old, and the backup job has exited non-zero since the 3rd |
+| 01:55 | Data reconstructed from Kafka (7-day retention) plus the 9-day-old backup |
+
+## Root causes
+The command was the trigger. These conditions let it become an outage:
+1. **Nothing distinguished prod from staging.** Stale `PGHOST` was inherited, and the prompt looked identical in both.
+2. **Routine credentials could destroy prod data.** The ops role has DROP on production, with no confirmation or guardrail.
+3. **The ticket invited the mistake.** It listed both table names on one line, and an engineer would reasonably read that as "drop both." Whether staging should drop both is unclear and needs checking.
+4. **Backups failed silently for days.** The job's alert went to a Slack channel that was archived in a cleanup, so no one was notified.
+5. **Recovery depended on luck.** Without Kafka retention covering most of the gap, the loss would have been much larger. Restore has apparently never been tested end to end.
+
+## What went well
+- On-call responded within minutes and the cause was found in 26 minutes.
+- Kafka retention made a partial recovery possible.
+
+## Action items
+| # | Action | Owner | Due |
+|---|---|---|---|
+| 1 | Fix the backup job and verify a successful backup. Route its alerts to a monitored paging destination, not a channel | TBD | TBD |
+| 2 | Alert on backup age (e.g. no good backup in >26h), independent of job exit status | TBD | TBD |
+| 3 | Audit every alert destination for archived or unowned channels. Add a check to the Slack cleanup process | TBD | TBD |
+| 4 | Remove DROP/TRUNCATE from the day-to-day ops role on prod. Use break-glass access with approval and an audit trail | TBD | TBD |
+| 5 | Make prod unmistakable in the shell: prompt banner and color, no ambient `PGHOST`/`PG*` in shells, and a confirm-the-hostname wrapper for destructive SQL | TBD | TBD |
+| 6 | Require cleanup tickets to specify environment and one object per line. Review OPS-881's template | TBD | TBD |
+| 7 | Run a restore drill from backup quarterly. Consider PITR/WAL archiving so recovery doesn't depend on Kafka retention | TBD | TBD |
+| 8 | Share a short, optional brief on the prod-vs-staging safeguards in #4–#6 with the SRE team, framed as a system change and not a remediation for one person | TBD | TBD |
+
+---
+
+Two things to check before sending:
+- **Dates:** "failing since the 3rd" and "9-day-old backup" don't line up with an incident last night (today is the 19th). Verify which is right.
+- **Owners and due dates:** I left them as TBD. Action items without them tend not to happen.

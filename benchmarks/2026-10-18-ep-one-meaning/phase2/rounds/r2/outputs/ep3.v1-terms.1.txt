@@ -1,0 +1,80 @@
+I couldn't write `process-review.md`. This session has no file-write tools, so nothing was saved. The full review is below, so you can paste it into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team feels busy but slow because work spends most of its time waiting. Review waits about 2 days. Merged work then waits for the biweekly train, which is about 7 days on average and up to 14. Then three sequential sign-offs add more queue time. Each release carries about 40 changes, which is why releases are stressful.
+
+The root cause is that every release has a high fixed cost: hand-copied changelog entries and three serial sign-offs. High fixed cost forces infrequent releases. Infrequent releases force big batches. Big batches raise risk, which makes the sign-offs feel necessary. The loop is self-reinforcing. The fix is to remove the fixed costs first, then release smaller and more often.
+
+## Findings
+
+### 1. Waiting dominates (waste: queues)
+- A typical change sits through about 2 days of review, plus about 7 days on `main` waiting for the train, plus the sign-off chain. Almost none of that is work on the change. It is queue time.
+- A one-line hotfix goes through the same path, so an urgent fix can wait up to 14 days plus sign-offs. This is the clearest design flaw.
+
+### 2. Batch size drives release risk
+- A release of 40 changes means that if something breaks, nobody can tell quickly which change caused it. Rollback means reverting everything, or hand-picking a revert.
+- The stress comes from the batch size, not from any person or step.
+
+### 3. The changelog is a copy, not a source of truth
+- The PR description already states what changed. The release manager retypes it into a release document by hand, so there are two places for one fact. This is slow, error-prone (a change can be missed or described differently), and it grows with batch size.
+- The fix is to make the PR the single source of truth and generate the release document from it. Do not keep two versions in sync by hand.
+
+### 4. Three serial sign-offs per release
+- QA, then EM, then PM, in sequence, means the latency is the sum of three queues. Any one person being away stalls the release.
+- Sign-off is applied to the whole batch of 40, so each approver can only skim. It is a ritual more than a control.
+- It is unclear what each approver checks that automated tests, PR review, or the feature owner don't already cover. The process should answer that for each of the three.
+
+### 5. Review latency of 2 days
+- This is the first queue in the chain. It is moderate on its own, but it multiplies with the others.
+
+## Recommendations
+
+Ordered by value and by how little they depend on each other. Where there was a choice, I preferred removing a step over adding a guard, and a guard over adding monitoring.
+
+### Do now (days)
+1. **Add a hotfix lane.** A hotfix is a PR flagged as urgent. It has one reviewer and automated tests. It ships when merged, with a single on-call approver, and it does not wait for the train. Record the three sign-offs after the fact only if you must. This removes the worst case entirely.
+2. **Generate the changelog from PRs.** Add a required "release note" field or label to the PR template (for example, `user-facing: <one line>` or `no-notes`). A script builds the release document from merged PRs. Delete the manual copy step. The PR is then the only place the text is written.
+3. **Make the sign-offs parallel.** Ask all three at once. This cuts that stage from three queues to the slowest one. Treat it as a stopgap while you do the steps below.
+
+### Do next (weeks)
+4. **Move each sign-off to where it can actually catch something.**
+   - QA: automate the checks in CI on every PR. QA owns the test suite and the exploratory testing of risky changes, not a gate on the whole batch.
+   - EM and PM: approve per change, only for changes flagged as high-risk or customer-visible, for example through a PR label. Routine changes need no EM or PM sign-off.
+   - Keep a sign-off at the release level only if someone can name the specific failure it catches that nothing else does.
+5. **Set a review SLA, for example first response within 4 working hours.** Keep PRs small, with a soft cap on size. Use a review rota so someone is always assigned. Target a median review wait under 1 day.
+6. **Shorten the train.** Go weekly, then twice a week, then on demand. Each step halves the batch size, so risk falls with it. Use feature flags to merge unfinished work safely.
+
+### Aim for (months)
+7. **Continuous delivery of small changes.** Merge, pass automated checks, and ship, with a fast rollback for each change. The release train becomes unnecessary once the fixed costs are gone.
+
+## Gaps to close before building
+
+I only have the process description, not the surrounding facts. These are blocking questions to answer before the changes above are finalized:
+- **What does each sign-off actually catch?** Look at the last 6 months of releases: how many times did a sign-off stop or change a release, and for what reason?
+- **How good is automated test coverage and CI?** This decides how much of the QA gate can move into CI.
+- **Can you roll back a single change quickly?** If not, this is a prerequisite for shipping small and often.
+- **What are the success criteria and the scope?** Suggested measures are below. Agree on them before starting.
+- **Are there compliance or contractual reasons for the three sign-offs?** If so, keep the sign-off but change when and how it happens, for example by recording approval per PR.
+
+## Suggested measures and prediction
+
+Measure these now, before changing anything, so you can compare afterward:
+- Lead time from PR opened to running in production (median and worst case).
+- Time to review (PR opened to first review).
+- Release size (changes per release).
+- Change failure rate and time to restore service.
+- Hotfix lead time.
+
+Prediction to test: with the hotfix lane, generated changelog, and parallel sign-offs, hotfix lead time falls from up to 14 days to under a day, and release-manager prep time drops sharply. Moving to a weekly train should roughly halve release size (about 20 changes). Compare the results against these predictions after one month and adjust.
+
+## Suggested order
+1. Measure the baseline (this week).
+2. Hotfix lane, generated changelog, parallel sign-offs.
+3. Review SLA and PR size cap.
+4. Move sign-offs to per-change or automated checks.
+5. Weekly train, then more frequent releases behind feature flags.

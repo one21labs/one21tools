@@ -1,0 +1,105 @@
+I couldn't write `rca.md` because this session has no file tools. The full document is below, ready to save as `rca.md`. Dates, client impact and owners are placeholders because I wasn't given them.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date of analysis:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft
+
+## 1. Problem Statement
+
+For the third time in two months, the nightly customer-export job produced an empty output file. The file was delivered to a client without any alert, and the client noticed first.
+
+| # | Date | Trigger | Outcome |
+|---|------|---------|---------|
+| 1 | [date] | Schema rename | Empty file, exit 0, no alert, client noticed |
+| 2 | [date] | Expired credential, swallowed by the job | Empty file, exit 0, no alert, client noticed |
+| 3 | [date] | Export SQL changed; the wiki's manual check ("run once by hand, eyeball the row count") was not done | Empty file, exit 0, no alert, client noticed |
+
+**Client impact:** [fill in: which client, how long the data was missing, any SLA or contractual effect]
+
+The three triggers differ, but the outcome is identical each time. The triggers are not the cause. The cause is whatever lets any trigger end this way.
+
+## 2. Analysis
+
+### Branch A: why an empty file existed and exited 0
+1. **Why was the output empty?** Each trigger (renamed column, dead credential, bad query) led to zero rows being read or written.
+2. **Why did that not fail the job?** The job treats "no exception reached the top" as success. A zero-row result is not an error, and the credential failure was caught and swallowed.
+3. **Why is success defined that way?** Nothing defines what a valid export is: minimum rows, expected columns, or a plausible size against history.
+4. **Root cause A:** The job has no output contract. It can report success without producing valid output.
+
+### Branch B: why an empty file reached the client
+1. **Why was it delivered?** Delivery runs after the job without looking at the file.
+2. **Why?** Delivery is chained to exit status, and exit status is 0.
+3. **Root cause B:** There is no gate between "file produced" and "file delivered to a client".
+
+### Branch C: why nobody knew before the client did
+1. **Why was there no alert?** Monitoring checks only the exit code.
+2. **Why only the exit code?** It is the easy signal to read. It measures whether the process ran, not whether the result is correct.
+3. **Root cause C:** We monitor a proxy (the process) instead of the outcome (a valid file delivered).
+
+### Branch D: why the third trigger happened (the query change)
+1. **Why was the change not verified?** A manual wiki step was skipped.
+2. **Why did the system allow a skip?** The step depends on memory and on reading the wiki. A new engineer (six weeks in) had no prompt to do it, and nothing enforced it.
+3. **Why does that not explain the incident?** The manual step covers only one of the three triggers. It would not have caught the schema rename or the expired credential. Had it been followed, the two earlier incidents would still have happened.
+4. **Root cause D:** A manual, human-memory step is serving as our only verification, and it covers one failure path out of three. This is a system gap, not an individual mistake. The step was not enforced, and Priya's onboarding did not surface it.
+
+### Summary
+The one gap behind all three incidents: **the system has no automated definition of a correct export and no enforcement of it at production, delivery, or monitoring.** Branches A, B and C each leave this gap open at a different layer. Branch D is the manual patch that was supposed to cover it.
+
+## 3. Fixes
+
+Ranked as remove, then prevent, then detect. Guards are added only where nothing can be removed.
+
+### Remove
+1. **Remove the swallowed-error path.** Delete the catch-and-continue around credential and connection failures. Auth and query errors must fail the job with a non-zero exit.
+2. **Remove "empty file" as a deliverable state.** Delivery is blocked on any file that fails validation (see Prevent). There is no way to ship a file that was never checked.
+3. **Remove the manual wiki verification step once the automated checks below exist.** Leaving both would create two sources of truth for "is the export valid". The wiki should point to the validation config instead of describing a manual check.
+
+### Prevent
+4. **Output contract, enforced before delivery.** The job writes to a staging location. A validation step must pass before the file is promoted and delivered:
+   - Row count is greater than 0 (or within a tolerance of the trailing median; see open question 1).
+   - Columns and types match the expected schema. This catches the rename.
+   - File size is within a plausible range.
+   - On failure, the job exits non-zero, delivery does not run, and an alert fires.
+5. **CI check on the export query.** Any change to the export SQL runs against a fixture or staging dataset and asserts the contract above. This replaces the manual "eyeball the row count" step with an automated gate. It also covers future new joiners without relying on onboarding.
+6. **Schema-change coupling.** The schema contract is checked in CI, so a rename that breaks the export fails the PR instead of failing at 2 a.m.
+
+### Detect
+7. **Monitor the outcome, not the exit code.** Emit metrics for rows written, bytes written, and delivery confirmed. Alert on zero rows, on a large deviation from baseline, and on a missing delivery by the expected time.
+8. **Alert routing to a named on-call owner**, with a defined response time. [Owner: fill in]
+
+### Single source of truth
+The thresholds and the expected schema live in one config file next to the job. The job, CI check, monitoring and wiki all refer to it. None of them copy the numbers or the column list.
+
+## 4. Verification
+
+Each fix is verified by triggering the failure it targets, not by "monitoring going forward". In staging, for each of the three historical triggers:
+
+| Test | Expected result |
+|------|-----------------|
+| Point the job at a query that returns zero rows | Non-zero exit, no file delivered, alert fires |
+| Rename a column in the staging schema | CI fails the PR. If run anyway, schema validation fails the job, nothing is delivered, and an alert fires |
+| Revoke or expire the credential | Job fails loudly (no swallowed error), nothing is delivered, and an alert fires |
+| Submit a PR changing the export SQL to return nothing | CI check fails |
+| Control: normal run | File validated, delivered, delivery metric recorded |
+
+The fix is accepted only when all four failure tests pass in staging and the control passes.
+
+## 5. Open Questions (must be decided before the build)
+
+1. **Can a legitimately empty export ever occur?** If so, the contract needs an explicit allow-for-empty flag per client, not a silent default. This decision shapes fix 4.
+2. **What are the baseline thresholds?** Choose the tolerance for row-count deviation, based on historical run data.
+3. **Remediation for the affected client:** who contacts them, and with what corrected data? [fill in]
+4. **Are other jobs built the same way** (exit 0 on empty output, swallowed errors, exit-code-only monitoring)? Audit them, since the same gap probably exists elsewhere.
+5. **Ownership and dates** for each fix above. [fill in]
+
+## 6. Notes on Process
+- The analysis deliberately does not name an individual as the cause. The missed step was a symptom of a system that depended on memory for its only verification.
+- Adding a second manual reminder (a checklist, a reviewer note) is not an adequate fix. It is the same kind of control that already failed.
+
+---
+
+If you give me the real dates, client, and the answers to open question 1, I can fill in the placeholders. If you give me a writable location, I can save it as `rca.md`.

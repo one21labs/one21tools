@@ -1,0 +1,111 @@
+I can't write `process-review.md`. This session has no file-writing tools, so nothing was saved. The full review is below, ready to paste into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The process is slow and stressful for one reason. Releases are expensive, so they are rare. Because they are rare, each one is large, and large releases are risky, which is why people demand heavy sign-off. Review latency, the manual changelog and the sequential approvals are symptoms of that loop. They are not independent problems.
+
+The fix is to cut the cost of each release until shipping small and often is cheaper than batching. The process should not be tuned while it stays batch-shaped.
+
+## Current flow and where time goes
+
+| Step | Wait or effort | Value-adding? |
+|------|----------------|---------------|
+| PR waits for review | ~2 days average | Review is valuable. The waiting is not. |
+| Merged change sits on main | ~7 days average (uniform over a 14-day cycle), up to 14 | No. Pure queue. |
+| Release manager hand-copies ~40 changelog entries | Hours per release (please measure) | No. Copying a fact that already exists. |
+| QA lead, then EM, then PM sign-off, in sequence | Unknown. Each handoff adds wait. | Partly. QA verification is value. Serial approval is mostly waiting. |
+| Hotfix follows the same path | Up to 14 days plus sign-offs for a one-line fix | No. This is the clearest defect. |
+
+Average idea-to-production time is roughly 2 days (review) + 7 days (train wait) + release prep and 3 serial sign-offs. That is about 9 days or more before sign-off delays. The developer is busy for hours of that time. The change spends nearly all of it waiting. This explains "busy but slow."
+
+## Root cause analysis
+
+**Problem:** Shipping feels slow, and every release is stressful.
+
+1. Why stressful? About 40 changes land at once, so a failure is hard to attribute and hard to roll back.
+2. Why 40 at once? The release train runs every two weeks, and everything merged in between waits for it.
+3. Why only biweekly? Each release carries a large fixed cost: manual changelog assembly, then three serial sign-offs over the whole batch.
+4. Why is the fixed cost so large? Verification and approval are done by humans per release, over the batch, not per change. The changelog is re-typed instead of derived.
+5. **Root cause:** Release cost is per-batch and manual, so the system rewards big, infrequent batches. Big batches raise risk, risk justifies more sign-offs, and sign-offs raise cost. The loop reinforces itself.
+
+Ranking fixes: remove beats prevent, and prevent beats detect.
+- **Remove:** the hand-copied changelog, the train as the only path, serial approvals, and hotfixes using the normal path.
+- **Prevent:** automated tests and feature flags that make small changes safe.
+- **Detect:** monitoring and fast rollback. This is the last line, not the first.
+
+## Recommendations (in priority order)
+
+### 1. Give hotfixes their own path (do this first, it's cheap)
+Hotfixes need a separate path that a single approver can use. It should ship immediately and branch from the last release, or go through a fast-track lane on main. Require an automated test run plus one sign-off from an on-call approver. The other approvers are notified and can review afterward. Write down what qualifies as a hotfix so the path can't be abused.
+
+### 2. Generate the changelog. Do not copy it.
+The PR description is the source of truth for what a change does. Re-typing it into a release document makes a second copy that can drift, and it costs the release manager hours.
+- Require a changelog line, or a `changelog:` label, as a field in the PR template, with a CI check that it is present.
+- Generate the release document from merged PRs with a script. The release manager reviews it and does not author it.
+- Do not maintain a separate hand-edited changelog after this change.
+
+### 3. Replace serial sign-offs with parallel, scoped checks
+- Make QA, EM and PM approvals run in parallel, not in sequence. This takes the total wait from the sum of the three to the longest one.
+- Ask what each approval is for. QA sign-off checks quality, which should mostly be automated tests plus targeted exploratory testing. EM and PM approval of every release, as opposed to every feature, is likely duplicate approval. PM approval is more valuable at feature or flag-on time than at deploy time.
+- Aim for one release approver for routine releases, with escalation only for flagged high-risk changes.
+
+### 4. Decouple deploy from release with feature flags
+Deploy code to production continuously and put user-visible changes behind flags. PM sign-off then governs turning a flag on, not the deployment of code. This makes each deployment low-risk and gives instant rollback by flipping a flag.
+
+### 5. Shrink the batch: move to weekly, then to continuous
+Don't jump straight to continuous deployment. Step down gradually as the cost per release falls.
+- Biweekly (~40 changes) → weekly (~20) once the changelog is generated and approvals are parallel.
+- Weekly → several times per week or on-merge for changes that pass automated checks.
+- Stop and re-measure at each step. If change failure rate rises, fix the test and rollback gap before shrinking further.
+
+### 6. Cut PR review wait
+A 2-day average wait on every change compounds across the team.
+- Set a team review SLA (for example, first response within 4 working hours) and publish it.
+- Keep PRs small. Small PRs get reviewed faster and are easier to reason about.
+- Assign reviewers automatically, and use a daily review slot or rotation so reviews don't wait for someone to notice.
+- Measure review wait. Do not guess at it.
+
+## Design gaps to settle before building
+
+These gaps remain open and should be answered before work starts. A plan being approved does not fill them.
+
+| Item | Open question |
+|------|---------------|
+| Success criteria | What numbers define "better"? Suggested: lead time (merge to production), deploy frequency, change failure rate, time to restore, PR review wait. |
+| Baseline | Current values are unmeasured. I used estimates above. Capture real ones first so the improvement is provable. |
+| Scope | Which services, repos or teams are included? Is any code subject to regulatory or contractual approval requirements that fix the sign-offs? |
+| Sign-off purpose | What does each of QA, EM and PM sign-off attest to, and is it required by policy or by habit? |
+| Rollback | How is a bad release reverted today, and how long does it take? Faster releases need this answered. |
+| Test confidence | Is the automated test suite trustworthy enough to replace manual QA on routine changes? If not, improving it comes before step 5. |
+| Owners | One named owner per step of the new process. |
+| Hotfix criteria | What counts as a hotfix, and who may invoke the path? |
+
+## Predict, then compare
+
+Write down predictions before changing anything, then compare after four to six weeks:
+
+| Change | Prediction |
+|--------|------------|
+| Generated changelog | Release prep time drops by about 90%, and entry errors drop to near zero. |
+| Hotfix lane | Urgent-fix lead time falls from days (up to 14) to hours. |
+| Parallel approvals | Sign-off elapsed time falls to the longest single approval. |
+| Weekly cadence | Batch size halves to about 20, and time on main drops from ~7 days to ~3.5. |
+| Review SLA | Average review wait drops from 2 days to under 1 day. |
+
+If a prediction misses, find out why before the next step.
+
+## Suggested sequence
+
+1. Measure the baselines and settle the open design questions (about a week).
+2. Hotfix lane and generated changelog (quick wins, independent of each other).
+3. Parallel approvals, and review the purpose of each sign-off.
+4. Review SLA and PR-size guidance.
+5. Feature flags, then the move to weekly and then more frequent releases, gated on change failure rate.
+
+---
+
+If you tell me where your docs live, I can save this as `process-review.md` once file tools are available. I can also fill in the baseline numbers if you share data from your PR tool and release history.

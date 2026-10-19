@@ -1,0 +1,109 @@
+I couldn't write `process-review.md`. This session has no file-write tools, so nothing was saved. The full review is below, ready to paste into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The process is slow because of how work waits, not because people work slowly. A change spends most of its life idle: waiting for review, waiting for the train, and waiting for three sequential approvals. Batching about 40 changes per release then makes each release riskier and more stressful, which is why the heavy sign-offs feel necessary. Fixing the batch size relieves most of the other problems.
+
+## How the process works today
+
+1. A developer opens a PR and waits about 2 days for review.
+2. After merge, the change sits on main until the biweekly release train.
+3. The release manager hand-copies a changelog entry per PR into a release document.
+4. Sign-offs happen in sequence: QA lead, then engineering manager, then product manager.
+5. Hotfixes follow the same path.
+
+## Findings
+
+### 1. Queue time dominates lead time
+- A change waits about 2 days for review. With a 14-day train, it then waits 0–14 days after merge, about 7 on average. That is roughly 9 days of waiting before any sign-off time, and up to 16 in the worst case.
+- Three sequential sign-offs add more. If each takes a day, that is up to 3 more days. I don't have your real numbers for this, so please measure it.
+- This explains why the team feels busy but slow: work is always in progress, but little of it is moving.
+
+### 2. Large batches raise risk
+- About 40 changes per release means that when something breaks, it is hard to tell which change caused it. Rollback is all-or-nothing.
+- QA and approvers can't reason about 40 changes at once, so sign-off becomes a rubber stamp or a bottleneck.
+- Stress comes from the batch size. A release of 3–5 changes isn't stressful.
+
+### 3. Hotfixes use the normal path
+This is the clearest defect. A one-line urgent fix waits for the next train and the full sign-off chain. The likely results are:
+- Customers stay exposed to the bug for days.
+- People route around the process informally, which is worse than having a proper fast path.
+
+### 4. Manual changelog work is wasteful and error-prone
+- The release manager copies about 40 entries by hand every two weeks. The information already exists in the PRs.
+- Hand-copying invites omissions and inconsistent wording. It also keeps one person on a mechanical task right before release.
+
+### 5. The sign-offs are sequential and attached to the wrong unit
+- QA, EM and PM approve at release time, when changes are weeks old and bundled. The questions they answer are:
+  - **QA:** is it tested?
+  - **EM:** is it safe and ready?
+  - **PM:** do we want to ship this?
+- QA's question can be answered per change, earlier. The PM's question is about enabling a feature, not about deploying code. The EM's role is mostly redundant with code review plus automated checks.
+- Running them in sequence means the slowest person's availability gates everyone.
+
+### 6. Review latency
+Two days is not terrible, but it compounds. Slow review leads to larger PRs, which leads to slower review and bigger batches.
+
+## Recommendations (in priority order)
+
+### 1. Create a hotfix lane (days to implement, highest value)
+- Define "hotfix" (production-impacting bug or security issue). Hotfixes get one reviewer, automated tests, and a deploy as soon as the checks pass.
+- Run the sign-off afterwards: notify QA, EM and PM at deploy time and review the next day. Require the on-call engineer or EM to authorize in the moment.
+- Keep a short log of hotfixes to watch for misuse.
+
+### 2. Automate the changelog (about a day)
+- Require a changelog line in the PR template, or use a PR label or title convention such as Conventional Commits.
+- Use a tool such as release-drafter, or a small script over merged PRs, to generate the release notes. The release manager then edits the result instead of writing it.
+- Add a CI check that fails if the changelog field is empty.
+
+### 3. Release more often (the core fix)
+- Move from biweekly to weekly, then to a couple of times a week, and eventually to deploy-on-merge for low-risk changes. Each halving of the interval halves both the average wait and the batch size.
+- Make smaller releases safe with the supporting practices in recommendation 4.
+
+### 4. Separate deploying from releasing
+- Put risky or user-visible work behind feature flags. Code can ship to production dark, and the PM decides when to turn the feature on.
+- This moves the PM sign-off to where it belongs: enabling a feature, not deploying code.
+- Invest in automated tests and a fast rollback path. A fast rollback is what makes frequent releases safe.
+
+### 5. Rework the sign-offs
+- **QA:** shift from a release-time gate to per-change testing, with automated regression checks as the default gate. QA reviews risky changes before merge, not the whole batch after.
+- **EM:** replace the sign-off with branch protection and required checks. The EM is consulted only for flagged high-risk changes.
+- **PM:** sign off on feature-flag enablement and launch communications, not on every deploy.
+- Where approval is still needed, request it in parallel and set a time limit, such as "no objection within 4 business hours counts as approval".
+
+### 6. Cut review latency
+- Set a review SLA (for example, first response within 4 working hours).
+- Rotate a daily reviewer, and keep PRs small, with a soft limit such as 400 lines.
+- Make waiting PRs visible with a dashboard or a daily chat reminder.
+
+## Suggested rollout
+
+| Phase | When | Actions |
+|---|---|---|
+| 1 | Week 1–2 | Hotfix lane, changelog automation, review SLA |
+| 2 | Month 1–2 | Weekly releases, parallel sign-offs with time limits, release-readiness checks in CI |
+| 3 | Month 2–4 | Feature flags, QA shifted left, PM approval moved to flag enablement |
+| 4 | Ongoing | Move toward continuous deployment for low-risk changes |
+
+## Metrics to track
+
+Track these before and after to confirm the changes work:
+- **Lead time for changes:** PR opened to running in production. Today's estimate is roughly 10 days or more.
+- **Deployment frequency:** today, every 2 weeks.
+- **Release size:** target fewer than 10 changes.
+- **Change failure rate and time to restore service.**
+- **PR time-to-first-review.**
+- **Release manager hours per release.**
+
+## Caveats
+
+- The figures above are estimates from the averages you gave. Pull real timestamps from your PR and release history to confirm where the time goes.
+- I don't know your test coverage, deploy tooling or any regulatory sign-off requirements. If compliance mandates specific approvals, keep those, but they can still run in parallel and per change instead of per release.
+
+---
+
+If you'd like, I can publish this as a shareable page, or you can paste it into `process-review.md` in your repo.

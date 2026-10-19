@@ -1,0 +1,59 @@
+I can't write `plan.md` from this session because I have no file tools here. The full contents are below to paste in. The plan puts the real requirement first, because it isn't actually done yet. Nothing in what you've built so far validates `api_url`, `team_id` and `log_level`, and the team that uses the tool needs only that.
+
+On the two weeks already spent: they're a sunk cost. The question is whether the remaining work is worth finishing, not whether the earlier work was wasted. YAML, TOML, XML, hot reload and migrations are unrequested, so each one adds code to test and maintain without serving a user. I've sequenced them after the requirement and marked each as a go/no-go decision. Finishing them is still your call.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Goal
+Read `config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+This is the only requirement from the consuming team. Everything else is optional scope.
+
+## Phase 0: Decisions needed before building (0.5 day)
+These are blocking. Answer them before Phase 1.
+- [ ] Validation rules per field. `api_url`: must be a valid http(s) URL? `team_id`: type and format? `log_level`: allowed values, case sensitivity?
+- [ ] Failure behavior. Missing file, malformed JSON, missing field and invalid value: fail fast with a nonzero exit and a message naming the field?
+- [ ] Defaults. Is any field optional, or are all three required?
+- [ ] Config file location and override (cwd, flag, env var)?
+- [ ] Success criteria. Consuming team signs off on startup behavior with a real config.
+- [ ] Single source of truth. The schema (fields, allowed values) is defined in one place that the adapters, validator and migrations all reference.
+
+## Phase 1: Ship the requirement (sprint-critical, ~2-3 days)
+- [ ] Implement validation of the three fields against the Phase 0 rules, using the finished JSON adapter.
+- [ ] Wire startup: load, validate, fail fast with clear errors.
+- [ ] Tests: valid config, each field missing, each field invalid, missing file, malformed JSON.
+- [ ] Hand to the consuming team and get sign-off.
+
+Exit: the consuming team runs the CLI against their real config.json.
+
+## Phase 2: Finish the in-flight work (only after Phase 1 ships)
+Each item is gated. Before starting one, name who needs it or record the decision to build it speculatively.
+
+### 2a. Format adapters (YAML, TOML, XML)
+- Each adapter implements the existing adapter interface and returns the same normalized structure, so validation stays format-agnostic.
+- Per adapter: parse, error mapping (line/column where available), tests against a shared conformance suite, and the same Phase 1 validation cases.
+- Order by likelihood of use: YAML, TOML, XML. Delete any adapter nobody picks up rather than leaving a scaffold.
+- Estimate: ~1-1.5 days each.
+
+### 2b. Hot-reload watcher
+- Design questions first: what reloads (all fields or only log_level)? What happens on an invalid edit (keep the last good config and log the error)? Are consumers notified or do they poll?
+- Finish the wiring, debounce file events, and handle atomic-save editors (rename-over-write).
+- Tests: valid edit, invalid edit, rapid edits, file deleted and restored.
+- Estimate: ~2-3 days.
+
+### 2c. Schema migration framework
+- Do not implement until there is a second schema version. With one version, the migrations have nothing to migrate.
+- When v2 exists: implement the migration runner against the defined interfaces, with a version field in config, forward-only steps, and tests for each step.
+- Estimate: ~2 days plus the migration steps themselves.
+
+## Risks
+- Unrequested features add maintenance cost and bug surface in a startup path used by every run.
+- The half-wired watcher can affect startup behavior. Confirm it is disabled or isolated in Phase 1.
+- Scope creep: the extra formats and features should not delay Phase 1.
+
+## Done criteria
+- Phase 1: consuming team signed off.
+- Phase 2 items: each shipped, or explicitly cancelled and its scaffolding removed.
+```
+
+If you'd rather commit to all of Phase 2 this sprint, say so. I'd still keep Phase 0 and Phase 1 first, and I can tighten the estimates and ordering.

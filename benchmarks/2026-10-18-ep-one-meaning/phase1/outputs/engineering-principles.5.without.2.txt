@@ -1,0 +1,49 @@
+I can't write `tasks.md` in this session because I have no file-write tools. Below is the full content, ready to paste into `tasks.md`. I turned the open points in the plan (format, auth, scale) into tasks and left the approved plan itself alone.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Day 1: Decisions and scaffolding (each should take under an hour)
+- [ ] T1. Inventory every table, store and service that holds user data (DB, files/blobs, logs, third-party systems). Output: a checklist of data sources. Blocks T4.
+- [ ] T2. Pick the format: JSON (default, the easiest). Use one top-level object keyed by data source, with a `schema_version` field.
+- [ ] T3. Decide the delivery mode:
+  - Sync streaming response if typical exports are small.
+  - Otherwise async job plus a download link.
+  - Default to async if any user's data could take more than ~10s to export.
+
+## Days 1-3: Core build
+- [ ] T4. Write one exporter function per data source from T1. Each takes a `user_id` and returns serializable records.
+- [ ] T5. Build the aggregator. It calls the exporters, assembles the JSON, and streams or paginates instead of loading everything into memory.
+- [ ] T6. Add the endpoint, e.g. `GET /api/v1/users/me/export` (or `POST` if async).
+  - Authenticate the caller.
+  - Authorize so a user can only export their own data. Admin or support access needs explicit rules.
+  - Return a clear error body.
+- [ ] T7. If async (T3): add a job queue worker, a status endpoint, expiring signed download URLs, and cleanup of old export files.
+
+## Days 3-4: Safety and performance
+- [ ] T8. Exclude or redact fields that must not leave the system: password hashes, tokens, internal flags, other users' data in shared records.
+- [ ] T9. Add rate limiting (e.g. 1 export per user per N minutes) so the endpoint can't be abused or overload the DB.
+- [ ] T10. Run performance tests with a realistic large-account fixture.
+  - Add indexes on `user_id` where queries are slow.
+  - Set a target, e.g. p95 under X seconds, or the async threshold from T3.
+- [ ] T11. Add audit logging (who exported, when) and make sure the logs don't contain the exported payload.
+
+## Days 4-5: Verification and release
+- [ ] T12. Write tests:
+  - Unit tests per exporter.
+  - Integration test for the endpoint.
+  - Authorization tests: user A cannot export user B's data, and unauthenticated requests are rejected.
+  - Completeness test: every source in T1 appears in the output.
+- [ ] T13. Write API docs: endpoint, auth, response schema, error codes, rate limits.
+- [ ] T14. Put the feature behind a flag and deploy to staging. Run a smoke test with a real account and review the output for sensitive data.
+- [ ] T15. Production rollout: enable the flag for internal users, then gradually for all. Add dashboards and alerts for error rate and latency.
+
+## Open questions to settle on Day 1 (they affect T1-T3, T8)
+- Does "all of a user's data" include data held by third parties or in backups?
+- Is this meant to satisfy a legal data-access request (GDPR/CCPA)? If yes, the completeness and delivery deadlines in T1 and T12 become hard requirements.
+- Who owns the export format long-term (consumers of the `schema_version`)?
+```
+
+If you give me a working directory with file access, I can write this to `tasks.md` directly and adapt the tasks to your stack.

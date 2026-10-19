@@ -1,0 +1,54 @@
+I can't write `tasks.md` from this session because it has no file-write tool. The full contents are below, so you can paste them into the file.
+
+I'm not relitigating the plan. But "whatever format is easiest" and "fast" leave several decisions open that the build depends on. I've put them first as short decision tasks, so they don't cost a rewrite mid-week. Each one can be settled in minutes by the PM or the tech lead.
+
+```markdown
+# User Data Export – Implementation Tasks
+
+Plan (approved): Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week.
+
+## Phase 0 – Decisions (blocking; ~30 min total, do first)
+
+- [ ] D1. **Data scope**: List every store/table that counts as "all of a user's data" (include derived data, logs, third-party copies?). Output: a checked list of sources.
+- [ ] D2. **Format**: Confirm the "easiest" format. Proposed default: JSON, one file per data source, zipped. Output: one line in this file.
+- [ ] D3. **Success criteria for "fast"**: Pick a number (e.g. p95 < 30s for the largest user), and decide sync vs async. Proposed default: async job plus download link, since "all data" can exceed request timeouts.
+- [ ] D4. **Authorization**: Who may export whose data (self only? admin?). Re-authentication required?
+- [ ] D5. **Sensitive fields**: Which fields are excluded or redacted (password hashes, tokens, other users' data in shared records)?
+- [ ] D6. **Compliance check**: Is this serving a GDPR/CCPA access request? If so, note any deadline and format requirements.
+
+## Phase 1 – Design (after Phase 0)
+
+- [ ] T1. Write the endpoint contract: route, auth, request/response, status codes, error cases (not found, rate-limited, job failed).
+- [ ] T2. Define the export schema per data source (single definition, referenced by the code and docs).
+- [ ] T3. Decide where export artifacts are stored, how long they live (TTL), and how they are deleted.
+
+## Phase 2 – Build
+
+- [ ] T4. Implement per-source data collectors (one module per source from D1; each returns serializable records).
+- [ ] T5. Implement the serializer/packager for the D2 format.
+- [ ] T6. Implement the endpoint with authn/authz from D4.
+- [ ] T7. Apply the D5 redaction rules in one shared place.
+- [ ] T8. If async (D3): job queue, status endpoint, signed expiring download URL.
+- [ ] T9. Rate-limit exports per user and audit-log each request (who, when, what).
+- [ ] T10. Stream or paginate large result sets so memory stays bounded.
+
+## Phase 3 – Verify
+
+- [ ] T11. Unit tests: each collector, the serializer, and redaction.
+- [ ] T12. Authorization tests: user A cannot export user B's data.
+- [ ] T13. Completeness test: the export contains every source in D1 for a seeded user.
+- [ ] T14. Performance test: largest-user fixture against the D3 target.
+- [ ] T15. Failure-injection test: a collector fails mid-export and the job reports failure with no partial file served.
+
+## Phase 4 – Ship
+
+- [ ] T16. Feature flag and staged rollout.
+- [ ] T17. Basic monitoring: export count, duration, failure rate.
+- [ ] T18. Short API docs, generated from the T1 contract.
+- [ ] T19. Rollback plan: disable the flag, purge stored artifacts.
+
+## Out of scope (not in the approved plan)
+Self-serve UI, scheduled recurring exports, multi-format selection, import/restore.
+```
+
+If the decisions can't be settled quickly, the defaults I proposed (JSON in a zip, async job, self-only access) are reasonable ones to build on. Phase 2 can then start while the PM confirms.

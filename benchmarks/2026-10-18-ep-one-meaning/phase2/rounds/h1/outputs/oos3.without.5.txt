@@ -1,0 +1,59 @@
+I can't open your project in this session. I have no file or execution tools, so I haven't seen the existing exporter or the language it's written in. Below is the design I'd build. The sketch assumes Python, and I'll adapt it once I can see the code.
+
+## Design
+
+**1. A small contract.** Core defines one interface that every exporter implements. Core knows only this interface, never a concrete exporter.
+
+```python
+# exporters/base.py
+from abc import ABC, abstractmethod
+from typing import ClassVar
+
+class Exporter(ABC):
+    name: ClassVar[str]              # registry key, e.g. "csv"
+    file_extension: ClassVar[str]    # e.g. ".csv"
+    api_version: ClassVar[int] = 1   # lets core reject incompatible plugins
+
+    @abstractmethod
+    def export(self, data, dest, options: dict) -> None: ...
+
+    def validate_options(self, options: dict) -> dict:
+        return options
+```
+
+**2. A registry.** It maps names to exporter classes, rejects duplicate names, and checks `api_version`.
+
+```python
+# exporters/registry.py
+_registry: dict[str, type[Exporter]] = {}
+
+def register(cls):
+    if cls.name in _registry:
+        raise ValueError(f"duplicate exporter: {cls.name}")
+    _registry[cls.name] = cls
+    return cls
+
+def get(name): ...
+def available(): ...
+```
+
+**3. Discovery without touching core.** I'd use entry points as the main mechanism. A third party ships a package that declares `[project.entry-points."one21tools.exporters"]`, and core loads them with `importlib.metadata.entry_points(group=...)`. I'd also scan an optional local plugins directory for in-repo and quick-and-dirty exporters. Both paths feed the same registry.
+
+**4. Core calls the registry only.** The CLI or API does `registry.get(fmt)().export(...)`. The format list in `--help` and in validation comes from `registry.available()`, so adding a format never edits core.
+
+**5. Move the existing exporter onto it.** This is the proof the framework works. It becomes the first plugin, registered the same way a third-party one would be. If it needs special treatment in core, the interface is wrong.
+
+**6. Failure handling and tests.**
+- A plugin that fails to import logs a warning and is skipped. It doesn't crash the tool.
+- A shared contract test suite that any exporter can be run against, plus a short "write an exporter" doc with a ~20-line example.
+
+## What I'd leave out for now
+Plugin sandboxing, hot reload, dependency resolution between plugins, and a config schema DSL. With one exporter there's no evidence yet that you need them.
+
+## Questions
+1. What language and framework is it in?
+2. How is the existing exporter invoked today (CLI flag, function call, HTTP endpoint)?
+3. Will plugins be external packages, or only in-repo modules? That decides whether entry points are needed or a directory scan is enough.
+4. Do exporters need streaming for large data, or is the data in memory?
+
+If you share the exporter code, or point me at a session that has the repo, I'll implement it directly with the refactor and tests.

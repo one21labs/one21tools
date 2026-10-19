@@ -1,0 +1,111 @@
+I can't write `rca.md` from this session because I have no file tools. The full document is below, ready to save as `rca.md`.
+
+---
+
+# Root Cause Analysis: Nightly customer export delivered an empty file (third occurrence)
+
+**Status:** Draft for team review
+**Participants:** [fill in]
+**Incident date / detection time / client impact window:** [fill in. I don't have these.]
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first.
+
+This is the third occurrence in two months. The outcome was identical each time, but the triggers differed:
+
+| # | Trigger | Job behaviour | Detected by |
+|---|---------|---------------|-------------|
+| 1 | Schema rename | Empty file, exit 0 | Client |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0 | Client |
+| 3 | Export SQL changed without the manual row-count check | Empty file, exit 0 | Client |
+
+## Analysis
+
+### Why do the triggers keep changing while the outcome stays the same?
+
+The triggers are different, and none of them is the root cause. Fixing each trigger in turn (rename handling, credential handling, "please follow the wiki") would not have prevented the next one. All three share the same two system conditions, so the analysis branches.
+
+### Branch A: why was an empty file produced and treated as success?
+
+1. Why did the client receive an empty file? The delivery step shipped whatever the job produced.
+2. Why did delivery run? The job exited 0.
+3. Why did it exit 0 with zero rows? The job treats "query ran" as success, and zero rows is not an error condition in its code. In occurrence 2 it also swallowed the credential error.
+4. Why does the job define success that way? No requirement states what a valid export is (for example, a minimum row count or a comparison with the previous run), so nothing in code enforces it.
+5. **Root cause A:** the pipeline has no definition of a valid output that is enforced before delivery, so a bad output can reach a client.
+
+### Branch B: why did nobody find out before the client?
+
+1. Why was no alert raised? Monitoring checks only the exit code.
+2. Why only the exit code? The exit code is the only signal the job emits.
+3. Why is that sufficient to the team? It was assumed to mean "the export is correct". Occurrences 1 and 2 disproved that, but the monitoring was not changed.
+4. **Root cause B:** monitoring observes the process, not the product. It cannot see the failure that matters, which is a bad output.
+
+### Branch C: why did occurrence 3 happen (the contributing human factor)?
+
+1. Why did the empty export ship? A query change was deployed without being verified.
+2. Why? The only control was a manual wiki step: run it by hand and eyeball the row count.
+3. Why was that step skipped? It lives in a wiki, not in the change path. A person who joined six weeks ago had no mechanism that surfaced it.
+4. **Root cause C:** the control for query changes depends on a person remembering a wiki step. This is a system gap. Priya followed the process the system enforced, which was none. This is not a performance issue.
+
+## Root Causes
+
+- **A:** nothing defines or enforces a valid export before delivery.
+- **B:** monitoring cannot detect a bad output because it checks only the exit code.
+- **C:** verification of query changes is a manual, unenforced wiki step.
+
+A and B are the primary causes. They explain all three occurrences. C explains why occurrence 3 had the trigger it did, but any human-dependent step would eventually fail the same way.
+
+## Fixes
+
+Fixes are ranked in this order: **remove** the path that allows the failure, then **prevent** it, then **detect** it.
+
+### Remove
+
+1. **Remove the ability to deliver an unvalidated file.** Put an output gate between the job and delivery. The gate fails the pipeline, and delivery does not run, if the file is empty or fails validity checks. Delivery then cannot ship an empty file even if the job, the query, or monitoring is wrong. This addresses root cause A and covers all three triggers.
+2. **Remove the swallowed error.** Delete the catch-and-continue around credential and connection errors so the job fails loudly. This removes the specific path behind occurrence 2.
+3. **Remove the manual wiki step as a control.** Once item 4 exists, delete the wiki instruction. Do not keep both, because two copies of one control drift apart.
+
+### Prevent
+
+4. **Automate verification in the change path.** Make a CI check run the changed export query against a representative dataset and assert non-empty output, plus a schema/column check against the expected contract. A schema rename (occurrence 1) then fails in CI. This addresses root cause C.
+
+### Detect
+
+5. **Monitor the output, not the exit code.** Alert on row count of zero, on a large drop against the trailing runs, and on a file-size anomaly. The alert should go to the team before or at delivery time. This addresses root cause B. It is defense in depth, not the primary control, because the gate in item 1 should already have stopped the delivery.
+
+### Single source of truth
+
+The definition of a valid export (minimum rows, expected columns, allowed deviation from prior runs) should live in one config file. The gate, the CI check, and the alerts should all read it. Do not hard-code thresholds in three places.
+
+## Open Questions (decide before building)
+
+- **Can a legitimate export ever be empty?** For example, a client with no new records that night. If yes, the gate needs an explicit "expected empty" path, such as a per-client setting or a clear "no data" notice to the client. This is a product decision, not an engineering default. Do not assume the answer.
+- **What is the right minimum or deviation threshold?** Pick it from historical run data, not a guess.
+- **Who owns the config and the alert?** Each needs one named owner.
+- **Should affected clients be notified, and has that happened for all three incidents?** [fill in]
+
+## Verification
+
+Each fix must be proven by triggering the failure condition, not by "we'll monitor going forward":
+
+1. **Gate:** run the pipeline against a query that returns zero rows. Confirm the pipeline fails and nothing is delivered.
+2. **Swallowed error:** run the job with an expired or invalid credential. Confirm a non-zero exit and no output delivered.
+3. **Schema rename:** apply a rename in a test environment. Confirm the CI check fails before merge.
+4. **Query change:** open a PR that changes the query to return zero rows. Confirm CI blocks it without any manual step.
+5. **Monitoring:** in staging, produce a zero-row file with exit 0 and confirm the alert fires and reaches the owner.
+
+Record the date and result of each test in this document.
+
+## Summary
+
+Three different triggers produced the same failure because the system allowed an empty file to count as a successful, deliverable export, and it only looked at the exit code. The main fix is a gate that makes an empty or invalid export impossible to deliver. Everything else supports that.
+
+---
+
+Three things to check before you save it:
+- I left the incident dates, participants, and client-notification status blank because I don't have them.
+- The "can an export legitimately be empty?" question is left open on purpose. It decides how the gate behaves.
+- I framed the human factor as a system gap, not as Priya's error.
+
+If you give me a writable path or tools, I can save it as `rca.md` directly.

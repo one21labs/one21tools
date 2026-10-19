@@ -1,0 +1,40 @@
+**Not yet.** There's one blocking correctness bug, and the scope is far bigger than the load needs.
+
+## Blocker: the retry design can double-send invoices
+
+"No response within 5s → mark failed and re-enqueue" treats a timeout as "not sent." A timeout means the outcome is unknown. The provider often accepts and sends the email, and only the response is slow or lost. Re-enqueueing then sends a second invoice, which is the chargeback scenario Finance prohibits. A worker crash between the provider call and the status update causes the same duplicate.
+
+Fixes, roughly in order of importance:
+1. **Idempotency key per logical email**, such as `invoice:{invoice_id}:email`. Add a unique constraint on `(type, dedupe_key)` at enqueue so the same invoice can't be queued twice. Also pass the key to the provider if it supports idempotency keys.
+2. **Treat timeout as an `unknown` outcome.** Before retrying an invoice, check the provider (lookup by message ID or custom header/metadata) to see whether it was sent. If you can't verify, don't retry. Alert a human instead. For invoices, at-most-once with a manual fallback is better than at-least-once.
+3. **Persist a `sending` state with a lease/`locked_until` before the HTTP call**, and commit it. Don't hold the `FOR UPDATE` row lock open across a network call. A reaper should move expired leases to `unknown` (not straight back to `pending`) for non-idempotent types.
+4. **Classify errors.** Retry 5xx, 429 and connection failures. Fail permanently on 4xx. Only connection failures that happen *before* the request is sent are safe to retry blindly.
+5. **Enqueue transactionally** with the business event (for example, in the same transaction that creates the invoice). Otherwise you can lose emails or enqueue them for rolled-back invoices.
+6. **Raise the timeout** to 15–30s. 5s will produce many false "unknown" outcomes.
+7. **Add a test** that simulates "provider sends, then response times out" and asserts exactly one email.
+
+## Scope: 6 weeks is too much for 200–500 emails/day
+
+That's about one email every few minutes. Concerns here are correctness and visibility, not throughput.
+
+- **Consider not building it.** Graphile Worker, pg-boss and River are Postgres-backed queues with `SKIP LOCKED`, retries, backoff, scheduling and dedupe keys already built. You'd still need the idempotency logic above, but not the plumbing.
+- **Cut the plugin/YAML system.** No other team has asked for it. A function registry in code is enough until someone does.
+- **Cut 5 priority levels and weighted fair scheduling.** At this volume nothing waits long enough for it to matter. If needed, use two levels (password reset vs. everything else), or just separate queues.
+- **Defer the React dashboard.** Use SQL views, Metabase/Grafana on the jobs table, and a small CLI or script for manual retry. Build the UI only if the CLI proves insufficient.
+- **Polling every 500ms** is fine, but 2–5s is plenty. Consider `LISTEN/NOTIFY` if you want snappier password resets.
+
+## Missing from the design
+
+- **Dead-letter state and alerting** for exhausted retries, `unknown` jobs and a growing backlog. An invoice that silently fails is also a business problem.
+- **Retry jitter** on the backoff.
+- **Expiry per type.** A password reset retried an hour later is useless or confusing, so give jobs a `expires_at`.
+- **Provider rate-limit handling** (429 and `Retry-After`).
+- **Payload hygiene.** Store IDs and render at send time, not full email bodies or PII. Add retention/cleanup for completed jobs.
+- **Graceful shutdown** so a deploy doesn't strand jobs in `sending`.
+- **An audit trail** of attempts (timestamps, provider message ID, response), which Finance will want when disputing a chargeback.
+
+## Suggested v1 (about 1–2 weeks, or less on a library)
+
+A jobs table with a `dedupe_key` unique constraint and a `sending`/`unknown` state with leases. One worker, a code-level handler registry, error-classified retries with jitter, a dead-letter status with alerts, and attempt logging. Add the provider-side verification for invoices, plus the double-send test. Add other features when a concrete need appears.
+
+If you'd like, I can draft the state machine and schema for the `sending`/`unknown` flow, since that's the part to get right before building.

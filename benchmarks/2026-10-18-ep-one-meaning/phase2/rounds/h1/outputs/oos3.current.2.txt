@@ -1,0 +1,19 @@
+I'd build a thin seam now and not a full plugin framework. With one exporter, any framework API is a guess about what the second and third formats will need. If the guess is wrong, future devs end up working around the framework or changing core anyway.
+
+Your actual goal is that adding a format never touches core code. That needs only three small pieces:
+
+1. **An exporter contract.** One interface with `name`, `file_extension`, and `export(data, destination, options)`. The existing exporter becomes its first implementation, with no behavior change.
+2. **A registry.** It maps `name` to exporter. Core looks exporters up by name and never imports a concrete one.
+3. **A discovery mechanism.** The simplest choice is for every module in an `exporters/` package to register itself on import. Entry points (Python), a `package.json` field (Node), or `ServiceLoader` (JVM) work if exporters need to ship as separate packages.
+
+That's roughly 50–100 lines. Adding a format then means dropping in one file. Leave out lifecycle hooks, versioning, config schemas, sandboxing, and dependency resolution until a second exporter shows they're needed.
+
+Before I build it, a few design questions need answers. I can't see your code, so I don't want to guess:
+
+- **Plugin scope:** Do plugins live in this repo, or will third parties ship them as separate packages? This decides the discovery mechanism and is the biggest cost driver.
+- **Contract shape:** What does the current exporter take and return? Does it stream, write to a path, or return bytes? The interface should come from that, plus any ways you already know the next formats will differ (binary vs text, options, large data).
+- **Selection:** How does the caller pick a format today: a CLI flag, a config value, or the file extension? Is that logic in core?
+- **Error handling:** What should happen when a plugin fails to load or fails mid-export? I'd have a bad plugin fail loudly at startup, not silently disappear.
+- **Success criterion:** I'd define it as "a new exporter is added with zero edits outside its own file, proven by a test that registers a dummy exporter." Does that match what you want?
+
+If you tell me the language and point me at the current exporter, I'll draft the interface and registry. If you already know a second format is coming, I can design for it specifically.

@@ -1,0 +1,147 @@
+I can't write `rca.md` in this session because I have no file tools. The full document is below, ready to save as `rca.md`.
+
+---
+
+```markdown
+# Root Cause Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date:** 2026-10-18
+**Status:** Draft for team review
+**Owner:** TBD (assign one owner per action item)
+
+## 1. Problem Statement
+
+For the third time in two months, the nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. Nobody on the team was alerted. The client noticed first.
+
+| # | Trigger | Job exit code | Rows written | Detected by |
+|---|---------|---------------|--------------|-------------|
+| 1 | Schema rename | 0 | 0 | Client |
+| 2 | Expired credential, swallowed by the job | 0 | 0 | Client |
+| 3 | Export SQL changed; manual row-count check in the wiki not run | 0 | 0 | Client |
+
+The triggers differ each time. The outcome and the detection gap are the same each time.
+
+## 2. Impact
+
+- Client received an empty file three times and discovered it themselves.
+- Client trust loss. Add the client-reported business impact and any SLA implications here.
+- Engineering time spent on three separate firefights.
+
+## 3. Analysis (branching 5 Whys)
+
+### Branch A: Why was an empty file delivered?
+
+1. Why was the empty file delivered? The delivery step ran after the export step.
+2. Why did it run? The export step reported success (exit 0).
+3. Why did it report success? The job defines "success" as "did not crash". Zero rows and a swallowed credential error both count as success.
+4. Why is success defined that way? No one wrote down what a valid output is (minimum rows, expected columns, freshness), so no code checks it.
+5. **Root cause A:** The job has no definition of a valid output, and nothing between export and delivery enforces one.
+
+### Branch B: Why did nobody on the team find out first?
+
+1. Why not? No alert fired.
+2. Why not? Monitoring checks only the exit code.
+3. Why only the exit code? It is the cheapest signal available, and it was assumed to mean the job did its work.
+4. Why was that assumption wrong? The exit code reports whether the process crashed, not whether the output is correct. Nothing measures the output.
+5. **Root cause B:** Monitoring observes the process, not the product. Nothing observes row count, file size, or freshness, and no baseline exists to compare them to.
+
+### Branch C: Why did the triggers get in?
+
+1. Query change (this incident). The safeguard was a manual wiki step: "run it once by hand and eyeball the row count". Priya, six weeks into the job, did not run it.
+   - Why was it skipped? It is a manual step in a document, not enforced by the change process. It depends on someone finding and remembering it.
+   - Why do we depend on that? We treated documentation as a control.
+   - **Contributing cause C1:** A critical check exists only as human memory and a wiki page.
+   - Note: this is not "human error". A newer engineer did what the system allowed. Any engineer, including a veteran, could miss an optional manual step.
+2. Schema rename. The job read from a renamed source and produced zero rows without failing.
+   - **Contributing cause C2:** No schema-contract check, and a query that matches nothing is not treated as an error.
+3. Expired credential. The job caught the error and carried on.
+   - **Contributing cause C3:** Error handling swallows failures instead of failing the run.
+
+### Why this keeps repeating
+
+Each earlier fix addressed its own trigger. Root causes A and B were never addressed, so the next new trigger produces the same outcome. Triggers will keep changing (a permissions change, an upstream outage, a filter bug). The fix has to target the outcome, which is "empty output accepted as success and delivered unobserved".
+
+## 4. Root Causes (summary)
+
+- **RC-A:** No definition of valid output, and no gate between export and delivery.
+- **RC-B:** Monitoring measures the exit code, not the output.
+- **Contributing:** C1 (control lives in the wiki), C2 (no schema contract), C3 (swallowed errors).
+
+## 5. Fixes
+
+Fixes are ordered remove > prevent > detect.
+
+### Remove (eliminate the path that allowed this)
+
+| ID | Change | Addresses |
+|----|--------|-----------|
+| R1 | Remove the catch-and-continue around credential/connection errors. Auth and query failures must propagate and exit non-zero. | C3 |
+| R2 | Remove the job's ability to exit 0 with zero rows. Zero rows exits non-zero unless an explicit, documented "empty is valid" flag is set (see open question 1). | RC-A |
+| R3 | Remove the direct export-to-client path. Output goes to a staging location, and a delivery step copies it out only after validation passes. | RC-A |
+| R4 | Remove the wiki step as a control. Replace it with R5 and delete the wiki text, so there is no manual step to forget. | C1 |
+
+### Prevent (stop bad output reaching the client)
+
+| ID | Change | Addresses |
+|----|--------|-----------|
+| P1 | Add an output validation gate before delivery: row count > 0 and within a tolerance of the trailing baseline, expected columns present, file size above a minimum, run timestamp is fresh. Delivery is blocked if any check fails. | RC-A |
+| P2 | Add a CI check for any change to the export query. It runs the query against a fixture or staging dataset and asserts non-zero rows and the expected columns. The PR cannot merge if it fails. This is the automated version of the wiki step (R5). | C1 |
+| P3 | Add a schema-contract check at job start. It verifies the source tables and columns the query depends on, and fails with a clear message if one is missing. | C2 |
+
+### Detect (if something still slips through)
+
+| ID | Change | Addresses |
+|----|--------|-----------|
+| D1 | Alert on output metrics (row count, bytes, delivery status), not only the exit code. Page on a validation-gate failure or a held delivery. | RC-B |
+| D2 | Add a dead-man alert: if no validated delivery is recorded by a set time each day, alert. This also catches the job not running at all. | RC-B |
+| D3 | Add a credential-expiry warning ahead of expiry, with a defined owner. | C3 |
+
+### Single source of truth
+
+The validity rules (minimum rows, baseline tolerance, required columns) live in one place, a config file or constants module in the export repo. The job, the CI test (P2), the validation gate (P1), and the alert rules (D1) all read from it. Do not restate the numbers in the wiki, the runbook, or the alert config. The wiki links to that file and contains no values.
+
+## 6. Verification
+
+"We'll monitor going forward" does not count as verification. For each failure mode, trigger it in staging and confirm the control catches it. Record the results in this document.
+
+| Test | Action | Expected result |
+|------|--------|-----------------|
+| V1 | Rename a source column the query uses | Schema check (P3) fails the job. Nothing is delivered. Alert fires. |
+| V2 | Invalidate the job's credential | Job exits non-zero (R1). Nothing is delivered. Alert fires. |
+| V3 | Change the query to return zero rows, open a PR | CI (P2) fails and the PR is blocked. |
+| V4 | Bypass CI and run the zero-row query in staging | Gate (P1/R2) blocks delivery. Alert fires. |
+| V5 | Stop the job from running | Dead-man alert (D2) fires. |
+| V6 | Run a normal export | Passes the gate and is delivered. No false alert. |
+
+## 7. Open Questions (must be decided before build)
+
+1. **Can a legitimately empty export occur?** If a client can validly have zero rows on a given day, R2 and P1 need an explicit, reviewed signal for "expected empty" instead of a blanket rule.
+2. **Baseline tolerance.** What deviation from the trailing row count is anomalous versus normal variance? Pick a starting value from historical data and tune it.
+3. **Client communication.** Who contacts the client about the three incidents, and is a corrected file or other remediation owed?
+4. **Backfill.** Which past deliveries were empty or wrong, and have all been re-sent?
+5. **Ownership.** Who owns the export job's validity rules and the alert routing?
+
+## 8. Action Items
+
+| ID | Action | Owner | Due |
+|----|--------|-------|-----|
+| 1 | Re-send correct file to client and confirm receipt | TBD | Immediate |
+| 2 | Resolve open questions 1 and 2 | TBD | TBD |
+| 3 | Implement R1, R2, R3 (stop silent success and delivery) | TBD | TBD |
+| 4 | Implement P1, D1, D2 (gate and alerts) | TBD | TBD |
+| 5 | Implement P2, P3, R4 (CI check, schema check, wiki removal) | TBD | TBD |
+| 6 | Run V1-V6 and attach evidence | TBD | TBD |
+| 7 | Review other nightly jobs for the same pattern (exit 0 on empty, swallowed errors) | TBD | TBD |
+
+## 9. What Went Well / Not
+
+- Not well: three detections by the client, and the same gap left open after two incidents.
+- Not a finding: Priya's skipped step. The system allowed it, and the fix removes the dependency on remembering it.
+```
+
+---
+
+Two notes on the draft:
+
+- **Open questions:** I added these because the plan is incomplete without them. The biggest is whether a legitimately empty export can occur, since the "zero rows fails" rule depends on it.
+- **Placeholders:** Owners, due dates, and client impact are marked TBD. I had no information on them and didn't want to invent any.

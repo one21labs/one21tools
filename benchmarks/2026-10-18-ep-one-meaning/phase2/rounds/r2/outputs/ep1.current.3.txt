@@ -1,0 +1,137 @@
+I can't write `rca.md` in this session because I have no file-system tools. The full document is below, ready to save as `rca.md`. Facts I don't have (dates, participants, client impact, the earlier incidents' fixes) are marked `[TBD]` rather than guessed.
+
+---
+
+```markdown
+# Root Cause Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date:** [TBD]
+**Participants:** [TBD]
+**Status:** Draft
+
+## Problem Statement
+
+The nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. No alert fired. The client noticed first.
+
+This is the third occurrence in two months with an identical outcome and different triggers:
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename broke the query | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed; documented manual check not run | Empty file, exit 0, client noticed |
+
+**Key observation:** the triggers vary, but the failure path is the same each time. Fixing triggers (rename hygiene, credential rotation, "follow the wiki") has not worked, because new triggers keep arriving. The countermeasures must target the shared path.
+
+## Analysis (branching 5 Whys)
+
+### Branch A: Why did an empty file reach the client?
+
+1. Why was an empty file delivered? Delivery is automatic and runs whenever the job exits 0.
+2. Why did the job exit 0 with zero rows? Zero rows is not treated as an error. The job reports "ran" and not "produced a correct result".
+3. Why is there no output check? The job's contract only covers process success. No one defined what a valid export looks like (minimum rows, expected range).
+4. Why wasn't that caught after incidents 1 and 2? Those fixes addressed the triggers (the rename, the credential), not the missing output validation. [TBD: confirm what actions came out of the earlier reviews and their status.]
+
+**Root cause A:** There is no definition of a valid export, and nothing between "job finished" and "client receives file" enforces one.
+
+### Branch B: Why did nobody find out before the client?
+
+1. Why no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It is the cheapest generic signal, and it was assumed to imply correctness.
+3. Why is the assumption wrong? Exit 0 means "didn't crash". The job swallows errors (incident 2) and treats empty as success (all three).
+
+**Root cause B:** Monitoring measures process health, not output health. It cannot see the failure we actually care about.
+
+### Branch C: Why did this particular change ship unverified?
+
+1. Why wasn't the empty result seen? The manual check was skipped.
+2. Why was it skipped? The check lives in a wiki. Nothing prompts or enforces it. A engineer six weeks in has no way to know it is load-bearing.
+3. Why does it depend on memory? The safeguard is a human convention, not part of the change or deploy path.
+
+**Root cause C:** The only control against a bad query change is an unenforced manual step. This is not an individual failure. Any engineer can miss a step that nothing checks, and the next new joiner or tired veteran will too.
+
+## Root Cause Summary
+
+The export pipeline has no automated notion of "correct output", at any stage. Neither the job, the delivery step, the deploy path nor monitoring checks it. Every trigger so far has therefore turned into a silent, client-visible failure.
+
+## Countermeasures
+
+Ranked per the poka-yoke ladder: elimination first, then prevention, then detection. Guards are used only where something can't be removed.
+
+### 1. Eliminate (highest priority)
+
+| Action | Removes |
+|--------|---------|
+| **Make zero rows a failure.** The job exits non-zero if it writes fewer than the minimum valid rows. If an empty export is ever legitimate, require it to be explicit (an opt-in flag, or an explicit "no data" marker) and not the default. | The path "empty = success" (A2, B3) |
+| **Delete swallowing of errors.** Remove blanket catch-and-continue around the source connection and query. Failures propagate. | Incident 2's mechanism |
+| **Remove automatic delivery of unvalidated files.** Write to a staging location, validate, then promote. Delivery reads only from the promoted location. | The ability for an invalid file to reach a client (A1) |
+
+### 2. Prevent
+
+| Action | Addresses |
+|--------|-----------|
+| Replace the wiki step with an automated check that runs on every query change: run the export against a test or representative dataset in CI, and fail the change if row count is below a floor. | Branch C. The wiki step is then deleted from the wiki. |
+| Add schema-contract checks (the query's expected columns or tables) so a rename fails at change time. | Incident 1 class |
+| Add credential-expiry monitoring or rotation alerts. | Incident 2 class |
+
+### 3. Detect (backstop, not the primary defence)
+
+| Action | Notes |
+|--------|-------|
+| Alert on output metrics: row count, file size, and deviation from the trailing baseline, in addition to exit code. | Catches partial failures (e.g. 90% fewer rows) that a zero-row check misses. |
+| Alert on a missing or late delivery. | Silence should page someone. |
+| Route alerts to a named on-call owner. | An alert nobody owns is the same failure. |
+
+### 4. Decisions needed (blocking, before implementation)
+
+- **Valid output definition.** What is the minimum row count, and what deviation from baseline is anomalous? Owner: [TBD]. Is an empty export ever legitimate for any client?
+- **Failure behaviour.** When validation fails, do we hold delivery, send the previous file, or notify the client proactively? Owner: [TBD]
+- **Ownership.** Who owns export correctness and the alert route? Owner: [TBD]
+- **Earlier actions.** What was committed after incidents 1 and 2, and why didn't it prevent this? If actions were dropped, track them this time with owners and dates.
+
+## Immediate Remediation (this incident)
+
+- [ ] Fix the query and regenerate the correct export. Owner: [TBD]
+- [ ] Redeliver to the client and communicate the incident. Owner: [TBD]
+- [ ] Check the other two affected deliveries and any other jobs sharing the "exit 0 means success" pattern. Owner: [TBD]
+- [ ] Interim guard until the changes land: a row-count check in the job wrapper that fails on zero rows.
+
+## Action Items
+
+| # | Action | Rank | Owner | Due |
+|---|--------|------|-------|-----|
+| 1 | Zero-row (below-floor) failure in job | Eliminate | [TBD] | [TBD] |
+| 2 | Remove swallowed errors | Eliminate | [TBD] | [TBD] |
+| 3 | Staging + validate + promote delivery | Eliminate | [TBD] | [TBD] |
+| 4 | CI check on query changes; retire the wiki step | Prevent | [TBD] | [TBD] |
+| 5 | Schema-contract and credential-expiry checks | Prevent | [TBD] | [TBD] |
+| 6 | Output-metric and missing-delivery alerts with an owner | Detect | [TBD] | [TBD] |
+| 7 | Resolve decisions in 4 above | Prerequisite | [TBD] | [TBD] |
+
+## Verification
+
+"We'll monitor going forward" is not verification. Prove each safeguard by injecting the failure:
+
+1. **Query change:** submit a query change that returns zero rows (e.g. a `WHERE 1=0`). Confirm CI fails and the change can't merge.
+2. **Schema rename:** rename a column in a test environment. Confirm the contract check or job fails.
+3. **Expired credential:** run the job with an expired or invalid credential. Confirm it exits non-zero with no output promoted.
+4. **Empty output at runtime:** run the job against a source that returns no rows. Confirm it exits non-zero, nothing is delivered, and an alert reaches the named owner.
+5. **Partial output:** run it with a row count well below baseline. Confirm the anomaly alert fires.
+6. **Silence:** suppress a run. Confirm the missing-delivery alert fires.
+
+Record the results in this document. The action items aren't closed until each injection test passes.
+
+## Notes
+
+- This analysis deliberately doesn't treat the engineer who changed the query as the cause. A control that depends on one person remembering a wiki step will eventually fail for anyone. The failure is that the system let an unverified empty result reach a client.
+- Backstory belongs in git history and the incident tracker, not in the wiki or runbooks. When the wiki step is retired, delete it outright.
+```
+
+---
+
+Two things to flag:
+
+- **Where the gaps are.** The biggest open question is what came out of the first two reviews. Both previous incidents had the same outcome and were presumably followed by fixes, so "why didn't those fixes prevent this?" is probably the most useful thing to discuss in the review meeting.
+- **Row-count threshold.** I haven't proposed a number for the minimum row count or baseline deviation, because I don't know your data. That's a decision for the export owner.
+
+If you give me write access or a directory to use, I'll save it as `rca.md` there.

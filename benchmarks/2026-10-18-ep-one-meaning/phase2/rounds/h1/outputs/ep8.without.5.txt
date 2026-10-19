@@ -1,0 +1,66 @@
+# Shared phone validation library
+
+Don't use the strictest rule everywhere. Signup would break: strict E.164 rejects `(415) 555-0134` and `415.555.0134`, which is the input your users type. With roughly 4,000 submissions a day, mostly from mobile, many real signups would start failing.
+
+The three copies also aren't doing the same job. Billing needs a strict gate in front of the payment provider. Signup needs to accept messy input. The real fix is a library with two operations: normalize messy input into E.164, and strictly check E.164. Signup normalizes, billing checks, and the stored value is always canonical.
+
+## Bugs in the current code
+
+- **Billing and support:** `$` matches before a trailing newline, so `"+14155550134\n"` passes and goes to the provider. Use `fullmatch`.
+- **Signup:** `LOOSE.match` has no end anchor, so `"415-555-0134 DROP TABLE"` passes. It also accepts `"+++++++"` and `"() () ()"`, since it only checks the character set and length.
+- **Signup and billing:** signup stores a different format from the one billing sends, so a signup number can't go straight to the provider. Normalizing at signup fixes this.
+
+## The API
+
+```python
+# phonekit/__init__.py  (published to your private PyPI)
+import re
+import phonenumbers  # libphonenumber port; handles real parsing
+
+_E164 = re.compile(r'[+][1-9][0-9]{7,14}')
+
+def is_e164(s: str) -> bool:
+    """Strict gate. No cleanup, no guessing. Use before calling the payment provider."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(s: str, default_region: str = "US") -> str | None:
+    """Messy user input -> canonical E.164, or None if it isn't a plausible number."""
+    if not isinstance(s, str) or len(s) > 40:
+        return None
+    try:
+        n = phonenumbers.parse(s.strip(), default_region)
+    except phonenumbers.NumberParseException:
+        return None
+    if not phonenumbers.is_valid_number(n):
+        return None
+    out = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+    return out if is_e164(out) else None
+```
+
+Each service uses it differently:
+
+- **billing:** `if not is_e164(phone): reject`. This is the same strictness as today, minus the newline hole. Never pass raw input to the provider.
+- **support:** `is_e164(s.strip())` for lookups, or `normalize_phone` if agents paste messy numbers.
+- **signup:** `phone = normalize_phone(form_value, default_region=<user's region>)`. Store the result, and show "Enter a valid phone number" if it returns `None`.
+
+`default_region` matters because `(415) 555-0134` has no country code. If signup is US-only, `"US"` is fine. If it isn't, take the region from a country selector or locale rather than guessing.
+
+If you can't add the `phonenumbers` dependency, a stdlib fallback is to strip `[ ().-]`, require a leading `+` or a known default prefix, then run `is_e164`. It accepts more nonsense, such as numbers with impossible area codes.
+
+## Rollout
+
+Each repo deploys independently, so version the library and move one service at a time.
+
+1. **Build and publish `phonekit` 1.0.0.** Include a shared golden test table of input, expected output and expected `is_e164` result. It should cover the formats above, trailing newline, empty string, `None`, a 16-digit number, `+0…`, letters, and unicode digits. Each consuming repo can import this table into its own CI.
+2. **Support first.** It's an exact copy of billing, so behavior is the same. It's a low-risk way to prove the packaging works.
+3. **Billing second.** Swap in `is_e164`. The only behavior change is rejecting trailing-newline input. Before deploying, check logs or the DB for any stored numbers that fail `is_e164`, since those would now fail at charge time.
+4. **Signup last, in shadow mode first.** Run the old regex and `normalize_phone` side by side for about a week. Keep the old result as the decision and log every disagreement. Review them, especially cases where old accepts and new rejects, then flip to the new function.
+5. **Backfill stored signup numbers.** Run `normalize_phone` over existing rows and write E.164 to a new column. Keep unnormalizable rows as-is and flag them. This is what makes billing safe when it reads numbers that originated at signup.
+6. **Delete the local `validate.py` copies** and pin `phonekit>=1,<2` in each repo.
+
+Treat any later tightening of `normalize_phone` as a major version bump, so a stricter signup can't ship by accident through a routine dependency update.
+
+## Questions for you
+
+- Is signup US-only? That determines how `default_region` is set.
+- Does billing ever receive numbers that did not come through signup, such as imports or admin entry? If so, those need the same backfill check.

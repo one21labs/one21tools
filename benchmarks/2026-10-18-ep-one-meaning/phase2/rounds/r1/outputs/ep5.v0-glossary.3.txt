@@ -1,0 +1,48 @@
+I can't write `tasks.md` in this session because I have no file or code tools. The content is below, ready to paste. I took the plan as approved and didn't reopen it. The plan never states several things the build depends on, though, so I put those first as short decision tasks. Each should take minutes, not a meeting, and each one blocks the build tasks after it.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking, do first, ~1 day total)
+
+Each decision gets one line in the design doc. That doc is the source of truth, and the code and tests refer to it.
+
+- [ ] D1. Data scope: list every table/store holding user data ("all" must be enumerated). Mark each as included or excluded, and why (e.g. derived data, other users' data, audit logs).
+- [ ] D2. Format: pick one. Recommendation: JSON, since it needs no extra libraries and keeps nested data intact. Document the top-level schema and a version field.
+- [ ] D3. Authorization: who may export, and for whom? Recommendation: an authenticated user can export only their own data, and admin export is out of scope unless stated.
+- [ ] D4. "Fast" target: set a measurable number (e.g. p95 under X s for a user with N records). This decides sync vs. async in D5.
+- [ ] D5. Delivery model: synchronous response, or async job plus download link. Recommendation: sync with a size cap if D4 is met for typical users, otherwise async.
+- [ ] D6. Sensitive fields: decide how to handle password hashes, tokens, and secrets (recommendation: exclude), and whether the export is logged for audit.
+- [ ] D7. Abuse limits: rate limit per user (e.g. 1 export/hour) and a max payload size.
+- [ ] D8. Success criteria and rollback: how we know it works (D4 numbers plus a completeness check), and a feature flag to turn it off.
+
+## Phase 1: Build (after Phase 0)
+
+- [ ] T1. Define the export schema/types from D1 and D2 in one module (single source of truth).
+- [ ] T2. Add a data collector per store listed in D1. Each does one thing, returns schema-typed data, and is independently testable.
+- [ ] T3. Add the export service that composes the collectors, with the sensitive-field exclusions from D6 applied in one place.
+- [ ] T4. Add the API endpoint with authn/authz from D3, the rate limit from D7, and the feature flag from D8.
+- [ ] T5. Add error handling: partial collector failure should fail the whole export with a clear error, never return silently incomplete data. Define the status codes.
+- [ ] T6. If D5 chose async: add the job runner, a status endpoint, expiring download links, and cleanup.
+- [ ] T7. Add audit logging and metrics (latency, size, failures).
+
+## Phase 2: Verify
+
+- [ ] V1. Completeness test: seed a user with data in every D1 store and assert each appears in the export. Add a test that fails when a new user-data table is added without a collector.
+- [ ] V2. Authz test: user A cannot export user B's data; unauthenticated requests are rejected.
+- [ ] V3. Performance test against the D4 target with a large seeded user.
+- [ ] V4. Failure test: force one collector to fail and confirm the export errors instead of returning partial data.
+- [ ] V5. Rate-limit and size-cap tests (D7).
+- [ ] V6. Sensitive-field test: assert no excluded fields appear in output.
+
+## Phase 3: Ship
+
+- [ ] S1. API docs generated from the T1 schema (do not hand-copy).
+- [ ] S2. Staged rollout behind the flag, then enable.
+```
+
+The Phase 0 items matter because "all of a user's data" can't be built or tested until someone says what "all" includes. "Fast" can't be checked without a number. Authorization and sensitive fields are also the likeliest places to ship a data leak. If the meeting already settled any of these, fill in the answer and tick the item. Most can probably be answered in one short thread.
+
+If you give me a way to write files, I'll save this as `tasks.md` directly.

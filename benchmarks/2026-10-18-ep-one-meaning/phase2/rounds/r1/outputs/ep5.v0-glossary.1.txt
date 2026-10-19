@@ -1,0 +1,47 @@
+I can't write `tasks.md` from this session because I have no file or shell tools here. Below is the full content, ready to paste into the file.
+
+The plan is approved, so I'm not reopening it. But "all of a user's data", "whatever format is easiest" and "fast" leave open several things the build depends on. I've put those first as decision tasks, each with a proposed default, so they don't block you. If nobody answers, the default stands and the build proceeds.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (same day, each with a default so work isn't blocked)
+
+- [ ] D1. **Data scope**: list every store/table holding user data (profile, content, activity, uploads, third-party-linked data). Default: everything keyed by user ID, excluding other users' data and internal-only fields (password hashes, tokens, fraud flags). Output: one list that is the source of truth for the exporter.
+- [ ] D2. **Format**: default JSON, one top-level key per data category, with a `schema_version` field. Uploaded files are listed with download links, not inlined.
+- [ ] D3. **"Fast" criteria**: default is p95 under 5s for a typical user, with a size/time threshold above which the export runs async (job, then notification and download link). Confirm the largest real user's data size.
+- [ ] D4. **Authorization**: default is authenticated users can export only their own data, with recent re-authentication required. Admin/support export is out of scope unless stated.
+- [ ] D5. **Abuse limits**: default is 1 export per user per hour, with audit logging of every request.
+- [ ] D6. **Error behavior**: default is partial failure fails the whole export (never a silently incomplete file), with a clear error and a retryable status.
+- [ ] D7. **Success criteria**: default is the export contains every category in D1, verified by a test that compares it against the D1 list.
+
+## Phase 1: Build
+
+- [ ] T1. Define the export schema and the category registry (the D1 list as code, the one place that names what is exported).
+- [ ] T2. Implement a per-category collector interface plus a collector for each category in the registry.
+- [ ] T3. Implement the serializer to the D2 format, with field redaction for internal-only fields.
+- [ ] T4. Implement the endpoint (`GET /users/me/export`, or `POST` if async), with authn/authz per D4.
+- [ ] T5. Implement the sync path for small exports, streaming the response rather than building it all in memory.
+- [ ] T6. Implement the async path for large exports (job, status endpoint, signed expiring download link), only if D3 requires it.
+- [ ] T7. Add rate limiting (D5) and an audit log entry per request.
+- [ ] T8. Add error handling per D6, with consistent error codes and no partial output.
+
+## Phase 2: Verify
+
+- [ ] V1. Unit tests per collector and for the serializer (including redaction).
+- [ ] V2. Authorization tests: user A cannot export user B's data; unauthenticated is rejected.
+- [ ] V3. Completeness test: fail if any registry category is missing from the output, or any user-keyed table is absent from the registry.
+- [ ] V4. Performance test against the largest realistic user, checked against the D3 threshold.
+- [ ] V5. Failure test: force one collector to fail and confirm the export fails cleanly (D6).
+- [ ] V6. Rate-limit test: second request inside the window is rejected.
+
+## Phase 3: Ship
+
+- [ ] S1. API docs for the endpoint, referencing the schema (no restated field lists).
+- [ ] S2. Feature flag and staged rollout; dashboards/alerts for error rate and latency.
+- [ ] S3. Release and check the first real exports.
+```
+
+I put the decisions first because the build tasks can't be finished without them. If any default is wrong, only the matching T or V task changes, not the schedule. Phase 0 should take about an hour of someone's attention, and you can run T1 and T4 in parallel while those answers come in.

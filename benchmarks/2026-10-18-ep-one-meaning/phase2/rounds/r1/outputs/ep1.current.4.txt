@@ -1,0 +1,148 @@
+I can't write `rca.md` from this session because I have no file-write tool. The full document is below, ready to save as `rca.md`. Details I don't have (timeline, client impact, owners, dates) are marked `[TBD]` rather than invented.
+
+---
+
+```markdown
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date of analysis:** 2026-10-18
+**Status:** Draft
+**Participants:** [TBD]
+**Severity / client impact:** [TBD: client, export date, time-to-detection, time-to-resolution]
+
+## 1. Summary
+
+The nightly customer-export job produced an empty output file, exited 0, and the file was delivered to a client. Nobody on our side was alerted, and the client noticed first. This is the third occurrence in two months. Each had a different trigger but the same outcome.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed without the manual verification step (Priya) | Empty file, exit 0, client noticed |
+
+The triggers differ, so they are not the root cause. The constant across all three is that **the system treats an empty export as a success and delivers it**. Any upstream fault produces the same result.
+
+## 2. Problem statement
+
+The job wrote zero rows to its output, returned exit code 0, and the output was delivered. Monitoring checks only the exit code, so it reported healthy.
+
+## 3. Analysis (5 Whys, branched)
+
+### Branch A: Why did an empty file reach the client?
+
+1. **Why did the client receive an empty file?** The delivery step shipped whatever the job produced.
+2. **Why was there no block on bad output?** Nothing between "job finished" and "file delivered" validates the output. A zero-row file is not rejected.
+3. **Why does the job exit 0 on zero rows?** The job defines success as "ran without throwing", not "produced a valid export". Zero rows is not treated as an error.
+4. **Why was that never caught?** Nobody has defined what a valid export looks like (minimum rows, expected range, required columns), so there is nothing to enforce.
+5. **Root cause A:** The job has no output contract. "Success" is not tied to the properties of the delivered artifact.
+
+### Branch B: Why did nobody on our side find out?
+
+1. **Why did the client find it first?** No alert fired.
+2. **Why?** Monitoring only checks the job's exit code.
+3. **Why is that insufficient?** Exit 0 says the process ended cleanly. It says nothing about the output, and the job exits 0 on empty output.
+4. **Root cause B:** Monitoring observes the process, not the product. Nothing watches what was delivered to the client.
+
+### Branch C: Why do upstream faults become silent failures? (triggers 2 and 3)
+
+1. **Why did the expired credential produce an empty file instead of a failure?** The job swallowed the error and carried on with no data.
+2. **Why does the job swallow errors?** Broad error handling treats failures as recoverable and continues. [TBD: confirm the exact code path.]
+3. **Root cause C:** Failures in the data-fetch path are converted into empty results instead of stopping the job. This turns every loud failure into a silent one.
+
+### Branch D: Why did the query change reach production unverified? (trigger 3)
+
+1. **Why wasn't the query verified?** The only control was a manual wiki step ("run it once by hand and eyeball the row count"). It wasn't done.
+2. **Why wasn't it done?** Priya joined six weeks ago. The step is documented only in a wiki and depends on remembering it. Nothing prompts it and nothing enforces it.
+3. **Why is that a system failure rather than an individual one?** A control that depends on memory and on reading the right wiki page will eventually be skipped by anyone, especially a new joiner. The process allowed an unverified change to ship and did not stop it.
+4. **Root cause D:** The control for query changes is a manual, unenforced, undiscoverable step. "Human error" is not an acceptable root cause here. The question is why the system let that error reach a client.
+
+### Summary of causal structure
+
+Triggers (schema rename, credential expiry, unverified query) are the **entry points**. Root causes A, B and C are the **permitted path** from any entry point to a client-visible failure. Root cause D explains why the third trigger was not intercepted earlier. Fixing D alone would have prevented only trigger 3. Fixing A–C addresses all three and the next, unknown trigger.
+
+## 4. Root causes
+
+| ID | Root cause |
+|----|-----------|
+| A | No output contract: an empty export counts as success |
+| B | Monitoring watches exit code, not delivered output |
+| C | Data-fetch failures are swallowed and converted into empty results |
+| D | Query-change verification is a manual, unenforced wiki step |
+
+## 5. Countermeasures
+
+Ranked per the elimination > prevention > detection ladder. We remove the failure path first and guard it second. Monitoring is the last line.
+
+### Tier 1: Eliminate the path (fixes A and C)
+
+1. **Make "empty" impossible to deliver.** Add a validation gate between export and delivery. Delivery runs only if the output passes the contract. On failure the job exits non-zero and nothing is sent. The gate fails closed, so delivery is the exception and not the default.
+2. **Define the output contract in one place** (see SSoT below): minimum row count, tolerance against a trailing baseline (e.g. fail if the count drops more than X% against the median of recent runs), and required columns. Choose a baseline check over a fixed threshold, so a legitimately smaller export is not blocked and a silent partial export is still caught.
+3. **Delete the error-swallowing in the fetch path** (credential, connection, query errors). Let them propagate and fail the job. Removing the catch is better than adding logging around it.
+
+### Tier 2: Prevent the trigger (fixes D)
+
+4. **Replace the wiki step with an automated check.** Run the export query against a staging or sample dataset in CI on any change to the export SQL, and assert the contract (non-empty, expected columns). Then delete the wiki step, because the pipeline is the control and the wiki line would be a duplicate.
+5. **Add a schema-drift check** so a rename fails in CI or at job start with a clear message, before the query returns nothing.
+6. **Add a credential-expiry check** (alert on days-to-expiry, plus a pre-flight auth test at job start).
+
+### Tier 3: Detect (fixes B)
+
+7. **Monitor the artifact, not the process.** Alert on delivered file row count, file size, and freshness. Page on zero rows or on a contract violation, and notify the team before the client could have noticed.
+8. **Add a post-delivery check** that confirms what was actually sent matches what was validated.
+
+### Not recommended
+
+- Adding more documentation or a reminder about the manual step. Fix D by removing the dependence on memory, not by reinforcing it.
+- Retraining or counseling individuals. The skipped step is a symptom of an unenforced control.
+
+## 6. SSoT considerations
+
+- **Output contract:** one definition (config or module) consumed by the validation gate, CI check and monitoring alert. Do not hardcode the thresholds in all three.
+- **Wiki:** delete the manual-verification step once CI enforces it. Do not keep both.
+- **Credential/expiry data:** one source of truth for expiry dates, referenced by the alert.
+
+## 7. Open questions (decisions needed before implementation)
+
+1. Can a legitimate export ever be empty (e.g. a client with no activity)? This decides whether the gate is "never empty" or "within baseline tolerance", and whether any client needs an explicit empty-allowed exception.
+2. What should happen on gate failure: block and page, retry, or hold for human release? What is the client-facing commitment for delayed delivery?
+3. Who owns the export job, the contract, and the alert? [TBD]
+4. Do the other jobs that deliver to clients share this failure mode? Run the same audit on them. [TBD]
+5. Do we need to proactively contact other clients to confirm they did not receive earlier empty files? Check the delivery logs for the past two months.
+
+## 8. Action items
+
+| # | Action | Tier | Owner | Due |
+|---|--------|------|-------|-----|
+| 1 | Validation gate blocks delivery on contract failure | 1 | [TBD] | [TBD] |
+| 2 | Define output contract (single location) | 1 | [TBD] | [TBD] |
+| 3 | Remove error-swallowing in fetch path | 1 | [TBD] | [TBD] |
+| 4 | CI check on export SQL changes; remove wiki step | 2 | [TBD] | [TBD] |
+| 5 | Schema-drift check | 2 | [TBD] | [TBD] |
+| 6 | Credential expiry alert + pre-flight auth | 2 | [TBD] | [TBD] |
+| 7 | Artifact-level monitoring and paging | 3 | [TBD] | [TBD] |
+| 8 | Audit other client-delivery jobs for the same pattern | - | [TBD] | [TBD] |
+| 9 | Review delivery logs for earlier undetected empty files | - | [TBD] | [TBD] |
+
+## 9. Verification
+
+"We'll monitor going forward" is not verification. Each safeguard must be proven by deliberately triggering the failure in a staging environment (or a dry-run delivery target) and confirming it catches it.
+
+| Failure injected | Expected result |
+|------------------|-----------------|
+| Run export with a query that returns zero rows | Job exits non-zero, **nothing delivered**, page fires |
+| Revoke or expire the credential | Job fails loudly at pre-flight or fetch, nothing delivered, alert fires |
+| Rename a column in the source schema | CI or job-start drift check fails with a clear message |
+| Submit a PR changing the export SQL to a broken version | CI fails and merge is blocked, without any manual step |
+| Make the gate pass but deliver an empty file (simulate a bug) | Artifact-level monitor pages |
+| Run a normal export | Delivered, contract passes, no alert (guards against false positives) |
+
+Re-run this table after each change and after any later modification to the gate. The incident is closed only when every row behaves as expected.
+
+## 10. Timeline
+
+[TBD: export run time, delivery time, client report time, detection time, remediation time]
+```
+
+---
+
+I used `[TBD]` for the timeline, owners, dates and client impact because you didn't give them. The tradeoff to settle first is open question 1. It decides how strict the gate is, so it needs an answer before anyone builds it.

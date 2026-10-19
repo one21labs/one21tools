@@ -1,0 +1,57 @@
+I can't write `tasks.md` from this session because I have no file tools here. The full contents are below, ready to paste into the file.
+
+I haven't reopened the plan. The approved text is one line, though. It doesn't define the data scope, the format, what "fast" means, who may call the endpoint, or how errors are handled. Those are the decisions that would force rework if they were guessed wrong. So the file starts with a short block of decision tasks, each with a default I picked so you aren't stalled. Each should take minutes to confirm, not a new meeting. The build tasks follow.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Source plan (approved): "Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week."
+
+## 0. Decisions (blocking; confirm before the dependent tasks start)
+
+Each has a proposed default. If nobody objects, the default stands. Record the final answer in `docs/user-data-export.md` (the only place these are defined; code and tests refer to it).
+
+- [ ] D1. Data scope: list every table/store that holds user data and mark each in or out of the export.
+      Default: all rows keyed by the user's ID, excluding other users' data (e.g. messages from others), internal/system fields, and secrets (password hashes, tokens).
+      Blocks: T2, T3
+- [ ] D2. Format: "easiest" = JSON, one file, one top-level key per data category.
+      Default: JSON. Blocks: T3, T5
+- [ ] D3. "Fast": define a measurable target and the largest user to support.
+      Default: p95 under 2s for users under 10 MB of data; larger users get an async job with a download link.
+      Blocks: T4
+- [ ] D4. Authorization: who may call it?
+      Default: an authenticated user can export only their own data; no admin or impersonation path in v1. Blocks: T1
+- [ ] D5. Delivery: sync response vs async job + download link, as follows from D3. Blocks: T4
+- [ ] D6. Abuse and privacy: rate limit, audit log entry per export, and whether the download link expires.
+      Default: 1 export per user per hour, audit log on every request, link expires in 24h. Blocks: T6
+- [ ] D7. Success criteria and rollback: how we know it shipped correctly (e.g. export contains every in-scope category for a test user) and how we turn it off (feature flag). Blocks: T8
+
+## 1. Build
+
+- [ ] T1. Endpoint skeleton: route, authentication, authorization check per D4, feature flag (off by default).
+- [ ] T2. Data inventory module: one list of in-scope sources per D1, each with a function that returns that user's rows. This is the only place scope is defined.
+- [ ] T3. Serializer: assembles the per-source results into the D2 format. Strips excluded fields.
+- [ ] T4. Delivery path per D3/D5: sync for small exports; job + storage + download link for large ones.
+- [ ] T5. Response contract: content type, filename, schema/version field in the output, documented in the OpenAPI spec (the source of truth for the API contract).
+- [ ] T6. Rate limiting, audit logging, link expiry per D6.
+- [ ] T7. Error handling: user not found, partial failure in one source (fail the whole export; never return a silently incomplete file), timeout, storage failure. Define the error codes in the existing error catalog.
+
+## 2. Verify
+
+- [ ] T8. Completeness test: for a seeded test user with data in every in-scope source, the export contains every category and no excluded fields.
+- [ ] T9. Isolation test: user A cannot export user B's data, and an unauthenticated call is rejected.
+- [ ] T10. Failure tests: make one source fail and confirm the export errors instead of returning partial data; trigger the rate limit and confirm it blocks.
+- [ ] T11. Performance test: run against the largest realistic user and confirm the D3 target.
+
+## 3. Ship
+
+- [ ] T12. Staging run with production-shaped data; fix findings.
+- [ ] T13. Enable the flag for internal users, then everyone. Rollback = flag off.
+- [ ] T14. Short user-facing and internal docs that refer to `docs/user-data-export.md` instead of restating it.
+
+## Order
+
+D1-D7 (parallel, short) → T1, T2 → T3, T4 → T5, T6, T7 → T8-T11 → T12-T14
+```
+
+The one-week deadline is realistic only if D1 (scope) and D3 (what "fast" means) are settled early in the week. Everything else is routine. If you'd rather start building before the decisions are confirmed, T1 can begin now.

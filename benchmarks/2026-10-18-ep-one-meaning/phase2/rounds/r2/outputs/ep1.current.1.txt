@@ -1,0 +1,102 @@
+I can't write `rca.md` in this session because I have no file-writing tool. The full document is below, ready to save as `rca.md`.
+
+---
+
+# Root Cause Analysis: Empty customer export delivered to client (3rd occurrence in 2 months)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft. Items marked *(confirm)* are assumptions I could not verify from the incident description.
+
+## Problem Statement
+
+The nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first. This is the third occurrence in two months:
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed without the documented manual check | Empty file, exit 0, client noticed |
+
+The triggers differ each time. The outcome is identical each time. That points to the system's failure to detect and stop a bad output, not to any one trigger.
+
+## Analysis (branching 5 Whys)
+
+**Branch A: Why did an empty file reach the client?**
+1. Why was an empty file delivered? Delivery runs after the job exits 0, and nothing inspects the file.
+2. Why did the job exit 0 with zero rows? It treats "ran without raising" as success, and a zero-row result is not an error condition in the code.
+3. Why is that acceptable to the code? Nobody defined what a *valid* output is, so the job has no success criteria for its output.
+4. **Root cause A:** Success is defined as process completion, not output correctness. There is no contract for "valid export."
+
+**Branch B: Why did nobody find out before the client did?**
+1. Why no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It is the cheapest signal and was never revisited after the job was built.
+3. Why does that miss this failure? The failure mode (silent empty output) is exactly what an exit-code check cannot see, and the job's own behavior makes exit 0 meaningless.
+4. **Root cause B:** Monitoring observes the process, not the product. Nothing measures what the client receives.
+
+**Branch C: Why did the query change reach production unverified? (Trigger 3)**
+1. Why was the empty result not caught? The only safeguard was a manual step in the wiki: "run it by hand and eyeball the row count."
+2. Why was it skipped? Priya is six weeks in, the step lives in a wiki rather than in the change workflow, and nothing enforces or reminds anyone of it.
+3. Why does a manual wiki step carry a critical control? There was no automated check to replace it. *(confirm: whether any test or CI exists for the export query)*
+4. **Root cause C:** A critical control depends on individual memory and on knowing where tribal knowledge lives. Skipping it was an expected outcome of that design, not a personal failing. The next new hire, or a busy veteran, would be just as likely to skip it.
+
+**Branch D: Why did earlier occurrences recur? (Triggers 1 and 2)**
+1. Why did the schema rename and expired credential each produce the same outcome? The same missing output validation (A) and output monitoring (B) let both through.
+2. Why did the job swallow the credential error? It catches errors and continues, converting a hard failure into an empty result.
+3. Why did the first two incidents not fix this? *(confirm)* Presumably each was fixed at the trigger (rename handled, credential rotated) rather than at the shared failure path. Two incidents with different triggers were treated as unrelated, so the common cause was never addressed.
+4. **Root cause D:** Past fixes addressed triggers, not the class of failure. The error-swallowing code path still exists.
+
+## Root Cause (summary)
+
+The export pipeline has no definition of a valid output and no gate between "job finished" and "file delivered." Any cause of an empty result (query, schema, credentials, or something not yet seen) flows straight to the client. The documented manual check and the exit-code monitor were the only two defenses, and neither inspects the output.
+
+Priya's skipped step is the trigger, not the root cause. Even with the step performed, the schema-rename and credential cases would still have shipped empty files.
+
+## Countermeasures
+
+Ranked by the poka-yoke ladder: elimination, then prevention, then detection.
+
+### Eliminate (remove the path that allows the failure)
+1. **Remove the error-swallowing in the job.** Delete the catch-and-continue around credential and query failures so they fail loudly with a non-zero exit. This removes the entire class of "swallowed error becomes empty file" (incident 2).
+2. **Remove the manual wiki step as a control.** Replace it with the automated check in item 3 and delete the wiki text, so there is not a second, stale source of truth. Where the wiki needs to say anything, it links to the check's definition.
+3. **Remove the direct path from job to client.** Delivery must not trigger on exit code alone (see Prevent).
+
+### Prevent (make the wrong thing impossible or hard)
+3. **Output validation gate before delivery.** After writing, validate: row count > 0 (or ≥ a per-export minimum), the expected header and schema are present, and file size is above a floor. Optionally compare the row count to the prior run and block on a large drop (threshold *to be agreed*). On failure the job exits non-zero and delivery does not occur.
+4. **Define each export's validity rules in one place.** The minimum row count, expected columns, and whether zero rows is ever legitimate go in a single config or contract per export. The job, the gate and the monitoring all read from it (SSoT). **Open decision:** can a customer-export legitimately have zero rows? If yes, that must be an explicit per-export opt-in, not the default.
+5. **CI check on query changes.** A change to the export SQL runs against a representative dataset or staging copy and asserts the row-count and schema contract. This automates what the manual step was trying to do.
+
+### Detect (catch what prevention misses)
+6. **Monitor output, not just exit code.** Alert on delivered-file row count and size, and on "job succeeded but gate not recorded." Also alert if no successful, validated export is seen by the expected deadline, so a missing run is as visible as a bad one.
+7. **Alert routing and ownership.** Name an on-call owner for the alert, so detection reaches a person before the client.
+
+## Immediate Actions (this week)
+- Re-deliver a correct file to the affected client and notify them, with account owner involvement.
+- Audit prior deliveries for the last 60+ days for other empty or short files that clients may not have reported. *(confirm that all three incidents are the only ones)*
+- Ship items 1 and 3 first. They are small and cover all three known triggers.
+- Treat Priya as a participant in the fix, not the subject of it. A blameless review is warranted, and the onboarding gap (critical process only in a wiki) is part of root cause C.
+
+## Verification
+
+Do not rely on "we'll monitor going forward." Prove the safeguards fire by injecting each known failure in staging, using the production delivery path with a test recipient:
+
+| Injected failure | Expected result |
+|------------------|-----------------|
+| Change the query to return zero rows (WHERE 1=0) | Gate fails, job exits non-zero, nothing delivered, alert fires |
+| Rename a column the query references | Job fails loudly or gate fails on schema, nothing delivered, alert fires |
+| Use an expired or invalid credential | Job exits non-zero (no swallowing), nothing delivered, alert fires |
+| Truncate output to a header only | Gate fails on row count and size, nothing delivered |
+| Skip a scheduled run entirely | Missing-run alert fires by the deadline |
+| Open a PR changing the query to return zero rows | CI check fails |
+
+Record the result of each test. Re-run the set after any change to the job or monitoring. Close this RCA only when all six fail safe.
+
+## Open Questions
+- Is a zero-row export ever valid for any customer?
+- Is there any existing test or CI for the export query?
+- Who owns the alert and on-call rotation for this job?
+- Are other exports built on the same job template and so exposed to the same failure? If so, apply the gate and error handling there too.
+
+---
+
+If you want, I can tighten this for a specific audience, such as a client-facing summary, or turn the countermeasures into tickets.

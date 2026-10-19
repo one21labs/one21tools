@@ -1,0 +1,69 @@
+I can't write `plan.md` in this session because I have no file tools. The full plan is below, ready to paste. I wrote it in a different order than you described, for the reason in the next paragraph.
+
+**Recommendation:** Finish the real requirement first and don't commit the sprint to the rest. The team needs JSON read at startup plus validation of three fields, and the JSON adapter is already finished. The two weeks are spent either way. Finishing YAML, TOML, XML, hot reload and migrations means building and maintaining code nobody has asked for. Hot reload and migrations also bring their own failure modes, such as partial reads mid-write and migrating a config nobody versions. The plan below ships the requirement first and puts the other three behind a gate, so you can still do them if someone asks.
+
+---
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## 1. Problem and success criteria
+- Requirement (from the one consuming team): read `config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+- Done when: the CLI starts with a valid config, and fails fast with a clear message naming the field and the problem for each invalid case.
+- Out of scope until requested: YAML/TOML/XML, hot reload, schema migration.
+
+## 2. Blocking questions (resolve before Phase 1 build)
+Approval of the direction does not fill these in. Each needs an answer from the consuming team:
+1. Validation rules per field:
+   - `api_url`: must it be https? Is a trailing slash allowed? Is a reachability check wanted, or syntax only?
+   - `team_id`: string or integer? Format or length constraints?
+   - `log_level`: the exact allowed set (e.g. debug/info/warn/error), and is it case-sensitive?
+2. Unknown fields: reject, warn, or ignore?
+3. Missing fields: required, or defaulted? If defaulted, what are the defaults?
+4. Config file location and override: fixed path, `--config` flag, or env var?
+5. Failure behavior: exit code and message format when the file is missing, is malformed JSON, or fails validation.
+
+## 3. Phase 1: Ship the requirement (this sprint)
+| # | Task | Done when |
+|---|------|-----------|
+| 1.1 | Record answers to section 2 in one schema definition (the single source of truth for field rules) | Schema file exists; no rule is repeated in code or docs |
+| 1.2 | Wire the finished JSON adapter into CLI startup | CLI loads config at start |
+| 1.3 | Implement validation against the schema | One test per field: valid, missing, wrong type, out of range |
+| 1.4 | Error handling and exit codes per Q5 | Tests for missing file, malformed JSON, invalid field |
+| 1.5 | Hand to the consuming team and get acceptance | Team confirms it meets their need |
+
+## 4. Gate: decide on the remaining work
+Held until Phase 1 is accepted. Proceed with an item only if a named user or team requests it (record who and why).
+- Remove option: if there are no requesters, move the YAML/TOML/XML scaffolds, watcher, and migration interfaces to a branch. This keeps the work available without it being maintained in main.
+- Keep-the-adapter-interface note: the pluggable interface can stay if it is not costing complexity; the unfinished adapters should not ship half-built.
+
+## 5. Phase 2 (conditional): remaining work, only if requested
+Each item needs its own short design (problem, success criteria, failure modes) before building.
+
+### 5a. Format adapters (YAML, TOML, XML)
+- Build only the formats actually requested.
+- Each adapter must produce the same normalized structure and pass the same validation tests as JSON (shared contract test suite).
+- Decide how the format is chosen (file extension vs flag) once, in one place.
+
+### 5b. Hot-reload watcher
+- Prerequisite: a consumer that needs live changes. Which of the three fields can change safely at runtime?
+- Design for: partial writes (read-then-validate, keep the last good config on failure), debounce, atomic-save editors, and what the app does on a failed reload.
+- Finish wiring the existing half-built watcher only after those decisions are written down.
+
+### 5c. Schema migration
+- Prerequisite: an actual second config version. Today there is one, so there is nothing to migrate.
+- Design: version field location, migration order, behavior on unknown newer versions, dry-run and backup.
+- Implement against the existing interfaces only when a v2 exists.
+
+## 6. Risks
+- Unrequested features carry ongoing maintenance and test cost, and add failure modes to a startup path used by one team.
+- Phase 1 answers may change the schema; keep rules in one place so adapters inherit them.
+
+## 7. Verification
+- Phase 1: run the CLI against each invalid-config case from 1.3/1.4 and confirm the exact error and exit code.
+- Phase 2 items: each has its own failure-injection test (e.g. truncated file during reload, v1 file with the migration applied).
+```
+
+---
+
+If you'd prefer the plan to commit to all three remaining items this sprint anyway, I can rewrite it as a straight task list. I'd still keep section 2 first, because none of the field rules have been written down yet. If you give me a working directory with file access, I can also write it to `plan.md` directly.

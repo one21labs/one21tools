@@ -1,0 +1,32 @@
+I can't see your project in this session, so this is a design outline rather than code. Before building, I'd settle a few things.
+
+**Recommendation: build the seam, not a framework.** With one exporter, you can't yet tell which parts of the interface are general and which are specific to that format. A full framework (versioned plugin API, entry-point discovery, lifecycle hooks, config schemas) will probably guess wrong and then be hard to change. A small contract plus a registry gives you "add a format without touching core" at a fraction of the cost.
+
+**Proposed minimal design**
+
+1. **Contract (one definition).** An `Exporter` interface with:
+   - `name` and `extension`, which identify the format.
+   - `export(data, destination, options)`, which does the work.
+   - An optional `validate(options)`.
+2. **Registry (the only core code that knows about exporters).** It has `register(exporter)` and `get(name)`, and it raises a clear error on duplicate or unknown names. Core code calls `registry.get(fmt).export(...)` and never branches on format.
+3. **Discovery.** Two options:
+   - **Entry points or a plugin directory.** Developers drop in a package or module with no core edits. This is the only option that truly meets your goal.
+   - **Explicit registration in one list.** This is simpler, but adding a format means editing that list, which is a core file.
+
+   I'd choose the entry-point or directory route, since "without touching core code" is your stated requirement.
+4. **Port the existing exporter onto the contract first.** It becomes the reference implementation and the template for future ones. If it doesn't fit the interface cleanly, that tells you the interface is wrong.
+5. **Contract test suite.** A shared test that any registered exporter must pass (round-trip, error handling, empty input). Plugin authors can run it against their own exporter.
+
+**Questions to answer before coding**
+
+These are the gaps that would otherwise surface mid-build:
+
+- **Input contract:** what does the exporter receive (an in-memory model, a stream, a query)? This is the biggest factor in whether the interface generalizes.
+- **Output contract:** does it write to a file path, a stream, or return bytes? Formats like CSV, JSON, and XLSX differ here.
+- **Options:** do formats need their own settings, such as delimiter or sheet name? If so, who validates them?
+- **Selection:** how does a user choose a format (CLI flag, config, file extension)?
+- **Errors:** what should happen on plugin load failure, duplicate names, or a mid-export failure? Should one bad plugin break the others?
+- **Trust:** are plugins only first-party and in-repo, or third-party code you'll load at runtime? That decides how much isolation and versioning you need.
+- **Success criteria:** what shows it worked? I'd suggest "a second exporter is added in a new file, with no edits to existing files, and passes the contract tests."
+
+If you point me at the exporter code, or paste it, I can check whether it fits this contract and turn the design into a task breakdown. If you'd like to skip the questions, I'd default to a dispatch-by-name registry with directory discovery, file-path output, and plain-dict options.

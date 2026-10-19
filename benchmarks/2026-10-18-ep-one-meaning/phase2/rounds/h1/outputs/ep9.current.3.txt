@@ -1,0 +1,49 @@
+**Not ready to build.** There's a correctness bug against the finance requirement, and the scope is far larger than the problem.
+
+## Blocking: the retry path can double-send invoices
+
+"No response within 5s → mark failed → re-enqueue" is at-least-once delivery. A timeout doesn't mean the provider didn't send the email. The request may have succeeded with a slow response, so the retry sends a second copy. That is the duplicate-invoice failure finance told you to prevent. Three related gaps:
+
+- **Crashed workers.** If a worker dies after the provider accepts the request but before the row is marked done, the job gets picked up again. The design has no lease or visibility timeout, and no `running` state with a reaper.
+- **No distinction between error types.** A 4xx (bad address) should not be retried. A 5xx or timeout is ambiguous. The design treats them the same.
+- **No idempotency anywhere.** Nothing stops two jobs for the same invoice from being enqueued.
+
+**Fix, in three layers:**
+1. Put a unique constraint on a business key, such as `(type, invoice_id)`, so a second enqueue is a no-op.
+2. Send an idempotency key (the job ID or the business key) to the provider. If the provider doesn't support one, check whether it supports lookup by message tag or metadata, and query it before any retry.
+3. For invoices, treat a timeout as "unknown", not "failed". Reconcile against the provider before resending, or escalate to a human after the first ambiguous attempt. Retrying password resets freely is fine, since duplicates there are harmless. Invoices need stricter handling, so set the policy per job type.
+
+## Scope: 6 weeks is about 5x too much
+
+At 200 to 500 emails a day (roughly one every few minutes), you don't need a priority scheduler, a plugin system, or a dashboard. A two-person team would spend most of the six weeks maintaining infrastructure instead of building product.
+
+- **Use an existing library instead of building one.** Depending on your stack, pg-boss, Graphile Worker, River, Oban or Sidekiq all cover SKIP LOCKED, retries, backoff, and scheduling. Building in-house needs a stated reason, and none is given.
+- **Cut for v1:**
+  - The 5-level weighted fair scheduling. Two lanes at most, or none.
+  - The YAML plugin system. No other team has asked for it. Build it when one does.
+  - The React dashboard. A SQL view and a couple of saved queries cover inspection and manual retry.
+- **Poll interval.** 500ms polling is wasteful at this volume. Use LISTEN/NOTIFY, or poll every few seconds.
+
+## Missing from the design
+
+- **Success criteria.** Examples: zero duplicate invoices, and the 99th-percentile delay for a password reset under N seconds.
+- **Dead-letter handling and alerting.** After 5 failed attempts, who finds out?
+- **Provider rate limits and backoff** (jitter, `Retry-After`).
+- **Transactional enqueue.** The main benefit of a Postgres queue is enqueuing in the same transaction as the business write (invoice created, job queued). Say so, and make it a requirement.
+- **Payload and retention.** Payloads contain PII and reset links. Decide how long to keep them and whether to store the link or only a reference.
+- **Failure modes.** What happens on a database failover or a provider outage?
+
+## Recommended path
+
+1. Settle the dedup design above (about 1 day on paper). The rest follows from it.
+2. Adopt an existing Postgres-backed queue library. Add the business-key uniqueness and provider idempotency yourself.
+3. Ship in about 1 to 2 weeks. Add priorities, a plugin system, or a dashboard only when real usage demands them.
+
+**Verification before launch:** run these tests against the real flow.
+- Force the provider call to time out after the provider has accepted the request, and confirm exactly one email is delivered.
+- Kill the worker mid-send, and confirm the same.
+- Enqueue the same invoice twice, and confirm one job runs.
+
+"We'll monitor for duplicates" isn't verification here.
+
+If you give me the stack and provider, I can suggest a specific library and check whether the provider supports idempotency keys.

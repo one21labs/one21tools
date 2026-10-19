@@ -1,0 +1,51 @@
+I can't open your project from this session, so this is a design to confirm before anyone builds. I haven't seen the existing exporter.
+
+## Recommendation
+
+Build the smallest seam that lets a new format be added without editing core code, and no more. With one exporter you can't yet know what a second one needs, so a large framework would be a guess. The core pieces below are what "without touching core code" actually requires. Everything else I've listed separately and would leave out until a real second exporter asks for it.
+
+## Design
+
+**Problem:** Adding an export format currently means editing core code. Success is when a new format ships as one new module and a diff that touches zero core files. The existing exporter should be the first plugin, with no behavior change.
+
+**Components (one responsibility each):**
+1. **Exporter contract:** a single interface or abstract class. It has a `name`/format id, a `file_extension`, and `export(data, destination, options)`. This is the only thing plugin authors must learn.
+2. **Registry:** maps format id to exporter. It has `register`, `get(format)`, and `list()`. It is the only place that knows which formats exist.
+3. **Discovery:** how plugins get into the registry without core edits. The options are language entry points (Python `entry_points`, a package manifest) or scanning a plugins directory. Pick one.
+4. **Core caller:** asks the registry for a format and calls `export`. It never imports a concrete exporter.
+5. **Existing exporter:** moved behind the contract and registered like any other plugin.
+
+**Source of truth:**
+- The list of formats lives in the registry only. Core code, CLI help, docs and tests should all call `list()`. Don't keep a hand-written list anywhere else.
+- The contract's docstring is the only documentation of the plugin API. The "how to add an exporter" guide should link to it, not restate it.
+
+**Failure handling:**
+- An unknown format gives an error that lists the available formats.
+- A duplicate id fails loudly at registration. It must not silently overwrite.
+- A plugin that fails to load is reported by name. It must not crash the other formats.
+- Define what happens when `export` fails partway through, such as partial files and cleanup.
+
+**Testing:**
+- A contract test suite that any exporter can be run against.
+- The existing exporter must produce byte-identical output before and after the refactor.
+- One throwaway test exporter proves the seam works with no core edits.
+
+## Open questions
+
+These affect the build, and I don't want to pick answers for you:
+1. **Who writes plugins?** Is it your team in this repo, or third parties installing separate packages? That decides between a plain in-repo registry and packaging entry points.
+2. **What does `export` receive and return?** Is it the full in-memory dataset or a stream, and does it write to a path, a file object, or return bytes? This is the real contract, and it must fit the existing exporter without distortion.
+3. **Do formats need their own options** (such as delimiter or pretty-print), and how are they validated and surfaced in the CLI or UI?
+4. **How are plugins selected?** Is it by name from a flag or config, or by file extension?
+5. **Versioning:** do you need a contract version so future changes don't break old plugins? I would skip this if all plugins live in-repo.
+6. **Success measure:** is "second exporter added with zero core edits" the acceptance test?
+
+## Leave out until needed
+
+- Lifecycle hooks, such as before/after export events.
+- Plugin dependency resolution and ordering.
+- Hot reloading.
+- Sandboxing.
+- Config schemas beyond what question 3 needs.
+
+Once you answer questions 1–4, I can turn this into a task list, with the contract and registry first, then moving the existing exporter, then the contract tests. If you paste the existing exporter's code or tell me where it lives, I can check that the contract fits it before anything is built.

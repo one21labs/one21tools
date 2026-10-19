@@ -1,0 +1,57 @@
+I didn't use "Dev ran the wrong command" as the root cause. The draft below names the system conditions that let one command become a data-loss incident, and keeps retraining as a minor item. Three things went wrong, and training only addresses the first. Any SRE can mistype or inherit a stale env var. This incident also needed prod to be droppable from a normal role. The backup also had to have been failing silently for 16 days. If the doc blames Dev and the system stays the same, the next person to hit this gets the same result. I think management would accept this framing if you show them the backup finding.
+
+---
+
+# Postmortem: Production `order_events` tables dropped (2026-10-18)
+
+**Audience:** VP Eng, Engineering. **Format:** blameless.
+
+## Summary
+During staging cleanup (OPS-881), a `DROP TABLE` ran against production instead of staging and removed `order_events_archive` and `order_events`. Checkout errors began at 22:15. The nightly backup was 9 days old because the backup job had been failing since the 3rd with its alert going to an archived channel. Data was reconstructed from Kafka and the old backup by 01:55. **About 2 days of events were partially lost.**
+
+## Impact
+- Checkout errors from 22:15. *(Add the time checkout recovered. It isn't in the timeline.)*
+- Partial permanent loss of order events for the ~2 days between the 9-day-old backup and Kafka's 7-day retention window.
+
+## Timeline (22:04 – 01:55)
+| Time | Event |
+|---|---|
+| 22:04 | Staging cleanup begins (OPS-881) |
+| 22:06 | New terminal inherits `PGHOST=db-prod-1` from an 18:30 prod session. The prompt looks the same for prod and staging. |
+| 22:07 | `DROP TABLE order_events_archive, order_events;` runs on prod. The ticket's script listed both names on one line. There was no confirmation, and the ops role has DROP on prod. |
+| 22:15 | Checkout errors spike, on-call paged |
+| 22:41 | Cause identified |
+| 22:50 | Restore from nightly backup started |
+| 23:20 | Restore fails: latest usable backup is 9 days old |
+| 01:55 | Data rebuilt from Kafka plus old backup, with gaps |
+
+## Root causes
+1. **A single everyday role can drop prod tables with no confirmation.** Every other factor only mattered because of this.
+2. **Nothing distinguished prod from staging.** A stale `PGHOST` survived across sessions, and the prompt looked the same in both environments.
+3. **The backup failure was invisible for 16 days.** The job exited non-zero from the 3rd, and its alert went to a channel archived in a Slack cleanup. Nobody owned the alert's destination.
+4. **Cleanup instructions mixed a safe target with a critical one.** The ticket's script listed `order_events` next to the archive table with no marker.
+
+## Action items
+Ordered by strength: remove the hazard, then prevent it, then detect it. Owners and dates are to be assigned.
+
+**Remove**
+- Remove standing DROP/TRUNCATE on prod from the ops role. Use a time-boxed, logged break-glass role.
+- Remove the `order_events` name from the OPS-881 cleanup script. Stop writing multi-table destructive commands into tickets.
+
+**Prevent**
+- Use separate credentials per environment, so a prod host with staging credentials (or the reverse) fails.
+- Make the shell prompt and terminal color show the target environment and host. Don't persist `PG*` env vars across sessions.
+- Require explicit confirmation of the target host for destructive SQL.
+
+**Detect**
+- Page on backup staleness (age of last good backup), not only on job failure. Route it to the on-call pager, not a channel.
+- Add a check to the Slack channel-archival process: no channel that receives alerts can be archived without re-pointing them.
+- Run a scheduled restore test, with alerting if it fails. This incident was the first restore test in 9 days.
+- Review Kafka retention for critical topics. 7 days was the only safety net, and it didn't cover the 9-day backup gap.
+
+**Training**
+- Walk the SRE team through this incident, covering prod/staging hygiene. This is useful but not a control. It doesn't change what the next person can do.
+
+---
+
+The checkout recovery time is missing from your timeline, so add it before you send this, because the VP will ask. If management insists on a "human error" root cause, I'd keep root causes 1–3 in the doc anyway, since the backup gap is the reason this was an outage with permanent data loss and not a 10-minute restore.

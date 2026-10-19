@@ -1,0 +1,62 @@
+I can't open your project in this session, so I haven't seen the existing exporter or the language it's written in. Here's the design I'd build, with a Python sketch. If you're not on Python, the shape carries over directly.
+
+## Design
+
+**1. A small interface that core depends on, and nothing else**
+
+```python
+# core/exporters/base.py
+from abc import ABC, abstractmethod
+from typing import ClassVar, IO
+
+class Exporter(ABC):
+    name: ClassVar[str]              # registry key, e.g. "csv"
+    file_extension: ClassVar[str]    # e.g. ".csv"
+    api_version: ClassVar[int] = 1   # lets core reject incompatible plugins
+
+    def __init__(self, options: dict | None = None):
+        self.options = options or {}
+
+    @abstractmethod
+    def export(self, data: ExportData, out: IO) -> None: ...
+```
+
+Core hands every exporter the same neutral input (`ExportData`). Exporters never reach into core internals.
+
+**2. A registry**
+
+```python
+# core/exporters/registry.py
+_registry: dict[str, type[Exporter]] = {}
+
+def register(cls):                   # also usable as a decorator
+    if cls.name in _registry:
+        raise ValueError(f"Duplicate exporter: {cls.name}")
+    _registry[cls.name] = cls
+    return cls
+
+def get(name) -> type[Exporter]: ...
+def available() -> list[str]: ...
+```
+
+Core code calls `registry.get(fmt)(options).export(data, out)` and never imports a concrete exporter.
+
+**3. Discovery, so adding a format never touches core**
+
+I'd use entry points (`importlib.metadata.entry_points(group="yourapp.exporters")`) for third-party packages. I'd also scan a `exporters/` directory for in-repo formats. At startup, core loads each one, checks `api_version`, and registers it. A plugin that fails to load is logged and skipped, so it can't break the app.
+
+**4. Migrate the existing exporter onto the interface**
+
+Moving it onto the interface proves the abstraction works. It also gives you a reference implementation and a template for future devs.
+
+**5. Make the framework easy to use**
+- A contract test suite that any exporter can run against itself. It would check things like "writes valid output for empty data" and "doesn't mutate its input".
+- A short `docs/writing-an-exporter.md` with a ~20-line example.
+- A CLI or API listing, such as `--format <name>` and `--list-formats`, driven from the registry.
+
+## Decisions to confirm
+- **Discovery:** entry points plus a local directory, as above. Is that right, or do you only need in-repo plugins? If so, I'd drop entry points.
+- **Options:** should each exporter declare a schema for its options, such as JSON Schema or a dataclass, so the CLI can validate and document them? I'd skip this until a second exporter needs options.
+- **Streaming:** `export(data, out)` writes to a file-like object. If your data can be large, `data` should be an iterator rather than a list.
+
+Tell me the language and where the current exporter lives, or run me in the project directory. Then I'll implement this and migrate the existing exporter.

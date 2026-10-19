@@ -1,0 +1,127 @@
+I can't write `rca.md` in this session because I have no file tools here. The full document is below, ready to save as `rca.md`.
+
+---
+
+# Root Cause Analysis: Empty customer export delivered to a client (third occurrence)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft. Items marked *[confirm]* are assumptions I couldn't check.
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file and exited 0. The file was delivered to a client, and the client noticed before we did. No alert fired.
+
+This is the third occurrence in two months. All three had the same outcome and different triggers:
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename broke the query's output | Empty file, exit 0, client noticed first |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed first |
+| 3 | Export SQL changed, manual verification step not run | Empty file, exit 0, client noticed first |
+
+## Why this is a system failure
+
+The triggers differ, but every occurrence passed through the same path:
+
+1. The job treats "zero rows" as success.
+2. Monitoring checks only the exit code.
+3. Delivery to the client doesn't depend on the output being valid.
+
+Fixing each trigger separately (rename handling, credential handling, a reminder to Priya) would leave that path open for a fourth trigger. Priya's missed step is the proximate cause of the third incident, not its root cause. The process asked a six-week-old engineer to be the only safeguard, and that safeguard lived in a wiki page.
+
+## Analysis (5 Whys)
+
+```
+Problem: Client received an empty export
+├─ Why? The job produced zero rows and reported success (exit 0)
+│  └─ Why? The job treats "no rows" and swallowed errors as non-failures
+│     └─ Why? Nothing defines a valid output; the job's only notion of success is "didn't crash"
+│        └─ ROOT CAUSE A: No output contract enforced in code
+│
+├─ Why? Nobody was alerted before delivery
+│  └─ Why? Monitoring checks exit code only
+│     └─ Why? Exit code was the only signal the job exposed, and it is wrong in this failure mode
+│        └─ ROOT CAUSE B: Monitoring watches the process, not the product
+│
+├─ Why? The file reached the client anyway
+│  └─ Why? Delivery follows generation unconditionally
+│     └─ ROOT CAUSE C: No gate between "file written" and "file delivered"
+│
+└─ Why? The bad query change wasn't caught before production (this trigger)
+   └─ Why? Verification was a manual wiki step, not enforced
+      └─ Why? Query changes can reach production with no automated check
+         └─ ROOT CAUSE D: Correctness depends on memory of a wiki step, not on the change process
+```
+
+Human error ("Priya skipped a step") is not a stopping point. The question is why the system let a skipped step reach a client. Cause D is the answer for incident 3. Causes A–C are why all three incidents reached the client.
+
+## Root Causes
+
+- **A. No enforced output contract.** The job exits 0 on zero rows and swallows errors such as the expired credential.
+- **B. Monitoring checks the wrong thing.** Exit code is a poor proxy for "the client got a good file."
+- **C. No delivery gate.** Output goes to the client without validation.
+- **D. Manual verification is the only control on query changes.** It's undocumented in code, unenforced, and depends on onboarding knowledge.
+
+## Fixes
+
+Fixes are ranked remove > prevent > detect, as the principles require. A guard is added only where nothing can be removed.
+
+### Remove (eliminate the failure path)
+
+1. **Remove "zero rows = success."** The job fails (non-zero exit, no output published) when the result is empty, unless the export is explicitly configured as allowed-empty. Empty is then the declared exception rather than the silent default. *Addresses A; would have stopped all three incidents.*
+2. **Remove error swallowing.** Delete the catch-all that hid the expired credential. Auth and connection errors propagate and fail the job. *Addresses A, incident 2.*
+3. **Remove the manual wiki step.** Replace "run it once by hand and eyeball the row count" with an automated check that runs on every query change (see Prevent #5). Then delete the wiki instruction, since a step that can be skipped is the weakness. *Addresses D.*
+4. **Remove unconditional delivery.** Split generation from delivery. Delivery runs only after validation passes; failed files go to a quarantine location, not the client. *Addresses C.*
+
+### Prevent (stop bad changes and drift)
+
+5. **CI check on export query changes.** Run the changed query against a representative dataset or staging copy, and assert non-zero rows and the expected columns. Block merge on failure. *Addresses D.*
+6. **Schema contract check.** The export asserts its expected columns and types at run time and in CI, so a schema rename fails loudly. *Addresses incident 1.*
+7. **Credential expiry handling.** Alert on credentials N days before expiry, using the credential store's expiry metadata. *[confirm available]*
+
+### Detect (last line of defense, not the primary fix)
+
+8. **Monitor the output, not the exit code.** Alert on row count of zero, row count below a fraction of the trailing average (for example <50% of the 7-day median), and file size below a floor. Alert when the expected file doesn't appear by its deadline. *Addresses B.*
+9. **Alert routing.** Output-validation failures page the data platform on-call, so the client is never the first to notice.
+
+### Source of truth
+
+The definition of "valid export" (minimum row threshold, required columns, allowed-empty flag) lives in one place, the export's config next to the job code. The job validator, CI check and monitoring all read from it. The wiki page should link to that config, not restate the thresholds.
+
+## Action Items
+
+| # | Action | Owner | Due | Type |
+|---|--------|-------|-----|------|
+| 1 | Fail job on zero rows unless allowed-empty | [owner] | [date] | Remove |
+| 2 | Remove error swallowing; propagate auth errors | [owner] | [date] | Remove |
+| 3 | Split generate/deliver; quarantine failed output | [owner] | [date] | Remove |
+| 4 | CI query check; delete the manual wiki step | [owner] | [date] | Remove/Prevent |
+| 5 | Schema contract check | [owner] | [date] | Prevent |
+| 6 | Output-based monitoring and paging | [owner] | [date] | Detect |
+| 7 | Credential expiry alerting | [owner] | [date] | Prevent |
+| 8 | Contact affected client and re-deliver a correct file | [owner] | immediate | Recovery |
+| 9 | Audit other jobs for the same exit-0-on-empty pattern | [owner] | [date] | Prevent |
+
+Action 9 matters because the pattern is probably not unique to this job.
+
+## Verification
+
+Each fix is tested by triggering the failure condition and confirming it is caught. "We'll monitor going forward" is not verification.
+
+| Failure condition | How to trigger | Expected result |
+|---|---|---|
+| Query returns zero rows | Run the job against a query or dataset that returns zero rows | Job exits non-zero; nothing delivered; on-call paged |
+| Schema rename | In staging, rename a column the export uses | CI and run-time contract check fail |
+| Expired credential | Run with a deliberately expired or revoked credential in staging | Job fails with the auth error; nothing delivered; alert fires |
+| Bad query change | Open a PR with a query that returns zero rows | CI blocks the merge |
+| Partial or empty file bypassing the job check | Place an empty file in the delivery path | The delivery gate rejects it and the output monitor alerts |
+
+## Notes on the Process
+
+- This analysis rests on the facts as reported. I haven't seen the job code, the monitoring config or the delivery mechanism. Confirm that root causes A–C match how the job is implemented, especially whether delivery is a separate step or part of the job.
+- Priya should not be named in the external or team-wide version of this document. The finding is that the process depended on a skippable manual step, not that an individual erred.
+
+---
+
+If you want this saved as a file, run it again in a session with file access, or paste the text into `rca.md`.

@@ -1,0 +1,105 @@
+I couldn't write `process-review.md`. This session has no file-writing tool, so nothing was saved. The full text is below, and you can paste it into the file as is.
+
+---
+
+# Release Process Review
+
+## Summary
+
+Developers feel busy but shipping feels slow because work spends most of its time waiting. It waits in review, on main for the train, and in three sequential sign-offs. The biweekly train is the root cause of most of the pain. Batching about 40 changes makes each release risky and hard to debug, and that risk is what justifies the heavy sign-offs. Those sign-offs in turn make releasing expensive, which is why it happens only every two weeks. The fix is to break this loop by making releases small, frequent and automated.
+
+## Current process and where time goes
+
+| Stage | Cost | Value-adding? |
+|---|---|---|
+| PR waits for review | ~2 days average | Review is valuable; the waiting is waste |
+| Merged change sits on main | 0 to 14 days, ~7 on average (assuming merges are spread evenly) | Waste (waiting) |
+| Release manager hand-copies changelog entries | ~40 entries per release | Waste (manual copying) |
+| Three sequential sign-offs (QA, EM, PM) | Each waits on the previous one | Mostly waste; see below |
+| Hotfix follows the same path | Up to 14 days for a one-line fix | Defect in the process |
+
+A typical change takes about 2 days in review plus about 7 days waiting for the train, so roughly 9 days or more from first PR to production. Actual working time on each change is likely hours. I don't have your real numbers, so the first recommendation is to measure them.
+
+## Findings
+
+### 1. The batch is the root cause (5 Whys)
+
+- Shipping feels slow because changes wait about a week on main.
+- They wait because releases happen only every two weeks.
+- Releases are infrequent because each one is expensive: manual changelog, three sequential approvals, and high stress.
+- Each is expensive and stressful because about 40 changes ship at once. Any failure could come from any of them, so people feel they need more checks.
+- The checks are manual, and nothing automated gives confidence per change.
+
+Root cause: release size and cost reinforce each other, and no automated verification exists to break the loop.
+
+Ranking of fixes (remove, then prevent, then detect):
+- **Remove** the batch and the manual copying.
+- **Prevent** bad changes with automated checks before merge.
+- **Detect** problems with monitoring and fast rollback.
+
+Adding more sign-offs or longer checklists only detects, and it makes the loop worse.
+
+### 2. The changelog has no source of truth
+
+PR descriptions hold the change facts, and the release document is a hand-made copy of them. Copying is slow and error-prone, and the two will drift apart. The release manager's time goes to waste, and a reader cannot tell which version is right.
+
+### 3. Sign-offs are sequential and uniform
+
+- Sequential means the slowest person's availability gates everyone behind them, and a PM sign-off cannot start until QA and the EM finish.
+- Each sign-off is applied to the whole 40-change batch, so none of them can say anything specific about an individual change. They are approvals of a bundle, not checks.
+- No one is named as accountable for the specific risk each role covers. It is unclear what each role is checking that automated tests, review, or a feature flag could not.
+
+### 4. Hotfixes have no separate path
+
+A one-line urgent fix is treated like a 40-change release. This is the clearest design defect, and it is the one that costs the most when it matters.
+
+### 5. Review latency
+
+A 2-day average hides the tail. A change that needs review twice takes four or more days. Large PRs and unclear ownership of reviews are the usual causes, but I can't confirm this without data.
+
+### 6. The design is unwritten
+
+The process has no stated success criteria, no definition of what a sign-off verifies, and no rollback plan. Without these, nobody can tell whether a change to the process helped.
+
+## Recommendations
+
+Ordered by value and by dependency. Items 1 and 2 are cheap and can start now.
+
+1. **Measure first (about 1 week).** Record, for the last 3 to 6 releases and their PRs: time to first review, time in review, time from merge to release, change failure rate, and time to recover. These are the baseline you will compare against later.
+2. **Generate the changelog from one source of truth.** Require a one-line changelog field or a PR label/title convention (for example, conventional commits) and generate the release notes automatically. Stop hand-copying. The release manager gets the time back, and the notes can no longer drift from the PRs. Add a CI check that fails a PR with no changelog entry.
+3. **Create a hotfix path now.** Define it explicitly: branch from the release tag, one reviewer, automated tests, deploy on approval, and a single post-hoc sign-off. Name who may approve it. This removes the worst delay immediately, with no change to the normal path.
+4. **Replace the three sequential sign-offs with parallel, specific checks.** For each role, write down what it verifies and whether automation can do it:
+   - QA: move into automated test gates, with QA owning the suite and exploratory testing of risky changes only.
+   - EM: replace with a CI-enforced readiness checklist (tests green, no open blockers, rollback tested).
+   - PM: approve at the feature level, ahead of release, using feature flags to decide launch timing. This removes PM from the release path itself.
+   Where a human sign-off stays, run them in parallel and put a time limit on each (for example, 4 working hours, then it escalates).
+5. **Shorten the train, then drop it.** Go weekly, then twice weekly, then release on demand from main once automation is trusted. Smaller batches are easier to verify, which is what makes the lighter sign-offs safe. Use feature flags to merge unfinished work without exposing it.
+6. **Cut review latency.** Set a review SLA (for example, a first response within 4 working hours), keep PRs small (a soft limit of a few hundred lines), and use a rotating review owner. Track the tail, not just the average.
+7. **Make releases reversible.** One-step rollback or a flag kill-switch, tested regularly, and basic production monitoring tied to each release. This is what lets the team accept smaller checks.
+
+## Proposed success criteria
+
+Set targets after the baseline from recommendation 1. Suggested starting points:
+- Merge to production: median under 1 day, down from about 7.
+- First review response: under 4 working hours.
+- Hotfix to production: under 2 hours.
+- Release manager manual time per release: near zero.
+- Change failure rate: no worse than today. Check it every step, and stop and fix if it rises.
+
+## Risks and open questions
+
+- Do regulatory or contractual requirements mandate the three sign-offs? If so, keep the sign-off but make it parallel, time-boxed and evidence-based.
+- Is there enough automated test coverage to trust smaller sign-offs? If not, that is the first investment.
+- Is deployment automated? If deploys are manual, that has to come before moving to on-demand releases.
+- Who owns the process after the change? Name an owner and review it monthly.
+
+## Suggested order
+
+1. Measure the baseline (item 1).
+2. Do the changelog generation and the hotfix path (items 2 and 3) at the same time. They are independent and low risk.
+3. Make the sign-offs parallel and specific (item 4), and set the review SLA (item 6).
+4. Shorten the cadence and add rollback and flags (items 5 and 7), and review against the success criteria.
+
+---
+
+If you want, I can change the tone, shorten it, or add a section for a specific tool such as your CI or issue tracker. Tell me which tools you use and I'll make the changelog and gating recommendations concrete.

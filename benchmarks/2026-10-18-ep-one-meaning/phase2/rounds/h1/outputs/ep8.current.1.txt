@@ -1,0 +1,88 @@
+# Shared phone validation: design and rollout
+
+## Don't use the strictest rule everywhere
+
+The three copies aren't one fact duplicated three times. They encode two different rules:
+
+- **Billing and support** ask "is this exactly what the payment provider accepts?" The answer is E.164.
+- **Signup** asks "can I make sense of what a person typed?"
+
+If you apply the strict E.164 regex to signup, `(415) 555-0134` and `415.555.0134` fail, because neither starts with `+`. With about 4,000 mostly-mobile submissions a day, that would reject most legitimate signups.
+
+The fix is to define one rule per concept, both in the same library, and to have signup convert loose input into the strict form.
+
+## Bugs in the current code
+
+The shared version should fix these:
+
+- **Billing:** `$` in Python matches before a trailing newline, so `"+14155550134\n"` passes. Billing doesn't `strip()`, so that string goes straight to the provider. Use `fullmatch`.
+- **Signup:** `LOOSE.match` has no end anchor, so `"415-555-0134abc"` passes. It also accepts junk like `"(((((((("` or `"+.+.+.+"`. It never produces a normalized value, so downstream code gets whatever the user typed.
+- **Support:** it's a 2023 copy of billing with `strip()` added. That's drift already.
+
+## Library API
+
+Two functions, each with one job:
+
+```python
+# acme_phone/__init__.py
+import re
+import phonenumbers
+
+_E164 = re.compile(r"\+[1-9]\d{7,14}")
+
+def is_e164(s) -> bool:
+    """Strict: exactly what the payment provider accepts. No stripping, no coercion."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw, default_region: str = "US") -> str | None:
+    """Lenient input -> canonical E.164, or None if it can't be a phone number."""
+    if not isinstance(raw, str):
+        return None
+    try:
+        n = phonenumbers.parse(raw.strip(), default_region)
+    except phonenumbers.NumberParseException:
+        return None
+    if not phonenumbers.is_possible_number(n):
+        return None
+    out = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+    return out if is_e164(out) else None
+```
+
+Design points:
+
+- **`is_e164` is the single definition of "valid for the provider."** Billing and support call it directly. Billing should call it on the value it's about to send and never normalize at that point. A silent fix-up at charge time hides upstream data bugs.
+- **`normalize_phone` is the only place loose input is interpreted.** Signup calls it on submit, rejects on `None`, and stores the returned E.164 string. Because it always returns a string `is_e164` accepts, signup and billing agree by construction.
+- **`default_region` is a product decision.** `(415) 555-0134` has no country code, so something has to decide it's US. Make it an explicit parameter and have signup pass it in. If you have international users, derive it from locale or a country picker.
+- **I used `phonenumbers` (libphonenumber) rather than a hand-written regex** for the loose side. Parsing national formats, extensions and punctuation is exactly where regexes go wrong. I haven't run this code. I chose `is_possible_number` over `is_valid_number` to avoid rejecting real users with newly allocated ranges. Try both against a sample of real signup input and decide.
+- **Keep the regex for the strict check** so the provider contract is visible in 1 line. You could also use `phonenumbers` there, but then the library's behavior would silently change when the dependency updates.
+
+## Ship with a test table
+
+Put this table in the library's tests. It's the spec, so it covers every behavior difference you care about:
+
+| Input | `is_e164` | `normalize_phone` |
+|---|---|---|
+| `+14155550134` | True | `+14155550134` |
+| `+14155550134\n` | False | `+14155550134` |
+| `(415) 555-0134` | False | `+14155550134` |
+| `415.555.0134` | False | `+14155550134` |
+| `415-555-0134abc` | False | `None` |
+| `((((((((` | False | `None` |
+| `None`, `123` | False | `None` |
+
+## Rollout
+
+Each service deploys independently, so the library must be safe to adopt in any order, and nothing should change behavior until you've seen real data.
+
+1. **Publish `acme-phone 1.0.0` to your private PyPI.** Pin each service to `~=1.0`. Breaking changes (new default region, stricter rules) mean a major version bump, so a service never changes behavior just by redeploying.
+2. **Shadow mode in signup first.** This is the high-risk, high-volume service. Keep the old `LOOSE` check as the gate. Also call `normalize_phone` and log every case where the two disagree (old accepts and new returns `None`, or the reverse). Run for a week. You'll see exactly which real inputs would be affected before anyone is rejected.
+3. **Cut signup over.** Gate on `normalize_phone` and persist its output. If the shadow logs show legitimate inputs being rejected, adjust (region, `is_valid_number` vs `is_possible_number`) and republish before this step.
+4. **Check what billing receives.** Billing currently rejects anything non-E.164, but signup has been storing whatever users typed. Find out how billing gets its numbers today. If it reads from signup's stored values, you either have a conversion step somewhere or a population of numbers that fail at charge time. Run `normalize_phone` over the existing stored numbers, count how many change, and backfill them. Do this before billing switches, so the stricter check doesn't expose a surprise.
+5. **Switch billing to `is_e164`.** The regex is the same one it uses now, with `fullmatch` instead of `match`. The only behavior change is that `"+1415…\n"` is now rejected. That's a bug fix, but watch for new rejections in the first days.
+6. **Switch support last.** It is billing's copy, so it's low risk. Decide whether it should keep its lenient `strip()`. If agents paste numbers with whitespace, have support call `normalize_phone` and then `is_e164` instead of stripping by hand.
+7. **Delete the three local `validate.py` copies** in the same PRs that adopt the library. Don't leave them behind as fallbacks, because that recreates the drift.
+
+## Open questions for you
+
+- What's the default region, and do you serve international numbers?
+- Where does billing get the numbers it charges against? This is the one that could surprise you in step 4.

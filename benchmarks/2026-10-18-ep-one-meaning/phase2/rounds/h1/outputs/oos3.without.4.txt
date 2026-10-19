@@ -1,0 +1,33 @@
+I can't open your project in this session, so I haven't seen the existing exporter. Here is the design I'd propose, and what I need from you to build it against the real code.
+
+## Proposed design
+
+**1. A small exporter contract in core.** Core defines it once and never changes it when formats are added.
+- `name`: a unique format id, such as `"csv"`.
+- `file_extension` and `description`: metadata for CLI help and output naming.
+- `export(data, destination, options)`: does the actual work.
+- Optionally `validate_options(options)` and a declared options schema, so core can reject bad flags before calling the exporter.
+
+**2. A registry.** It maps `name` to an exporter class or factory. It should:
+- Raise a clear error on duplicate names.
+- Raise an "unknown format, available: …" error on a missing name.
+- Be the only way core looks up exporters. Core code never imports a concrete exporter.
+
+**3. Discovery without touching core.** There are two layers:
+- **Entry points or package scanning** for third-party and external plugins. In Python that is `importlib.metadata.entry_points(group="yourapp.exporters")`. The equivalents elsewhere are a `package.json` field, Java's ServiceLoader, or a Go `init()` registration.
+- **A decorator or explicit `register()` call** for built-ins and for tests.
+
+**4. Migrate the existing exporter onto it.** It becomes the first plugin and is registered the same way as any future one. That proves the framework works, and it gives us a regression test.
+
+**5. Failure isolation.** If a plugin fails to import, log it and skip it instead of crashing startup. Only fail if the user actually requests that format.
+
+**6. Docs and a template.** I'd add a short "Adding an exporter" guide, a minimal example plugin, and a contract test suite. Any exporter can run it to check it conforms.
+
+I'd skip a generic hook or event system, versioned plugin APIs and sandboxing for now. With one exporter today, they'd be speculative. The contract and registry above are enough to add them later without breaking changes.
+
+## What I need from you
+1. The language and framework, plus the path to the current exporter and where core calls it.
+2. Whether plugins will be in-repo only, or installed separately by third parties. That decides whether entry points are needed now or a plain `exporters/` directory scan is enough.
+3. What the exporter takes in and produces: a file, a stream, or a string? That fixes the `export()` signature.
+
+If you paste the exporter code and its call site, or give me a session with file access, I'll implement the contract, registry, migration, tests and docs. Without that, I can write it for a stack you name, but the integration points would be guesses.

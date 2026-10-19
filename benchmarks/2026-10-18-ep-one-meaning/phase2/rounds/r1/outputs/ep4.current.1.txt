@@ -1,0 +1,72 @@
+I can't write `plan.md` from this session because I have no file tools here. The full plan is below, ready to paste. I changed one thing from your brief: the plan starts with the requirement the team actually asked for, because that's what ships this sprint.
+
+My recommendation is to stop at Phase 0 and leave the rest as a backlog. Nobody has asked for YAML, TOML, XML, hot reload, or migrations, and the two weeks already spent are gone either way. Finishing those pieces costs more sprint time and adds code you'll maintain. If you still want them, the phases below are ordered so you can stop at any point with something shippable.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Problem and success criteria
+The only team using the tool needs the CLI to read `config.json` at startup and
+validate `api_url`, `team_id`, and `log_level`. Success means:
+- Startup loads `config.json` and fails fast with a clear message naming the bad field.
+- The three fields are validated (rules in Phase 0, to be confirmed).
+- Tests cover valid config, missing file, malformed JSON, and each field's failure.
+
+## Out of scope unless a requester appears
+YAML/TOML/XML adapters, hot reload, schema migrations. Scaffolding stays in the
+tree but is not wired into the default path.
+
+## Phase 0: Ship the requirement (this sprint, blocking)
+1. Confirm the validation rules with the team (blocking questions):
+   - api_url: must be a valid http(s) URL? HTTPS only?
+   - team_id: format (string, int, pattern)?
+   - log_level: allowed values and case sensitivity?
+   - Are unknown fields an error or ignored? Are any fields optional or defaulted?
+   - Missing or invalid config: exit code and message format?
+2. Wire the finished JSON adapter into startup through the existing adapter interface.
+3. Implement the validator for the three fields. Define the rules in one place (SSoT).
+4. Tests for the cases listed above.
+5. Release to the team.
+Done when: the team's real config.json loads and bad configs fail clearly.
+
+## Phase 1 (optional): Finish the remaining format adapters
+Gate: start only if a real consumer asks for the format.
+- YAML, TOML, XML adapters, each implementing the existing adapter interface.
+- Each must produce the same normalized structure the validator consumes.
+- Shared conformance test suite run against every adapter (same config in each
+  format yields the same result; same error shape on malformed input).
+- XML: decide the mapping for attributes vs. elements and for type coercion
+  (everything is a string in XML) before building.
+- Format selection by file extension, defined in one registry.
+Cost note: three formats means three parser dependencies and three sets of edge cases.
+
+## Phase 2 (optional): Hot reload
+Gate: start only if someone needs config changes without restarting.
+Design questions to answer first:
+- What should happen on reload with an invalid file (keep the old config, log an error)?
+- How do consumers learn of changes (callback, event, re-read on access)?
+- Partial writes and editor save patterns (atomic rename, temp files): debounce strategy.
+- Which settings are safe to change live? (api_url mid-request, log_level are different risks.)
+Work: finish wiring the watcher, re-run validation on every reload, swap the config
+atomically, add tests with a fake filesystem and event source, and add a way to disable it.
+
+## Phase 3 (optional): Schema migrations
+Gate: start only when a second config version actually exists.
+- Today there is one schema version, so there is nothing to migrate.
+- When v2 arrives: add a version field, implement migrations as ordered
+  v(n) -> v(n+1) steps with tests per step, and decide whether to rewrite the
+  file or migrate in memory only.
+- Building this before a second version exists means designing against guesses.
+
+## Risks
+- Unused code paths (adapters, watcher, migrations) go stale and hide bugs.
+- Each added format and feature widens the validation surface for a tool
+  whose users need three fields.
+- Hot reload introduces concurrency and partial-state bugs absent from startup-only loading.
+
+## Decision requested
+Approve Phase 0 for this sprint. Phases 1-3 are scheduled only when a named
+requester and use case exist.
+```
+
+If you'd rather commit to Phases 1–3 this sprint anyway, I can add task breakdowns and estimates. I'd keep Phase 0 first either way.

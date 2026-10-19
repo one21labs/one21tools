@@ -1,0 +1,79 @@
+I can't write `plan.md` from this session because I have no file tools here. The plan is below, ready to paste.
+
+I changed its shape from what you asked. The requirement is "read config.json and validate three fields." The YAML, TOML and XML adapters, the hot reload and the migrations are all unrequested, and the two weeks already spent on them don't change what finishing them would cost. Completing all three would also add three more formats to test and a migration system with no second schema version to migrate. So the plan below ships the requirement first. It then treats the three extras as an optional, gated section, in case you decide to finish them anyway.
+
+```markdown
+# Config Subsystem: Sprint Completion Plan
+
+## Problem
+The one consuming team needs the CLI to read `config.json` at startup and
+validate three fields: `api_url`, `team_id`, `log_level`.
+
+## Success criteria
+- CLI starts with a valid config.json and exposes the three values.
+- CLI exits non-zero with a message naming the field and the problem when:
+  file missing, file not valid JSON, a field missing, or a field invalid.
+- Validation rules are written down in one place (see Open decisions).
+- The consuming team confirms it works against their real config.
+
+## Out of scope this sprint
+YAML/TOML/XML formats, hot reload, schema migration. No one has requested them.
+
+## Tasks (in order)
+
+### 0. Decisions needed before building (blocking)
+Each of these is unstated, and each changes the code:
+- `api_url`: must it be https? Is a trailing slash normalized?
+- `team_id`: string or integer? Allowed characters or format?
+- `log_level`: allowed set (e.g. debug/info/warn/error), case-sensitive?
+- Are unknown extra keys an error, a warning, or ignored?
+- Config file location: fixed path, CLI flag, env var, or all three?
+- Is any field optional with a default?
+Owner: tech lead + consuming team. Output: rules in the schema file (task 2).
+
+### 1. Wire JSON adapter into startup
+Finish the JSON adapter's load path and call it from CLI startup.
+Done when: the CLI reads a valid config.json end to end.
+
+### 2. Validation: one source of truth
+Define the three-field schema in one module. Startup validation and error
+messages both read from it. No literals duplicated elsewhere.
+Done when: every failure case in the success criteria has a test.
+
+### 3. Error handling and exit codes
+Clear message per failure type, non-zero exit, no stack traces for user errors.
+
+### 4. Test against the real team config
+Run with the consuming team's actual file. Fix gaps.
+
+### 5. Ship and get confirmation from the consuming team.
+
+## Existing unrequested work: disposition
+| Component | State | Decision |
+|-----------|-------|----------|
+| YAML/TOML/XML adapters | scaffolded | Park on a branch, or leave unregistered |
+| Hot-reload watcher | half wired | Make sure it is not active at startup |
+| Migration framework | interfaces only | Park; no second schema version exists |
+
+Parked code must not be reachable from the startup path, and must not
+affect the three-field validation or its tests.
+
+## Optional: finish the parked work (only if a trigger fires)
+Do this only when a consumer actually asks, so the work has a real
+requirement and real test data.
+- Adapters: trigger is a team that needs the format. Per adapter: define
+  parse behavior, map to the same schema, reuse the task 2 tests as the
+  contract. Do XML last; it has the most ambiguity (attributes vs elements).
+- Hot reload: trigger is a stated need to change config without restart.
+  First decide what happens on an invalid reload (keep the old config and
+  log, vs crash). Then finish the watcher wiring and test rapid successive
+  writes and partial writes.
+- Migrations: trigger is the first real schema change. Implement then,
+  against the actual v1 -> v2 diff, not against hypothetical versions.
+
+## Risks
+- Unused code still has to be maintained and tested, and it can break startup.
+- Decisions in task 0 are the main schedule risk; get answers on day one.
+```
+
+If you'd rather do the full completion anyway, the optional section can become the main body. Even then I'd keep task 0 and task 2 first, because the watcher's invalid-reload behavior and the adapters' validation both depend on those rules. Tell me which way you want to go. If you can give me a session with file access, I'll write it to `plan.md` directly.

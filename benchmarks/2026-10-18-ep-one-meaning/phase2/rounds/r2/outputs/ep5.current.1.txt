@@ -1,0 +1,53 @@
+I can't write `tasks.md` in this session because I have no file or code tools here. Below is the full content, ready to paste into the file.
+
+I'm not relitigating the plan, but the approved text leaves several things undefined that the build depends on. I've put them first as short decision tasks (D1–D6), because "whatever format is easiest" and "fast" can't be built or tested as written. Most are 15-minute answers from the PM or the tech lead, and the build tasks can start in parallel where noted.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (blocking; owner: PM/tech lead; target: day 1)
+Each needs a one-line written answer. Record the answers in this file, in one place only.
+
+- [ ] D1 Data scope: which tables/stores count as "all of a user's data"? Include derived data, logs, third-party-held data, other users' data they appear in? Is there a legal driver (GDPR/CCPA access request)?
+- [ ] D2 Format: confirm JSON as the "easiest" format (proposed default), and whether it must be machine-readable for portability.
+- [ ] D3 "Fast" target: p95 latency or max export time, and the largest expected user data size. This decides sync download vs. async job.
+- [ ] D4 Authorization: who may export? The user for their own data only, or also admins/support? Is re-authentication required?
+- [ ] D5 Sensitive fields: which must be excluded or redacted (password hashes, tokens, internal flags, other users' PII)?
+- [ ] D6 Success/rollback criteria: how we know it works, and what triggers disabling it (feature flag).
+
+## Phase 1: Design (day 1–2; unblocked once D1–D5 are answered)
+- [ ] T1 Inventory data sources per D1 and write one canonical list of exported entities (single source of truth; the exporter reads from it).
+- [ ] T2 Define the API contract: route, auth, request/response shape, status codes, error format, versioning.
+- [ ] T3 Choose sync vs. async per D3. If async: job model, status endpoint, delivery (signed expiring URL), retention/cleanup.
+- [ ] T4 Define the export schema (field names, types, nesting) per D2, with sensitive-field rules from D5.
+
+## Phase 2: Build (day 2–5)
+- [ ] T5 Add the export config/constants (size limits, timeouts, retention) in one config module, not scattered literals.
+- [ ] T6 Implement a per-entity exporter for each source in T1 (one module per entity, one reason to change).
+- [ ] T7 Implement the aggregator that composes the entity exporters into one document, streaming if size requires.
+- [ ] T8 Implement the endpoint with authn/authz per D4. Users can export only their own data.
+- [ ] T9 Apply redaction/exclusion rules from D5.
+- [ ] T10 Add rate limiting (e.g. one export per user per N minutes) to prevent abuse and load spikes.
+- [ ] T11 Add the feature flag for rollback per D6.
+- [ ] T12 Add structured logging/audit trail (who exported, when, size, duration) and metrics for latency and failures.
+
+## Phase 3: Verify (day 4–6)
+- [ ] T13 Unit tests per entity exporter; contract tests for the endpoint.
+- [ ] T14 Authorization tests: user A cannot export user B's data; unauthenticated requests are rejected.
+- [ ] T15 Completeness test: every entity in T1 appears in the export for a seeded user; no excluded field appears.
+- [ ] T16 Performance test at the D3 target size; confirm the latency/time goal is met. Test the largest-user case.
+- [ ] T17 Failure-mode tests: partial source failure, timeout, empty user, very large user.
+
+## Phase 4: Ship (day 6–7)
+- [ ] T18 Document the endpoint (API reference generated from the contract in T2, not hand-copied).
+- [ ] T19 Deploy behind the flag, enable for internal users, check metrics, then roll out.
+- [ ] T20 Post-launch check against the D6 criteria; log any follow-ups.
+
+## Notes
+- Critical path: D1–D3 → T1–T4 → T6–T8 → T15–T16. Everything else can run in parallel.
+- If D1–D5 aren't answered by end of day 1, next week's ship date is at risk. Flag it early.
+```
+
+If you'd like, I can paste the answers you get for D1–D6 back into a revised version, or trim the list for a faster MVP. For example, JSON only, sync download, own-data-only, and a flag instead of full async jobs.

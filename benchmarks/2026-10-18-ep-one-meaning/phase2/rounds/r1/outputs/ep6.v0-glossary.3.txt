@@ -1,0 +1,71 @@
+I can't write `update.md` in this session. I have no file or shell tools, and I haven't seen the full contents of your three files, only the lines you quoted. So I can't give you "complete updated content" of the existing files without making it up. Below are the exact edits to paste, plus one new file.
+
+**One deviation from "paste the URL into each spot":** I put the URL in one new file, `scripts/api.py`, and the other files refer to it. That takes about the same time as three pastes, and the retry logic needs somewhere shared to live anyway, so you don't write it twice. The next host move is then a one-line change.
+
+## New file: `scripts/api.py` (source of truth for URL, retry and logging)
+
+```python
+import logging
+import time
+
+import requests
+
+# Source of truth for the API base URL. Do not copy this value elsewhere.
+BASE_URL = "https://api.newhost.io/v2"
+
+log = logging.getLogger("api")
+
+
+def setup_logging():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+
+def get(path, retries=3, backoff=1.0, timeout=10):
+    url = BASE_URL + path
+    for attempt in range(1, retries + 1):
+        try:
+            log.info("GET %s (attempt %d/%d)", url, attempt, retries)
+            resp = requests.get(url, timeout=timeout)
+            resp.raise_for_status()
+            log.info("GET %s -> %d", url, resp.status_code)
+            return resp
+        except requests.RequestException as exc:
+            log.warning("GET %s failed: %s", url, exc)
+            if attempt == retries:
+                log.error("GET %s gave up after %d attempts", url, retries)
+                raise
+            time.sleep(backoff * 2 ** (attempt - 1))
+```
+
+## `scripts/fetch_users.py`
+
+- Delete the line `BASE = "https://api.oldhost.com/v2"`.
+- Add `from api import get, setup_logging` at the top.
+- Call `setup_logging()` once at startup.
+- Replace `requests.get(BASE + "/users")` with `get("/users")`.
+
+## `scripts/fetch_orders.py`
+
+- Delete the line `url = "https://api.oldhost.com/v2/orders"`.
+- Add `from api import get, setup_logging` at the top.
+- Call `setup_logging()` once at startup.
+- Replace `requests.get(url)` with `get("/orders")`.
+
+## `README`
+
+Replace the line with:
+
+```
+All data comes from the API at the base URL defined in `scripts/api.py` (`BASE_URL`).
+```
+
+## Notes
+
+- The new code assumes the scripts run as `python scripts/fetch_users.py`, so `from api import ...` resolves. If you run them as a module or from another directory, tell me and I'll change the import.
+- Retry is 3 attempts with 1s and 2s backoff, a 10s timeout, and a re-raise after the last failure. Any `print` calls in your scripts are untouched, so swap them for `log.info` only if you have time.
+- Before the demo, run `grep -r oldhost .`. It should return nothing.
+- Run each script once against the new host to confirm it works. I haven't run anything.
+- If you want the literal text in `update.md`, paste the three full files here and I'll produce the complete sections.

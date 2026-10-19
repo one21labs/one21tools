@@ -1,0 +1,54 @@
+I can't write `tasks.md` from this session, because I have no file-system tools here. The full contents are below to paste in. I haven't questioned the approval. The plan is a one-line summary, though, so several decisions it never states would block the build. I've put them first as short tasks, each with a default so nobody has to wait on a long discussion.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking; target: 1 day, owner: PM + eng lead)
+The plan doesn't state these. Each has a proposed default so work can start immediately.
+
+- [ ] D1. Data scope: which tables/services count as "all of a user's data"? Include derived data, logs, third-party data? Excluded: other users' data (messages, shared docs).
+      Default: every table with a user_id FK, enumerated in one registry (see T1).
+- [ ] D2. Format: "easiest" needs a name. Default: JSON (single file, zipped if large).
+- [ ] D3. Who can call it, and for whom: self-service only, or admin on behalf of a user?
+      Default: authenticated user, own data only, plus re-authentication.
+- [ ] D4. "Fast" means what? Default: p95 < 5s for a median user. Larger exports run async (see T6).
+- [ ] D5. Why are we building it (e.g. GDPR/CCPA request)? That sets completeness and deadline requirements.
+- [ ] D6. Sensitive fields: are password hashes, tokens, and internal flags excluded? Default: excluded.
+- [ ] D7. Rate limits and abuse controls. Default: 1 export per user per hour.
+- [ ] D8. Success criteria and rollback: what metric says it works, and what turns it off? Default: feature flag.
+
+## Phase 1: Foundations
+- [ ] T1. Create a single registry of exportable data sources (table, owner, fields, sensitivity). This is the only place scope is defined. (needs D1, D6)
+- [ ] T2. Define the export schema/contract (JSON structure, version field, error responses) and write it as an OpenAPI spec. (needs D2)
+- [ ] T3. Add a feature flag to gate the endpoint. (needs D8)
+
+## Phase 2: Build
+- [ ] T4. Implement per-source exporters that read from the T1 registry.
+- [ ] T5. Implement the endpoint: authn/authz, ownership check, rate limit. (needs D3, D7)
+- [ ] T6. Implement the async path for large exports (job queue, status endpoint, expiring download link). (needs D4)
+- [ ] T7. Add streaming or pagination so memory stays bounded.
+- [ ] T8. Add audit logging of export requests (who, when, what scope).
+- [ ] T9. Define error handling: partial failure behavior, timeouts, retries.
+
+## Phase 3: Verify
+- [ ] T10. Unit tests for each exporter and for the authorization checks.
+- [ ] T11. Test that user A can never receive user B's data.
+- [ ] T12. Completeness test: every user_id-bearing table in the schema is either in the registry or on an explicit exclusion list.
+- [ ] T13. Load test against the D4 target with a large synthetic user.
+- [ ] T14. Test that sensitive fields never appear in output.
+
+## Phase 4: Ship
+- [ ] T15. Document the endpoint (from the T2 spec; don't duplicate it elsewhere).
+- [ ] T16. Staged rollout behind the flag. Monitor latency, error rate, and export size.
+- [ ] T17. Confirm success criteria (D8) after one week.
+
+## Critical path for next week's ship
+D1-D4 -> T1, T2 -> T4, T5 -> T10, T11 -> T16.
+T6/T7 can slip to a fast follow-up only if D4 is confirmed as "median user, sync only".
+```
+
+Decisions D1, D3 and D6 carry the most risk. A wrong answer there means leaking data or missing the legal requirement. The rest can take their defaults if nobody objects.
+
+If you want the file created, run this in a session with file access, or paste it into `tasks.md` yourself.

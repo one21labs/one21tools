@@ -1,0 +1,62 @@
+**Don't use the strictest validator everywhere.** The three functions answer two different questions, and merging them as planned would break signup.
+
+- **Billing and support ask:** "Is this exactly what the payment provider accepts?" That is E.164.
+- **Signup asks:** "Can I turn what a person typed into a usable number?" That is parsing and normalizing.
+
+If signup used the E.164 regex, `(415) 555-0134` and `415.555.0134` would fail. That is most of your 4,000 daily mobile submissions. The shared library should hold both rules: one definition of E.164, and one normalizer that produces it.
+
+## Bugs in the current code
+
+Fix these in the library regardless of the design:
+
+- **Billing and support:** `$` matches before a trailing newline, so `"+14155550134\n"` passes and goes to the provider. `\d` also matches non-ASCII digits in Python 3 `str` patterns. Billing passes whatever it accepted straight to the provider, so this is the one that matters. Use `fullmatch` with `[0-9]`.
+- **Signup:** `LOOSE` has no anchors and uses `match`, so it only checks the prefix. `"5551234 hello world"` and `"-------"` both pass. The pattern is also too loose to be useful as a gate.
+- **Billing:** it doesn't strip whitespace. Support does, but it is a 2023 copy of billing, so the two have already drifted.
+
+## Library design: `phone-validation`
+
+Public API:
+
+```python
+def is_e164(s: str) -> bool:
+    """Strict. No stripping, no normalizing. True only for ^\+[1-9][0-9]{7,14}$ (fullmatch, ASCII)."""
+
+def normalize_phone(raw: str, default_region: str) -> str | None:
+    """Strip punctuation and whitespace, apply default_region for numbers without a country code.
+    Return an E.164 string, or None if it can't be made into a valid number."""
+```
+
+- **Single source of truth:** the E.164 pattern is a private constant in this package. No service keeps its own regex. Every service's `validate.py` is deleted and replaced with an import.
+- **Normalizer:** wrap the `phonenumbers` package (the libphonenumber port) rather than hand-rolling a parser. It handles country codes, extensions, and per-country length rules. Keep the final `is_e164` check on its output as a guard.
+- **Per-service use:**
+  - **Billing:** call `is_e164(stored_value)` before charging, and fail closed. Billing never normalizes at charge time. The number must already be canonical by then.
+  - **Signup:** call `normalize_phone(input, default_region)` and store the E.164 result. The user's raw text is only for display, if you need it at all.
+  - **Support:** use `normalize_phone` for agent-typed input and `is_e164` for stored values.
+- **Failure modes:** non-string or `None` input returns `False` or `None` and never raises. Test that.
+- **Versioning:** semver. Services pin compatibly (`phone-validation~=1.0`). A change to the accepted set is a major version, because for billing it is a behavior change.
+- **Tests:** build the suite from real inputs. That means the formats signup users actually type, plus the bug cases above (trailing newline, Unicode digits, `-------`, trailing garbage).
+
+## Rollout
+
+The services deploy independently, so each one adopts the library on its own schedule. The library must be safe to adopt in any order.
+
+1. **Check the prediction first.** Pull a sample of recent production inputs per service. Predict which ones will change result under the new code, then run old and new side by side and compare. Billing and support should differ only on the newline and Unicode edge cases. Signup should differ mainly on garbage the old regex let through.
+2. **Publish v1.0** to the private PyPI with the test suite above.
+3. **Billing first.** The change is small and the risk is a stricter gate in front of the payment provider. Deploy with the new check in shadow mode: log disagreements, still enforce the old rule. Then flip to enforcing once the logs are clean.
+4. **Support next.** It is the same E.164 rule, with the same shadow-then-enforce step.
+5. **Signup last.** It is the one with user-visible risk, and it needs the most care.
+   - Shadow-mode `normalize_phone` against the old check. Log every input the new code rejects that the old code accepted.
+   - Review that list before switching.
+   - Once enforcing, signup stores E.164, so downstream billing sees clean data.
+6. **Backfill.** If billing reads numbers that signup stored, existing loose-format records will fail `is_e164` at charge time. Run `normalize_phone` over the stored numbers in a one-time migration and list the ones that can't be normalized. Those need follow-up outreach.
+7. **Prevent drift.** Add a CI check or lint rule that fails on phone-number regexes in service repos.
+
+## Open questions
+
+I'm leaving these unanswered because they change the design:
+
+- **Default region.** `(415) 555-0134` has no country code, so something must supply one. Is signup US-only, or does it need to infer the region from locale or IP? This is a required parameter, and it is the biggest product decision here.
+- **Does billing read numbers that signup stored?** If so, the backfill is required. If numbers reach billing another way, how do they get there?
+- **What should signup do on rejection?** Show a field error, or accept the input and flag it for review? A hard reject on a marketing form costs conversions.
+- **Support's input.** Does support only validate stored numbers, or does it also take typed input? That decides which function it calls.
+- **Success criteria.** My suggestion is zero invalid numbers reaching the payment provider and no drop in signup completion rate. Do you agree?

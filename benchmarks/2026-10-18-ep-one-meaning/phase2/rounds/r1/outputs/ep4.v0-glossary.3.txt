@@ -1,0 +1,87 @@
+I can't write `plan.md` in this session because I have no file-writing tools. The full text is below, so you can paste it into the file.
+
+I also recommend against completing all three components this sprint. The requirement is "read config.json, validate three fields". The YAML, TOML and XML adapters, hot reload and migrations have no requester, and finishing them adds code to maintain, test and secure for no user. The two weeks already spent are gone either way. The real choice is whether to spend the next sprint on top of them. So I wrote the plan with the actual requirement first and the speculative work behind a gate. If you still want everything built, skip the gate and run phases 2 to 4 in order.
+
+---
+
+```markdown
+# Config Subsystem Completion Plan
+
+## Problem and scope
+The one consuming team needs the CLI to read `config.json` at startup and
+validate three fields: `api_url`, `team_id`, `log_level`.
+
+In scope this sprint: Phase 1 (ship the requirement).
+Gated: Phases 2-4 (built architecture with no requester). Not started until
+the Phase 1 exit gate is answered.
+
+## Source of truth
+- Field definitions, types and allowed values (`log_level` enum, `api_url`
+  format, `team_id` format): one schema file, `config/schema.<ext>`.
+  Validation, error messages and docs refer to it. Nothing restates it.
+- Supported formats: the adapter registry. Docs refer to it and list nothing.
+
+## Success criteria
+- CLI starts with a valid config.json and exposes the three fields.
+- Each failure prints a message naming the field and the problem, then exits
+  non-zero: missing file, malformed JSON, missing field, wrong type, invalid
+  `log_level`, malformed `api_url`.
+- One test per failure above, each triggering the failure and asserting the
+  message and exit code.
+- The consuming team confirms it works against their real config.json.
+
+## Phase 1: Ship the requirement (est. 2-3 days)
+1. Write the schema file (source of truth above).
+2. Wire the finished JSON adapter into startup, with the validation step.
+3. Error handling: all failure cases above, one message format.
+4. Tests for each failure case (trigger the condition, assert the catch).
+5. Hand to the consuming team, collect confirmation.
+
+Exit gate (answer in writing before any later phase starts):
+- Does any team or user need YAML, TOML or XML? Name them.
+- Does any user need config changes without restarting? Name them.
+- Does any released config file need a version upgrade? Name it.
+Each "yes" with a named requester unlocks that phase. A "no" means the phase
+is not built.
+
+## Phase 2: Format adapters (gated on a named requester)
+Build only the formats that were requested, one at a time.
+Per adapter:
+- Implement parse to the common config object; validate through the same
+  schema file (no per-format validation).
+- Failure cases: malformed input, empty file, unsupported encoding. Messages
+  match the JSON adapter.
+- XML only: disable external entity resolution (XXE) and set size/depth limits.
+- Tests: valid file, each failure case, and a parity test that the same
+  logical config yields the same object as JSON.
+- Adapters that were not requested stay scaffolded, are marked unsupported in
+  the registry, and are not listed in docs or CLI help.
+
+## Phase 3: Hot reload (gated on a named requester)
+Design questions to answer before building (not yet decided):
+- Which fields can change at runtime? `api_url` mid-request? `log_level` only?
+- On an invalid reload: keep the last good config and log the error.
+- Debounce window for editors that write twice; atomic-rename saves.
+- Success criteria: edit the file, the new value is live within N seconds;
+  an invalid edit leaves the old config running.
+Then finish the half-wired watcher, with tests for each case above.
+
+## Phase 4: Schema migrations (gated on a named requester)
+Design questions to answer before building:
+- Is there more than one config version in the field? If not, no migration
+  has anything to migrate.
+- Version field location, behavior on a newer-than-known version, whether
+  migration rewrites the file or migrates in memory only.
+Then implement the defined interfaces for the first real version pair only,
+with a test that feeds an old-version file and asserts the upgraded result.
+
+## Risks
+- Unused adapters, watcher and migration code is attack surface and
+  maintenance cost. Mitigation: the gate above.
+- Scaffolded code drifts from the schema. Mitigation: validation lives only
+  in the shared schema file.
+```
+
+---
+
+If you tell me which of the three gate questions are already "yes", I can rewrite the plan to build only those phases.

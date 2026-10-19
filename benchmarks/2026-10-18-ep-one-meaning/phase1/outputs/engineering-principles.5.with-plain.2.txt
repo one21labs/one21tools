@@ -1,0 +1,52 @@
+I can't write `tasks.md` in this session because I have no file tools here. The full contents are below, so you can paste them into the file. I haven't reopened the plan. The plan never states a few things the build depends on, so I made them decision tasks at the top. Each takes minutes to settle, and each would cost days of rework if guessed wrong.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (blocking, do first, ~1 hour total)
+
+Each needs a one-line answer written back into this file. The plan doesn't cover them.
+
+- [ ] D1. Scope of "all data": list the tables and stores that hold user data (including third-party and logs). Owner: eng lead. Output: the list, kept here as the single source of truth for the exporter.
+- [ ] D2. Format: pick one. Default proposal: JSON, one file, versioned top-level `schema_version`. Confirm with whoever consumes it (user, support, legal).
+- [ ] D3. Who may call it: the user for their own data only, or admins too? Default proposal: authenticated user, own data only.
+- [ ] D4. Why it exists: is this a GDPR/CCPA access request? If yes, the deadlines and completeness requirements bind us, and the legal owner must sign off on D1.
+- [ ] D5. "Fast" target: a number, e.g. p95 under X s for a typical user and the largest user. If the largest user can't meet it, sync vs async (D6).
+- [ ] D6. Delivery: synchronous response or async job plus download link. Default proposal: sync if D5 is met for the largest user, otherwise async.
+- [ ] D7. Sensitive fields: which are excluded or redacted (password hashes, tokens, other users' data in shared records)?
+
+## Phase 1: Build
+
+- [ ] T1. Define the export schema in one module (`schema_version`, sections per D1). This is the source of truth for the format.
+- [ ] T2. Write one collector per data source in D1, each returning its section. No duplicated field lists elsewhere.
+- [ ] T3. Apply the D7 exclusions in one shared filter.
+- [ ] T4. Build the endpoint, e.g. `GET /users/me/export`, with authN/authZ per D3.
+- [ ] T5. Error handling: unauthenticated (401), forbidden (403), partial collector failure (fail the whole request, never return a silently incomplete export), timeout.
+- [ ] T6. Rate limit the endpoint (an export is expensive and a scraping vector).
+- [ ] T7. If D6 = async: job table, worker, expiring signed download link, and a status endpoint.
+- [ ] T8. Stream or paginate large sections so memory stays bounded.
+- [ ] T9. Audit-log each export request (who, when, success or failure).
+
+## Phase 2: Verify
+
+- [ ] V1. Completeness test: for a seeded user with data in every D1 source, assert every source appears in the export. Add a test that fails when a new table is added without a collector.
+- [ ] V2. Authorization test: user A cannot export user B's data.
+- [ ] V3. Redaction test: D7 fields never appear in the output.
+- [ ] V4. Performance test: seed the largest realistic user, run the endpoint, and compare against the D5 target.
+- [ ] V5. Failure test: force one collector to fail and confirm the endpoint returns an error, not a partial export.
+- [ ] V6. Schema test: output validates against the T1 schema.
+
+## Phase 3: Ship
+
+- [ ] S1. API docs for the endpoint (refer to the T1 schema; don't restate it).
+- [ ] S2. Feature flag, staged rollout, and a rollback step.
+- [ ] S3. Dashboards or alerts: request count, latency, error rate.
+- [ ] S4. Release next week, gated on Phase 0 answers and V1-V5 passing.
+
+## Schedule note
+Phase 0 must finish by day 1. If D6 is async, T7 is the largest item and puts next week's date at risk. Raise that early rather than at the end.
+```
+
+If you want, I can also trim this to a minimal version that assumes the default proposals for D1–D7. That would only work if you confirm those defaults.

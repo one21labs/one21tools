@@ -1,0 +1,59 @@
+I can't write `tasks.md` from here. This session has no file-write or code-execution tools. The full contents are below, so you can paste them into the file.
+
+I'm not reopening the plan. But the approved text never states the data scope, format, performance target or access rules. Those are open decisions, so I put them first as short blocking tasks. They fit in one 30-minute conversation with the PM, and they stop you building the wrong thing in week one.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Approved plan: "Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week."
+
+## Phase 0: Decisions (blocking, do first, ~30 min total)
+Record each answer in this file under the task. Defaults are proposed so the work isn't stalled.
+
+- [ ] D1. Data scope: list every table/store holding user data and mark in or out of the export.
+      Default: all user-owned rows, excluding other users' data and internal-only fields (audit logs, fraud flags).
+- [ ] D2. Format: "easiest" is not a contract. Default: JSON, one top-level object per data category, with a `schema_version` field.
+- [ ] D3. "Fast" target: set a measurable number. Default: p95 under 5 s for a typical user, with a size cutoff above which the export becomes async (see T5).
+- [ ] D4. Authorization: who can export whose data? Default: authenticated user exports only their own data; admin export is out of scope.
+- [ ] D5. Delivery: sync response, or async job plus download link? Default: sync below the size cutoff, async above it.
+- [ ] D6. Compliance: is this meant to satisfy a GDPR/CCPA access request? If yes, the scope in D1 and the identity checks in D4 need legal review.
+- [ ] D7. Success criteria and rollback: how do we know it works, and what turns it off? Default: feature flag, kill switch, error-rate alert.
+
+## Phase 1: Foundation
+- [ ] T1. Write a one-page design from the D1–D7 answers: components, data flow, failure modes. Link it here.
+- [ ] T2. Define the export schema in one place (the single source of truth for fields and `schema_version`). The serializer, tests and docs all derive from it.
+- [ ] T3. Add a feature flag `user_data_export`, default off.
+
+## Phase 2: Build
+- [ ] T4. Data collectors: one function per data category from D1, each returning plain records. Each has one responsibility and one owner.
+- [ ] T5. Export service: calls the collectors, applies the field allowlist, and serializes using the T2 schema. Stream or paginate large result sets rather than loading everything into memory.
+- [ ] T6. API endpoint `GET /users/me/export` (path adjustable):
+      - authentication and authorization per D4
+      - rate limit (e.g., 1 request per user per hour)
+      - error contract: 401, 403, 429 and 500 with defined bodies
+- [ ] T7. Async path, only if D5 requires it: job record, background worker, expiring download link, cleanup of expired files.
+- [ ] T8. Audit logging: record who exported, when, and the result. Do not log the payload.
+
+## Phase 3: Verify
+- [ ] T9. Tests:
+      - export contains all in-scope data, and nothing from other users
+      - excluded fields never appear
+      - authorization failures return 401/403
+      - empty-user and very-large-user cases
+      - schema matches the T2 definition
+- [ ] T10. Performance test against the D3 target using realistic data volume. Predict the result first, then compare it with the measurement.
+- [ ] T11. Security review: IDOR check (try exporting another user's ID), PII exposure, link expiry.
+
+## Phase 4: Ship
+- [ ] T12. Docs: endpoint reference generated from the T2 schema. Do not hand-copy field lists.
+- [ ] T13. Monitoring: latency, error rate and export size dashboards, plus the D7 alert.
+- [ ] T14. Staged rollout: internal users, then 5%, then 100%, with the rollback path from D7 confirmed working before step one.
+
+## Critical path
+D1–D7 → T1/T2 → T4/T5/T6 → T9/T10/T11 → T14.
+T3, T8, T12 and T13 can run in parallel with the build.
+```
+
+If the schedule is too tight for everything, cut T7 first (sync-only with a size cap), then the scope of T13. Don't cut D1–D4, T9 or T11, because those are where a "fast" export most often leaks data or breaks.
+
+If you'd like me to write the file, give me a session with write access and I'll create `tasks.md`.

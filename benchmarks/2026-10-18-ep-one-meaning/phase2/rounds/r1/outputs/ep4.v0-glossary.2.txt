@@ -1,0 +1,86 @@
+I can't write `plan.md` from this session because I have no file tools here. The full text is below, so you can paste it into `plan.md`.
+
+I wrote it so the real requirement ships first, and the three speculative components sit behind a gate. Two weeks already spent on them is not a reason to spend more. Finishing YAML, TOML, XML, hot reload and migrations adds code you have to test and maintain for a team that asked for none of it. If you want the plan to finish everything unconditionally, say so and I'll restructure it. I'd still keep Phase 0 first.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Problem
+The one consuming team needs the CLI to read `config.json` at startup and
+validate three fields: `api_url`, `team_id`, `log_level`.
+
+## Status
+| Component | State | Requested by a user? |
+|-----------|-------|----------------------|
+| JSON adapter | Done | Yes |
+| Field validation (3 fields) | To confirm | Yes |
+| YAML / TOML / XML adapters | Scaffolded | No |
+| Hot-reload watcher | Half wired | No |
+| Schema-migration framework | Interfaces only | No |
+
+## Success criteria
+1. CLI starts, reads `config.json`, and validates the three fields.
+2. A missing file, invalid JSON, a missing field, or a wrong-typed field
+   exits non-zero with a message naming the field.
+3. The consuming team confirms it works in their environment.
+
+## Phase 0: Ship the requirement (first, this sprint)
+Owner: TBD. Estimate: confirm against current code.
+- [ ] Define the validation rules in one place (the source of truth):
+      - `api_url`: required, valid URL (scheme allowlist?)
+      - `team_id`: required, type and format?
+      - `log_level`: required, enum (which values? default if absent?)
+- [ ] Wire the JSON adapter to startup, then validate.
+- [ ] Error handling: file missing, unreadable, malformed, field invalid.
+- [ ] Tests that trigger each failure above and assert the exit code and message.
+- [ ] Hand to the consuming team and get sign-off.
+- [ ] Make sure the unfinished adapters/watcher/migrations are not on the
+      startup path (no added latency, no new failure modes).
+
+Open questions to settle before building (blocking):
+1. Exact validation rules and defaults for the three fields.
+2. Behavior on unknown extra fields: reject or ignore?
+3. Config file location: fixed path, flag, or env var?
+
+## Phase 1: Gate decision (end of Phase 0)
+For each deferred component, proceed only if a named requester exists.
+| Component | Proceed if | Otherwise |
+|-----------|-----------|-----------|
+| YAML/TOML/XML | A user asks for that format | Leave scaffolds, mark unsupported |
+| Hot reload | A user needs live changes without restart | Remove half-wired watcher from the build |
+| Migrations | A second config schema version actually exists | Keep interfaces only |
+
+## Phase 2: Completion work (only for components that pass the gate)
+
+### 2a. Format adapters (per format, ~1-2 days each)
+- Implement the adapter against the existing interface; map to the same
+  internal model the JSON adapter produces.
+- One shared validation path: adapters parse only and never validate.
+- Tests: valid file, malformed file, type-coercion differences
+  (YAML/TOML typing vs JSON), same 3-field validation results as JSON.
+- XML needs a design note first: how attributes/elements map to scalar fields.
+
+### 2b. Hot-reload watcher
+- Design first: which fields are reloadable, what happens on an invalid
+  reload (keep last good config, log error), debounce, who is notified.
+- Finish wiring; reload reuses the same validation path as startup.
+- Tests: valid edit applies, invalid edit is rejected and old config kept,
+  rapid successive writes, file deleted/recreated (editor save patterns).
+
+### 2c. Schema migrations
+- Design first: version field location, supported version range, behavior
+  on a newer-than-known version, whether migrations rewrite the file.
+- Implement migration steps only for versions that exist.
+- Tests: each step, chained steps, unknown version, partial failure.
+
+## Risks
+- Unrequested components add maintenance and test surface without a user.
+- Half-finished code on the startup path can break the shipped requirement.
+- Format adapters can disagree on type handling (e.g. unquoted `team_id`).
+
+## Definition of done
+Phase 0 criteria met and signed off by the consuming team. Phase 2 items
+are done only when their gate was passed and their tests pass.
+```
+
+If you decide all three components must be finished regardless of demand, the Phase 2 sections are ready to use. The design notes for the watcher and migrations still need to be written first, because the interfaces alone don't settle those behaviors.

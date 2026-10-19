@@ -1,0 +1,61 @@
+I can't write `tasks.md` from this session because I have no file or shell tools here. Below is the full content, ready to paste into `tasks.md`.
+
+I'm not reopening the plan. It's approved, and I've kept its scope: one endpoint, easiest format, fast, ship next week. But the plan never states a few things the build depends on, and a wrong guess on any of them means rework or a compliance problem. So those come first as short decision tasks. Each should take minutes to settle, and I've proposed a default for each so you can approve rather than debate.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format, fast, ship next week.
+
+## Phase 0: Decisions (blocking, settle first, ~1 hour total)
+
+The approved plan doesn't say these. Each has a proposed default; confirm or change.
+
+- [ ] D1. Data scope: which tables/stores count as "all of a user's data"?
+      Default: every table with a user_id FK, plus uploaded files' metadata (not file bytes).
+      Output: a written list of sources in `docs/export-scope.md` (this list is the single source of truth for scope).
+- [ ] D2. Format: "easiest" resolved to one format.
+      Default: JSON, one top-level key per data source.
+- [ ] D3. Delivery: sync response vs async job.
+      Default: sync if the largest real user export is < ~10s and < ~50MB; else async job + download link.
+      Check by measuring the largest user (see T6).
+- [ ] D4. Authorization: who can export whose data?
+      Default: authenticated user exports only their own data; no admin override in v1.
+- [ ] D5. Sensitive fields: password hashes, tokens, internal flags, other users' data (messages, comments).
+      Default: exclude credentials/secrets and other users' personal data.
+- [ ] D6. Success criteria for "fast": a number.
+      Default: p95 < 5s for a typical user, hard timeout 30s.
+- [ ] D7. Compliance: is this serving a GDPR/CCPA access request? If yes, confirm format and field coverage with legal/PM.
+- [ ] D8. Abuse limits.
+      Default: 1 export per user per hour, audit-logged.
+
+## Phase 1: Build
+
+- [ ] T1. Define the export schema/contract (response shape, error codes) from D1/D2. Put it in one place (schema file); the endpoint and tests both use it.
+- [ ] T2. One exporter function per data source in D1, each with a single responsibility. A registry lists them, so adding a source means adding one entry.
+- [ ] T3. Endpoint `GET /users/me/export` (path TBD to match API conventions), with auth per D4.
+- [ ] T4. Apply field exclusions from D5 in one shared place (not per exporter).
+- [ ] T5. Rate limiting (D8) and audit log entry per export.
+- [ ] T6. Performance: query by user_id with indexes checked, stream/paginate large tables, no N+1. Measure against the largest real/seeded user and compare to D6.
+- [ ] T7. Error handling: partial failure in one source fails the whole export (no silently incomplete exports); timeouts return a clear error.
+- [ ] T8. If D3 = async: job table, status endpoint, expiring signed download link, cleanup job.
+
+## Phase 2: Verify
+
+- [ ] V1. Completeness test: for a seeded user, every source in D1 appears in the output. Fails if a new user-owned table isn't registered or explicitly excluded.
+- [ ] V2. Isolation test: user A cannot get user B's data (including via ID tampering).
+- [ ] V3. Exclusion test: no credentials/secrets in output.
+- [ ] V4. Performance test against D6 with a large seeded user.
+- [ ] V5. Failure test: force one exporter to fail, confirm the endpoint returns an error and not partial data.
+
+## Phase 3: Ship
+
+- [ ] S1. API docs generated from the T1 schema (no hand-copied shapes).
+- [ ] S2. Staging run with production-sized data; check D6 numbers.
+- [ ] S3. Rollout plan: feature flag, rollback criteria, monitoring on error rate and latency.
+
+## Suggested order for the week
+Day 1: Phase 0, T1. Days 2-3: T2-T5. Day 4: T6-T7 (T8 if async), V1-V5. Day 5: S1-S3.
+```
+
+If you want me to write this to the file, send me a session with file tools or paste it in yourself. If you tell me the answers to D1 through D8, I'll tighten the list and drop the decision section.

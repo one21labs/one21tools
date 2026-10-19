@@ -1,0 +1,185 @@
+I couldn't write `rca.md`. This session has no file-write or code-execution tools. The full document is below, ready to save as `rca.md`. I don't have the timeline, client name or job name, so those are marked `TODO` instead of guessed.
+
+---
+
+```markdown
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date of incident:** TODO
+**Author:** TODO | **Reviewers:** TODO
+**Status:** Draft
+
+## 1. Summary
+
+The nightly customer-export job wrote a file with zero rows, exited 0, and the
+file was delivered to a client. Monitoring saw a healthy job. The client noticed
+first. This is the third time in two months. The triggers differed each time
+(schema rename, expired credential swallowed by the job, and this time an
+unverified SQL change), but the outcome was the same: empty file, exit 0, no
+alert, client-detected.
+
+## 2. Impact
+
+- Client received an empty export. TODO: client, export date, data they were
+  missing, any downstream effect on them.
+- Detection: by the client, not by us. TODO: time from delivery to client report.
+- Trust cost: third repeat in two months.
+
+## 3. Timeline
+
+TODO: fill from job logs, delivery logs, client report. (Not known to the author.)
+
+## 4. Analysis
+
+### 4.1 Problem statement (facts only)
+
+The export job delivered a zero-row file to a client with exit code 0 and no alert.
+
+### 4.2 Five Whys, branched
+
+**Branch A: why did an empty file exist?**
+1. Why was the file empty? The edited query returned no rows.
+2. Why did a broken query reach production? It was not run once by hand before
+   deploy. The wiki says to do this.
+3. Why was the step skipped? It is a manual step that lives in a wiki. An engineer
+   six weeks in had no forcing function to find it or follow it.
+4. Why is nothing else catching a bad query? Nothing in the pipeline checks the
+   output. The only check is a human remembering.
+5. **Root cause A:** correctness of the export depends on a manual, unenforced step.
+
+**Branch B: why did an empty file get delivered?**
+1. Why was an empty file delivered? Delivery ships whatever file the job wrote.
+2. Why? Delivery is gated only on exit code 0.
+3. Why was exit code 0? The job treats "ran without throwing" as success. A
+   zero-row result is not an error, and in the credential case the error was
+   swallowed.
+4. **Root cause B:** the job's definition of success (exit 0) is not the
+   definition of the outcome we owe the client (a valid, non-empty file).
+   Delivery is not gated on output validity.
+
+**Branch C: why did nobody find out?**
+1. Why no alert? Monitoring checks only the exit code.
+2. Why? Monitoring asks "did the process finish?", not "did the output meet
+   expectations?"
+3. **Root cause C:** no check exists on the output itself, before or after delivery.
+
+### 4.3 Why this is one problem, not three
+
+The three incidents had three different triggers (schema rename, swallowed
+credential error, unverified query change). A fix aimed at any single trigger
+(for example, "remind people to run the query") would not have stopped the other
+two. All three succeeded through the same gap: **nothing between "job exits 0"
+and "client receives file" checks that the file is good.** The trigger varies;
+the gap does not. That gap is the root cause to fix.
+
+### 4.4 What this is not
+
+This is not "human error by Priya." Priya followed the path the system offered.
+The system made it possible to ship an unverified query and had no other defense.
+A correct manual step, written only in a wiki, will be missed again by the next
+new joiner, or by a veteran on a busy night.
+
+## 5. Root causes (summary)
+
+| ID | Root cause | Evidence |
+|----|-----------|----------|
+| A | Query correctness depends on a manual wiki step | This incident |
+| B | Success = exit 0; delivery not gated on output validity | All 3 incidents |
+| C | Monitoring observes the process, not the output | All 3 incidents |
+
+## 6. Changes
+
+Ranked: remove > prevent > detect. Do B first. It alone would have stopped all
+three incidents.
+
+### 6.1 Remove (eliminate the way the failure happens)
+
+1. **Delete the "empty output is success" path.** The job must fail (non-zero
+   exit) when it writes zero rows, unless the export is explicitly configured to
+   allow empty results (see open question 1).
+2. **Remove the swallowed-exception path.** Credential and connection errors must
+   propagate and fail the job. Audit the job for other broad catch-and-continue
+   blocks.
+3. **Remove the manual wiki step as the control.** Once 6.2 is live, delete the
+   step from the wiki. The check lives in code, not in a doc, so the code is the
+   single source of truth and the wiki cannot drift from it. Do not leave a
+   history note in the wiki; git history holds that.
+
+### 6.2 Prevent (block bad output from reaching the client)
+
+1. **Add a validation gate between "file written" and "file delivered."** Delivery
+   happens only if validation passes. Checks:
+   - Row count > 0.
+   - Row count within a tolerance of a trailing baseline (for example, not below
+     X% of the trailing 14-day median). TODO: choose the threshold with the data
+     owner.
+   - Expected columns present, in the expected order and types (catches the
+     schema-rename case).
+2. **Put thresholds and expectations in one config file per export** (single
+   source of truth). The job, the gate and the alert all read it. Do not
+   hard-code numbers in several places.
+3. **Run the same gate on query changes in CI.** A changed export query runs
+   against a representative dataset or staging, and the gate must pass before
+   merge. This replaces the manual "run it once by hand" step with an enforced one.
+
+### 6.3 Detect (when prevention fails)
+
+1. **Alert on output, not exit code.** Page or notify when the gate fails, when
+   no delivery occurred by the expected time, or when delivered row count
+   deviates from baseline.
+2. **Add a dead-man check.** Alert if no valid delivery is recorded by the
+   expected time, so a job that never runs or never reaches the gate is also caught.
+3. **Record row count and file size per run** as metrics so trends are visible.
+
+## 7. Verification plan
+
+"We'll monitor going forward" is not verification. Each change is verified by
+triggering the failure it addresses and confirming it is caught. Run in staging
+before enabling in production, and keep the cases as automated regression tests.
+
+| Failure injected | Expected result | Pass? |
+|------------------|-----------------|-------|
+| Query edited to return 0 rows (WHERE FALSE) | Job exits non-zero, nothing delivered, alert fires | TODO |
+| Source column renamed | Column check fails, nothing delivered, alert fires | TODO |
+| Expired or invalid credential | Job fails loudly (no swallow), nothing delivered, alert fires | TODO |
+| Row count dropped far below baseline (not zero) | Baseline check fails, nothing delivered, alert fires | TODO |
+| Job does not run at all | Dead-man alert fires | TODO |
+| Normal healthy run | Delivered, no alert | TODO |
+
+Success criterion: the first five rows are caught with no human action. The last
+confirms there are no false positives on the normal path. After rollout, replay
+the three real incidents against the new pipeline if the inputs can be
+reconstructed.
+
+## 8. Action items
+
+| # | Action | Type | Owner | Due |
+|---|--------|------|-------|-----|
+| 1 | Notify client, resend correct file, confirm receipt | Remediation | TODO | TODO |
+| 2 | Job fails on zero rows; remove swallowed errors | Remove | TODO | TODO |
+| 3 | Validation gate before delivery (count, baseline, schema) | Prevent | TODO | TODO |
+| 4 | Per-export expectations config (single source of truth) | Prevent | TODO | TODO |
+| 5 | CI check for query changes | Prevent | TODO | TODO |
+| 6 | Output-based alert + dead-man alert | Detect | TODO | TODO |
+| 7 | Run verification table; keep as regression tests | Verify | TODO | TODO |
+| 8 | Delete the manual wiki step once 3 and 5 are live | Cleanup | TODO | TODO |
+| 9 | Audit other jobs for exit-0-means-success and swallowed errors | Scope | TODO | TODO |
+
+## 9. Open questions (answer before building)
+
+1. **Can an export legitimately be empty** (for example, a client with no
+   activity)? If so, empty must be an explicit per-export setting with an alert
+   or notice, never the silent default.
+2. **Where should delivery be gated?** Does the job own delivery, or does a
+   separate step or tool? This decides where the gate sits.
+3. **What baseline window and tolerance** avoid noisy alerts on seasonal volume?
+4. **Who is on call for the new alert?** An alert with no owner is the same as no alert.
+5. **Do other exports share this pattern?** Action 9 answers this; scope it
+   before closing the incident.
+```
+
+---
+
+The core finding is that the three triggers differ but share one gap. Nothing checks the file between "job exits 0" and "client receives it." The document ranks the fixes remove, then prevent, then detect. The first step is making the job fail on zero rows and stop swallowing errors, and the next is a delivery gate. The manual wiki step is replaced by an enforced CI check, and the wiki step is deleted so there is one source of truth. The verification table injects each failure to prove it is caught, instead of relying on "we'll monitor."
+
+If you tell me the timeline, client and job details, I can fill in the `TODO` fields. If you give me a writable directory, I can save the file.

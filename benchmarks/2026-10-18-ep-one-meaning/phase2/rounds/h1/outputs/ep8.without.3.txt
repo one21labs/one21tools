@@ -1,0 +1,63 @@
+Don't use the strictest one everywhere. That would break signup. The three copies are doing two different jobs, so the library should have two functions.
+
+## Why "strictest everywhere" fails
+
+- **Signup would reject most of its real traffic.** Numbers like `(415) 555-0134` and `415.555.0134` aren't E.164, so the strict regex rejects them. That's likely most of your ~4,000 daily submissions, and it would show up as a conversion drop with no error on your side.
+- **Billing needs E.164 because the provider does.** Signup's job is to accept what people type. Billing's job is to send the provider only canonical numbers.
+- **The current setup already has a hidden gap.** Signup accepts a loose string and billing later demands E.164. Anything signup stored in loose form fails at charge time, or gets through only if something normalizes it in between. Check how billing gets the number today.
+
+## Bugs in the existing copies
+
+These apply whatever design you choose:
+
+- **Signup's regex is unanchored.** `LOOSE.match` only anchors at the start, so `"5551234 hello <script>"` passes.
+- **The strict regex accepts a trailing newline.** `$` matches before a final `\n`, so `"+14155550134\n"` passes in billing and is sent to the provider as-is. Use `fullmatch` or `\Z`.
+- **`\d` matches Unicode digits in `str` patterns.** For example, Arabic-Indic digits would pass. Use `[0-9]` or `re.ASCII`.
+- **Billing doesn't `strip()`, but support does.** The behavior already differs between the two "identical" copies.
+
+## Library design
+
+Name it something like `company-phone` on the private PyPI.
+
+```python
+import re
+
+_E164 = re.compile(r'\+[1-9][0-9]{7,14}')
+_LOOSE = re.compile(r'[0-9 ()+.\-]{7,20}')
+
+def is_e164(s: str) -> bool:
+    """Strict. Exact string is safe to send to the payment provider. No stripping."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str = "US") -> str | None:
+    """Lenient input -> canonical E.164, or None if it can't be made valid."""
+    # Use the `phonenumbers` library: parse(raw, default_region),
+    # is_possible_number / is_valid_number, then format(E164).
+    # Then confirm is_e164(result).
+
+def is_plausible_phone(raw: str) -> bool:
+    """Loose check for form UX only. Equivalent to normalize_phone(raw) is not None."""
+```
+
+- **Use `phonenumbers` rather than a hand-rolled regex** for normalization. Stripping punctuation isn't enough: `(415) 555-0134` has no country code, so you need a default region. Decide that explicitly; US is a guess if you have international users.
+- **Billing calls `is_e164` only.** It does no cleaning at charge time. If the stored number isn't canonical, that's a data problem to surface, not paper over.
+- **Signup calls `normalize_phone` at submit time and stores the E.164 result.** Keep the raw input too if you want it. That closes the signup-to-billing gap.
+- **Support** is currently billing's regex plus `strip()`. It can use `is_e164(s.strip())`, or `normalize_phone` if agents type numbers by hand.
+
+## Rollout
+
+Each service deploys independently, so the library has to be safe to adopt one service at a time.
+
+1. **Publish `1.0.0`** with unit tests built from real data. Include the cases above (newline, Unicode digits, `(415) 555-0134`, `415.555.0134`, `+1 415 555 0134`, too short, too long, leading `+0`). Each service pins `company-phone>=1,<2`.
+2. **Support first.** It's the lowest risk, since it's a near-identical copy. It validates the packaging and CI flow.
+3. **Billing second, in shadow mode.** Run the old and new validators side by side, keep the old result authoritative, and log any disagreement for a week or so. The expected disagreements are the newline and Unicode-digit cases, which should be rejections you want. Anything else needs investigating before cutover. Then switch to `is_e164` and delete the local copy.
+4. **Signup last, and it's the one with a data change.** Also run it in shadow mode first, comparing the old accept/reject decision against `normalize_phone`, and check the rejection rate on real submissions. Then:
+   - Switch the form to store the normalized E.164.
+   - Backfill existing stored numbers through `normalize_phone`.
+   - Review the numbers that fail to normalize before billing hits them.
+5. **Delete the three local `validate.py` files** once each service is cut over, so the copies can't drift again. Any future rule change then goes through a library version bump.
+
+## Decisions for you
+
+- **Default region:** what should `(415) 555-0134` mean for a user with no country code?
+- **Stored data:** does signup store the raw input today, and does billing read from that same field? That determines how big the backfill is and whether any customers are failing at charge time right now.

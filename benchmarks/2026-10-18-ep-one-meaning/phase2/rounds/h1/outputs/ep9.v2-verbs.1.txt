@@ -1,0 +1,51 @@
+**Not ready to build.** There is one correctness bug that breaks the Finance requirement, and most of the 6 weeks goes to features nobody has asked for.
+
+## 1. Blocker: the retry design can send duplicate invoices
+
+"No response within 5s → mark failed and re-enqueue" treats a timeout as proof the email wasn't sent. It isn't. The provider may have accepted the request and the response was just slow. The retry then sends a second invoice, which is the exact failure Finance forbids.
+
+The same hole opens in other places:
+- The worker sends, then crashes before committing "done".
+- A job lock expires while the HTTP call is still running, so another worker picks it up.
+- A job is enqueued twice by the caller, for example on an upstream retry.
+
+The root cause is at-least-once delivery combined with a side effect that can't be repeated. A better timeout or more attempts won't fix it. Changes needed:
+
+- **Idempotency key.** Give each job a stable key (for example `invoice:{invoice_id}:email`) with a unique constraint at enqueue time. Pass the same key to the provider if it supports one. Please check this, because it decides the rest of the design.
+- **"Unknown" state.** On timeout or crash mid-send, move the job to `outcome_unknown`, not `failed`. Resolve it by asking the provider whether the message exists, using the key or message ID. Don't resend blindly.
+- **Per-type retry policy.** Password resets can be retried freely, since a duplicate is harmless. Invoices should be at-most-once unless the provider confirms the first send didn't happen.
+- **Lease.** Claim jobs with `status=running`, `locked_until` and a worker ID. Don't hold a `FOR UPDATE` transaction open across the HTTP call. Define what happens to expired leases for invoice jobs: they go to `outcome_unknown`, not back to the queue.
+- **Verification.** Write a test that makes the provider accept the request and then time out, and assert that exactly one email goes out.
+
+## 2. Remove waste (this is where the 6 weeks go)
+
+At 200 to 500 emails a day, there is one job every few minutes. Remove these items from the plan:
+
+- **Plugin system and YAML manifests.** No other team is named as a user. Add a job type by adding a handler function.
+- **Five priority levels with weighted fair scheduling.** There's no contention to schedule around. If needed, keep two lanes (for example, password resets ahead of invoices) or none.
+- **React dashboard and throughput charts.** A SQL view or a saved query covers inspection and manual retry. Charts at this volume show nothing.
+- **500ms polling.** That is about 170k queries a day to serve 200 jobs. Poll every few seconds, or use LISTEN/NOTIFY.
+
+**Build vs. buy.** Before writing any of this, evaluate an existing Postgres-backed queue (pg-boss, Graphile Worker, River, Oban or similar, depending on your stack). They already do `SKIP LOCKED`, leases, backoff and dead-lettering. You'd still need to add the idempotency layer from section 1. The realistic scope is about 1 week for the queue plus the dedupe and reconciliation logic, not 6.
+
+## 3. Gaps in the design
+
+Items to answer before building:
+- **Problem and success criteria.** What is wrong with the current send path? What does "done" mean (zero duplicate invoices, a delivery-latency target for resets)?
+- **Final failure.** After 5 attempts, who finds out, and how? Dead-letter state, alert and owner are all unspecified.
+- **Expiry.** Password reset jobs should carry a TTL so a delayed retry never sends a stale link.
+- **State machine.** List the allowed statuses and transitions explicitly: pending, running, done, failed, outcome_unknown.
+- **Data handling.** Payloads hold customer emails and invoice data. Decide on retention and cleanup, and consider storing IDs and rendering at send time.
+- **Provider facts.** Check whether they support idempotency keys, a message lookup API and webhooks for delivery status. Webhooks could replace the 5s timeout guess entirely.
+- **Migration.** How do callers move from the current path, and what is the rollback plan?
+- **Observability.** At minimum: queue depth, oldest pending job age and failure counts.
+
+## Recommendation
+
+1. Confirm the provider's idempotency and lookup capabilities.
+2. Pick an existing queue library, or keep the plain table with only `jobs`, an idempotency key, leases, and the `outcome_unknown` handling.
+3. Rewrite the design with the state machine, the failure policy per job type, and the success criteria.
+4. Build and test the duplicate-send case first.
+5. Revisit the plugin system, priorities and dashboard only if a real need shows up.
+
+I can draft the revised design with the state machine and the test plan if you want.

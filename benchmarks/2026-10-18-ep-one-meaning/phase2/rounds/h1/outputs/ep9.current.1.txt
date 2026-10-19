@@ -1,0 +1,58 @@
+**Not ready to build.** The design breaks the one hard requirement you stated, and most of the 6 weeks goes to features nobody has asked for.
+
+## Blocking: it can send duplicate invoices
+
+"No response within 5s → mark failed and re-enqueue" is the exact path to a double send. A timeout doesn't mean the provider didn't accept the request. It often accepted it and answered slowly. The retry then sends a second email. Other paths cause the same problem:
+
+- The worker crashes after the provider accepts but before it records `sent`. Another worker then re-runs the job.
+- If the `SKIP LOCKED` transaction stays open during the HTTP call, a crash rolls back and the job is picked up again. If it doesn't, there's no lease or heartbeat, so a job stuck in `running` can't be told apart from one that's still working.
+
+**What the design needs:**
+1. **Idempotency key.** Pass a stable key (the job ID or the invoice ID) to the email provider, if it supports one. Check this first, because it decides the rest of the design.
+2. **Dedupe key in your own table.** Add a `dedupe_key` column with a unique index, for example `(type, invoice_id)`. Enqueuing the same invoice twice then fails.
+3. **An "unknown" state.** For non-idempotent sends, a timeout or crash after the request goes out should set `status = unknown`, not retry. Reconcile it by querying the provider's delivery log, or send it to a human. Retry automatically only on failures where the provider clearly never accepted the request (connection refused, 4xx/5xx).
+4. **Lease columns.** Add `locked_at` and `locked_by`, plus a reaper for expired leases.
+5. **Different retry rules per type.** Password resets can be retried more freely than invoices. Make "at-most-once" versus "at-least-once" a property of the job type.
+
+## Scope is far larger than the problem
+
+200/day is one job every 7 minutes. 500/day next year is still tiny.
+
+- **Build vs. adopt.** A Postgres-backed queue library (pg-boss, Graphile Worker, River, or whatever fits your stack) already provides `SKIP LOCKED`, backoff, and scheduling. Two engineers shouldn't write and maintain this. If you build it anyway, write down why you rejected the libraries.
+- **Priority levels with weighted fair scheduling.** Nothing is contending for resources at this volume. Cut it. If you need anything, use two lanes: urgent (password reset) and normal.
+- **Plugin system with YAML manifests.** No other team has asked for it. Cut it, and build it when a second consumer exists. An interface you invent before you have a user will probably be wrong.
+- **React dashboard.** Start with SQL queries or Metabase for inspection, and a CLI or SQL script for manual retry. Build UI later if people need it.
+- **500ms polling.** About 170k empty polls a day to serve 200 jobs. Poll every few seconds, or use `LISTEN/NOTIFY` with a slow poll as the fallback.
+
+## Missing from the design
+
+- Success criteria. For example: zero duplicate invoices, a password reset delivered within N seconds, and an alert when a job dead-letters.
+- A dead-letter state, with alerting when jobs exhaust their attempts.
+- Provider rate limits, and what happens during a provider outage.
+- Retention and PII. Payloads contain customer emails and invoice data.
+- Schema gaps: `last_error`, `created_at`, `dedupe_key`, and the lease columns above.
+- Who is on call for it.
+
+## Suggested v1 (about 1 week)
+
+A jobs table, or an existing library, plus:
+- idempotent sends and a unique dedupe key
+- lease-based locking
+- bounded retries for safe cases
+- an `unknown` state
+- a dead-letter alert
+- basic SQL visibility
+
+Revisit priorities, plugins and the dashboard once there's a concrete second consumer or measurable pain.
+
+## Verification before sign-off
+
+Write a test that makes the provider stub accept the request and then hang past 5s, and another that kills the worker mid-send. Confirm that each leaves exactly one email sent for an invoice job. "We'll monitor for duplicates" isn't a sufficient check.
+
+## Questions to answer first
+
+1. Does the provider support idempotency keys? If it does, the duplicate-send risk is much smaller.
+2. Which other teams want to register job types, and by when? If none have asked, cut the plugin system.
+3. Is there a reason the existing queue libraries won't work?
+
+If you answer those, I can turn the slim v1 into a task breakdown.

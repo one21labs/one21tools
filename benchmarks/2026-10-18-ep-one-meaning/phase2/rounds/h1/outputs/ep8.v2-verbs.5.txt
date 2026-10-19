@@ -1,0 +1,83 @@
+# Shared phone validation: design and rollout
+
+## Don't use the strictest rule everywhere
+
+The three copies disagree because they do two different jobs.
+
+- **Billing and support** check whether a string is canonical E.164. The payment provider needs that.
+- **Signup** takes whatever users type and has to turn it into something usable.
+
+If you apply billing's regex to the signup form, `(415) 555-0134` and `415.555.0134` fail. That would reject most of your roughly 4,000 daily submissions, mostly from mobile. Applying signup's rule to billing is worse. The loose regex is unanchored, so `4155550134abc` passes, and it would send non-E.164 strings to the provider.
+
+The single source of truth should be the definition of E.164, plus one function that converts typed input into it. Signup normalizes at the edge and stores the canonical form. Billing and support only ever see canonical numbers and check them strictly.
+
+## Problems in the current code
+
+- **Signup's regex is unanchored.** `re.match` only anchors at the start, so trailing junk is accepted.
+- **Billing's `$` matches before a trailing newline.** `"+14155550134\n"` passes and goes to the provider. Use `fullmatch`.
+- **Support strips whitespace and billing doesn't.** The two E.164 checks already behave differently.
+
+## Package design: `phone-validation`, on your private PyPI
+
+```python
+# phone_validation/__init__.py  <- the only place the E.164 rule lives
+import re
+from typing import Optional
+import phonenumbers  # parsing of typed input only
+
+_E164 = re.compile(r'\+[1-9]\d{7,14}')
+
+def is_e164(s: str) -> bool:
+    """Strict canonical check. No stripping, no normalizing. Billing/support use this."""
+    return isinstance(s, str) and _E164.fullmatch(s) is not None
+
+def normalize_phone(raw: str, default_region: str) -> Optional[str]:
+    """Typed input -> E.164, or None. Signup uses this, then stores the result."""
+    try:
+        n = phonenumbers.parse(raw.strip(), default_region)
+    except phonenumbers.NumberParseException:
+        return None
+    if not phonenumbers.is_possible_number(n):
+        return None
+    out = phonenumbers.format_number(n, phonenumbers.PhoneNumberFormat.E164)
+    return out if is_e164(out) else None
+```
+
+- `normalize_phone` always ends in `is_e164`, so the two functions cannot drift apart.
+- Billing calls `is_e164(s)`. It should reject non-canonical input, not quietly fix it, because by that point something upstream is wrong.
+- Support calls `is_e164(s.strip())` if it receives hand-typed input. Better, route support through `normalize_phone` as well.
+- Ship a shared test-vector file in the package: good, bad, trailing newline, and the two signup formats. Each service runs it in CI.
+- Use semver. Services pin `phone-validation>=1,<2`. Tightening or loosening the rule is a major version.
+
+## Decisions you need to make
+
+I haven't assumed answers to these.
+
+1. **Default region for signup.** Is it US-only, or derived from locale or a country field? `415.555.0134` has no country code, so this decides how it parses.
+2. **Extensions** like `x123`. Reject them, or strip and store them separately?
+3. **Existing signup data.** Is it stored as typed? If any of it reaches billing, it fails today. That needs a backfill.
+4. **Does signup data flow to billing or support?** This determines whether normalizing at signup fixes charge failures you're already seeing.
+5. **Failure behavior.** Should the signup form get a reason code (too short, bad country) rather than a boolean? I'd return `None` for now and add reasons if the form needs them.
+
+## Success criteria
+
+- Signup rejection rate stays within a small margin of today's rate on real traffic.
+- Zero non-E.164 strings reach the payment provider.
+- Zero local `validate.py` copies remain.
+
+## Rollout
+
+Each repo deploys independently, so none of these steps depend on another service's deploy.
+
+1. **Publish `phone-validation` 1.0.0** with the test vectors. No service changes yet.
+2. **Support first.** It's the lowest-risk service and was copied from billing. Swap in the library and delete its `validate.py`.
+3. **Billing, in shadow mode.**
+   - Run the library and the old function side by side and log any disagreement. The trailing-newline case is one you'd expect to see.
+   - Once the logs show only the disagreements you expect, switch to the library and delete the local copy.
+4. **Signup, in shadow mode.**
+   - Run `normalize_phone` next to the old check and log every case where one accepts and the other rejects. Look at real mobile input before cutting over.
+   - Switch to storing the E.164 result. The old loose string never goes into the database.
+   - Backfill existing numbers by normalizing them. Report the count that fail and decide what to do with them.
+5. **Close out.** Delete the three local `validate.py` files. Add a CI check that fails if `re.compile` with a phone-like pattern appears outside the library.
+
+Roll back by reverting the dependency pin, since each service can revert on its own. Don't remove the old code in a repo until its shadow logs have been clean for a full traffic cycle.

@@ -1,0 +1,115 @@
+I couldn't write `process-review.md`. This session has no file-write or code-execution tools. The full content is below, so you can paste it into the file as is.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The team is busy but shipping feels slow because work spends most of its time waiting. A PR waits about 2 days for review. After merge it waits up to 14 days for the release train. Then it waits for three sequential sign-offs. I don't have timing data for the sign-offs, but each one is a handoff and adds idle time.
+
+Batching about 40 changes per release causes the stress. A failure is hard to attribute to one change, rollback means reverting everything, and each sign-off has to cover 40 changes at once. Larger batches carry more risk, which is what the sign-offs try to catch, so the process makes the risk it guards against worse.
+
+## Findings
+
+| # | Observation | Waste type | Effect |
+|---|-------------|-----------|--------|
+| 1 | PRs wait about 2 days for review | Waiting | Slows feedback and encourages bigger PRs |
+| 2 | Merged changes sit on main until the next train | Waiting, inventory | Value is delayed by up to 14 days, and about 40 changes pile up |
+| 3 | The release manager hand-copies a changelog entry per PR | Duplicate work, copied data | About 40 manual copies per release, which can drift from the PR and invites omissions |
+| 4 | Three sequential sign-offs (QA, then EM, then PM) | Waiting, repeated approvals | Delay adds up, and each approver reviews the whole batch superficially |
+| 5 | Hotfixes follow the same path | Wrong process for the case | A one-line urgent fix waits for the train |
+| 6 | Large batches | Overproduction and inventory | Hard to attribute failures, hard to roll back, stressful |
+
+## Root cause
+
+Using the 5 Whys on "releases are slow and stressful":
+
+1. Why stressful? Forty changes ship at once.
+2. Why 40 at once? Releases happen only every two weeks.
+3. Why only biweekly? Each release carries a high fixed cost: manual changelog assembly and three sequential sign-offs.
+4. Why is the fixed cost high? The changelog is assembled by hand from PR descriptions. Quality assurance is done on the whole batch before release, not per change.
+5. **Root cause:** release cost is fixed per release instead of per change. That makes teams batch to amortize it, and batching raises the risk that the sign-offs then try to contain.
+
+Cutting the cadence without cutting the per-release cost would only add work for the release manager and approvers. The fix has to reduce the per-release cost.
+
+## Recommendations
+
+I've ordered these with removing a step first, preventing a problem second, and adding a check last.
+
+### 1. Remove the manual changelog (do this first)
+- Make the PR the single source of truth for the changelog entry. Require a one-line "Changelog" field or label in the PR template (for example `feature`, `fix`, `internal`, `no-changelog`).
+- Generate the release document from merged PRs automatically. Nobody copies text by hand any more, and the entry cannot drift from the PR.
+- Add a CI check that fails if the field is missing. This is prevention for the one case a generator can't cover.
+- Cost: small, and a few hours of scripting. It removes the release manager's most mechanical task.
+
+### 2. Define a hotfix path separate from the train
+- Write down what qualifies: a production defect, a security issue or a data-loss risk. It does not include "someone wants it soon".
+- A hotfix needs one reviewer and one approver (QA or EM). It deploys on its own and is backported to main. The PM is informed after the fact, not before.
+- Record every hotfix so the criteria can be reviewed monthly and not abused.
+- This is the cheapest high-impact change, because it fixes an acute pain without waiting for any other change.
+
+### 3. Replace three sequential sign-offs with a gate that is parallel or automated
+- Run QA, EM and PM approvals in parallel, not in sequence. Elapsed time becomes the slowest approver, not the sum of all three.
+- Better, assign each approval a single clear purpose so it can be checked per change instead of per release:
+  - **QA**: automated tests plus a per-PR verification before merge. The QA lead signs off on the exception list, not on each of the 40 changes.
+  - **Engineering**: code review at the PR already covers this. A separate EM release sign-off duplicates it, so remove it unless it has a distinct purpose you can name.
+  - **Product**: decide readiness per feature with feature flags (see 4), not per release.
+- Ask each approver: "What have you ever caught at this gate that earlier steps missed?" If the answer is nothing, the gate is waste.
+
+### 4. Decouple deploy from release with feature flags
+- Merge to main continuously and deploy often. Hide incomplete or product-gated features behind flags.
+- The PM then controls when a feature is *released* (flag on) without holding back the deploy of everything else.
+- This turns the PM sign-off from a gate on the whole batch into a per-feature decision.
+
+### 5. Shrink the batch: move from biweekly to weekly, then toward continuous
+- Once items 1 to 4 are in place, increase cadence step by step: biweekly, then weekly, then multiple times per week, then on every merge.
+- Smaller batches mean less risk per release, easier attribution and simple rollback. Stress should drop with each step.
+- Do not change the cadence until the changelog is automated, or the added frequency will multiply manual work.
+
+### 6. Cut review wait time
+- Set a team norm, for example first response within 4 working hours and review complete within 1 business day. Measure the real time from PR open to first review.
+- Keep PRs small (a soft limit such as 400 changed lines). Small PRs review faster, and large PRs probably explain part of the 2-day average.
+- Use a daily review rotation or a "review before starting new work" habit so reviews don't queue behind individual focus time.
+- Auto-assign reviewers and add reminders for PRs idle more than one day.
+
+## Suggested order
+
+| Phase | Change | Why first |
+|-------|--------|-----------|
+| 1 (week 1 to 2) | Hotfix path; auto-generated changelog | Quick wins, no dependencies |
+| 2 (week 2 to 4) | Parallel sign-offs; review SLA and PR size norm | Cut waiting without new tooling |
+| 3 (month 2) | Feature flags; automate the QA gate | Needed before shipping smaller batches safely |
+| 4 (month 2 to 3) | Move to weekly release, then more often | Only safe once per-release cost is low |
+
+## Measures of success
+
+Track these from now, because we have only averages and anecdotes:
+
+- **PR open to first review**, target under 1 business day.
+- **Merge to production** (lead time), target under 3 days, then under 1 day.
+- **Changes per release**, target below 10, then continuous.
+- **Release preparation time** for the release manager, target under 30 minutes.
+- **Change failure rate and time to restore**, to confirm that smaller, more frequent releases are not less safe.
+
+## Open questions to settle before building
+
+These are gaps in the current description. They need answers before this plan turns into tasks:
+
+1. What does each sign-off check today, and what has each ever caught? Without this I can't say which gates to remove or automate.
+2. Is there automated test coverage that QA could rely on, or is QA mostly manual? This decides how fast we can shorten the cycle.
+3. What does a rollback look like now, and how long does it take?
+4. Are there regulatory or contractual requirements for specific approvals? If so, those stay, but we can still run them in parallel.
+5. Does the team have feature-flag infrastructure, or must it be built?
+
+## Verification plan
+
+For the changelog automation: open a PR without the changelog field and confirm CI blocks it. Then merge three sample PRs and confirm the generated release document contains all three entries with no manual edits.
+
+For the hotfix path: run a drill with a harmless one-line change. Confirm it reaches production in under a day without waiting for the train, and that it is backported to main.
+
+For cadence changes: compare change failure rate and time to restore before and after each step. If either gets worse, pause and fix the cause before shortening the cycle again.
+
+---
+
+If you give me write access or a working directory I can write the file myself. I could also tailor the recommendations once you answer the open questions.

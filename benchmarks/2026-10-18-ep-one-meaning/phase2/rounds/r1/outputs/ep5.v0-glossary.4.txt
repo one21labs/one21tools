@@ -1,0 +1,51 @@
+I can't write `tasks.md` from this session because I have no file tools here. The full contents are below, ready to paste into `tasks.md`.
+
+I'm not reopening the plan. The approved text never states a few things the build depends on, though, and each one would otherwise be settled by guessing mid-build. I've put them first as short decision tasks, each with a default so they don't block you.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (same day, each one answer, not a redesign)
+
+Each has a proposed default. If nobody objects, the default stands.
+
+- [ ] D1. **Data scope**: which tables/stores count as "all of a user's data"? Default: every table with a user_id FK, plus uploaded files as references. Output: a list in `docs/export-scope.md`, the single source of truth for what is exported.
+- [ ] D2. **Format**: "easiest" is not a format. Default: one JSON document, with a top-level key per data category.
+- [ ] D3. **Who may call it**: default is authenticated user exports only their own data; admin export is out of scope.
+- [ ] D4. **Sensitive fields**: default is to exclude password hashes, tokens, and internal-only fields; include everything the user supplied or generated.
+- [ ] D5. **"Fast" as a number**: default is p95 under 5s for the median user; anything larger becomes an async job (T8).
+- [ ] D6. **Error contract**: default is 401 unauthenticated, 403 for another user's data, 429 rate-limited, 500 with no partial payload.
+- [ ] D7. **Compliance**: is this meant to satisfy GDPR/CCPA access requests? If yes, add the audit-log and verification-of-identity requirements from legal.
+
+## Phase 1: Build
+
+- [ ] T1. Add the export scope list as code (one registry of exportable data sources), generated from or checked against D1.
+- [ ] T2. Write one serializer per data source in the registry, applying the field exclusions from D4.
+- [ ] T3. Implement an export service that aggregates all serializers for a user ID into the D2 format.
+- [ ] T4. Add the endpoint (e.g. `GET /api/users/me/export`), with authN/authZ per D3 and the error contract from D6.
+- [ ] T5. Add per-user rate limiting (exports are expensive).
+- [ ] T6. Add an audit log entry for every export (who, when, outcome).
+- [ ] T7. Stream the response instead of building it in memory, to meet D5 and avoid OOM on large accounts.
+- [ ] T8. (Only if D5 is not met for large users) Move to an async job: request, poll status, download link with expiry.
+
+## Phase 2: Verify
+
+- [ ] V1. Test: user A cannot export user B's data (expect 403).
+- [ ] V2. Test: unauthenticated request returns 401.
+- [ ] V3. Test: excluded fields (D4) never appear in the output.
+- [ ] V4. Test: a completeness check fails if a table with a user_id FK is missing from the registry (this catches future schema additions).
+- [ ] V5. Load test against a large account fixture; compare to the D5 target.
+- [ ] V6. Test: rate limit returns 429 after the threshold.
+
+## Phase 3: Ship
+
+- [ ] S1. Document the endpoint (request, response schema, errors), referring to the registry rather than restating the field list.
+- [ ] S2. Feature-flag the endpoint, and enable it for staging, then production.
+- [ ] S3. Add a dashboard and alert on export latency and error rate.
+```
+
+Phase 0 is the part to push on if you're short on time. D1 (scope) and D3/D4 (authorization and sensitive fields) cause the most rework or risk if they're wrong. They should take a few minutes with the PM, not another meeting.
+
+If you give me a working directory with file access, I'll write this to `tasks.md` directly.

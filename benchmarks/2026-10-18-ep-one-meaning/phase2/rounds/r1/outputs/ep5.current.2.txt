@@ -1,0 +1,50 @@
+I can't write `tasks.md` in this session because I have no file tools. The breakdown is below, ready to paste into the file.
+
+I'm not reopening the approval. But the plan as written leaves a few things undefined that the build depends on, so I put them first as short decision tasks. Each is a quick call for the PM or owner, and without them the build tasks would rest on guesses. The build tasks follow, so you can start on the ones that don't depend on the decisions.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Source plan (approved): "Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week."
+
+## Phase 0: Decisions (blocking, aim to close in 1 day)
+
+- [ ] D1. **Data scope**: list every store and table that holds user data (primary DB, files, logs, third-party systems). Decide what "all" includes. Decide whether derived or internal data (audit logs, other users' data mentioning this user) is in or out.
+- [ ] D2. **Purpose and requester**: is this a GDPR/CCPA-style access request, a user-facing feature, or an internal tool? The answer sets the legal scope and who may call it.
+- [ ] D3. **Format**: confirm one format (suggest JSON, since it is easiest and machine-readable). Define the top-level structure and a schema version field.
+- [ ] D4. **"Fast" as a number**: set a target such as p95 latency, or the largest user size that must work. This decides sync response vs. async job plus download link.
+- [ ] D5. **Authorization**: who can export whose data? Suggest self-only plus an admin role, with re-authentication for sensitive access.
+- [ ] D6. **Sensitive fields**: decide how to handle password hashes, tokens, secrets, and other users' PII. Suggest excluding them.
+- [ ] D7. **Success criteria and rollback**: what "done" means, and the switch-off plan (feature flag).
+
+## Phase 1: Design (after D1-D7)
+
+- [ ] T1. Write a one-page API contract: route, method, auth, request parameters, response or job-status shape, error codes, and rate limits.
+- [ ] T2. Choose sync or async from D4. If async: job table, status endpoint, and download link with expiry.
+- [ ] T3. Create the data inventory from D1 and name an owner for each data source.
+
+## Phase 2: Build
+
+- [ ] T4. Add the endpoint skeleton behind a feature flag, with authn/authz from D5.
+- [ ] T5. Build one collector per data source from T3 behind a common interface, so new sources are easy to add.
+- [ ] T6. Assemble the output in the D3 format, with the schema version. Stream or paginate large datasets instead of loading everything into memory.
+- [ ] T7. Apply the D6 field exclusions and redaction in one place.
+- [ ] T8. Error handling: partial failure of a collector (fail the whole export or flag the gap), timeouts, and clear error responses.
+- [ ] T9. If async: job runner, retries, storage with a TTL, and signed download URLs.
+- [ ] T10. Rate limiting and abuse protection, since this is an expensive endpoint.
+- [ ] T11. Audit log entry for every export request (who, whose data, when).
+
+## Phase 3: Verify
+
+- [ ] T12. Unit tests per collector and for the redaction logic.
+- [ ] T13. Authorization tests: user A cannot export user B, and unauthenticated calls are rejected.
+- [ ] T14. Completeness test: an export for a seeded test user contains every source from T3.
+- [ ] T15. Performance test against the D4 target with a large synthetic user.
+
+## Phase 4: Ship
+
+- [ ] T16. Brief API docs (generated from the contract in T1) and an operations runbook.
+- [ ] T17. Staged rollout: enable the flag for internal users, then a small percentage, then everyone. Monitor errors and latency. Roll back by turning the flag off.
+```
+
+I can write this to a file once file tools are available. If you want it shorter, I can cut Phase 0 to D1, D4, and D5, which are the three that most change the build.

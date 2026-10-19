@@ -1,0 +1,56 @@
+I can't write `docs-plan.md` from this session because I have no file tools here. The full content is below, so you can save it as `docs-plan.md` as is.
+
+---
+
+# docs-plan.md: Documentation restructuring
+
+## Source-of-truth table
+
+| Fact | Canonical location | Every other copy |
+|---|---|---|
+| Local setup steps | `README.md`, "Local setup" section | `CONTRIBUTING.md`: delete its steps and replace them with a link to the README section. CLAUDE.md: no copy exists, and none is added. |
+| API request timeout value | The constant in `src/http/client.js` | `README.md` and `CONTRIBUTING.md`: delete the sentence from both. |
+| Support email | `README.md` | There is only one copy. CONTRIBUTING links to the README if it needs it. |
+| "After any line-item mutation, call `recalcTotals()`" | Header comment at the top of `src/billing.js` | `CLAUDE.md`: delete the rule. |
+| History ("2025-11: switched to `npm run dev`…", "2026-01: renamed the export module…") | git history | `CLAUDE.md` "Lessons learned": delete the whole section. Don't move it anywhere else. |
+
+## Decisions and reasoning
+
+### 1. Setup steps: README owns them, CONTRIBUTING links to them
+- The README is where a newcomer starts, so it should own the steps.
+- The two copies have drifted, and the README version is the current one:
+  - The CLAUDE.md history says `npm start` was replaced by `npm run dev`, so CONTRIBUTING's `npm start` is stale.
+  - `.env.example` exists, so "copy `.env.example`" is right and "create `.env` by hand" is stale.
+- **One thing to check before editing:** the README says `npm install` and CONTRIBUTING says `npm ci`. I can't tell which is right without seeing the repo. If a lockfile is committed and you want reproducible installs, use `npm ci` in the README. Whichever you pick, change it only in the README.
+- CONTRIBUTING gets one line, such as "Setup: see README → Local setup". It must not restate any command.
+
+### 2. Timeout: the code owns it, and both docs lose the number
+- The README says 30 and CONTRIBUTING says 45. Neither is trustworthy, and I haven't seen the constant.
+- Don't pick a winner by guessing. Delete the sentence from both documents.
+- If readers really need to know, the README may say "see the timeout constant in `src/http/client.js`". That is a pointer only and carries no value.
+- A docs line that restates a code value will drift again. Deleting it is the only fix that holds.
+
+### 3. Support email: keep it in the README
+It is not duplicated, so it needs no change. CONTRIBUTING links to the README rather than repeating it.
+
+### 4. `recalcTotals()` rule: move it from CLAUDE.md to `src/billing.js`
+- The rule applies to one file only. A rule in CLAUDE.md is loaded in every session whether or not billing is involved.
+- A header comment in `billing.js` appears exactly when someone edits that file.
+- Delete it from CLAUDE.md. Don't leave a pointer there, because nothing outside that file needs to know.
+- **Separate follow-up (not part of this docs change):** a comment still relies on people remembering. A stronger fix is to have the mutation functions call `recalcTotals()` themselves, or to make the totals derived on read, so the rule can't be broken. Removing the rule beats documenting it.
+
+### 5. "Lessons learned": delete it
+- git history is the source of truth for history. Dated narration in a doc goes stale and competes with the real record.
+- Don't relocate it into an ADR, a CHANGELOG, a comment, or a new history file. Moving it keeps the problem.
+- Keep only what is true now, and that is already covered:
+  - "Use `npm run dev`" is in the README setup.
+  - The renamed export module needs no entry, because the code shows the current name.
+- If the reason behind a change matters (such as the port clash), it belongs in that commit's message, not in the docs.
+
+## Resulting CLAUDE.md
+After removing the billing rule and the lessons section, keep only rules that apply across the whole repo. If almost nothing remains, keep it very short (for example, a pointer to the README for setup) rather than inventing content. Don't copy any setup commands into it.
+
+## Verification
+- Search the repo for `npm start`, `npm ci`, `npm install`, `30 seconds`, `45 seconds`, and `recalcTotals`. Setup commands should appear only in the README, the timeout number nowhere in the docs, and `recalcTotals` rule text only in `src/billing.js`.
+- Follow the README steps on a clean clone and confirm the app starts. That proves the one remaining copy of the setup steps is correct.
+- Change the timeout constant and confirm no document needs editing.

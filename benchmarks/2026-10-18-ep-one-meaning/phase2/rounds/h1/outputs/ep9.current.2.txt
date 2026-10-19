@@ -1,0 +1,53 @@
+**Not ready to build.** There's one blocking correctness bug, and most of the 6 weeks goes to scope the stated volume doesn't justify.
+
+## Blocking: the retry path can double-send invoices
+
+"No response within 5s → mark failed and re-enqueue" is the exact failure Finance told you to prevent. A timeout doesn't mean the provider didn't send the email. It means you don't know. Re-enqueueing after a timeout can send the invoice twice. A worker crash between the HTTP call and the status update does the same thing.
+
+The design needs these before any code:
+
+1. **An idempotency key per logical email**, for example `invoice:{invoice_id}:{recipient}`. Put a unique constraint on it in `jobs`, so a duplicate enqueue is rejected at the database.
+2. **The key passed to the provider**, if it supports idempotency keys. Check this first, because it decides the rest of the design. If it doesn't, you need a different mechanism, such as looking up message status by your own message ID before retrying.
+3. **An explicit "outcome unknown" state.** The states would be `pending → sending → sent | failed_definite | unknown`. On a timeout, a job goes to `unknown` and gets reconciled by querying the provider. It never goes straight back to `pending`. For invoices, a stuck `unknown` job should alert a human instead of retrying.
+4. **Lease and crash recovery.** `SKIP LOCKED` only holds a lock for the length of a transaction. If you hold the transaction open across the HTTP call, that's a different problem. If you don't, you need a `locked_until` and a reaper, and the reaper must also respect the `unknown` rule above.
+5. **A retry policy per type.** Password resets can retry freely, since a duplicate is harmless. Invoices can't. A single "max 5 attempts" for all types is wrong.
+
+Also, a 5s timeout is aggressive for an email API. A late success after you've given up is the likely cause of duplicates.
+
+## Scope: most of the 6 weeks is unjustified
+
+At 500 emails/day (~one every 3 minutes), the following aren't needed:
+
+| Item | Verdict |
+|---|---|
+| 5 priority levels with weighted fair scheduling | Cut. At this volume there's no contention to be fair about. Use two lanes at most (for example, password reset before everything else), or none. |
+| Plugin system with YAML manifests | Cut. Nothing in the context mentions other teams needing it. A handler registry in code is enough. |
+| React dashboard with throughput charts | Cut. A SQL view and a manual-retry script cover this at your volume. Add a UI when someone actually asks. |
+| 500ms polling | Wasteful at this volume. Use `LISTEN/NOTIFY` plus a 5–10s fallback poll. |
+
+The remaining core (table, worker, idempotent send, reconciliation) is roughly 1–2 weeks.
+
+## Build vs. buy
+
+Before building at all, check whether an existing Postgres-backed queue covers this: pg-boss, Graphile Worker, River, or Oban, depending on your stack. They already handle `SKIP LOCKED`, leases, backoff, and dead-lettering. Your real engineering effort is the idempotent-send and reconciliation logic, and none of the libraries do that for you. For a two-person team, I'd put that effort on top of a library. A hand-rolled queue is a maintenance cost with no payoff here.
+
+## Missing from the proposal
+
+- **Success criteria.** For example: zero duplicate invoices, plus an alert when a job is stuck for more than N minutes.
+- **Dead-letter handling.** What happens after 5 failed attempts, and who gets told?
+- **Payload and PII.** Email addresses and invoice data are stored in `jobs`. What's the retention period?
+- **Observability.** At minimum: queue depth, oldest pending age, and count of `unknown` jobs.
+- **Test plan.** Tests that inject a timeout-after-success and a crash mid-send, and assert exactly one email goes out.
+- **Single definition of state.** `status` and `attempts` shouldn't encode overlapping facts. Define the state machine once and derive the rest.
+
+## Recommendation
+
+Revise to a v1 with these parts:
+- A library-based or minimal queue.
+- The idempotency key with a unique constraint.
+- The `unknown` state with reconciliation.
+- Per-type retry policy.
+- Alerting on stuck or failed jobs.
+- A duplicate-send test.
+
+Defer priorities, plugins, and the dashboard until there's a concrete requester. The first thing to find out is whether your email provider supports idempotency keys, since that shapes the rest. I can draft the revised state machine and schema if you'd like.

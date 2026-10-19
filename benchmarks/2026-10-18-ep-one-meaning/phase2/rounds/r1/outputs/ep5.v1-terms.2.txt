@@ -1,0 +1,57 @@
+I can't write `tasks.md` from here because this session has no file-write tool. Below is the full content, ready to paste into `tasks.md`.
+
+I'm not reopening the plan. It is approved, but it doesn't state several things the build depends on (data scope, format, "fast", authorization). I've put those first as short decision tasks, each with a proposed default, so you can confirm them in minutes and keep the build moving.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week.
+
+## Phase 0: Decisions (blocking, do first, target: day 1)
+
+Each has a proposed default. Confirm or override; don't leave open.
+
+- [ ] D1. **Data scope.** Inventory every store holding user data (DB tables, files/uploads, logs, third-party services). Default: all user-owned records in primary DB plus uploads. Exclude other users' data, internal audit logs, and derived/analytics data unless told otherwise. Output: one list, kept in a single source-of-truth file.
+- [ ] D2. **Format.** "Easiest" = JSON, one document per entity type, with a manifest. Default: JSON (ZIP if uploads are included).
+- [ ] D3. **"Fast" defined.** Default: p95 under 5s for a typical user -> synchronous response. Above a size threshold -> async job with a download link. Pick the threshold and the typical/largest user size.
+- [ ] D4. **Authorization.** Default: a user can export only their own data; admin export is out of scope. Require a fresh session or re-auth.
+- [ ] D5. **Sensitive fields.** Default: exclude password hashes, tokens, and secrets. Confirm with privacy/legal whether this is meant to satisfy a GDPR/CCPA access request, since that can add requirements (completeness, timing).
+- [ ] D6. **Success criteria and rollback.** Export returns complete data for test users, meets the D3 latency target, and has a feature flag as the kill switch.
+
+## Phase 1: Design (day 1-2)
+
+- [ ] T1. Write a one-page design: components, data flow, error handling, and the D1-D6 outcomes. The scope list lives in one place and is referenced by code and docs.
+- [ ] T2. Define the API contract: route, method, auth, request params, response shape, status codes (401/403/404/429/5xx), and the async variant if D3 requires it.
+
+## Phase 2: Build (day 2-5)
+
+- [ ] T3. Create one exporter per data source, each returning that entity's data. Register them in a single registry so adding a source touches one place.
+- [ ] T4. Build the serializer/assembler (format from D2, manifest listing included sources and a timestamp).
+- [ ] T5. Implement the endpoint with the authorization from D4, and ensure the user ID comes from the session, never from a request parameter.
+- [ ] T6. Performance: stream or paginate large tables, avoid N+1 queries, and add any needed indexes.
+- [ ] T7. (If async) Build the job queue, status endpoint, expiring signed download URL, and cleanup of generated files.
+- [ ] T8. Rate limiting (default: a few exports per user per hour).
+- [ ] T9. Structured logging and metrics: export requests, duration, size, failures. Don't log the exported data.
+- [ ] T10. Feature flag wiring for the D6 kill switch.
+
+## Phase 3: Verify (day 4-6)
+
+- [ ] T11. Unit tests per exporter and for the serializer.
+- [ ] T12. Authorization tests: user A cannot export user B's data, unauthenticated requests are rejected, and the user ID can't be spoofed.
+- [ ] T13. Completeness test: compare the export against the D1 inventory for a seeded test user. Fail if a registered source is missing.
+- [ ] T14. Load test against the D3 target using the largest realistic user. Record the result against the prediction.
+- [ ] T15. Failure-path test: force an exporter to error and confirm a clear error response, no partial file served as complete, and cleanup.
+
+## Phase 4: Ship (day 6-7)
+
+- [ ] T16. API docs generated from the contract (T2), not hand-copied.
+- [ ] T17. Staged rollout behind the flag, then full enable, with a named owner watching the T9 metrics.
+- [ ] T18. Short runbook: how to disable the feature, how to add a new data source, and where the scope list lives.
+
+## Risks to watch
+- Data scope (D1) turns out larger than a week allows. Fallback: ship the core-entities export first and list the remaining sources in the manifest as "not yet included".
+- Heavy users break the latency target. Fallback: the async path (T7).
+- A leaked or mis-authorized export is a privacy incident, so T12 is non-negotiable.
+```
+
+If you give me a file-write tool or a working directory, I can save this directly. If D1-D6 are already decided somewhere, send me the answers and I'll replace the defaults.

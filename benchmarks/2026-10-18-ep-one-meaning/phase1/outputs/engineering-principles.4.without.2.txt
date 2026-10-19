@@ -1,0 +1,92 @@
+I can't write `plan.md` from this session because I have no file tools here. The full content is below, so you can paste it into the file.
+
+One point first. The team's requirement is already met: JSON is the only finished adapter, and it covers `config.json` with `api_url`, `team_id` and `log_level`. The two weeks already spent are gone whether or not the other pieces get finished. What's left to decide is whether finishing them is worth this sprint's time. So I structured the plan to ship the requirement first. The three extras come after it, each behind a go/no-go check, so the sprint can't end with nothing shipped.
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Goal
+Ship the config subsystem this sprint. The one consumer team needs: read
+`config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+The remaining architecture (adapters, watcher, migrations) is completed
+after that, in priority order, each behind a go/no-go gate.
+
+## Phase 0: Ship the actual requirement (Days 1-2)
+- [ ] Wire startup path: load `config.json` via the JSON adapter.
+- [ ] Validate the three fields:
+  - `api_url`: required, valid URL (http/https)
+  - `team_id`: required, non-empty string
+  - `log_level`: required, one of the allowed levels (confirm list with the team)
+- [ ] Fail fast at startup with a clear error naming the field and the problem.
+- [ ] Tests: valid config, each field missing, each field malformed, file missing, invalid JSON.
+- [ ] Verify the half-wired watcher and the unimplemented migration interfaces
+      are not on the startup path (no side effects, no failures when unused).
+- [ ] Release to the consuming team and get their confirmation.
+
+**Exit criteria:** the team is running it. Everything below is optional on top of this.
+
+## Phase 1: Complete format adapters (Days 3-5)
+Order by likelihood of use: YAML, TOML, XML.
+- [ ] Define the adapter contract tests once (parse, error reporting with
+      line/column, unknown/duplicate keys, type fidelity) and run every adapter against them.
+- [ ] YAML adapter: pick a safe-load parser, disable arbitrary object construction,
+      handle the anchors/aliases and implicit-typing pitfalls (e.g. `no` -> false).
+- [ ] TOML adapter: parser selection, datetime handling, map to the same internal model.
+- [ ] XML adapter: define the mapping convention (attributes vs. elements, repeated
+      elements -> arrays, type coercion since XML is untyped); disable external
+      entities (XXE).
+- [ ] Format selection: by file extension, with a documented precedence if several files exist.
+- [ ] Docs: one example config per format.
+
+**Gate:** if XML has no concrete user, cut it here and leave the scaffold documented as unsupported.
+
+## Phase 2: Finish and harden the hot-reload watcher (Days 6-8)
+- [ ] Decide reload semantics first: which settings can change at runtime and
+      which need a restart. `api_url` and `team_id` probably need a restart.
+- [ ] Finish wiring: debounce rapid events, handle editors that save via
+      rename/replace, handle the file being deleted or recreated.
+- [ ] On reload, validate before applying. A bad edit keeps the last good config
+      and logs the error. It must never crash the process.
+- [ ] Apply the new config atomically to consumers (swap a snapshot, no partial state).
+- [ ] Make it opt-in (flag or setting), off by default.
+- [ ] Tests: valid edit, invalid edit, rapid edits, delete/recreate, watcher shutdown
+      with no leaked handles or threads.
+
+**Gate:** if there is no runtime-change use case by now, ship it disabled.
+
+## Phase 3: Implement the migration framework (Days 9-10)
+- [ ] Add a `schema_version` field. Config without it is treated as v1.
+- [ ] Implement the migration runner: ordered, pure functions (v_n -> v_n+1),
+      applied in sequence, with a clear error if the version is newer than supported.
+- [ ] Decide whether migrations rewrite the file on disk (default: no, in-memory only).
+- [ ] With only v1 existing, ship the runner plus one real or example migration
+      as a test fixture, and do not invent migrations nobody needs.
+- [ ] Tests: no-op at current version, multi-step upgrade, unknown future version, failing migration.
+
+**Gate:** if no breaking schema change is planned, ship the runner as a no-op.
+
+## Cross-cutting
+- Keep Phase 0 behavior unchanged. Add a regression test that the `config.json`
+  path still works after each phase.
+- Every added format and feature increases surface area to maintain, so document
+  each one as supported, experimental or unsupported.
+- Update README and the architecture doc at the end of each phase.
+
+## Risks
+| Risk | Mitigation |
+|---|---|
+| Extras crowd out or destabilize the shipped path | Phase 0 ships first; regression test each phase |
+| YAML/XML parsing vulnerabilities | Safe-load only, XXE disabled, fuzz a few malformed inputs |
+| Watcher causes crashes or races | Validate-then-swap, opt-in, off by default |
+| Maintenance cost of unused features | Gates above; mark unused ones experimental or unsupported |
+
+## Schedule
+| Days | Work |
+|---|---|
+| 1-2 | Phase 0 (ship) |
+| 3-5 | Phase 1 (adapters) |
+| 6-8 | Phase 2 (watcher) |
+| 9-10 | Phase 3 (migrations) |
+```
+
+If you want, I can tighten any phase, or draft a shorter version that covers only Phase 0 and a decision date for the rest. If you make `plan.md` accessible to a session with file tools, I can also write it there directly.

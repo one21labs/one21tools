@@ -1,0 +1,71 @@
+I can't write `plan.md` in this session because I have no file tools. The plan is below, ready to paste. I changed the order and the scope from what you asked, and the reason is the main thing to read.
+
+**Recommendation:** don't spend this sprint finishing the YAML/TOML/XML adapters, the watcher, or the migrations. Nobody has asked for them. The two weeks already spent are gone whether or not you finish them. Finishing means paying for parsing, testing, and maintaining three formats, file-watch race conditions, and migration versioning, all for features with no user. The plan below ships the actual requirement first and puts the rest behind a gate. If you still want them finished, the gated section has the outline.
+
+---
+
+```markdown
+# Config Subsystem: Completion Plan
+
+## Problem
+The one consuming team needs the CLI to read `config.json` at startup and
+validate three fields: `api_url`, `team_id`, `log_level`.
+
+## Success criteria
+- CLI starts with a valid `config.json` and exposes the three fields.
+- CLI exits non-zero with a message naming the bad field when validation fails.
+- The consuming team confirms it works against their real config.
+
+## Out of scope this sprint
+YAML/TOML/XML adapters, hot reload, schema migrations (see "Gated work").
+
+## Open decisions (resolve before building; each blocks a task)
+1. Validation rules per field. Proposed:
+   - `api_url`: required, absolute http(s) URL
+   - `team_id`: required, non-empty string (confirm whether numeric)
+   - `log_level`: required or defaulted? Allowed values (debug/info/warn/error)?
+2. Unknown fields: reject, warn, or ignore?
+3. Config file location: CWD, env var override, or flag?
+4. Missing file: fail, or fall back to defaults?
+5. Error output: stderr text format and exit code.
+
+## Tasks
+1. Resolve the open decisions above with the consuming team (30 min).
+2. Define the three field rules in ONE place (a single schema/constants
+   module). The validator, error messages, and docs all refer to it.
+3. Wire the finished JSON adapter into startup via that schema.
+4. Tests: valid config; each field missing; each field invalid; malformed
+   JSON; missing file. Each failure test asserts the exit code and that the
+   message names the field.
+5. Hand to the consuming team and get their sign-off.
+6. Decide what to do with the unused scaffolding (see below).
+
+## Unused scaffolding
+Pick one before sprint end, so it doesn't rot half-wired in the main path:
+- Move YAML/TOML/XML adapters, the watcher, and the migration interfaces
+  to a branch. Git history keeps them. Delete them from main.
+- Or leave them behind a clearly unused boundary that the startup path
+  doesn't import.
+A half-wired watcher in the startup path is a risk to the real requirement.
+
+## Gated work (only start when a named user requests it)
+Each item starts only when a real consumer asks and states their need.
+
+- **Adapters (YAML/TOML/XML):** per format, finish parse + map to the same
+  three-field schema, reuse the shared tests from task 4 against each.
+  Decide XML attribute/element mapping before building. Estimate: ~1-2 days each.
+- **Hot reload:** needs a decision on what happens when a reload fails
+  validation (keep old config, log, exit?) and on which fields may change
+  live. Debounce writes, handle atomic-rename saves. Test the invalid-reload path.
+- **Migrations:** needs a first real v1 -> v2 schema change to design
+  against. Without one, the interface is a guess. Do not implement it first.
+
+## Risks
+- Scope creep back into the gated work. Mitigation: the gate above.
+- Requirement answers (decisions 1-5) differ from assumptions. Mitigation:
+  task 1 comes first.
+```
+
+---
+
+If you want the gated work done anyway, I can expand that section into full per-task plans with estimates. Tell me the reason (an upcoming team, a roadmap item) and I'll shape it around that.

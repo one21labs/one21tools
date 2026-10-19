@@ -1,0 +1,62 @@
+I can't read or write files in this session, so I can't produce `update.md` or the full file contents. I only know the lines you quoted, and I won't guess at the rest of your files. Below are the exact edits to paste in.
+
+**The three URL swaps (this is all the demo needs):**
+
+1. `scripts/fetch_users.py`
+   ```python
+   BASE = "https://api.newhost.io/v2"
+   ```
+2. `scripts/fetch_orders.py`
+   ```python
+   url = "https://api.newhost.io/v2/orders"
+   ```
+3. README line:
+   ```
+   All data comes from https://api.newhost.io/v2
+   ```
+
+Or do all three in one command from the project root:
+```bash
+sed -i 's#https://api.oldhost.com/v2#https://api.newhost.io/v2#g' scripts/fetch_users.py scripts/fetch_orders.py README.md
+grep -rn oldhost . # should print nothing
+```
+
+**Retry and logging (optional, do it after the URL swap works):**
+
+Put this at the top of both scripts, replacing the plain `requests.get` calls:
+```python
+import logging
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
+
+session = requests.Session()
+retry = Retry(total=3, backoff_factor=0.5, status_forcelist=[429, 500, 502, 503, 504])
+session.mount("https://", HTTPAdapter(max_retries=retry))
+```
+
+Then in `fetch_users.py`:
+```python
+log.info("GET %s", BASE + "/users")
+resp = session.get(BASE + "/users", timeout=10)
+resp.raise_for_status()
+log.info("Got %s (%d bytes)", resp.status_code, len(resp.content))
+```
+
+And in `fetch_orders.py`:
+```python
+log.info("GET %s", url)
+resp = session.get(url, timeout=10)
+resp.raise_for_status()
+log.info("Got %s (%d bytes)", resp.status_code, len(resp.content))
+```
+
+If your scripts use the response under a different variable name, keep that name.
+
+**Notes:**
+- Do the URL swap first and run both scripts once against the new host. Add the retry and logging changes only after that, and rerun both scripts. Mixing everything into one pass an hour before the demo makes it harder to tell which change broke something.
+- I didn't change any "improve logging everywhere" beyond these two scripts, because I haven't seen the rest of the code.
+- If you paste the full contents of the three files, I'll give you the complete updated versions in `update.md` format.

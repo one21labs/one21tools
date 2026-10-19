@@ -1,0 +1,118 @@
+I can't write `rca.md` in this session because I have no file tools. The full document is below, ready to save as `rca.md`. I only have what you told me, so dates, client impact, owners and ticket links are marked `[fill in]`.
+
+---
+
+```markdown
+# Root Cause Analysis: Empty customer export delivered to client (3rd occurrence in 2 months)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. Monitoring did not alert. The client noticed first.
+
+This is the third occurrence in two months with the same outcome and different triggers:
+
+| # | Trigger | Job exit code | Output | Detected by |
+|---|---------|---------------|--------|-------------|
+| 1 | Schema rename | 0 | Empty file | Client |
+| 2 | Expired credential, swallowed by the job | 0 | Empty file | Client |
+| 3 | Export SQL changed without the wiki's manual verification step | 0 | Empty file | Client |
+
+**Impact:** [fill in: client(s), how long the empty file was in their hands, any downstream effects, any contractual or SLA exposure]
+
+## Analysis
+
+Three different triggers produced one outcome. That points to a system cause, not three separate causes.
+
+Why was an empty file delivered to a client?
+1. The job wrote zero rows and exited 0, and delivery ran as normal.
+2. Why? The job treats "query returned nothing" as success. A zero-row result is not distinguished from a legitimate result.
+3. Why was that not caught downstream? Nothing between "file written" and "file delivered" checks the content. Monitoring checks only the exit code, which the job reports as 0 in the failure case.
+4. Why did the job's own failures not surface? Errors are swallowed (credential case), and success is defined as "didn't crash" instead of "produced valid output".
+5. Why were the triggers able to reach the client? The only control on the query-change path was a manual wiki step. A new engineer (six weeks in) did not run it. Nothing in the system enforces it or makes the miss visible.
+
+**Branches**
+
+- **Branch A: the job and delivery accept invalid output (root cause).** Success is defined as "exit 0", and exit 0 is possible with empty output. This enabled all three occurrences.
+- **Branch B: monitoring watches the wrong signal.** It checks the exit code, not the output. This turned a recoverable internal failure into a client-visible one all three times.
+- **Branch C: a manual step guards a change path.** The control for query changes lives in a wiki and depends on memory. Priya's miss is the visible symptom. Six weeks of tenure means she hadn't yet absorbed tribal knowledge, and the system gave her no prompt.
+
+**Human error is not the root cause.** Priya did what an engineer without the guard would do. If one person skipping one manual step can send an empty file to a client, the system allowed it. Previous incidents had different people and different triggers, so no further coaching would have prevented them.
+
+## Root Cause
+
+The export pipeline has no definition of "valid output" that is enforced between producing a file and delivering it. Success is defined as exit code 0, and the job can exit 0 with zero rows. Monitoring inherits that definition, so every upstream failure (schema change, auth failure, bad query) turns into a silent, delivered empty file.
+
+## Fixes
+
+Ordered per the rule: remove beats prevent, prevent beats detect.
+
+### Remove (eliminate the failure path)
+
+1. **Delete the swallow.** Remove the error handling that catches the credential failure and continues. Let auth and query errors fail the job with a non-zero exit. This removes the cause of occurrence #2 outright.
+2. **Make zero rows a failure.** The job exits non-zero when it writes zero rows, unless the export is explicitly configured to allow empty results (default: not allowed). This removes the "empty and exit 0" state that all three occurrences share.
+3. **Remove the manual verification step from the wiki** once step 4 exists. A check that depends on remembering is replaced by one that cannot be skipped. Delete the wiki text; do not leave it as a second copy of the rule.
+
+### Prevent (stop bad output reaching the client)
+
+4. **Gate delivery on output validation.** Delivery runs only if the output passes: row count > 0, file size above a floor, and row count within a tolerance of the previous successful run (threshold set in one config, see below). A failed gate blocks delivery and pages the on-call.
+5. **Run the export query against a known fixture in CI** for any change to the export SQL. The check asserts the expected columns and a non-zero result. This replaces the manual "run it once and eyeball" step and also catches schema renames (occurrence #1) before deploy. [Owner: fill in]
+
+### Detect (last line of defence)
+
+6. **Alert on output, not exit code.** Emit row count and file size as metrics for every run. Alert on zero, and on deviation beyond tolerance from the trailing average. Keep exit-code alerting as well.
+7. **Alert on the absence of a healthy run**, not only on a bad one: no successful validated export by [time] pages on-call.
+
+### One source of truth
+
+The validation rules (minimum rows, allowed deviation, whether empty is permitted per export) live in **one config file** read by the job, the delivery gate, and the alert rules. Nothing copies those thresholds into the wiki, the monitoring config, or code constants. The wiki links to the config and states no values.
+
+## Design Check Before Building
+
+Approval of this plan does not make the design complete. Open questions to answer before implementation tasks start:
+
+- **Scope:** which exports and clients does this cover, only this job or every delivery job?
+- **Legitimate empty results:** is a zero-row export ever valid for any client? If so, how is it declared?
+- **Tolerance:** what deviation from the previous run is normal? Pull the last [N] runs to set it from data.
+- **Failure behaviour:** when the gate blocks delivery, who is paged, what does the client receive (nothing, a delay notice), and what is the SLA for the fix?
+- **Backfill:** how do we re-run and re-deliver after a blocked night?
+- **Client communication for this incident:** [fill in]
+- **Success criteria:** zero empty files delivered to clients over [period]; time-to-detect for any bad export under [X] minutes, detected by us, not the client.
+- **Rollback:** if the gate produces false blocks, how is it bypassed, who may do it, and is the bypass logged?
+
+## Action Items
+
+| # | Action | Type | Owner | Due |
+|---|--------|------|-------|-----|
+| 0 | Resolve design-check questions above | Design | [fill in] | [fill in] |
+| 1 | Remove error swallowing; propagate auth/query errors | Remove | [fill in] | [fill in] |
+| 2 | Non-zero exit on zero rows (opt-in for empty) | Remove | [fill in] | [fill in] |
+| 3 | Central validation config (single source of truth) | Prevent | [fill in] | [fill in] |
+| 4 | Delivery gate on validation | Prevent | [fill in] | [fill in] |
+| 5 | CI fixture test for export SQL changes | Prevent | [fill in] | [fill in] |
+| 6 | Output-based metrics and alerts; missing-run alert | Detect | [fill in] | [fill in] |
+| 7 | Delete wiki manual step and link to the config instead | Cleanup | [fill in] | [fill in] |
+| 8 | Contact the affected client; re-deliver correct data | Response | [fill in] | [fill in] |
+
+## Verification
+
+Each fix is verified by triggering the original failure and confirming the system catches it. "We will monitor going forward" does not count.
+
+1. **Zero rows (occurrence #3 and general):** run the export against a query that returns no rows. Expect a non-zero exit, delivery blocked, and a page to on-call.
+2. **Expired credential (occurrence #2):** run the job with a revoked or expired credential in staging. Expect a non-zero exit with the auth error visible in the logs, no file delivered, and an alert.
+3. **Schema rename (occurrence #1):** rename a column the query depends on in staging. Expect the CI fixture test to fail the change, and if bypassed, the job to fail or the gate to block delivery.
+4. **Query change without manual check (occurrence #3):** open a PR changing the export SQL to one that returns nothing, with no manual run. Expect CI to fail.
+5. **Alerting independent of exit code:** force a run that exits 0 with an empty file (gate bypassed in staging only). Expect the output-based alert to fire.
+6. **Missing run:** suppress the nightly job in staging. Expect the no-healthy-run alert to fire at the deadline.
+
+Record the date and result of each test in this document when complete.
+```
+
+---
+
+- **Open questions:** The "Design Check" section lists the questions your team should answer before implementation, even if the plan is already approved.
+- **Priya:** The document treats her miss as a symptom of a control that depends on memory, not as the cause.
+- **Placeholders:** If you give me the timeline, impact and owners, I can fill them in.

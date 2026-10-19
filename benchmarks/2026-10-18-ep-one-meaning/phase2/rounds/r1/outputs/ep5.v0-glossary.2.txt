@@ -1,0 +1,64 @@
+I can't write `tasks.md` from this session because I have no file or code-execution tools. Below is the full content, ready to paste into `tasks.md`.
+
+I'm not reopening the plan. But "all of a user's data", "whatever format is easiest" and "fast" leave open points the build depends on. I've made them short decision tasks (D1–D5) ahead of the build tasks, each with a proposed default so they take minutes, not a meeting. If the meeting already settled any of them, mark it done and move on.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): Build an API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week.
+
+## Phase 0: Decisions (block the build; time-box to 1 day total)
+
+Each has a proposed default. Accept it or override it, then record the answer in the "Decision" line.
+
+- [ ] D1. Data scope: which tables/services count as "all of a user's data"?
+  Default: every table with a user foreign key, plus the user's uploaded files. Excludes derived or internal data (audit logs, analytics events, other users' data that mentions them).
+  Output: a list of included sources. This list is the source of truth for T2.
+  Decision: _____
+- [ ] D2. Format: "easiest" must be one concrete format.
+  Default: a single JSON document, with one key per source in D1. Put the schema in one file (T1).
+  Decision: _____
+- [ ] D3. Auth and access: who can call it?
+  Default: an authenticated user can export only their own data. Admin or support export is out of scope. Re-authentication is not required.
+  Decision: _____
+- [ ] D4. "Fast": a measurable target, and sync vs. async.
+  Default: synchronous if p95 is under 5s for the largest realistic user. Otherwise async (job, then download link). Needs a number for "largest realistic user".
+  Decision: _____
+- [ ] D5. Sensitive fields: password hashes, tokens, internal flags, and other users' PII.
+  Default: exclude secrets and internal fields. Include only data the user provided or generated.
+  Decision: _____
+
+## Phase 1: Build
+
+- [ ] T1. Define the export schema once (a single schema/type file). The endpoint, tests and docs all refer to it. (needs D1, D2)
+- [ ] T2. Implement one collector function per source in D1, each returning data in the T1 shape. A single registry lists the collectors, so adding a source is one entry. (needs T1)
+- [ ] T3. Implement the endpoint (e.g. `GET /users/me/export`) that runs the registry and returns the result. (needs T2, D3, D4)
+  - Enforce auth: a user gets only their own data (D3).
+  - Strip excluded fields in one place (D5).
+- [ ] T4. Error handling: define the response for partial collector failure (fail the whole export; don't return incomplete data silently), unauthenticated, rate-limited, and timeout.
+- [ ] T5. Performance: query efficiently (no N+1; stream or paginate large sources). Add the limit or timeout from D4. If D4 chose async, add the job and download-link flow.
+- [ ] T6. Rate limit the endpoint (it is expensive and returns sensitive data).
+
+## Phase 2: Verify
+
+- [ ] V1. Completeness test: a seeded user with data in every D1 source. The export contains every source. Add a new table with a user foreign key and confirm a test fails until it is added to or excluded from the registry.
+- [ ] V2. Isolation test: user A calls the endpoint and receives none of user B's data. Unauthenticated calls get 401/403.
+- [ ] V3. Exclusion test: the response contains none of the D5 fields.
+- [ ] V4. Performance test: run against the largest realistic dataset from D4 and confirm it meets the target.
+- [ ] V5. Failure test: force one collector to throw and confirm the endpoint returns an error, not a partial export.
+
+## Phase 3: Ship
+
+- [ ] S1. API documentation: refer to the T1 schema file; don't restate its fields.
+- [ ] S2. Logging/metrics: export requests, duration, failures. Audit-log who exported when.
+- [ ] S3. Release behind a flag. Roll back if V1–V5 fail in staging.
+- [ ] S4. Announce the endpoint to the owners of any consuming client.
+
+## Risks
+- If D1 is unresolved by mid-week, the next-week ship date is at risk, because T1–T3 can't start.
+- Highest-risk items: the completeness gap (silently missing a data source) and cross-user leakage. V1 and V2 cover them.
+```
+
+Two things to check before you paste it:
+- Confirm D1 and D4 with whoever owns the data and the SLA. Everything else can take the defaults.
+- Once a person fills in D1–D5, the task list holds without further changes.

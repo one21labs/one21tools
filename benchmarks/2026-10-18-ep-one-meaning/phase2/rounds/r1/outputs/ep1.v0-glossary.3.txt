@@ -1,0 +1,118 @@
+I can't write `rca.md` because this session has no file-write tools. Below is the full document, ready to save as `rca.md`.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date:** 2026-10-18
+**Owner:** Data platform team
+**Status:** Draft. Items marked *[confirm]* are assumptions I couldn't verify from what I was given.
+
+## 1. Problem statement
+
+The nightly customer-export job wrote an empty output file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first. This is the third time in two months.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Priya changed the export SQL and skipped the manual wiki check | Empty file, exit 0, client noticed |
+
+The triggers differ and the outcome is identical. Three different triggers with one outcome means the cause is in the system's handling of failure, not in any single trigger.
+
+## 2. Analysis (5 Whys, branched)
+
+**Branch A: why did an empty file exist and exit 0?**
+1. Why was the file empty? The query returned zero rows (or, in #2, never ran). The trigger varies each time.
+2. Why did the job succeed anyway? It treats "wrote a file" as success. Zero rows is not an error condition in its code, and in #2 an error was caught and swallowed.
+3. Why does the code behave that way? No contract defines what a valid export is (minimum rows, expected shape). *[confirm]*
+4. **Root cause A:** the job has no definition of "valid output" and no failure path for invalid output.
+
+**Branch B: why did nobody find out before the client?**
+1. Why no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It is the only signal the job emits.
+3. **Root cause B:** monitoring observes process health, not output health. A job can be healthy and wrong.
+
+**Branch C: why was an empty file delivered?**
+1. Why was it delivered? Delivery runs unconditionally after the job.
+2. Why no gate? Nothing between "file written" and "file sent" checks the file.
+3. **Root cause C:** no delivery gate. The only barrier to bad output is a human step.
+
+**Branch D: why did the human step fail this time?**
+1. Why was the manual check skipped? It is a wiki instruction, not part of the change process.
+2. Why does that matter? It depends on memory, and on tenure: Priya joined six weeks ago.
+3. **Root cause D:** a critical control lives in documentation and relies on people remembering it. This is a system condition, not individual error. The same step would eventually be missed by anyone.
+
+Priya's skipped step was the trigger of this incident, not its cause. Branches A to C would have let the first two incidents through with no human involved in the change at all.
+
+## 3. Fixes (ranked: remove > prevent > detect)
+
+**Remove**
+- **R1. Remove the swallowed-error path** that hid the expired credential. Auth and query errors must propagate and fail the job. Remove the catch-and-continue, don't add monitoring around it.
+- **R2. Remove the manual wiki step as the control.** Once P1 and P2 exist, replace the wiki instruction with a one-line reference to where the check lives (the job). The wiki should not describe the check; the job is the single source of truth.
+
+**Prevent**
+- **P1. Output validation inside the job (source of truth for "valid").** Before the job reports success, it checks:
+  - row count > 0 (or ≥ a configured minimum);
+  - the header/columns match the expected schema (this catches rename-style breakage);
+  - optionally, row count is within a tolerance of the previous successful run *[needs a decision, see §5]*.
+  
+  On failure the job exits non-zero and writes no deliverable. It defines the thresholds in one config location.
+- **P2. Delivery gate.** Delivery runs only if the job succeeded and the validated file exists. A failed run leaves the previous delivery state untouched and delivers nothing.
+
+**Detect**
+- **D1. Alert on job failure, and on a missing delivery by a deadline** (the job didn't run or hung, so there is no exit code to check). Page the data platform on-call, not the client.
+- **D2. Emit row count as a metric** and alert on anomalies. This is a backstop for the cases P1 can't catch, such as a partial but non-empty result.
+
+Do not "add an alert on empty file" as the only fix. That is detect-only and leaves delivery ungated.
+
+## 4. Verification
+
+Each test triggers the failure and confirms the fix catches it. "We'll monitor going forward" is not verification.
+
+| Fix | Test | Pass condition |
+|-----|------|----------------|
+| P1 | Run the job against a query returning zero rows | Non-zero exit, no deliverable written, alert fires |
+| P1 | Run against a table with a renamed column (replays incident #1) | Job fails on schema/query error, none delivered |
+| R1 | Run with an expired or invalid credential (replays #2) | Job fails non-zero, error visible in logs and alert |
+| P2 | Force the job to fail after the file is partially written | Delivery step does not run |
+| D1 | Skip the scheduled run entirely | Missing-delivery alert fires by the deadline |
+| Regression | Replay Priya's change (#3) with the bad query | Job fails, none delivered, without anyone running the manual step |
+| Control | Run with a normal query | Export delivered as before |
+
+Run these in a non-production environment, then once in production against a test recipient *[confirm feasible]*.
+
+## 5. Open questions (decide before building)
+
+These gaps are blocking for P1. They need answers, not just approval of this plan.
+
+1. **Can a legitimate export be empty?** If some clients can have zero rows on some nights, the rule must be per-client or must require an explicit "expected empty" flag.
+2. **What is the minimum-rows or tolerance rule**, and who owns the thresholds?
+3. **Who is on-call for alerts**, and what is the delivery deadline?
+4. **Is delivery owned by this job or a separate system?** P2 needs a place to enforce the gate.
+5. **Client remediation:** what has been communicated to the affected client for this and the previous two incidents? Out of scope for this document, but unowned right now.
+6. **Success criteria for this work:** proposed: zero empty or invalid exports reach a client, and every invalid run produces an internal alert before the delivery deadline.
+
+## 6. Scope
+
+**In scope:** the export job's validation and error handling, the delivery gate, monitoring, and removing the wiki step as a control.
+**Out of scope:** the other pipelines on this platform. Recommend checking whether they share the same "exit 0 on empty" pattern, since the root cause is generic and likely not unique to this job.
+
+## 7. Action items
+
+| # | Action | Type | Owner | Due |
+|---|--------|------|-------|-----|
+| 1 | Resolve open questions §5.1 to 5.4 | Decision | TBD | TBD |
+| 2 | Remove swallowed-error handling (R1) | Remove | TBD | TBD |
+| 3 | Add output validation (P1) | Prevent | TBD | TBD |
+| 4 | Add delivery gate (P2) | Prevent | TBD | TBD |
+| 5 | Add failure and missing-delivery alerts, row-count metric (D1, D2) | Detect | TBD | TBD |
+| 6 | Run the verification table (§4) | Verify | TBD | TBD |
+| 7 | Replace the wiki step with a reference to the job (R2) | Remove | TBD | TBD |
+| 8 | Audit other jobs for the same pattern | Prevent | TBD | TBD |
+
+Owners and dates are blank because I don't know your team's assignments.
+
+---
+
+I don't have the job's code, config or monitoring setup, so the root causes above are inferred from your description. The two to check are *[confirm]* in §2: whether the job really has no validity contract, and whether delivery really runs unconditionally. If you paste the job script and the delivery step, I can tighten those sections and make the fixes concrete.

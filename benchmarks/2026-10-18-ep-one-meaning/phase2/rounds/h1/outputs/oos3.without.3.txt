@@ -1,0 +1,63 @@
+I can't open your project in this session, so I haven't seen the existing exporter or the language it's in. Here is the design I'd build, with a Python sketch you can translate if it's another language.
+
+## Design
+
+**1. A small contract.** Define one interface, extracted from what the current exporter does. Keep it narrow:
+
+```python
+# exporters/base.py
+from abc import ABC, abstractmethod
+from typing import ClassVar, BinaryIO
+
+class Exporter(ABC):
+    name: ClassVar[str]              # registry key, e.g. "csv"
+    file_extension: ClassVar[str]    # e.g. ".csv"
+    api_version: ClassVar[int] = 1   # lets core reject incompatible plugins
+
+    @abstractmethod
+    def export(self, data: "ExportData", out: BinaryIO) -> None: ...
+```
+
+Exporters take the same core data model and write to a stream. They never reach into core internals.
+
+**2. A registry in core.** It is the only thing core knows about:
+
+```python
+# exporters/registry.py
+_registry: dict[str, type[Exporter]] = {}
+
+def register(cls):                       # decorator for built-ins
+    if cls.name in _registry:
+        raise ValueError(f"duplicate exporter: {cls.name}")
+    _registry[cls.name] = cls
+    return cls
+
+def get(name): ...
+def available(): ...
+```
+
+**3. Discovery through entry points, not a hardcoded list.** This is what lets future developers add formats without touching core.
+- Third-party or separately packaged exporters declare `[project.entry-points."yourapp.exporters"]` in their own `pyproject.toml`.
+- Core calls `importlib.metadata.entry_points(group="yourapp.exporters")` at startup and registers each one.
+- For in-repo exporters, add an auto-import of everything in `exporters/builtin/`.
+- A broken plugin should log a warning and be skipped, not crash the app.
+
+**4. Callers go through the registry.** The CLI/API takes `--format <name>` and looks it up with `registry.get(name)`. The "unknown format" error lists `available()`.
+
+**5. Migrate the existing exporter first.** Port it to the new interface as the first plugin. That proves the contract works, and there's no special-case path left in core.
+
+**6. Developer experience.**
+- A short `docs/writing-an-exporter.md` with a ~20-line example.
+- A shared contract test suite that any registered exporter automatically runs, covering round-trip, empty data, and large data.
+- A `list-formats` command.
+
+## What I'd skip for now
+- Config schemas per plugin, hooks, and lifecycle events. Add them when a second real exporter needs them.
+- Sandboxing or plugin signing. Those only matter if you load untrusted third-party code.
+
+## Questions that change the design
+1. What language and packaging setup is this? The entry-point mechanism differs by language: Python entry points, Node `package.json` keywords or dynamic `import()`, Go build-time registration, and so on.
+2. Do plugins live in this repo, in separate installable packages, or both? If they're only in-repo, I'd skip entry points and use directory auto-discovery.
+3. Does the current exporter write to a file path, a stream, or return a string or bytes? That decides the `export` signature.
+
+If you point me at the repo, or paste the current exporter and where it's called from, I'll implement it: the interface, registry, loader, migration of the existing exporter, tests, and the doc.

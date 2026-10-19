@@ -1,0 +1,74 @@
+# Shared phone validation library
+
+## Don't use the strictest rule everywhere
+
+These three copies don't state the same fact. They enforce three different contracts:
+
+| Service | Input | Contract |
+|---|---|---|
+| billing | stored data | Must be exactly what the payment provider accepts (E.164) |
+| signup | human typing | Accept anything a person plausibly types |
+| support | agents pasting | E.164, with whitespace tolerated (a 2023 copy of billing) |
+
+If signup used billing's regex, `(415) 555-0134` and `415.555.0134` would fail. Those are the formats your ~4,000 daily mobile submissions use. Signup would lose a large share of them.
+
+The duplicated fact is the **definition of a valid E.164 number and how to turn typed input into one**. Signup's looseness is a separate concern, **input normalization**. One library can own both, as two functions with different jobs.
+
+## Design
+
+Package: `company-phone` on the private PyPI.
+
+```python
+E164_RE = re.compile(r'\+[1-9][0-9]{7,14}', re.ASCII)   # the single definition
+
+def is_e164(s) -> bool:
+    """Strict. For billing and any code that calls the provider.
+    No stripping, no normalizing. True only if s is already a valid E.164 str."""
+    return isinstance(s, str) and E164_RE.fullmatch(s) is not None
+
+def normalize_phone(raw, default_region="US") -> str | None:
+    """Lenient input. For signup and support.
+    Strips spaces, (), ., -; applies the default country code when there is no '+';
+    returns an E.164 string, or None if it can't be made into one."""
+```
+
+- `normalize_phone` always ends by calling `is_e164`, so the strict definition exists once.
+- Use the `phonenumbers` library inside `normalize_phone` for region handling. Don't hand-roll country-code logic.
+- `None` is the failure signal, because rejecting input is the normal case here. Don't raise.
+- Signup then **stores the normalized E.164 value**. That way billing receives numbers its strict check will accept, not raw typed text.
+
+## Bugs in the current code that the library fixes
+
+These are behavior changes, so check them in the rollout.
+
+1. **Billing and support:** `$` matches before a trailing newline, so `"+14155550134\n"` passes. Billing forwards whatever passed to the provider. `fullmatch` fixes this.
+2. **Billing and support:** `\d` in a Python `str` regex matches non-ASCII digits such as Arabic-Indic ones. `[0-9]` with `re.ASCII` fixes this.
+3. **Signup:** `LOOSE.match` has no end anchor and the class allows any mix. `"1234567 hello"` and `"+++...---"` pass, and so does a string with no digits at all, such as `"() . - +"`.
+4. **All three:** non-`str` input (`None`) raises `AttributeError` or `TypeError` instead of returning False.
+
+## Open decisions to settle before building
+
+I haven't assumed answers to these:
+
+- **Default region for signup.** Does `415-555-0134` mean US only, or do you take international users? This decides `default_region` and whether signup needs a country selector.
+- **Where billing's numbers come from.** If they come from signup's stored loose strings, existing rows may not be E.164, and billing's check may be rejecting them today. Does billing need a backfill?
+- **Success criteria.** I suggest these: signup rejection rate doesn't rise, and billing's provider-side rejections for phone format go to zero.
+- **Versioning.** Semver, with a changelog entry for any change to what counts as valid. A change to `is_e164` is a breaking change.
+
+## Rollout
+
+Each service deploys from its own repo, so migrate them one at a time. Don't change all three at once.
+
+1. **Publish v1.0** with unit tests. Include every example from the bug list, plus the signup formats, as test cases.
+2. **Billing first.**
+   - Replace the local function with `is_e164`, pinned as `company-phone~=1.0`.
+   - Because the library is stricter on newlines and Unicode, run old and new side by side for a few days first. Log each case where `old(s) != new(s)`, and still use the old result.
+   - Switch to the new result once the disagreements are only the intended bugs.
+3. **Support next.** Call `normalize_phone` and then `is_e164` on the result. That keeps its whitespace tolerance and drops the copied regex.
+4. **Signup last, because it has the user-facing risk.**
+   - Run shadow mode on `normalize_phone(raw) is not None` against the old `LOOSE` result. Track the rate of "old accepted, new rejects", which is your rejection-rate check.
+   - Look at a sample of those rejects. Some will be junk the old regex wrongly accepted. Others will be real numbers you need to handle.
+   - Once the rate is acceptable, switch to the new function and store the normalized value.
+5. **Delete the local `validate.py`** in each repo once it migrates, so no copies remain.
+
+I'd also add a CI check in each repo that fails if a phone regex reappears. Without it the copies tend to come back.

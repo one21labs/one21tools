@@ -1,0 +1,60 @@
+I can't write `tasks.md` from this session because I have no file or shell tools here. Below is the full content, ready to paste. I'm not relitigating the plan. But the approved text leaves several things undefined that block the build: data scope, format, "fast", and authorization. I've put those first as short decision tasks, then the build tasks. Most can be settled in a 15-minute conversation.
+
+```markdown
+# User Data Export: Implementation Tasks
+
+Plan (approved): API endpoint that exports all of a user's data. Easiest format. Fast. Ship next week.
+
+## Phase 0: Decisions (blocking, owner: PM/eng lead, target: day 1)
+
+Each task needs one written line of answer. Record the answers in this file under "Decisions" so there is a single source for them.
+
+- [ ] D1. Data scope: which tables/stores count as "all of a user's data"? Include derived data, logs, third-party-held data, or other users' data that appears in this user's records (e.g. messages, shared docs)? Exclude secrets (password hashes, tokens)?
+- [ ] D2. Format: confirm JSON as the "easiest" format, or whether a compliance requirement (e.g. GDPR portability, which expects a structured, machine-readable format) needs something else.
+- [ ] D3. Who may call it: the user for their own data only? Admins/support too? Define the authn/authz rule.
+- [ ] D4. "Fast" target: a measurable number (e.g. p95 < X s for a Y-size account) and the largest account we must support.
+- [ ] D5. Delivery model: synchronous response or async job plus download link/email? D4 largely decides this.
+- [ ] D6. Abuse controls: rate limit per user (e.g. 1 export per hour?). Audit logging required?
+- [ ] D7. Success criteria and "done" for next week's ship: what is in the first release vs. deferred?
+
+## Phase 1: Design (day 1-2)
+
+- [ ] T1. Inventory every data store/table holding user data against the D1 answer. Output: a list of (source, fields, owner, sensitivity).
+- [ ] T2. Define the export schema/contract (JSON structure, versioning field, error responses).
+- [ ] T3. Write a half-page design covering sync vs. async per D5, pagination/streaming, and failure modes. Get a quick review.
+
+## Phase 2: Build (day 2-4)
+
+- [ ] T4. Authz: enforce D3 (user can only export own data); add tests for cross-user access attempts.
+- [ ] T5. Per-source exporters: one function per data source from T1, each returning that user's data with sensitive fields stripped.
+- [ ] T6. Export aggregator that assembles exporter output into the T2 schema.
+- [ ] T7. API endpoint (`GET`/`POST` per D5) wired to the aggregator, with consistent error handling.
+- [ ] T8. If async: job queue/worker, status endpoint, expiring download link with auth.
+- [ ] T9. Streaming/pagination so large accounts don't load fully into memory.
+- [ ] T10. Rate limiting (D6) and audit log entry per export.
+
+## Phase 3: Verify (day 4-5)
+
+- [ ] T11. Tests: completeness (every T1 source present in output), authz, schema validation, empty-user and very-large-user cases.
+- [ ] T12. Performance test against the D4 target on a realistic large account; record results.
+- [ ] T13. Security review: no secrets or other users' data leak; link expiry works.
+- [ ] T14. Failure test: force one exporter to fail and confirm the endpoint returns a clear error rather than a silently partial export.
+
+## Phase 4: Ship (day 5+)
+
+- [ ] T15. Docs: endpoint reference and the export schema, one canonical location.
+- [ ] T16. Feature flag/staged rollout, monitoring on latency and error rate, rollback criteria defined.
+- [ ] T17. Release and verify in production with a test account.
+
+## Decisions (fill in during Phase 0)
+
+D1:
+D2:
+D3:
+D4:
+D5:
+D6:
+D7:
+```
+
+If the decisions can't happen on day 1, the risk is a rebuild late in the week, not a slip in the build itself. The costly ones are D1 (an incomplete export is a compliance and trust problem) and D3 (an export endpoint with weak authz is a data-leak endpoint). If you want, I can write the file once file tools are available. I could also trim Phase 3 for a tighter first release.

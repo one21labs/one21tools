@@ -1,0 +1,133 @@
+I couldn't write `rca.md`. This session has no file-write or code-execution tools, so the analysis is below as plain text. Save it as `rca.md`, or re-run me in a session with file access and I'll write it. I left placeholders where I don't have facts, such as dates, client name, and detection time.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Status:** Draft
+**Date of analysis:** 2026-10-18
+**Format:** Blameless. We look at how the system allowed this, not who triggered it.
+
+## 1. Summary
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. No alert fired, and the client noticed first. This is the third time in two months that the outcome was identical: **empty file, exit 0, no alert, client detects**.
+
+The triggers differed each time:
+
+| # | Trigger | Outcome |
+|---|---|---|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed without the manual verification step | Empty file, exit 0, client noticed |
+
+## 2. Impact
+
+- A client received an empty export. [Fill in: client, delivery time, how long until they reported it, any downstream effect on them.]
+- Client trust has taken a hit. This is the third occurrence, and the client noticed before we did each time.
+- [Fill in: time to detect, time to remediate, whether a corrected file has been delivered.]
+
+## 3. Timeline
+
+[Fill in from logs and the client report: query change merged, job run, file delivered, client report, our detection, fix, corrected delivery.]
+
+## 4. Root cause analysis
+
+### 4.1 The trigger is not the root cause
+
+The proximate trigger was a query change that returned zero rows, with the manual check skipped. Calling that the root cause would be a mistake, for three reasons:
+
+1. **Triggers vary and will keep varying.** Schema renames, credential expiry, and bad query edits have each produced this outcome. Others will follow, such as an upstream table that is late or empty, a bad join, a changed filter, or a permissions change. Fixing each trigger one at a time never ends.
+2. **A manual step is a weak control.** The wiki instruction ("after changing the query, run it once by hand and eyeball the row count") depends on memory and on knowing the step exists. It also only covers one trigger, query edits. It would not have caught incidents 1 or 2, and it can't catch a failure that appears after the change.
+3. **Priya joined six weeks ago.** Following an undocumented-in-practice, wiki-only step is not a reasonable expectation of a new engineer. Nothing in the review, CI, or deploy flow prompted it. Any engineer, new or experienced, can miss a step like this. A new hire hit it first.
+
+### 4.2 Root causes (systemic)
+
+**RC1: The job treats "zero rows" as success.**
+The job exits 0 when it writes no rows. For a customer export, an empty result is almost never a legitimate outcome. The job has no notion of an expected minimum, so a total failure looks identical to success.
+
+**RC2: Monitoring checks only the exit code.**
+The only signal watched is "did the process exit non-zero." It says whether the process ran, not whether the output is correct. Given RC1, an empty file is invisible to monitoring by construction.
+
+**RC3: No output validation gate before delivery.**
+The file is delivered to the client with no check on its content, such as row count, size, or comparison against recent runs. Delivery is automatic once the job exits 0, so nothing stands between a bad file and the client.
+
+**RC4 (contributing, incident 2): Errors are swallowed.**
+The job caught the expired-credential failure and carried on to write an empty file instead of failing. That converts a loud failure into a silent one.
+
+**RC5 (contributing, incident 3): Query changes have no automated check.**
+Verification of query changes relies on a manual wiki step. There is no automated test, CI check, or review checklist item that runs the query against representative data and asserts on the result.
+
+**RC6 (contributing): Incidents 1 and 2 did not lead to a fix for the common failure mode.**
+We presumably fixed the specific trigger each time (the rename, the credential). The shared defect (RC1–RC3) stayed in place, which is why the third incident could happen. [Confirm against the earlier post-mortems and their action items. If they had an action item for output validation that wasn't completed, say so here.]
+
+### 4.3 Why we kept missing it: five whys
+
+1. *Why did the client get an empty file?* The job produced one and delivered it.
+2. *Why was it delivered?* The job exited 0, and delivery is gated only on exit code.
+3. *Why did it exit 0 with no data?* Zero rows isn't treated as an error, and some errors are swallowed.
+4. *Why didn't monitoring catch it?* It observes only the exit code, not the output.
+5. *Why hasn't this been fixed after two prior incidents?* Remediation targeted each trigger rather than the shared failure mode of silent empty output. [Confirm.]
+
+## 5. What went well
+
+- The client reported the problem, so the issue was found. [Add anything else, such as fast response or a clean fix, if true.]
+
+## 6. What went poorly
+
+- Detection depended entirely on the client, for the third time.
+- Known failure pattern, no systemic fix.
+- A critical control was a wiki note.
+
+## 7. Corrective actions
+
+Ordered by priority. Owners and dates are placeholders for the team to assign.
+
+### Immediate (this week)
+
+| # | Action | Addresses | Owner | Due |
+|---|---|---|---|---|
+| 1 | **Fail the job on zero rows.** Make the job exit non-zero if the output has zero rows (or fewer than a minimum). Where an empty result is legitimate for a given export, make it an explicit, documented opt-in. | RC1 | TBD | TBD |
+| 2 | **Add a pre-delivery validation gate.** Delivery only proceeds if the file passes checks: row count > 0, file size above a floor, and expected header/columns present. A failed check blocks delivery and pages the team. | RC3 | TBD | TBD |
+| 3 | **Stop swallowing errors.** Audit the job's exception handling. Credential, connection, and query errors must propagate and fail the run. | RC4 | TBD | TBD |
+| 4 | **Re-deliver the correct file** to the client and give them a direct, honest account of what happened. | Impact | TBD | TBD |
+
+### Short term (next 2–4 weeks)
+
+| # | Action | Addresses | Owner | Due |
+|---|---|---|---|---|
+| 5 | **Monitor the output, not just the process.** Emit row count and file size as metrics on every run. Alert on zero and on large deviation from a rolling baseline (e.g., a drop of more than X% against the trailing N runs). Alert on job-did-not-run too. | RC2 | TBD | TBD |
+| 6 | **Automate query verification.** Add a CI check that runs the export query against a fixture or staging dataset and asserts a non-empty, expected-shape result. Replace the wiki step with this. | RC5 | TBD | TBD |
+| 7 | **Add a schema-drift check.** Fail fast, with a clear message, if expected tables or columns are missing, so a rename is a loud failure rather than an empty file. | Incident 1 | TBD | TBD |
+| 8 | **Add credential-expiry alerting.** Alert on credentials ahead of expiry, and make an auth failure surface as a hard failure. | Incident 2 | TBD | TBD |
+
+### Process
+
+| # | Action | Addresses | Owner | Due |
+|---|---|---|---|---|
+| 9 | **Close out prior RCA action items.** Review incidents 1 and 2 and verify what was and wasn't done. Track all RCA actions with owners and dates, and review them at a set cadence. | RC6 | TBD | TBD |
+| 10 | **Move critical manual steps into the pipeline.** Review the wiki for other "remember to do X" controls on production jobs and automate them or enforce them via PR template and review checklist. | RC5 | TBD | TBD |
+| 11 | **Review onboarding.** Make sure new engineers are walked through how production-affecting changes are verified, and that the safety net doesn't rely on them finding a wiki page. | Contributing | TBD | TBD |
+
+### Wider check
+
+| # | Action | Owner | Due |
+|---|---|---|---|
+| 12 | **Audit other jobs** that deliver data externally for the same pattern: exit 0 on empty output, exit-code-only monitoring, no pre-delivery validation. This failure mode is unlikely to be unique to this job. | TBD | TBD |
+
+## 8. How we'll know it worked
+
+- A deliberately induced empty export (test in staging) causes a failed job, blocked delivery, and a page. Run this as a recurring game-day check.
+- No client-reported empty or malformed export for [90 days].
+- Detection source for data-quality incidents is "our own alerting," not "client report."
+
+## 9. Open questions to confirm before finalizing
+
+- What were the action items from the first two incidents, and which were completed?
+- Is an empty result ever legitimate for any export? If so, which ones?
+- Does the delivery step have any hold or approval option, or is it fully automatic?
+- How long was the file in the client's hands before they reported it, and did they act on it?
+- Is the wiki step referenced from the PR template or review process, or only from the wiki?
+
+---
+
+If you give me the incident timeline, the earlier two post-mortems, and the job's delivery setup, I can fill in the placeholders and tighten the analysis.

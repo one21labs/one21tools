@@ -1,0 +1,47 @@
+**Verdict: not ready to build.** The design has a correctness hole on the one hard requirement, and most of the 6 weeks goes to features nothing in the context justifies.
+
+## Blocking: the design can send invoices twice
+
+The requirement is that an invoice is never sent twice. The design breaks it in three places:
+
+1. **The 5s timeout re-enqueues a job whose email may already be sent.** A timeout means you don't know the outcome. The provider may have accepted the request and answered slowly. Marking the job failed and retrying sends a second invoice, which is exactly the chargeback scenario.
+2. **A crash between "provider accepted" and "mark done" causes the same duplicate.** The design has no lease or visibility timeout for a worker that dies mid-job. A job stuck in `running` is either never retried or retried blindly.
+3. **Nothing stops the same invoice being enqueued twice.** The design has no dedupe key, so a double-click or a caller retry creates two jobs.
+
+Fixes to put in the design before building:
+- Add a unique `(type, dedupe_key)` constraint, for example `invoice:<invoice_id>`, so enqueue is idempotent.
+- Send the dedupe key to the provider as an idempotency key. Check whether your provider supports one. If it doesn't, that changes the design.
+- Give each job type a delivery semantic. Password resets and receipts can be at-least-once. Invoices need at-most-once or idempotent send. On timeout or an ambiguous crash, an invoice job goes to an `unknown` state. A worker resolves it by looking up the message at the provider, or a human resolves it. It is never blindly re-enqueued.
+- Add a lease (`locked_until`) with a reaper, and record `sent_at` or the provider message ID in the same transaction that completes the job.
+
+## Scope: most of the 6 weeks isn't justified
+
+200 to 500 emails a day is about one every few minutes. Compare each item against that:
+
+| Item | Assessment |
+|---|---|
+| In-house queue at all | Evaluate pg-boss, Graphile Worker, River or Oban (whichever fits your stack) first. They already provide SKIP LOCKED, backoff, and leases. State why they don't fit. |
+| Plugin system with YAML manifests | No other team has asked for it. Cut it. A typed handler registry in code is enough. |
+| 5 priority levels with weighted fair scheduling | Starvation isn't a risk at this volume. Use at most two lanes, or none. |
+| React admin dashboard | A few SQL queries or an off-the-shelf board covers inspection and manual retry. Add a retry CLI command if needed. |
+| 500ms polling | Harmless at this volume, but 5 to 10s polling or LISTEN/NOTIFY is enough. |
+
+## Gaps in the checklist
+
+- **Success criteria:** None are stated. Examples: zero duplicate invoices, a maximum delay for password resets, alerting when a job dead-letters.
+- **Dead-letter and alerting:** After 5 failed attempts the design doesn't say what happens. Someone must be told, especially for invoices.
+- **Retention and PII:** Payloads contain customer emails and invoice data. Define how long they are kept and whether they are redacted.
+- **Provider failure modes:** The design doesn't distinguish 4xx (don't retry), 429 and 5xx (retry), and timeouts (ambiguous).
+- **Verification:** Plan a test that kills the worker mid-send and one that makes the provider time out after accepting. Both must produce zero duplicate invoices.
+
+## Recommendation
+
+Rescope to a v1 of about 1 to 2 weeks:
+- Postgres table with `dedupe_key` unique, lease, attempts, and `provider_message_id`.
+- A worker with per-type delivery semantics.
+- A dead-letter state with an alert.
+- The two crash and timeout tests above.
+
+Defer the plugin system, the priority scheduler and the dashboard until a second team or a real incident asks for them. First, decide whether an existing library covers this, and confirm whether your email provider supports idempotency keys.
+
+If you share the provider and your stack, I can sketch the schema and the invoice state machine.

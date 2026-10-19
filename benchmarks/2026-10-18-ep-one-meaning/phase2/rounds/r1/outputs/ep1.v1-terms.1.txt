@@ -1,0 +1,125 @@
+I couldn't write `rca.md`. This session has no file-writing tool, so the full document is below for you to save as `rca.md`.
+
+---
+
+# Post-Incident Analysis: Empty Customer Export Delivered to Client (3rd occurrence)
+
+**Date:** 2026-10-18
+**Status:** Draft. Items marked *(confirm)* come from the incident summary, not from logs or code I could inspect.
+
+## 1. Problem statement
+
+The nightly customer-export job wrote an empty output file. It exited 0, and the file was delivered to a client. No alert fired, and the client noticed first.
+
+This is the third occurrence in two months. The outcome was the same each time: empty file, exit 0, no alert, client found it.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed |
+| 3 | Export SQL changed without the manual verification step | Empty file, exit 0, client noticed |
+
+**Key observation:** The triggers differ, but the outcome is identical. The triggers are not the root cause. The common cause is that the system allows an empty file to count as a success, and it also lets that file reach a client.
+
+## 2. Analysis
+
+### Branch A: why did a zero-row export count as success?
+1. Why was an empty file delivered? Nothing between "file written" and "file delivered" checks that the file has content.
+2. Why did the job exit 0? The job treats "query ran and wrote its output" as success. Zero rows is a valid result as far as the code is concerned.
+3. Why did no one decide whether zero rows is acceptable? "What does a correct export look like?" was never defined as a contract in the job.
+4. **Root cause A:** The job has no output contract. Success means "did not crash," not "produced a valid export."
+
+### Branch B: why did monitoring not catch it?
+1. Why was there no alert? Monitoring checks only the exit code.
+2. Why only the exit code? It is the cheapest signal available.
+3. Why does that fail here? The exit code measures whether the process ended, not whether the outcome was correct. Root cause A makes the exit code useless as a signal.
+4. **Root cause B:** Monitoring observes the process, not the result delivered to the client.
+
+### Branch C: why did the change ship without verification?
+1. Why was the query change not verified? Priya skipped the manual step in the wiki.
+2. Why was it possible to skip? The step is a manual, memory-based instruction. Nothing in the change path enforces it.
+3. Why is this not "human error"? A new engineer (six weeks in) followed the normal path of changing the code and shipping it. The system let an unverified query reach production. The same system would let anyone make the same mistake.
+4. **Root cause C:** A required check lives in a wiki page instead of in the change path, so skipping it is both easy and invisible.
+
+### Branch D: why did earlier triggers also reach the client? *(confirm details)*
+1. The credential case: the job swallowed the error and carried on. This is a defect in error handling, and root cause A made it harmless to the job but harmful to the client.
+2. The schema-rename case: the change produced zero rows without failing. Nothing detected the change in output.
+3. **Root cause D:** Failures inside the job are converted into "no data" instead of a failure.
+
+### Why the fix of the first two incidents did not hold *(confirm what was done)*
+Each earlier incident was likely handled as its own trigger (fix the rename, rotate the credential). That addresses the trigger and leaves the class of failure open. Incident 3 is the result.
+
+## 3. Root causes (summary)
+
+| ID | Root cause | Type |
+|----|-----------|------|
+| A | No output contract: zero rows is treated as success | System |
+| B | Monitoring checks the process exit code, not the delivered result | System |
+| C | A required verification step is a wiki instruction, not part of the change path | System |
+| D | The job swallows errors and turns them into empty output | Code |
+
+Individual error (skipping the wiki step) is not a root cause. Do not use it as the conclusion of this analysis.
+
+## 4. Fixes, ranked: remove, then prevent, then detect
+
+### Remove (fix first)
+1. **Remove the possibility of a silent empty success (fixes A, D).**
+   - The job fails with a non-zero exit when the result is empty or invalid. Zero rows becomes an error by default.
+   - Remove the catch-and-continue around credential and query errors. Errors propagate and fail the job.
+   - If a legitimately empty export ever exists, it requires an explicit per-export setting, such as `allow_empty: true`. That setting is a deliberate, visible exception, not the default.
+2. **Remove the manual wiki step (fixes C).** Replace it with an automated check (see Prevent 2), and delete the wiki instruction. The wiki then points to the check and does not restate the procedure.
+
+### Prevent
+1. **Delivery gate.** The delivery step refuses to send a file that fails the output contract. It checks that the file is not empty, has at least the minimum row count, and has the expected columns. This is independent of the job's exit code, so a bug in the job cannot bypass it.
+2. **Automated query check in the change path.** A CI test runs the export query against a representative dataset and asserts non-zero rows and the expected schema. A query change cannot merge unless it passes. This removes dependence on anyone remembering a step, which makes onboarding no longer a risk factor here.
+3. **Schema-change safety.** A schema or column rename should trip the same test in CI. *(confirm how the rename reached production unnoticed)*
+
+### Detect (last line, not the first)
+1. **Outcome monitoring.** Alert on the delivered result: row count and file size compared with a baseline (for example, a drop of more than X% against the trailing average), plus an alert when no delivery happened at the expected time.
+2. **Alert on the gate.** A blocked delivery pages the team. That way a blocked delivery is seen, not silent.
+
+## 5. Single source of truth
+- **Output contract** (minimum rows, required columns, `allow_empty`): defined once, in the export job's configuration. The job, the delivery gate, the CI test, and the monitor all read it. Do not copy thresholds into each of them.
+- **Verification procedure:** lives in the CI test. The wiki links to it and does not describe it.
+- **Alert thresholds:** one monitoring config, derived from the contract where possible.
+
+## 6. Design review: open items to settle before building
+The fixes above are a direction, not a complete design. Answer these first:
+- Who are the exports' consumers, and is zero rows ever valid for any client or export type?
+- What are the success criteria? For example: "no empty or invalid file reaches a client; a blocked delivery is seen within N minutes."
+- What does the gate do on failure: hold the file, retry, or send the previous good file? What is communicated to the client?
+- What data does the CI check run against, and how representative is it?
+- What is the rollback plan for the new gate if it blocks a legitimate delivery?
+- Owner and review date for each fix.
+
+## 7. Immediate actions (this incident)
+- Notify the affected client, and send a corrected export.
+- Check whether the two earlier clients received corrected files.
+- Confirm in logs the exact start and end time of the bad delivery, and what the client did with the data.
+
+## 8. Verification: prove each fix works by triggering the failure
+
+Do not accept "we'll monitor going forward." For each trigger, reproduce it in staging and confirm it is caught:
+
+| Test | Expected result |
+|------|-----------------|
+| Run the job with a query that returns zero rows | Non-zero exit, delivery blocked, alert fires |
+| Run the job with a revoked or expired credential | Job fails loudly (no swallow), delivery blocked, alert fires |
+| Rename a column the query uses | CI test fails before merge; if bypassed, the job fails and delivery is blocked |
+| Submit a query change that returns zero rows | CI blocks the merge |
+| Skip the job entirely | The "no delivery at expected time" alert fires |
+| Deliver a valid export | Delivery succeeds, no alerts (no false positives) |
+
+## 9. Follow-up and ownership
+
+| Action | Owner | Due |
+|--------|-------|-----|
+| Fail-on-empty and remove error swallowing | *(assign)* | *(date)* |
+| Delivery gate | *(assign)* | *(date)* |
+| CI query check and wiki step removal | *(assign)* | *(date)* |
+| Outcome monitoring and alerts | *(assign)* | *(date)* |
+| Failure-injection verification (section 8) | *(assign)* | *(date)* |
+
+---
+
+I wrote this from your summary only, with no access to the job, logs, or wiki, so the rename and credential details in section 2 are inferred. If you give me the job code or logs, I can tighten those sections. If you'd like it saved as a file, run the session where I have file access, or paste this into `rca.md` as is.

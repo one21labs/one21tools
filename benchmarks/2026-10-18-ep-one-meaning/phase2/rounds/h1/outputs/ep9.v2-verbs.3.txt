@@ -1,0 +1,50 @@
+**Not ready to build.** One flaw breaks Finance's hard requirement, and most of the 6 weeks goes to features that nobody has shown a need for.
+
+## 1. Blocker: the retry design can send duplicate invoices
+
+A 5s timeout doesn't mean the email wasn't sent. The provider may have accepted it and responded slowly. The design marks the job failed and re-enqueues it, so the customer gets a second invoice. That is the chargeback scenario Finance described. Two more paths cause the same problem:
+- A worker crashes after the provider accepts the email but before the job is marked done.
+- A job's lock expires while a slow worker is still sending.
+
+**Fix (needs a decision before build):**
+- Give every send a stable idempotency key, for example `invoice:{invoice_id}:email`. Pass it to the provider if the provider dedupes on it. Add a unique constraint on it in our own table too.
+- Add an `unknown` outcome, separate from `failed`. A timeout or crash mid-send means "outcome unknown", not "retry".
+- For invoices, an `unknown` job is never blindly retried. It is either reconciled against the provider (look up the message by key) or sent to a human queue.
+- For password resets and receipts, a duplicate is harmless, so retrying on timeout is fine. Make the retry policy per type.
+- Open question: does our provider support idempotency keys or message lookup? If it doesn't, we can't guarantee exactly-once, and Finance needs to hear that now.
+
+## 2. Waste: cut it from v1
+
+At 200–500 emails/day (about one every 3 minutes), these items solve problems we don't have:
+
+| Item | Verdict |
+|---|---|
+| Plugin system with YAML manifests | Remove. No other team is named as a consumer. Register job types in code. |
+| 5 priority levels with weighted fair scheduling | Remove. Nothing is contending for capacity. Use one queue, or at most two (urgent and normal). |
+| React dashboard and throughput charts | Remove. A SQL query or a few saved queries covers inspection. Add a small CLI or script for manual retry. |
+| 500ms polling | Poll every 5–10s, or use LISTEN/NOTIFY. 500ms is about 170k empty queries a day to serve 200 emails. |
+
+Also check whether to build the queue at all. Postgres-backed libraries (pg-boss, Graphile Worker, River, or whatever fits your stack) already provide SKIP LOCKED, backoff, and dead-lettering. The remaining work would be the idempotency logic in section 1, which is the part that matters. I'd expect this to take about 1 week instead of 6.
+
+## 3. Gaps in the design
+
+These need answers in the doc:
+- **Success criteria.** What counts as done? For example: zero duplicate invoices, plus a delivery-latency target for password resets.
+- **Scope limits.** The doc should say what v1 doesn't do.
+- **Dead-letter and alerting.** What happens after 5 failed attempts? Who gets paged? A silently dead password-reset job is a support ticket.
+- **Lease and visibility timeout.** The doc doesn't say whether the HTTP call runs inside the row-lock transaction. Holding a transaction open across a 5s network call is a bad idea. Use a status plus a lease expiry instead.
+- **Data handling.** Payloads will contain PII and reset tokens. How long are they retained, and who can read them? Does the reset token need to sit in the payload at all, or can the job store just a reference?
+- **Single source of truth.** Retry limits, timeouts, and per-type policy (retry or not) should live in one place in code, not be spread across the YAML and the worker.
+- **Testing.** Include a test that simulates a provider timeout after acceptance and asserts only one email goes out.
+- **Rollout.** How do we move from the current send path? Run it in parallel for one email type first.
+
+## Recommendation
+
+Revise the design to include:
+1. The idempotency and `unknown`-state model.
+2. A single queue.
+3. Per-type retry policy.
+4. A dead-letter alert.
+5. SQL or CLI tooling instead of a dashboard.
+
+Evaluate an existing library before writing the worker. If you share the stack and email provider, I can help turn this into a one-page revised design and a task list. The provider's idempotency support should be the first task, since the rest depends on it.

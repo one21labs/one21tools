@@ -1,0 +1,47 @@
+I can't open your project in this session, so this is the design to agree on before any code. Language-specific details depend on a few answers from you, listed at the end.
+
+## Problem and success criteria
+
+- **Problem:** adding an export format currently means editing core code.
+- **Success test:** a new format ships as one new file or package, with zero diffs in core. The existing exporter is rebuilt as the first plugin, so the framework is proven on real code and not left as an untested abstraction.
+- **Out of scope for now:** plugin sandboxing, hot reload, plugin dependency resolution and a plugin marketplace.
+
+## Components (one responsibility each)
+
+1. **Exporter contract.** One interface, for example `name`, `file_extension` and `export(data, options) -> bytes/stream`. This is the only thing core and plugins share, and it is where versioning lives.
+2. **Registry.** A map from format name to exporter. It rejects duplicate names loudly and returns a clear error for unknown formats, listing the available ones.
+3. **Discovery.** It finds exporters and registers them. Core never imports a concrete exporter. It is the only part that knows where plugins live.
+4. **Core caller.** It asks the registry for `get("csv")` (or whichever format) and calls `export`. It has no format-specific branches.
+5. **Existing exporter.** Moved behind the contract and registered like any other. Core keeps no special case for it.
+
+## Single sources of truth
+
+- **Contract:** one definition, imported by plugins, never copied.
+- **Format names:** each exporter declares its own `name`. The registry derives the list of formats from those names. Neither the CLI help, the docs nor an enum should keep a separate list.
+- **Plugin docs:** one "how to write an exporter" document, plus a minimal template exporter that is tested in CI so it can't go stale.
+
+## Discovery
+
+Pick one mechanism. I recommend your language's standard one: Python entry points, a Node `package.json` keyword or manifest, a Go registration through `init()` with blank imports, or a scanned plugins directory. Entry points suit third-party packages. A scanned directory suits in-repo plugins only.
+
+## Failure modes
+
+- A plugin that fails to import should not break other formats. Log it and skip it, and fail only if the user asked for that format.
+- Duplicate names are a startup error.
+- An exporter that raises is reported with its format name and is not swallowed.
+- A contract version mismatch is rejected at registration, not at export time.
+
+## Testing
+
+- A contract test suite that every registered exporter runs against, so a new plugin gets the checks for free.
+- A test that registers a fake exporter without modifying core. This test is the proof that the framework works.
+
+## Open questions I can't answer without seeing the code
+
+1. What language and runtime is this?
+2. What are the current exporter's inputs and outputs? Is it a whole document in memory, a stream, or a file path?
+3. How does the user choose a format today (CLI flag, config or API parameter)?
+4. Will plugins live in this repo only, or be installed by third parties as separate packages? This decides the discovery mechanism.
+5. Do exporters need per-format options? If so, who validates them?
+
+If you paste the current exporter and the call site that invokes it, I can turn this into a concrete file layout, the interface code and a migration of the existing exporter.

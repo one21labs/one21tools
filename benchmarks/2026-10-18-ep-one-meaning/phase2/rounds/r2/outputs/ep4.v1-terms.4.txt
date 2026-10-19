@@ -1,0 +1,48 @@
+I can't write `plan.md` because this session has no file tools. The full content is below for you to paste in.
+
+**My recommendation:** don't spend this sprint finishing the YAML, TOML and XML adapters, the watcher, or the migration framework. The two weeks are already spent whether or not you finish them. The question is whether the remaining work buys anything. The one team using the tool asked for three validated fields from `config.json`, and the JSON adapter is done. Finishing the rest means building and maintaining three formats, hot reload and migrations that no one has asked for. Each also adds failure modes, such as a half-wired watcher reloading a bad config mid-run. I've written the plan so the real requirement ships first and the speculative work is gated, not scheduled.
+
+```markdown
+# Config Subsystem Completion Plan
+
+## Problem and success criteria
+- Requirement (from the one consuming team): read `config.json` at startup and validate `api_url`, `team_id`, `log_level`.
+- Done when: the CLI starts with a valid config, and exits non-zero with a clear message naming the field and the problem for every invalid or missing config.
+
+## Scope
+In scope this sprint: Phase 1 only.
+Not in scope: YAML/TOML/XML adapters, hot reload, schema migrations (see Phase 2 gate).
+
+## Phase 0: Blocking decisions (before any build task)
+Approval of the overall direction does not fill these in; each needs an answer.
+- [ ] Validation rules per field: `api_url` (scheme required? https only?), `team_id` (type, format), `log_level` (allowed values, case sensitivity)
+- [ ] Failure behavior: missing file, unreadable file, malformed JSON, missing field, wrong type, unknown extra fields (reject or ignore)
+- [ ] Exit codes and error message format
+- [ ] Config file location: fixed path, CLI flag, env var?
+- [ ] Defaults: any field optional?
+- [ ] Source of truth for allowed `log_level` values: one constant, used by validator and docs
+
+## Phase 1: Ship the requirement (this sprint)
+1. Wire the finished JSON adapter into startup.
+2. Implement the validator for the three fields from the Phase 0 rules (one schema definition, no duplicated literals).
+3. Tests: valid config; each field missing, wrong type, and invalid; malformed JSON; missing file. Run each failure case and confirm the exact message and exit code.
+4. Disable or remove the half-wired watcher from the startup path so it cannot affect runtime behavior.
+5. Hand to the consuming team and confirm it meets their need.
+
+## Phase 2: Gate for the speculative work (not scheduled)
+Each item below is started only when a named user requests it, and each gets its own design review first.
+
+| Item | Trigger to start | Remaining work |
+|------|------------------|----------------|
+| YAML / TOML / XML adapters | A team asks for that format | Finish the adapter, add tests, same validator |
+| Hot reload | A user needs config changes without restart | Finish the watcher wiring; define behavior when a reloaded config is invalid (keep the old config, log the error) |
+| Schema migrations | A breaking change to the config schema is actually planned | Implement against the real old and new schemas, not the current interfaces alone |
+
+Until triggered, leave the scaffolding unmerged on a branch or clearly marked unused. Do not ship code paths that nothing exercises.
+
+## Risks
+- Unused scaffolding gets stale and the interfaces may not fit the real need when it arrives. Accepting that is cheaper than maintaining three finished formats nobody runs.
+- If the consuming team's needs change, revisit the Phase 2 gate.
+```
+
+If there's a reason to finish the other pieces that you haven't mentioned, such as a second team about to adopt the tool or a planned config schema change, tell me. I'll move that item into this sprint with its own design checklist.

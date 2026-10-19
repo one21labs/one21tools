@@ -1,0 +1,47 @@
+I can't write `tasks.md` from this session because I have no file-system tools. The breakdown is below, so you can paste it into the file. I'm not relitigating the plan. But the approved text leaves open several decisions that block the build, so I put them first as short decision tasks. Each one is probably a 5-minute answer, and getting one wrong costs far more than that later.
+
+```markdown
+# Tasks: User Data Export
+
+Plan (approved): API endpoint that exports all of a user's data. Use whatever format is easiest. Should be fast. Ship next week.
+
+## Phase 0: Decisions (blocking, do first, ~1 day total)
+Not reopening the plan. These are details it doesn't state, and the build tasks depend on them.
+
+- [ ] D1. **Data scope**: list every store and table that holds user data. Decide what "all" includes (profile, activity, uploads, derived data, third-party copies) and what it excludes (other users' data, internal audit logs). Output: a written inventory.
+- [ ] D2. **Format**: "easiest" is JSON unless someone objects. Confirm it, and note whether the legal or compliance requirement (e.g. GDPR portability) needs a machine-readable format.
+- [ ] D3. **"Fast" as a number**: set a target (e.g. p95 response time or max time to deliver) and a size ceiling. This decides sync vs. async in T3.
+- [ ] D4. **Authorization**: who may call it? The user for their own data only? Admins? Do we need re-authentication for sensitive exports?
+- [ ] D5. **Sensitive fields**: decide whether password hashes, tokens, and internal flags are excluded. Decide how to handle other people's data embedded in the user's records.
+- [ ] D6. **Success criteria and rollback**: how we know it works (e.g. export matches the inventory in D1) and what triggers a rollback.
+
+## Phase 1: Design (after D1-D6, ~0.5 day)
+- [ ] T1. Define the API contract: route, method, auth, request params, response schema, and error codes (401/403/404/429/5xx).
+- [ ] T2. Define the export schema from the D1 inventory, with a version field.
+- [ ] T3. Choose delivery from the D3 numbers. Use a synchronous response if exports are small and fast. Otherwise use an async job plus a status and download endpoint.
+
+## Phase 2: Build
+- [ ] T4. Implement a data collector per store. Each returns its slice of the export and has a single owner module (one collector per data domain).
+- [ ] T5. Implement the export assembler: it merges the collectors, applies the D5 exclusions, serializes to the chosen format, and streams large output instead of loading it all into memory.
+- [ ] T6. Implement the endpoint: authentication, authorization (D4), input validation, and error handling.
+- [ ] T7. If T3 chose async: add the job queue, status endpoint, expiring download link, and cleanup of old export files.
+- [ ] T8. Add rate limiting (one export per user per interval) so the endpoint can't be used to hammer the database.
+- [ ] T9. Add audit logging for every export request (who, when, outcome). Don't log the payload.
+
+## Phase 3: Verify
+- [ ] T10. Unit tests for each collector and the assembler.
+- [ ] T11. Authorization tests: user A cannot export user B's data, and unauthenticated calls are rejected.
+- [ ] T12. Completeness test: compare export contents against the D1 inventory for a seeded test user.
+- [ ] T13. Performance test against the D3 target using a large-account fixture.
+- [ ] T14. Security review of the D5 exclusions and of the response headers and download-link expiry.
+
+## Phase 4: Ship
+- [ ] T15. API documentation (generated from the contract in T1 where possible).
+- [ ] T16. Deploy behind a feature flag, then roll out gradually, with monitoring on errors and latency.
+- [ ] T17. Smoke test in production with an internal account, then confirm the D6 success criteria.
+
+## Schedule risk
+Ship-next-week is feasible only if D1-D6 are answered within the first day. If D1 (scope) is unresolved, T4 cannot start, and it is the longest path.
+```
+
+If you'd like me to write this to disk, give me a session with file access, or paste it in yourself.

@@ -1,0 +1,52 @@
+**Not ready to build as written.** The core queue idea is fine, but there's a correctness bug that violates the finance requirement, and the scope is far too big for the volume.
+
+## Blocker: the timeout/retry path can send invoices twice
+
+"No response within 5s → mark failed and re-enqueue" is the exact duplicate scenario finance forbids. A timeout doesn't mean the email wasn't sent. The provider may have accepted it and been slow to respond. Retrying then sends a second invoice. Also:
+
+- **Worker crash after the provider accepts but before the DB update.** The job stays "running" and gets reclaimed, so the email goes out again.
+- **No idempotency key.** The design never mentions one.
+- **No lease or visibility timeout.** `FOR UPDATE SKIP LOCKED` only holds while the transaction is open. If you hold a transaction across an HTTP call, you tie up a connection. If you don't, you need an explicit `locked_until` and a reclaim path.
+
+**Fixes:**
+1. Give each job a stable idempotency key, for example `invoice:{invoice_id}`. Add a unique constraint on it at enqueue time so the same invoice can't be queued twice.
+2. Pass that key to the email provider if it supports idempotency keys (many do). Check this first, because it largely decides the design.
+3. Add an `unknown` or `needs_reconciliation` status. For invoices, a timeout or crash after the send attempt should not auto-retry. Instead, look up delivery status with the provider (by message ID or custom header), or flag it for a human.
+4. Separate retry policy by type. Password resets are safe to retry (at worst the user gets two). Invoices are at-most-once with reconciliation.
+5. Record the provider's message ID in the DB as soon as you get it.
+6. Use a 5s timeout only on connect. Read timeouts should be longer, and a timeout should mean "unknown", not "failed".
+
+Be honest in the doc about the guarantee: you can get at-least-once, or at-most-once, but "exactly once" over HTTP only comes from provider-side idempotency plus reconciliation.
+
+## Scope: 6 weeks for 200–500 emails a day is overbuilt
+
+500/day is about one email every three minutes. Two engineers don't need a plugin system, weighted fair scheduling, or a React dashboard for that.
+
+- **Plugin system with YAML manifests:** there are no other teams asking for it yet. Cut it. A registry of handler functions in code is enough.
+- **5 priority levels with weighted fair scheduling:** at this volume nothing queues long enough for priority to matter. Use `ORDER BY priority, run_at` at most, or two levels.
+- **React dashboard:** a few SQL queries or a Metabase/psql view cover inspection and manual retry. Add a small CLI or one admin endpoint for retry. Throughput charts aren't needed.
+- **500ms polling:** this is fine, though `LISTEN/NOTIFY` or a 2–5s poll would be lighter. It isn't a real problem.
+
+## Build-vs-buy
+
+Before building, check whether an existing library does this. Options are Postgres-backed queues like River (Go), Graphile Worker (Node), or pg-boss (Node), or Oban (Elixir). Which fits depends on your stack, but they already handle `SKIP LOCKED`, leases, retries, and backoff. Alternatively, send directly from the request path or a simple outbox table. You'd still need the idempotency design above either way. If you have a reason to go in-house, such as stack, compliance, or control, state it in the proposal.
+
+## Missing from the design
+
+- Dead-letter or terminal `failed` handling and alerting. Someone needs to know when an invoice email is stuck.
+- Retention and cleanup of old jobs, and an index on `(status, run_at)`.
+- Payload handling: don't put PII or full invoice bodies in `payload` if you can store an ID and render at send time. Consider rendering at send time versus enqueue time, since a retry hours later might use stale data.
+- Provider webhooks (delivered, bounced) to confirm state and feed reconciliation.
+- Worker concurrency and graceful shutdown.
+- Tests for the failure cases: timeout then success, crash mid-send, and duplicate enqueue.
+
+## Suggested v1 (about 1–2 weeks)
+
+- A `jobs` table with `idempotency_key` (unique), `status` (including `unknown`), `locked_until`, `provider_message_id`, `attempts`, and `run_at`.
+- A single worker loop with a code-registered handler per type.
+- A per-type retry policy, with invoices never auto-retried after an ambiguous failure.
+- Reconciliation via provider lookup or webhook.
+- Alerting on stuck or unknown jobs, plus a SQL or CLI path for manual retry.
+- Add priority, plugins, and the dashboard only once there's a real need.
+
+I'd approve building the narrowed version once the duplicate-send handling is redesigned. The first thing to confirm is whether your email provider supports idempotency keys or message lookup. Which provider is it?

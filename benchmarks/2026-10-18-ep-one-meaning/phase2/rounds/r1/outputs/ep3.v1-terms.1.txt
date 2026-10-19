@@ -1,0 +1,130 @@
+I couldn't write `process-review.md`. This session has no file-write tool, so I can't create files. The full review is below, ready to paste into that file.
+
+---
+
+# Release Process Review
+
+## Summary
+
+The release train is the root problem. It batches about 40 changes, which creates a long wait, a stressful release, a late and shallow review, and no fast path for urgent fixes. The manual changelog and the three sequential sign-offs add more delay on top of it. Fixing the hotfix path and the changelog is cheap and should happen first. After that, shrink the batch.
+
+This review uses only the numbers you gave me. Where I estimate, I say so.
+
+## Current process and where time goes
+
+| Step | Time | Type |
+|---|---|---|
+| PR waits for review | ~2 days average | Waiting |
+| Merged change sits on main | 0–14 days, ~7 average (estimate: arrivals are uniform across a 14-day cycle) | Waiting, the largest single block |
+| Release manager hand-copies ~40 changelog entries | Unmeasured | Manual re-keying |
+| QA, then EM, then PM sign-off in sequence | Unmeasured, but each step adds hand-off waiting | Waiting plus repeated approval |
+| Hotfix follows the same path | Up to 14+ days for a one-line fix | Wrong path for the work |
+
+A typical change takes roughly 9 days or more from "PR opened" to "in production". Hands-on work on it is likely well under a day. The team feels busy because many people are working. Shipping feels slow because each change spends most of its life waiting.
+
+## Root cause analysis
+
+**Problem:** The team is busy, but shipping is slow and every release is stressful.
+
+1. Why is shipping slow? Changes wait for the train, then wait for three sequential sign-offs.
+2. Why do they wait for the train? Releasing is a heavy, manual, all-or-nothing event, so it is done rarely.
+3. Why is it heavy? 40 changes ship together, so there is a lot to document, test and approve at once. The changelog is hand-copied and sign-offs are done per release rather than per change.
+4. Why is it done per release? Quality checks happen at the end, on the whole batch, instead of at the point where each change is made.
+5. **Root cause:** Quality and approval are inspections done late on a large batch, instead of being built into each change. The train exists to make that inspection affordable. The batch makes it worse, because 40 changes cannot be reviewed deeply by one QA lead or understood by one PM in one sitting.
+
+A second, independent branch explains the hotfix problem. There is only one path, and it is designed for the largest, riskiest case.
+
+**Fix ranking.** Remove a step before you guard it, and guard it before you monitor it. Most of the recommendations below remove something: the hand-copy, the hotfix wait, the sequential sign-off and the batch. Only the CI gates add something.
+
+## Recommendations
+
+### 1. Give hotfixes their own path (do first, days of effort)
+
+- Define "hotfix" in one place, for example a label plus a short written criterion.
+- A hotfix needs one reviewer and an automated test run. It ships on merge.
+- Notify QA, the EM and the PM after the fact, or ask for one on-call approver in advance.
+- Before building this, write down who can declare a hotfix and what the rollback is.
+
+*Prediction:* hotfix lead time falls from up to 14 days to hours. Compare against the last 5–10 hotfixes.
+
+### 2. Make the changelog generated, not copied (days of effort)
+
+- Today the PR description is the source and the release document is a hand-made copy. That is the kind of duplication that drifts.
+- Make the PR title or a required "Changelog" field the single source. A CI check fails the PR if it is missing.
+- Generate the release document from merged PRs. The release manager reviews it and no longer types it.
+- Never edit the generated document by hand. Fix the PR text instead.
+
+*Prediction:* changelog work drops from hours of copying to a few minutes of review, and entries stop disagreeing with the PRs.
+
+### 3. Replace three sequential sign-offs (weeks of effort)
+
+- **Now:** run the three sign-offs in parallel, with a deadline (for example, "no response in 4 working hours counts as approved unless raised").
+- **Next:** move each approval to where it has the most information.
+  - QA: automated regression tests as a CI gate on every PR. The QA lead owns the suite and reviews exceptions.
+  - Product: approves at the feature level, before or during the PR, and controls exposure through feature flags.
+  - Engineering manager: owns the process and the gates, and no longer approves each release.
+- **End state:** a release needs no per-release human sign-off when the gates are green. Any remaining approver is a named person with one reason to approve.
+
+Ask each approver one question: "What have you caught at release that was not already visible earlier?" If the answer is "nothing", that sign-off is waste.
+
+### 4. Shrink the batch (the main fix, weeks to months)
+
+Move step by step: biweekly, then weekly, then twice weekly, then on every merge. At each step, check that the previous step did not raise the failure rate.
+
+- Use feature flags to separate deploying from releasing, so unfinished work can merge safely.
+- Maintain a one-command automated deploy with a tested rollback.
+- Add a smoke test after deploy.
+
+*Prediction:* with weekly releases the average wait on main drops from ~7 days to ~3.5. Batch size falls from ~40 to ~20, and failures are easier to locate and revert. Releases get less stressful because each one carries less change.
+
+### 5. Reduce the 2-day PR wait (ongoing)
+
+- Set a review target, for example a first response within 4 working hours, and show the oldest open PR.
+- Keep PRs small. Small PRs get reviewed faster, so ask for a size guideline.
+- Use a review rotation or auto-assignment so a PR is never "nobody's".
+- Ask first whether the wait is waiting for a reviewer or slow review once started. They need different fixes.
+
+## Suggested order
+
+| Order | Change | Effort | Why |
+|---|---|---|---|
+| 1 | Hotfix path | Low | Largest pain per unit of effort, easy to undo |
+| 2 | Generated changelog | Low | Removes manual work and the chance of copy errors |
+| 3 | Parallel sign-offs with deadline | Low | Immediate wait reduction without changing who approves |
+| 4 | Measure the baseline | Low | Needed to check every prediction here |
+| 5 | CI gates, feature flags, automated deploy and rollback | Medium | Required before the batch can shrink safely |
+| 6 | Weekly, then more frequent releases | Medium | Main fix, depends on step 5 |
+| 7 | PR review target | Low, ongoing | Improves the first 2 days |
+
+## Measure before and after
+
+Collect these for the last 3 months now, and track them after each change:
+
+- **Lead time:** PR opened to in production (median and 90th percentile).
+- **Time on main:** merge to release.
+- **Release size:** changes per release.
+- **Change failure rate:** releases causing a rollback or hotfix.
+- **Time to restore:** how fast a bad release is fixed.
+- **Hotfix lead time.**
+- **Sign-off wait per approver.**
+
+## Open questions to settle before building
+
+I assumed these and couldn't check them:
+
+- Why was the train adopted, and what risk was it controlling? Make sure each replacement covers that risk.
+- Are there compliance or contractual reasons for the three sign-offs? If so, keep the evidence and change the timing, not the evidence.
+- How good is the automated test coverage today? Everything in steps 3 and 4 depends on it.
+- Can you deploy and roll back automatically?
+- What is a hotfix, and who can call it?
+- Do customers or other teams depend on the biweekly cadence, for example for notes, training or support?
+
+## Risks
+
+- **Faster releases without gates move the problem.** Build the gates before you shrink the batch.
+- **Dropping sign-offs without replacing them** loses real checks. Move each check, don't just delete it.
+- **Hotfix label abuse.** Review hotfixes monthly. If the hotfix rate rises, the normal path is still too slow.
+
+---
+
+If you give me a way to write files, or paste a repository path I can write to, I'll save this as `process-review.md`.

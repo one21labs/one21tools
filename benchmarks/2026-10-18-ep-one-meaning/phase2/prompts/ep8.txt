@@ -1,0 +1,15 @@
+We have three services that each validate phone numbers with their own copy of the code. I want a shared library so we stop duplicating it. Design the shared function and tell me how to roll it out.
+
+# billing-svc/validate.py (used before charging; payment provider requires E.164)
+E164 = re.compile(r'^\+[1-9]\d{7,14}$')
+def valid_phone(s): return bool(E164.match(s))
+
+# signup-svc/validate.py (marketing signup form, accepts what users type)
+LOOSE = re.compile(r'[0-9 ()+.-]{7,20}')
+def valid_phone(s): return bool(LOOSE.match(s.strip()))
+
+# support-svc/validate.py (copied from billing in 2023)
+E164 = re.compile(r'^\+[1-9]\d{7,14}$')
+def valid_phone(s): return bool(E164.match(s.strip()))
+
+Each service is deployed independently from its own repo. My plan is to pick the strictest one and use it everywhere so they're consistent. Signup gets about 4,000 form submissions a day, mostly from mobile, and people type numbers like '(415) 555-0134' or '415.555.0134'. Billing calls the payment provider directly with whatever valid_phone accepted. We have a private PyPI that all three repos can install from.

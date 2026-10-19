@@ -1,0 +1,127 @@
+I can't write `rca.md` from this session because it has no file tools. The full document is below, ready to paste into `rca.md`. Bracketed items are facts I don't have.
+
+---
+
+# Root Cause Analysis: Empty customer export silently delivered to a client (3rd occurrence)
+
+**Date:** 2026-10-18
+**Participants:** [fill in]
+**Status:** Draft
+
+## Problem Statement
+
+The nightly customer-export job wrote a zero-row output file, exited 0, and the file was delivered to a client. No alert fired. The client noticed first.
+
+This is the third occurrence in two months, with a different trigger each time and the same outcome.
+
+| # | Trigger | Outcome |
+|---|---------|---------|
+| 1 | Schema rename | Empty file, exit 0, client noticed first |
+| 2 | Expired credential, swallowed by the job | Empty file, exit 0, client noticed first |
+| 3 | Export SQL changed by Priya (joined six weeks ago) without the wiki's manual verification step | Empty file, exit 0, client noticed first |
+
+**Impact:** [client(s), delivery date, how long the client held an empty file, any SLA or contractual exposure]
+
+**Timeline:** [query change merged → job ran → file delivered → client report → detection → fix]
+
+## Analysis
+
+The triggers differ, so the analysis is branched. It starts from the shared outcome and then looks at each trigger.
+
+### Branch A: why did an empty file reach the client? (common to all three incidents)
+
+1. **Why did the client get an empty file?** The delivery step shipped whatever the job produced.
+2. **Why did the delivery step ship it?** Nothing between "job finished" and "file delivered" checks that the output is valid. The only gate is the exit code.
+3. **Why was the exit code enough to pass?** The job exits 0 when it writes zero rows. It treats "ran without raising" as success, even though "produced the intended export" is the success that matters.
+4. **Why did nobody know until the client called?** Monitoring checks only the exit code, so it can't see this failure class.
+5. **Root cause:** The system defines success as "the process didn't crash" rather than "the output is correct," and nothing downstream questions that definition. Every trigger that yields an empty result therefore ends as a silent delivery.
+
+### Branch B: why wasn't the bad query caught before it ran? (incident 3 trigger)
+
+1. **Why did the bad query ship?** The change wasn't verified against real data.
+2. **Why not?** The only safeguard was a manual wiki step: run it once by hand and eyeball the row count. Priya skipped it.
+3. **Why was it skipped?** The step is optional by construction. Nothing enforces it, and nothing reminds the author at change time. A six-week-old engineer is the least likely person to know the wiki page exists or why it matters.
+4. **Root cause:** A critical safeguard depends on memory and discipline, so it fails for exactly the people least equipped to remember it. "Priya didn't follow the process" is not the root cause. The system allowed the change to ship without the check.
+
+### Branch C: why did earlier triggers get through? (incidents 1 and 2)
+
+- **Schema rename:** Nothing ties the export query to the schema it depends on. The rename broke it, and the break surfaced only as an empty result.
+- **Expired credential:** The job caught the auth failure, swallowed it, and carried on with no data. This is a fail-open error path.
+
+**Root cause (C):** The job fails open, converting upstream errors into valid-looking empty output. The same defect as A, one layer down.
+
+### Why the problem recurred
+
+After incidents 1 and 2 we (apparently) fixed the triggers, not the gap that let any trigger through. Each fix addressed a specific cause, while the path from "bad result" to "client inbox" stayed open. Incident 3 was predictable the moment incident 2 closed without closing that path.
+
+## Root Cause (summary)
+
+Three defects combine to make the failure silent. They are not independent:
+
+1. **Fail-open job semantics:** zero rows and swallowed errors both produce exit 0.
+2. **No output validation before delivery:** nothing stands between a bad file and the client.
+3. **Safeguards that rely on human memory:** the manual verification step is unenforced.
+
+## Countermeasures
+
+Ranked per the poka-yoke ladder: elimination first, then prevention, then detection. Detection is last because by then the damage is already possible.
+
+### 1. Eliminate: remove the paths that let a bad file exist or ship
+
+| Action | What it removes |
+|--------|-----------------|
+| **Make the job fail closed.** Zero rows → non-zero exit, unless an explicit, logged `ALLOW_EMPTY` override is set. | The "exit 0 with zero rows" state. |
+| **Delete the exception swallowing** around credential and DB errors. Errors propagate and fail the job. | The path that turned incident 2 into a silent empty file. |
+| **Make delivery depend on a validated output.** The delivery step refuses to send a file that failed validation. A failed job or invalid file is never delivered. | The path from a bad file to a client. |
+| **Delete the manual wiki step** and replace it with the automated check in (2). | A safeguard that depended on memory. |
+
+Open question for the team: **are zero rows ever legitimate for any client?** If so, handle that with a per-client explicit setting, not by weakening the default.
+
+### 2. Prevent: make the failure impossible to merge or run unnoticed
+
+- **Pre-delivery output validation:** the file is non-empty, has the expected columns and header, and the row count is within a tolerance of a baseline (for example, the last N successful runs). A sudden 90% drop should block delivery, not just zero.
+- **Automated query check in CI:** any change to the export SQL runs against a staging or sample dataset, and the pipeline asserts a non-empty result with the expected columns. This replaces "run it by hand and eyeball it."
+- **Schema contract check:** the query is validated against the current schema on every run (and in CI), so a rename fails loudly at the start of the job instead of producing empty output at the end.
+- **Onboarding:** once the above exist, there is nothing for new engineers to remember. Until they ship, pull the wiki step into the PR template as a required checklist item.
+
+### 3. Detect: catch what the above misses
+
+- **Alert on output, not exit code:** alert on row count, file size, and delivery of a file that failed validation.
+- **Alert on missing or late runs**, so silence is also a signal.
+- **Client-facing safety net (optional):** hold delivery for a human check on large anomalies.
+
+## Actions
+
+| # | Action | Owner | Due | Layer |
+|---|--------|-------|-----|-------|
+| 1 | Job fails non-zero on zero rows; add `ALLOW_EMPTY` override | [ ] | [ ] | Eliminate |
+| 2 | Remove error swallowing; errors propagate | [ ] | [ ] | Eliminate |
+| 3 | Delivery gated on validation result | [ ] | [ ] | Eliminate |
+| 4 | Output validation (non-empty, columns, baseline tolerance) | [ ] | [ ] | Prevent |
+| 5 | CI check for export SQL changes; retire the wiki step | [ ] | [ ] | Prevent |
+| 6 | Schema contract check | [ ] | [ ] | Prevent |
+| 7 | Alerts on row count, file size, and missed runs | [ ] | [ ] | Detect |
+| 8 | Client communication and corrected file for this incident | [ ] | [ ] | Remediation |
+| 9 | Audit other jobs for the same pattern (exit 0 on empty output, swallowed errors) | [ ] | [ ] | Prevent |
+
+## Verification
+
+Each countermeasure is verified by injecting the failure and confirming the safeguard fires. Waiting for the next incident doesn't count. Run these in staging before closing the RCA:
+
+1. **Zero-row query:** point the job at a query that returns no rows. Expected: non-zero exit, no delivery, alert fires.
+2. **Expired or invalid credential:** run with a revoked credential. Expected: job fails with a surfaced error, no delivery, alert fires.
+3. **Renamed column or table:** run against a staging schema with a renamed column. Expected: schema check or CI fails before any file is produced.
+4. **Partial or anomalous output:** feed a file with 5% of the normal row count. Expected: baseline check blocks delivery and alerts.
+5. **Unreviewed query change:** open a PR that changes the SQL to return nothing. Expected: CI fails and the PR can't merge.
+6. **Override path:** set `ALLOW_EMPTY` for a test client. Expected: delivery proceeds, and the override is logged.
+
+The RCA is closed when all six pass and the results are recorded here.
+
+## Notes
+
+- This analysis deliberately doesn't treat Priya's skipped step as the cause. The step was optional, undiscoverable, and unenforced, and the same outcome occurred twice without it.
+- Facts to fill in before circulating: impact and timeline, owners and dates, and whether any client needs `ALLOW_EMPTY`.
+
+---
+
+If you'd like me to write this to a file, run me in a session with file access, or copy it from above.

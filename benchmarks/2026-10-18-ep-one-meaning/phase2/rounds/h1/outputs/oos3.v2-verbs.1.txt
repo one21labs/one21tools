@@ -1,0 +1,38 @@
+I can't see your codebase in this session, so this is the design to settle before any code. I'd build it as a small seam rather than a full plugin system. With one exporter, we don't yet know what a second format needs. A minimal seam still meets your goal that new formats don't touch core code. A heavyweight framework built now will probably be wrong once format #2 shows up.
+
+## Design
+
+**Problem:** Adding an export format currently means editing core code. Success is when a new format ships as one new module with zero edits to core and no changes to existing exporters.
+
+**Out of scope for now:** versioned plugin APIs, sandboxing, hot reload, and third-party packages outside the repo. Each can be added later without breaking the seam below.
+
+**Components, each with one reason to change:**
+1. **Exporter contract.** One interface, for example `name`, `file_extension`, and `export(data, destination, options)`. It changes only when what an export means changes.
+2. **Registry.** A map from format name to exporter, with `register()` and `get()`. `get()` fails with a clear error listing the available formats. It changes only when lookup rules change.
+3. **Discovery.** The one place that decides which exporters get registered. Pick one mechanism: a convention (every module in `exporters/` auto-registers), a decorator, or entry points. I'd start with the convention and add entry points only when external packages are a real requirement.
+4. **Core caller.** Asks the registry for a format by name and never imports a concrete exporter. The existing exporter becomes the first implementation of the contract.
+
+**One source of truth:**
+- The list of supported formats comes from the registry only. The CLI help, config validation, and docs all read from it and never hardcode names.
+- The contract (including option schemas) lives in one file. Docs for plugin authors link to it and don't restate it.
+
+**Failure modes to handle:**
+- A duplicate format name should raise an error, not silently overwrite.
+- An exporter that fails to load should fail loudly and name the module, not disappear from the list.
+- An unknown format should give a clear error with the valid choices.
+
+**Verification:**
+- The existing exporter's output is byte-identical before and after the refactor. A golden-file test covers this.
+- A trivial test-only exporter (for example, a JSON dump) is added without touching core. This test proves the "no core edits" goal, and it doubles as the plugin-author example.
+
+## Open questions
+
+These need your answers before I'd write tasks, and I haven't assumed defaults for any of them:
+1. What does the current exporter take as input and produce as output? Is it a file, a stream, or a string? Does it have format-specific options?
+2. Are exporters only ever in-repo, or do you expect external packages to provide them?
+3. Is export called from a CLI, an API, or both? Where does the format name come from today?
+4. Should export be synchronous, or do some formats need streaming or async for large data?
+5. Do exporters need shared services such as logging, config, or progress reporting? If so, how are they passed in?
+6. What does "done" mean to you? Is the test exporter and the golden-file check enough?
+
+If you share the current exporter and its call sites, I can answer 1, 3, and 4 myself and turn this into a concrete task list. The first step will be extracting the contract from the existing exporter, with no behavior change.
