@@ -145,6 +145,7 @@ def _invoke_claude(prompt, model, env, cwd, timeout, run=subprocess.run, allow=(
     def result(response, envelope, error):
         return {
             "response": response, "envelope": envelope, "error": error,
+            "max_output_tokens": env.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS"),
             "duration_s": time.monotonic() - start,
             "timestamps": {"start": started.isoformat(),
                            "end": datetime.now(timezone.utc).isoformat()},
@@ -194,16 +195,27 @@ def do_call(prompt, model, env, cwd, timeout=DEFAULT_TIMEOUT_S, run=subprocess.r
     return retry
 
 
+CAP_HIT_FRACTION = 0.97
+
+
 def summarize_call(call, requested_model=None):
     """Per-call record for a cell file: envelope figures + wall-clock + timestamps. With an exact
     `claude-*` requested_model, a call the envelope says another model served is an ERROR cell: a
-    silently substituted model would measure the wrong arm (an alias cannot be checked)."""
+    silently substituted model would measure the wrong arm (an alias cannot be checked).
+
+    A reply whose output tokens reach CAP_HIT_FRACTION of the call's CLAUDE_CODE_MAX_OUTPUT_TOKENS
+    is an ERROR cell too: past the cap the CLI returns only the reply's LAST chunk, so a grader
+    scores a fragment."""
     env = call.get("envelope")
     served = sorted(((env or {}).get("modelUsage") or {}).keys())
     error = call.get("error")
     if (not error and served and requested_model and requested_model.startswith("claude-")
             and requested_model not in served):
         error = f"requested {requested_model}, envelope served {served}"
+    cap = call.get("max_output_tokens")
+    out_tokens = safe_get(env, "usage", "output_tokens") or 0
+    if not error and cap and out_tokens >= int(cap) * CAP_HIT_FRACTION:
+        error = f"output hit the {cap}-token cap ({out_tokens}): partial capture"
     return {
         "duration_ms_wall": round(call.get("duration_s", 0.0) * 1000, 1),
         "duration_ms": safe_get(env, "duration_ms"),

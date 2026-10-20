@@ -32,10 +32,8 @@ Record the pre-screen result and any dropped/hardened eval in the dated dir BEFO
 Guardrail (ADR 0024): the pre-screen restores discriminating power — it is never
 difficulty-tuning toward a desired verdict; a hardened eval may CONFIRM the negative
 direction, recorded either way.
-Mechanization of this pre-screen is deferred to its first consumer (#177; retired ADR 0065) —
-today the rungs are this doc rule and the /bench Guardrails pointer. Reopen: a grid reaches
-verdict on an eval discovered ceilinged/floored only after spend -> mechanize as a lib gate
-with its own decision-logic test.
+Not mechanized (#177); reopen when a grid reaches verdict on an eval found ceilinged/floored
+only after spend -> a lib gate with its own decision-logic test.
 
 ## No primed conclusions (ADR 0059)
 
@@ -43,6 +41,14 @@ Every pre-registration, experiment issue, and eval title states a FALSIFIABLE hy
 neutrally — kill conditions and bars up front, motivation labeled as grounding (never evidence),
 a null recorded as an equally valid outcome. Titles pose the question, never the answer.
 Advocacy wording is itself a contamination channel: agents read it.
+
+## Audit the expectations against the reader
+
+Blind authoring removes coupling to the skill's wording, not wrong criteria. Before the
+prescreen, a domain reader strikes any expectation that rewards what the output's receiver
+would reject. A judge complaint is a symptom, not a spec: read paired outputs before revising
+to it. (Live instance, #328: expectations wanting "provisional setpoints" scored a revision that
+invented trip values as a gain.)
 
 ## Infrastructure is never quality (#191)
 
@@ -69,15 +75,13 @@ exclusion rate is an infrastructure defect to fix before grading, not signal.
 
 ## Sizing, at this repo's measured spread of 0.24
 
-| To reliably call | scenarios (80% power) | at 50% power, for contrast |
-|---|---|---|
-| 0.40 | 5 | 4 |
-| 0.25 | 10 | 7 |
-| 0.15 | 23 | 13 |
-| 0.10 | 46 | 25 |
-| 0.05 | 181 | 89 |
-
-The 50% column is shown only so the gap is visible; never plan from it.
+| To reliably call | scenarios (80% power) |
+|---|---|
+| 0.40 | 5 |
+| 0.25 | 10 |
+| 0.15 | 23 |
+| 0.10 | 46 |
+| 0.05 | 181 |
 
 **Variance is the cheap lever; scenarios are the expensive one.** At spread 0.24, six scenarios
 reliably call only 0.34 or larger, so a real 0.18 effect needs 16. One run here achieved a spread
