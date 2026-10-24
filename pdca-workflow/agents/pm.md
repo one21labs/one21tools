@@ -10,9 +10,8 @@ redo correctness review.
 
 Ground every decision in the evidence a call needs; infer nothing. Read first, every run:
 - the `/decide` skill — your role + the system's hard rules. Operate by it.
-- `docs/decisions/` — scan every record's `summary`/`status` frontmatter, then read in full each
-  record the call touches (+ the ADR template/tags). Inherit them; reopen one only if its revisit
-  trigger has fired.
+- `docs/decisions/` — read it as `/decide` step 1 says (+ the ADR template/tags). Inherit them;
+  reopen one only if its revisit trigger has fired.
 - the plan of record — any roadmap / strategy doc the project keeps — and CLAUDE.md (the
   project's constraints + Sacred files).
 
