@@ -67,7 +67,7 @@ source repo's committed benchmarks:
 
 | Phase | What runs |
 |-------|-----------|
-| **Plan** | `/decide` — clarify scope, advisors argue (dialectic, opposing counsel on contested calls), the `pm` agent decides and writes an ADR. |
+| **Plan** | `/decide` — clarify scope, advisors argue (dialectic, opposing counsel on contested calls), the `pm` agent decides and writes an ADR (routine calls: the session writes it, no panel or `pm` spawn). |
 | **Do** | `tech-lead` turns the ADR into a buildable spec; you implement it. |
 | **Check** | `verifier` reproduces every load-bearing claim and checks the ADR's `[checkable]` assumptions against the real code/output; `red-team` tries to break it. The gate can BLOCK. |
 | **Act** | Ship + bump the version; `/retrospect` folds process learnings back into their lowest home (an agent, a skill, or CLAUDE.md). |

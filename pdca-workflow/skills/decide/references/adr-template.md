@@ -9,7 +9,7 @@ An **ADR** is a dated note capturing one judgment call: its context, the decisio
 justification, the assumptions (tagged), and the triggers that would reopen it. It is the
 **authoritative current statement** of that decision — kept current in place (rationalize, don't
 re-supersede); git history holds how it got there. One file per decision: `NNNN-slug.md`
-(zero-padded, monotonic). Produced by the `pm` agent in the `/decide` flow.
+(zero-padded, monotonic). Produced in the `/decide` flow (by the `pm` agent on an escalated call).
 
 This file is the canonical ADR template. `/pdca-init` copies it into a new project as
 `docs/decisions/README.md` (which also holds the shared-assumption register, below).

@@ -14,8 +14,8 @@ summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-
   judges.
 
 ## Decision
-**1 — Re-scope, not cut (two-stage /decide routing).** Default = lite/bare go/no-go record: PM
-writes the call; the ADR carries a falsifiable criterion + spend gate. Escalate to the full panel
+**1 — Re-scope, not cut (two-stage /decide routing).** Default = lite/bare go/no-go record: the
+session writes it, no `pm` spawn; the ADR carries a falsifiable criterion + spend gate. Escalate to the full panel
 ONLY for high-stakes/irreversible calls that clear the cheap gate — never routine/meta/tooling.
 The forced-record guarantee (falsifiable criterion, spend gate, retrospect discipline) is kept
 unconditionally by the lite default, independent of panel spawn — re-scope forfeits none of it
