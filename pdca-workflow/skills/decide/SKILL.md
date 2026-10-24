@@ -54,11 +54,11 @@ selection rules live in the `advise` skill). Record which advisors ran and why o
    real produced output before advising — the grading rule's home is the `verifier` agent. No
    output layer = skip.
 4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
-   at a lite/bare record — no panel spawn; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
+   at a lite/bare record you write yourself — no panel or `pm` spawn; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
    framed scope — it owns panel selection and the spawn/shape rules.
 5. **Decide (PM).** Escalated: invoke `pm`; it weighs the advice and writes an ADR per call per
-   `references/adr-template.md` (char caps: `references/doc-budgets.md`). Not escalated: write
-   the record yourself, no `pm` spawn. A settled call records as `tier: lite` — adr-template.md.
+   `references/adr-template.md` (char caps: `references/doc-budgets.md`). A settled call records
+   as `tier: lite` — adr-template.md.
 6. **Verify + red-team + tech-lead.** Gated like step 4: only when the result SHIPS or is
    hard to reverse — else record the skip. Run the `verify` primitive over every
    load-bearing claim

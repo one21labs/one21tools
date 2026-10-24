@@ -15,8 +15,9 @@ summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-
 
 ## Decision
 **1 — Re-scope, not cut (two-stage /decide routing).** Default = lite/bare go/no-go record: the
-session writes it, no `pm` spawn; the ADR carries a falsifiable criterion + spend gate. Escalate to the full panel
-ONLY for high-stakes/irreversible calls that clear the cheap gate — never routine/meta/tooling.
+session writes it, no `pm` spawn; the ADR carries a falsifiable criterion + spend gate.
+Escalate to the full panel ONLY for high-stakes/irreversible calls that clear the cheap gate —
+never routine/meta/tooling.
 The forced-record guarantee (falsifiable criterion, spend gate, retrospect discipline) is kept
 unconditionally by the lite default, independent of panel spawn — re-scope forfeits none of it
 while dropping the 4-7x routine panel cost (C $3.21-4.05 vs. A $0.50-0.56/cell).
