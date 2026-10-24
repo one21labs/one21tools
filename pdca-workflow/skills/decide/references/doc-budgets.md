@@ -70,8 +70,7 @@ Edit/Write tools only — Bash writes bypass the budget-edit-guard hook (ADR 006
 addition exceeds the headroom, do NOT word-golf the new line into mush and do NOT edit-validate-trim
 in a loop: review the WHOLE file for muda and drift (restatements of another home, narration,
 dead references) and cut there first — a file living at its cap is itself a smell that it carries
-waste or holds facts belonging at a different altitude. The pm agent's ADR rule (draft to the
-margin, measure once) is this same discipline at authoring time; this section owns it for edits.
+waste or holds facts belonging at a different altitude.
 
 ## Method — chars <-> tokens
 
@@ -88,10 +87,6 @@ measured value.
 
 ## Extending the budget — evaluation
 
-- **The named-doc self-budget is enforced** from the `char-budget.mjs` SSoT (`char-budget.test.mjs`
-  reads the `DOC_BUDGETS` map and asserts each file's char length; `adr-lint.mjs` runs
-  `oversizeDocs()` at the gate) — same poka-yoke as the ADR check ("compute the verdict, never
-  assert it"). The next lean is a red/green test loop, not a blind char-count grind.
 - **Source header comments — do NOT budget.** A header's failure mode is **drift** (it describes
   what the file *was*, names an absent construct, or lists imports), not length — a char cap would
   gate the wrong thing. A flat cap also misfits headers of legitimately varying complexity (a

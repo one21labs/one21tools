@@ -7,7 +7,7 @@ description: Use when a claim, a fix, or produced output needs independent confi
 
 The verification gate of the `/decide` panel as a right-sized primitive: run it on any claim
 set worth an independent check — a "the bug is fixed", a review finding, an assumption —
-without the full ceremony. `/decide` composes it over every ADR.
+without the full ceremony.
 
 ## Run
 
@@ -32,6 +32,6 @@ synthesize the label — no BLOCKERS = PASS. A claim step 2 could not route out 
 the next consumer sees which claim went unchecked. That closes the claim with its gap recorded —
 it is never grounds for another round against the same lineage. A verified correctness/safety finding
 stands — fix the artifact,
-don't argue the catch; priority overrules don't apply to verified findings (`/decide`'s rule).
+don't argue the catch.
 When a fresh finding supersedes a shared handoff note (a verdict, an assumption result),
 overwrite it before the next agent reads it — a stale verdict a sibling consumes is drift.

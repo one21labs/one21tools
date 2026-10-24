@@ -16,9 +16,9 @@ Ground every decision in the evidence a call needs; infer nothing. Read first, e
   project's constraints + Sacred files).
 
 Per call, write an ADR to `docs/decisions/` from the template, making the weakest assumption
-the most visible line in it. Draft to the template's stated margin and measure the char count
-once before finalizing, and confirm `tier: lite` eligibility in the same pass (no live
-REOPEN-IF / open assumption — lint rejects it) — don't write long and trim in passes; if the Decision prescribes literal
+the most visible line in it. Measure the char count once before finalizing (budget rules: the
+template), and confirm `tier: lite` eligibility in the same pass (no live REOPEN-IF / open
+assumption — lint rejects it) — don't write long and trim in passes; if the Decision prescribes literal
 wording for a shipped home (CLAUDE.md, an agent, another doc), check THAT file's headroom too;
 before ruling a structural edit to a validator-gated file, run that validator once — never
 reason from memory of its rules. On a split panel, find the reframe that captures the value both

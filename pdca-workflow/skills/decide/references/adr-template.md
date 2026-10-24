@@ -11,8 +11,7 @@ justification, the assumptions (tagged), and the triggers that would reopen it. 
 re-supersede); git history holds how it got there. One file per decision: `NNNN-slug.md`
 (zero-padded, monotonic). Produced in the `/decide` flow.
 
-This file is the canonical ADR template. `/pdca-init` copies it into a new project as
-`docs/decisions/README.md` (which also holds the shared-assumption register, below).
+This file is the canonical ADR template (`/pdca-init` vendors it as `docs/decisions/README.md`).
 
 Rules:
 - References to a decision (a roadmap, changelog, issue, or another ADR) use its ID; never re-state
@@ -49,17 +48,13 @@ Rules:
   branch's docs/decisions/) + 1` — a parallel or never-PR'd branch's ADR collides otherwise. Below
   origin/main's highest = stale: rebase first. This is the single-call rule; deciding several calls
   in parallel uses pre-assigned IDs instead — see `/decide`'s Frame step.
-- **Guard the corpus executably** (poka-yoke): `adr-lint` (see `adr-lint.md`) fails on bad/missing
-  frontmatter, an id≠filename, a duplicate id, a release version, a dangling `ADR NNNN` cite, an
-  unfalsifiable decision (no stated criterion), or an over-budget record. `/decide` scans open ADRs'
-  revisit triggers each run.
+- **Guard the corpus executably** (poka-yoke): `adr-lint` — checks in `adr-lint.md`.
 
 ## Template
 
 Telegraphic fragments, not prose — one full sentence for the crux (load-bearing *why* + weakest
 assumption), the rest fragments; cite each `file:line` once. The weakest assumption is the most
-visible line. **Budget: the `ADR_CHAR_BUDGET` cap in `char-budget.mjs`** (sized with slack — the cap stops bloat, never forces word-golf) — a char count can't
-be gamed by long lines (see ADR 0008; cap + predicate SSoT in `char-budget.mjs`). No exemptions —
+visible line. **Budget: the `ADR_CHAR_BUDGET` cap in `char-budget.mjs`** (sized with slack — the cap stops bloat, never forces word-golf; why chars: `doc-budgets.md`). No exemptions —
 an over-budget ADR is rewritten under the cap, not grandfathered. **The cap and the margin
 (`ADR_CHAR_MARGIN`) are CEILINGS, never targets — write the fewest chars that carry the decision
 and stop.** A record near the margin should read as forced by the content, not as budget spent;
@@ -124,9 +119,8 @@ restate per ADR. **A rule stated BROADER than the deciding issue names every ope
 disposes of, and either cites the settled record that already owns the rule or homes it in the
 shared register** — the named issues stay open carrying that cite. Otherwise two sessions settle
 the same question weeks apart in two records, and neither knows. Append `## Act` after the work
-ships; omit lines with nothing to say. Each
-`- [outcome]` row carries exactly ONE of `verified` / `violated` / `still-open` (lint check 13,
-ADR 0079) — an unresolvable outcome stays `still-open`, never a free-text synonym. **Correcting a
+ships; omit lines with nothing to say. `[outcome]`
+vocabulary: adr-lint.md check 13. **Correcting a
 mislabelled row: split it in two (one status each) or explain WITHOUT naming the old status word
 — saying "corrected from `verified`" puts two status words in the row and fails the lint.** Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
@@ -145,7 +139,6 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 **No index file (poka-yoke).** The ADR files ARE the catalog — skim them by grepping frontmatter
 (`summary` / `status`); a mirror you don't maintain can't drift, so there is nothing to police.
-`adr-lint` guards frontmatter validity + id↔filename + that no `ADR NNNN` cite dangles.
 
 ## Lite tier
 

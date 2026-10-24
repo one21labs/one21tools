@@ -32,8 +32,7 @@ Run this loop:
 1. **Scope.** Resolve the range. `git log --oneline <range>` for the commit set.
 2. **Don't pre-load the diff.** The isolated agent runs its own git reads (its Method owns the
    signal list); a `git log -p` here only spends main-context tokens the agent never sees.
-3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
-   stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
+3. **Analyze.** Fetch, then spawn the `retrospect` agent on the step-1 range. It owns the git/code
    analysis and the routing rules — don't restate them.
 4. **Add session friction — by re-reading the user's messages, not recalling them.** YOU (in the
    main conversation, which the isolated agent cannot see) walk this session's USER turns in order
