@@ -11,11 +11,10 @@ description: Use when the user writes, extends, refactors, reviews, or audits co
 |-----------|-------------|
 | **Clear over clever** | Readable code prevents bugs. If it needs explanation, rewrite it. |
 | **SRP** | Functions do one thing. Modules have one reason to change. |
-| **Quality built in** | Validate at boundaries. Catch errors at source, not downstream. |
+| **Quality built in** | Catch errors at source, not downstream. |
 | **SSoT** | Each fact exists in exactly one place. No duplicated logic or constants. |
 | **Lean** | Add only what is needed. Every char earns its place. Remove dead code immediately. |
 | **Design first** | Understand the problem, and what a function owns, before writing it. |
-| **Poka-yoke** | Error-proof at boundaries. Validate external inputs at entry points, not deep in call chains. |
 | **Consistency scope** | Matching existing style covers naming and formatting, not defects. New code meets these standards beside legacy code that doesn't — "follow the existing pattern" limits scope, not the standard. |
 
 ## File Headers
@@ -33,7 +32,7 @@ A header documents, in named sections, only what passes both:
 - Direct consumers (USED BY) — to trace impact before a change
 - Navigation to related files (SEE ALSO)
 
-Exclude what fails either test: what the code does and implementation detail (identifiers already say it, wrong altitude); function lists and line counts (go stale, discoverable elsewhere).
+Also exclude function lists and line counts (they go stale).
 
 ### Example
 
@@ -66,14 +65,6 @@ Apply the same SSoT and altitude tests to inline comments.
 **SSoT**: Does the code already say this? A comment restating what identifiers and logic make obvious is a duplicate that will go stale.
 
 **Altitude**: A comment earns its place by carrying what the code cannot express: a constraint, an invariant, a deliberate trade-off, or a precondition the caller must satisfy.
-
-Comment when:
-- A non-obvious invariant must be preserved
-- A constraint exists that the reader would otherwise break
-- A deliberate trade-off or unconventional choice was made
-- Preconditions are not obvious from the signature
-
-Do not comment what the next line does (the code says that — SSoT violation) or implementation detail at the same altitude as the code.
 
 ## Naming
 

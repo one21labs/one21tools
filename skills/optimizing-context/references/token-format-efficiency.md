@@ -71,11 +71,3 @@ tokens — not the fewest tokens outright.
 - **Signal-per-token, not tokens-per-fact.** A sentence that trades clarity for brevity and forces
   a re-read or a wrong inference has negative signal-per-token, even though it measured fewer
   tokens.
-
-## Applying This
-
-1. Identify which surface you're optimizing: always-loaded (cut) or stored/agent-read (format).
-2. For stored structured data: check the data shape against the table above before picking a
-   format. Default to JSONL/pretty-json unless the shape is uniform flat records.
-3. For prose in either surface: tighten wording only after cutting via SSoT; never sacrifice
-   grammar for token count.

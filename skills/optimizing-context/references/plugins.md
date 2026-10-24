@@ -12,8 +12,7 @@ Claude Code plugins package agents, skills, commands, and hooks for distribution
 6. [Plugin Caching](#plugin-caching)
 7. [Verification](#verification)
 8. [Common Patterns](#common-patterns)
-9. [Key Takeaways](#key-takeaways)
-10. [References](#references)
+9. [References](#references)
 
 ---
 
@@ -338,31 +337,6 @@ Bundle components by user role:
   ]
 }
 ```
-
-### Pattern 3: Component Separation (Recommended for Monorepos)
-
-Separate skills, agents, and commands into distinct plugins:
-
-```json
-{
-  "plugins": [
-    {"name": "skills", "source": "./skills", "strict": false, "skills": [...]},
-    {"name": "agents", "source": "./agents", "strict": false, "agents": [...]},
-    {"name": "commands", "source": "./commands", "strict": false, "commands": [...]}
-  ]
-}
-```
-
----
-
-## Key Takeaways
-
-1. **Auto-discovery loads everything** in `/skills/`, `/agents/`, `/commands/` at plugin root
-2. **Explicit paths supplement** auto-discovery, they don't replace
-3. **Use component directories as sources** to avoid auto-discovery
-4. **Set `strict: false`** for simple plugins defined in marketplace
-5. **Verify with `/context`** to confirm only intended content loads
-6. **Organize by component type** in monorepos for selective installation
 
 ---
 

@@ -1,8 +1,8 @@
 # skill-measure
 
 A public hermetic pipeline for measuring YOUR OWN skill's value — packaged so any skill author
-can measure their own skill: `/plugin install skill-measure@one21tools`. Decided in this
-README (Method depth, below) and `bench/SKILL.md`; plan: #170.
+can measure their own skill: `/plugin install skill-measure@one21tools`. Decided in
+`bench/SKILL.md`; plan: #170.
 
 Related work (surveyed 29-Jul-2026): bring-your-own-skill measurement is a crowded lane —
 anthropics/skills' skill-creator is the reference design for paired with/without arms and blind
@@ -37,8 +37,7 @@ the judge sees anything (arXiv:2604.23178 finds style/format bias dominates), no
 
 **Honest limits.** The verdict interval is a one-sample t on eval-clustered deltas (ADR 0019,
 the paired-and-clustered recipe of arXiv:2411.00640); sequential escalation and pilot stop rules
-are uncorrected optional stopping, so an escalated run's nominal coverage is optimistic. The
-prosecutor does not run on `/bench skill`. Cost gating is a pre-run estimate plus a spend
+are uncorrected optional stopping, so an escalated run's nominal coverage is optimistic. Cost gating is a pre-run estimate plus a spend
 refusal, not a runtime ceiling — Inspect AI's native dollar limits are stronger on that axis.
 
 ## Architecture: bespoke layer on a rented substrate
@@ -92,10 +91,7 @@ ADR 0058). What a consumer must provide / knows:
   `node`/`npx` (promptfoo substrate), plus one cross-family judge — any `BACKENDS` entry in
   `scripts/lib/judge.py`, currently `grok`, `copilot`, or a command of your own behind
   `$SKILL_BENCH_JUDGE_CMD`. Not bundled — documented requirements;
-  `skills/bench/references/judging.md` owns the wiring. `copilot` is the weakest of the three: its
-  `--model` is entitlement-gated here and rejects every id, so it runs `auto`, whose candidate set
-  includes Claude models — `judge.py` reads back who answered and fails the grade on a same-family
-  landing rather than reporting it as independent.
+  `skills/bench/references/judging.md` owns the wiring.
 - **Invoke via `${CLAUDE_PLUGIN_ROOT}`:** the `/bench` subcommands call
   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/..."` so they resolve from any working directory.
 - **Hermetic generation config** (`hermetic_driver`, used only by the isolated-generation mode):
@@ -104,11 +100,6 @@ ADR 0058). What a consumer must provide / knows:
   set, else your own login.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
   (#170 hard-problem 4).
-- **Method depth ships in-plugin**: pre-registration,
-  empirical-evals, and description-ablation live under the `/bench` skill's references —
-  skill-measure is standalone.
-- **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
-  (#170 hard-problem 3); without it, grade serially via `claude -p` with the same prompts.
 
 ## Status
 Runnable: `/bench` with `verdict` + `skill` + `trigger` subcommands (native substrate +

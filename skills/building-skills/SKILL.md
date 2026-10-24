@@ -104,7 +104,7 @@ Think of Claude navigating a path:
 
 ### 1. Draft Evaluations First
 
-Draft 3+ test cases (`evals/evals.json`, validate.py gates the shape) before writing documentation. Execution runs on skill-creator's harness; the skill-measure plugin's `scripts/eval_verdict.py` turns its benchmark into the cost-per-benefit verdict. Authoring: [evaluation-patterns.md](references/evaluation-patterns.md). Measurement protocol and pre-run discipline (empirical-evals.md, pre-registration.md) live in the **skill-measure plugin's** `bench` skill — the measurement product owns its method.
+Draft 3+ test cases (`evals/evals.json`) before writing documentation. Authoring, and where the measurement protocol lives: [evaluation-patterns.md](references/evaluation-patterns.md).
 
 ### 2. Develop Iteratively
 
@@ -144,16 +144,9 @@ python3 scripts/package.py <skill-folder> [output-directory]
 
 ## Quality Checklist
 
-### Validation (errors)
-
-- [ ] `name:` FIRST, `description:` SECOND in frontmatter
-- [ ] Name: matches folder, kebab-case, within NAME_MAX, no reserved words
-- [ ] Description: STARTS with trigger, within DESC_MAX, no XML chars
-- [ ] Body: within the char cap, ToC beyond TOC_THRESHOLD (validate.py owns the numbers)
-- [ ] No emojis in SKILL.md, scripts, or references/*.md (use ASCII: `[OK]`, `[FAIL]`, `[WARN]`)
-
 ### Process
 
+- [ ] `validate.py` passes (step 5)
 - [ ] 3+ test cases drafted before documentation; measured verdict for always-on or near-cap skills
 - [ ] Tested with target models
 - [ ] Core principles applied (conciseness, description-as-instruction)

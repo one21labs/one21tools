@@ -2,11 +2,9 @@
 
 ## Why a cross-family judge
 
-When the model that produced an output also grades it, scores inflate — the self-preference effect.
-This repo measured it on the #172 Instrument-2 evidence: re-scoring the same blinded cells with
-grok-4.5 instead of opus lowered the overall met-rate from roughly three-quarters to just over half,
-and the panel-vs-baseline contrast moved from near-zero to clearly positive. So the grading model is
-a first-class variable, not a neutral instrument. Default to a different family from the generator.
+When the model that produced an output also grades it, scores inflate — the self-preference effect
+(measured: the plugin README, "The cross-family judge"). Default to a different family from the
+generator.
 
 Foundations for grading validity (blinding, planted-defect calibration, prosecutor discipline) are
 owned by [empirical-evals.md](empirical-evals.md); this file covers only what

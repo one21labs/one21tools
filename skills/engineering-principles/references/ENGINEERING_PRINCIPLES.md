@@ -2,7 +2,7 @@
 
 ## Table of Contents (major sections)
 
-[Foundations](#foundations) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [Process](#process-principles) | [Application Hierarchy](#application-hierarchy) | [References](#references)
+[Foundations](#foundations) | [Seven Wastes](#seven-wastes-software) | [Quality](#quality-principles) | [Process](#process-principles) | [References](#references)
 
 Manufacturing engineering principles for all work - software, documentation, processes, and physical workspaces. They synthesize Lean and Agile foundations for modern software development and engineering workflows.
 
@@ -96,20 +96,10 @@ apply to the process itself, not just the product.**
 ## Root Cause Analysis (5 Whys)
 
 When to apply, method, and stopping criteria: [root-cause-analysis.md](root-cause-analysis.md).
-If a root cause reads "person X made a mistake," it is not the root cause — ask what about the
-system allowed or encouraged that mistake.
 
 ## Design First, Implementation Second
 
-Foundational workflow: fixing design is cheap; fixing implementation is expensive. The
-parent-child relationship:
-
-- Design (parent) → Implementation (child)
-- Implementation follows from design
-- If design is wrong, implementation will be wrong
-- Rework is waste
-
-Per-domain checklists and review process: [design-review.md](design-review.md).
+Foundational workflow: fixing design is cheap; fixing implementation is expensive. Per-domain checklists and review process: [design-review.md](design-review.md).
 
 ## Process Principles
 
@@ -118,7 +108,6 @@ Per-domain checklists and review process: [design-review.md](design-review.md).
 | **100% review** | Every character in code and docs is intentional. Review all changes. |
 | **Batch editing** | Plan all changes, combine into single operations, re-read between edits |
 | **Ask when uncertain** | If unclear where something belongs, ask rather than guess |
-| **A3 presentation** | Constrain to one page; forces prioritization |
 | **Drive out fear** | Blameless retrospectives, safe-to-fail experiments |
 
 ## Pareto Application Guide
@@ -176,14 +165,6 @@ include, token allocation) is optimizing-context territory, not duplicated here:
 [claude-md.md](../../optimizing-context/references/claude-md.md). Token-efficiency waste mapping
 (Overproduction, Overprocessing, Inventory, Defects, Motion for documentation and context/prompts):
 [waste-identification.md](waste-identification.md).
-
-## Application Hierarchy
-
-1. **Code**: Functions do one thing. Modules have one reason to change.
-2. **Documentation**: Each file serves one reader journey. SSoT enforced.
-3. **Testing**: Taguchi-efficient design. Automated where possible.
-4. **Review**: 100% coverage. A3-structured findings. Iterative discussion.
-5. **Process**: PDSA cycles for learning. Kaizen for improvement.
 
 ## References
 

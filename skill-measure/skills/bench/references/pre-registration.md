@@ -67,8 +67,7 @@ exclusion rate is an infrastructure defect to fix before grading, not signal.
   variance; pre-register per-arm consistency (within-scenario rep variance / worst-rep score)
   alongside the mean deltas.
 - **Power the design — two numbers, both stated before the run.** (1) The PRACTICAL BAR: the
-  smallest difference worth paying context for, tested against the interval's LOWER bound so KEEP
-  means "at least this much". Set after the fact it is worthless. (2) The SCENARIO COUNT that
+  smallest difference worth paying context for ([cost-and-verdict.md](cost-and-verdict.md)). (2) The SCENARIO COUNT that
   makes that bar reachable: `clusters_for(sd_between(prior_delta), target)`, at 80% power, sized
   from a prior run's measured spread rather than guessed (ADR 0076 applied to power). A grid
   sized below it can only return INCONCLUSIVE — spend with a known-null outcome.

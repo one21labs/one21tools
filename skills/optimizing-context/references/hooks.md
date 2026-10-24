@@ -56,24 +56,9 @@ Hooks occupy the top rungs of the detection-latency ladder (see the engineering-
 | Always active when configured | Loaded when relevant |
 | Policy layer | Knowledge layer |
 
-## When NOT to Use Hooks
-
-- **Context-dependent decisions**: Let Claude reason with CLAUDE.md guidance
-- **One-off requirements**: State in prompt
-- **Complex procedural logic**: Use Skills with scripts
-- **External data needs**: Use MCP
-- **Guidance over enforcement**: Use CLAUDE.md
-
 ## Performance Consideration
 
 Hooks run on every matching operation. If a hook is slow, it slows everything. Consider whether the enforcement value justifies the overhead.
-
-## Implementation
-
-Once you've decided a hook is needed, see:
-- Claude Code documentation for hook configuration
-- Claude Code Settings documentation for settings file locations (see Sources below)
-
 
 ## Sources
 

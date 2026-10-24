@@ -94,5 +94,3 @@ https://agentskills.io/skill-creation/evaluating-skills
 Caveats when crossing over:
 - validate.py stays authoritative for skills in this repo: its description-trigger rule is
   stricter than skill-creator's own conventions (skill-creator's own description would fail it).
-- Grading disciplines (fresh grader, blind the arm, mechanize first) live in the skill-measure
-  plugin's empirical-evals.md, "Running the benchmark" section.

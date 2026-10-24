@@ -31,16 +31,7 @@ per-product mapping in [mechanism-selection.md](references/mechanism-selection.m
 | User behavior defaults (all chats) | **User Preferences** (Claude.ai) or **User CLAUDE.md** (Claude Code) | Permanent, account-wide |
 | Project-specific behavior | **Project Instructions** | Scoped to initiative |
 
-Quick routing:
-- Repeated procedure -> Skill
-- Project context always loaded -> CLAUDE.md (Code) or Project (Claude.ai)
-- External data/tools -> MCP
-- Deterministic automation -> Hooks
-- Isolated task execution -> Subagent (prefer Task() over custom)
-- One-time request -> Prompt
-- Personal defaults -> User Preferences (Claude.ai) or ~/.claude/CLAUDE.md (Code)
-
-For worked before/after examples of these choices (bloated vs. lean CLAUDE.md, Skill vs.
+For worked before/after examples of these choices (Skill vs.
 CLAUDE.md, MCP vs. Skill, plugin marketplace structure), see
 [mechanism-selection.md](references/mechanism-selection.md).
 
@@ -60,10 +51,8 @@ drift patterns. Full treatment: [mechanism-selection.md](references/mechanism-se
 
 ## Measuring Success
 
-After changes, verify token count dropped, previously-failed tasks now succeed, retrieval stays
-accurate, and no regressions appear. For skills, confirm activation on 3+ realistic user
-phrasings. Skill size targets and the full metrics table:
-[mechanism-selection.md](references/mechanism-selection.md). If no measurable improvement, revert.
+Verify every change against the metrics in
+[mechanism-selection.md](references/mechanism-selection.md); if no measurable improvement, revert.
 
 ## Mechanism Guides
 
@@ -81,4 +70,3 @@ Read the appropriate reference when creating/optimizing:
 | Subagents | [subagents.md](references/subagents.md) | Task delegation |
 | Hooks | [hooks.md](references/hooks.md) | Automation |
 | Format efficiency | [token-format-efficiency.md](references/token-format-efficiency.md) | Formatting stored data/tool outputs (not SKILL.md/CLAUDE.md bodies) |
-| Examples / altitude depth | [mechanism-selection.md](references/mechanism-selection.md) | Worked examples, full SSoT rules, metrics |

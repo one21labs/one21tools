@@ -62,17 +62,13 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/run_eval.py" --eval-set <path> --skill-pa
   [--description "<variant text>"]
 ```
 
-- Prints the run count and **refuses to spend without `--yes`** (spend guard), as `skill` does.
-- Linux/WSL-only (#170 hard problem 4) — document, don't silently degrade.
-- `--num-workers 1` is MANDATORY (concurrent workers collapse rates toward 1/N); a timeout is a
-  null measurement, never a False. Report only matched-protocol A/B deltas, never absolute rates.
+- Linux/WSL-only. Run protocol and validity rules (why `--num-workers 1`, timeouts, A/B deltas
+  only): [description-ablation.md](references/description-ablation.md).
 
 ## Guardrails (all subcommands)
 
 - A cross-family judge is the default because same-family grading (Claude grades Claude) is a
-  measured confound. `auto` prefers your configured judge, then grok, copilot, then claude with a
-  caveat. Wire what you have via [judging.md](references/judging.md); a judge that cannot name its
-  model is refused, not counted as independent.
+  measured confound; resolution order and wiring: [judging.md](references/judging.md).
 - Cost is priced notionally at published rates even when marginally free.
 - Small n (scenario-clustered): CIs are wide, verdicts are exploratory — a judge flip is a signal to
   re-measure, not a settled result.
@@ -86,9 +82,5 @@ New benchmark dirs start from the canonical templates in `templates/` (grid runn
 grading workflow) — copy and adapt; never clone a sibling dated dir. The grading workflow needs
 the Claude Code `Workflow` tool (#170 hard problem 3); without it, grade serially via `claude -p`.
 
-Method foundations ship WITH this skill (ADR 0063):
-[pre-registration.md](references/pre-registration.md),
-[empirical-evals.md](references/empirical-evals.md),
-[description-ablation.md](references/description-ablation.md),
-[evaluating-your-own-work.md](references/evaluating-your-own-work.md) — read before you design a
-run against a skill you wrote. skill-measure installs standalone.
+Whole-skill protocol: [empirical-evals.md](references/empirical-evals.md). Before designing a run
+against a skill you wrote: [evaluating-your-own-work.md](references/evaluating-your-own-work.md).

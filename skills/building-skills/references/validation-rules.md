@@ -160,12 +160,6 @@ Case-insensitive. Must be at START of description.
 | `Use for` | Use for code review tasks... |
 | `Apply when` | Apply when generating reports... |
 
-### Pattern
-
-```
-[Trigger phrase] [conditions]. [Immediate instructions]. [What to check/read].
-```
-
 ---
 
 ## Emoji Prohibition

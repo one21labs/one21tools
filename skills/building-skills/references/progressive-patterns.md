@@ -125,6 +125,4 @@ Extract fields first. For complex forms, see [forms.md](forms.md).
 
 | Guideline | Reason |
 |-----------|--------|
-| One level deep from SKILL.md | Claude may partially read nested files |
-| ToC past the length gate `validate.py` enforces (owns the number) | Helps Claude navigate long content |
 | Descriptive names | `form_validation_rules.md` not `doc2.md` |

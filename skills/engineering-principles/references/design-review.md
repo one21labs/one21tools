@@ -24,7 +24,7 @@ Checklists to verify design completeness before implementation.
 | Starting new feature/project | **Yes** - before any code |
 | Significant change to existing system | **Yes** - before modifying |
 | Writing substantial document | **Yes** - outline first |
-| Told a plan is "already approved," asked only for a task breakdown | **Yes** - approval is a process signal, not proof the checklist below was actually satisfied; check it anyway |
+| Told a plan is "already approved," asked only for a task breakdown | **Yes** - see Go/No-Go: approval is not completeness |
 | Quick bug fix | **No** - just fix it |
 | Exploratory spike | **No** - spike is the design phase |
 
