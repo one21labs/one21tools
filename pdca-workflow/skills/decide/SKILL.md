@@ -41,8 +41,8 @@ selection rules live in the `advise` skill). Record which advisors ran and why o
 **Model split** — each agent's frontmatter `model:` is the SSoT for its tier.
 
 ## The loop
-1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs. Read
-   `docs/decisions/` so settled calls aren't re-litigated. Scan open ADRs' revisit
+1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs. Scan
+   `docs/decisions/` summaries; read in full each record the call touches. Scan open ADRs' revisit
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift (a shipped ADR a
    sibling still treats as open; an accepted ADR long stalled with no `## Act`;
    roadmap/changelog/tracker out of sync) — cite the line; omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,

@@ -25,15 +25,13 @@ git-visible y/n. Invoke via this skill, not a raw agent spawn: the spawn-log lin
 run (a raw spawn only lowers 0081's measured compliance — session-end lines are the
 denominator). An adopted finding's artifact carries the literal token
 `Retrospect-Run: <UTC timestamp of the run's spawn-log line>` (commit trailer or issue-body
-line) — 0081's grep-able numerator. Step 2's material includes `docs/pdca/gate-hits.txt`
-(the agent's Method reads it).
+line) — 0081's grep-able numerator.
 
 Run this loop:
 
 1. **Scope.** Resolve the range. `git log --oneline <range>` for the commit set.
-2. **Git signal.** Run `git log -p <range>` as needed so the material is ready for the agent; its
-   Method owns the specific signal list to look for (including the panel-fire log) — don't restate
-   it here.
+2. **Don't pre-load the diff.** The isolated agent runs its own git reads (its Method owns the
+   signal list); a `git log -p` here only spends main-context tokens the agent never sees.
 3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
    stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
    analysis and the routing rules — don't restate them.

@@ -14,8 +14,7 @@ Given a decision record (or a set of review claims), do this:
 1. **Reproduce every load-bearing claim** against the real source. If a claim cites
    `file:function` or a number, open it and confirm it — quote `file:line`. Agents are
    confidently wrong; a flagged "bug" has been provably correct before. Relay nothing
-   unverified, in either direction. (For the diff's mechanical correctness pass, run
-   `/code-review` rather than re-deriving a bug hunt — your unique job is the next steps.)
+   unverified, in either direction.
    A claim about the **external world** (vendor name/model, catalog, competitor, API/schema
    currency) is not settleable from a sandbox with no web egress — mark it UNVERIFIABLE-EXTERNAL
    and route it to a web-capable actor; a 403 / no-egress is NOT a REFUTE.
@@ -28,10 +27,7 @@ Given a decision record (or a set of review claims), do this:
    defect — check it or say why you cannot.
 3. **Grade the produced output, not the source.** For any claim about what the product outputs
    (renders, prints, exports, writes), run the project's render/verify step (per CLAUDE.md) and read
-   the actual output — never confirm it from source alone. (Where the project has a runnable surface
-   — app, service, CLI, or testable library — the Claude Code built-ins fit this seam: `/verify` or
-   `/run` to drive it, and `/run-skill-generator` to scaffold the run-harness if none exists.) A
-   product with no output layer skips this.
+   the actual output — never confirm it from source alone. A product with no output layer skips this.
 4. **Verify the core logic** yourself where a decision rests on it (reproduce the formula /
    algorithm against the project's core module — it is the product).
 

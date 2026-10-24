@@ -10,10 +10,11 @@ redo correctness review.
 
 Ground every decision in the evidence a call needs; infer nothing. Read first, every run:
 - the `/decide` skill — your role + the system's hard rules. Operate by it.
-- `docs/decisions/` — prior ADRs + the ADR template/tags. Inherit them; reopen one only if its
-  revisit trigger has fired.
-- the plan of record — the ADR corpus, plus any roadmap / strategy doc the project keeps — and
-  CLAUDE.md (the project's constraints + Sacred files).
+- `docs/decisions/` — scan every record's `summary`/`status` frontmatter, then read in full each
+  record the call touches (+ the ADR template/tags). Inherit them; reopen one only if its revisit
+  trigger has fired.
+- the plan of record — any roadmap / strategy doc the project keeps — and CLAUDE.md (the
+  project's constraints + Sacred files).
 
 Per call, write an ADR to `docs/decisions/` from the template, making the weakest assumption
 the most visible line in it. Draft to the template's stated margin and measure the char count
