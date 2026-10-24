@@ -599,19 +599,20 @@ test("decision-set: absent, empty, or singleton new-ADR list reports nothing (fa
   assert.deepEqual(decisionSetWarnings(["docs/decisions/0001-first.md"], files), []);
 });
 
-// 0050's owner rework (2026-07-16) dropped its 0047/0048 entanglement, so the historic
-// 0047-0050 batch no longer proves quiet-on-connected; 0055+0063 (extraction + its
-// completion set, mutually cited) is the corpus's current connected precedent.
-test("decision-set: a real cite-connected corpus set is quiet (0055 + 0063)", () => {
-  assert.deepEqual(decisionSetWarnings(["0055", "0063"], corpus()), []);
+// Fixtures, not real ids: the real precedents (0055+0063, 0064-0068) were retired.
+const setAdr = (id, body) => liteAdr(`${id}-x.md`, `\n# ${id}\n\n${body}\n- Enforced: absence.\n`);
+test("decision-set: a cite-connected set is quiet", () => {
+  const files = [setAdr("0001", "Completes ADR 0002."), setAdr("0002", "Scope; see ADR 0001.")];
+  assert.deepEqual(decisionSetWarnings(["0001", "0002"], files), []);
 });
 
-test("decision-set: the real WP1 set (0064-0068, cite-unconnected) WARNS but is permitted — the batch that amended this rule", () => {
-  const warns = decisionSetWarnings(["0064", "0065", "0066", "0067", "0068"], corpus());
+test("decision-set: a cite-unconnected set WARNS but is permitted", () => {
+  const files = [setAdr("0001", "One call."), setAdr("0002", "Another call.")];
+  const warns = decisionSetWarnings(["0001", "0002"], files);
   assert.equal(warns.length, 1);
   assert.match(warns[0], /fine for a deliberate work package/);
-  // Advisory means advisory: the full lint over the same corpus raises no decision-set problem.
-  assert.deepEqual(lint({ files: corpus() }).problems.filter(p => /decision set|grab-bag/.test(p)), []);
+  // Advisory means advisory: the full lint over the same files raises no decision-set problem.
+  assert.deepEqual(lint({ files }).problems.filter(p => /decision set|grab-bag/.test(p)), []);
 });
 
 test("decision-set: two new ADRs sharing no cite warn, naming the stranded id", () => {

@@ -2,7 +2,7 @@
 id: 0062
 title: "Panel plateau: re-scope /decide to a two-stage gate; two-stage doctrine; marginal dollar to #186 Phase-1"
 status: accepted
-summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-go default, full panel only for high-stakes gate-passers, forced-record guarantee kept. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first. Amended 26-Jul-2026 (#236): advisor BREADTH saturates but adversary DEPTH does not — a Check phase ends at the first round that changes nothing in the artifact, n=1."
+summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): routine calls decided in the commit/PR with no ADR or pm spawn (owner, 24-Oct-2026), full panel + ADR only for high-stakes gate-passers. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first. Amended 26-Jul-2026 (#236): advisor BREADTH saturates but adversary DEPTH does not — a Check phase ends at the first round that changes nothing in the artifact, n=1."
 ---
 
 # 0062 — panel plateau + two-stage doctrine
@@ -14,13 +14,11 @@ summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): lite/bare go/no-
   judges.
 
 ## Decision
-**1 — Re-scope, not cut (two-stage /decide routing).** Default = lite/bare go/no-go record: the
-session writes it, no `pm` spawn; the ADR carries a falsifiable criterion + spend gate.
-Escalate to the full panel ONLY for high-stakes/irreversible calls that clear the cheap gate —
-never routine/meta/tooling.
-The forced-record guarantee (falsifiable criterion, spend gate, retrospect discipline) is kept
-unconditionally by the lite default, independent of panel spawn — re-scope forfeits none of it
-while dropping the 4-7x routine panel cost (C $3.21-4.05 vs. A $0.50-0.56/cell).
+**1 — Re-scope, not cut (two-stage /decide routing).** Default = routine call: the session
+decides it and states the rationale in the commit/PR — no ADR, no `pm` spawn (owner, 24-Oct-2026:
+"No records for routine calls"). Escalate to the full panel + ADR ONLY for high-stakes/irreversible
+calls that clear the cheap gate — never routine/meta/tooling. This drops the 4-7x routine panel
+cost (C $3.21-4.05 vs. A $0.50-0.56/cell).
 
 **2 — Adopt the owner two-stage doctrine as repo policy** (owner directive, #184): cheap go/no-go
 gate first, powered optimization ONLY for gate-passers. This ADR is its home.
@@ -41,12 +39,12 @@ five instruments behind 1-3 — the trigger below is set to match.
 Enforced: `pdca-workflow/skills/red-team/SKILL.md` (Return).
 
 ## Justification
-Re-scope is low-regret: the cut critique bites only on routine calls (now lite); the keep case's
+Re-scope is low-regret: the cut critique bites only on routine calls (now unrecorded); the keep case's
 failure-anticipation insurance (0.42 vs. 0.08 trap-acing) is preserved for the high-stakes calls
 it exists for, at ~0 re-scope cost.
 
 ## Assumptions
-- [unverifiable] WEAKEST — the whole re-scope rides on it: the failure-anticipation edge (0.42 vs. 0.08) is a real mechanism, not n=1 construction noise; re-scope is deliberately low-regret regardless (escalation is rare, the record is kept either way). REOPEN-IF a third independent construction fails to replicate the ~0.42/0.08 gap above run noise -> escalate re-scope to full cut.
+- [unverifiable] WEAKEST — the whole re-scope rides on it: the failure-anticipation edge (0.42 vs. 0.08) is a real mechanism, not n=1 construction noise; re-scope is deliberately low-regret regardless (escalation is rare). REOPEN-IF a third independent construction fails to replicate the ~0.42/0.08 gap above run noise -> escalate re-scope to full cut.
 
 ## Rejected alternatives
 - Full CUT (drop panel from default) — forfeits the failure-anticipation edge before it is priced.
@@ -57,6 +55,8 @@ it exists for, at ~0 re-scope cost.
 ## Revisit triggers
 - A third construction refutes the failure-anticipation gap, or escalation is never invoked over
   a run of high-stakes calls -> graduate re-scope to full cut.
+- A routine call gets re-litigated because no record of it existed -> that class of call is
+  recorded again.
 - Poka-yoke lite-template fields make the DoD properties structural -> Phase-1 collapses to nothing.
 - (Decision 4) Round one comes back dry on three separate PRs -> the depth rule drops to a single
   round. Or a PR needs more rounds than the owner will pay for -> depth gets a hard ceiling, and

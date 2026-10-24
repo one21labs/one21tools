@@ -78,10 +78,9 @@ logic; a doc restating them rots.
   decision-state stays in ADRs.
 
 ## Feedback = PDCA trigger
-This repo dogfoods its own `pdca-workflow` plugin. A judgment call gets DECIDED and recorded
-(ADR in `docs/decisions/`) before it's built — directly for routine calls, with a panel only
-when genuinely contested, with one fresh adversary (verify/red-team) when the result ships or
-is hard to reverse (ADR 0062). Inherit settled ADRs; don't re-litigate — but an ADR resting on
+This repo dogfoods its own `pdca-workflow` plugin. A judgment call gets DECIDED before it's built: routine — in the
+commit/PR, no ADR; genuinely contested — panel + ADR in `docs/decisions/`; one fresh adversary
+(verify/red-team) when the result ships or is hard to reverse (ADR 0062). Inherit settled ADRs; don't re-litigate — but an ADR resting on
 an unsourced want is challengeable, not settled.
 
 ## Judgment

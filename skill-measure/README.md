@@ -122,8 +122,8 @@ Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces 
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
 CI-runnable, needs authenticated grok). Promptfoo generation is wired into
-`/bench skill` (`--substrate promptfoo`, proven live). Rationale lives in the source repo's
-`docs/decisions/0055-*` and `0063-*`, which do not ship with the plugin.
+`/bench skill` (`--substrate promptfoo`, proven live). Rationale: the source repo's
+`docs/decisions/README.md` (Retired ids 0055, 0063), which does not ship with the plugin.
 
 ## Provenance
 

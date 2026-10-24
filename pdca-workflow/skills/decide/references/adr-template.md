@@ -149,7 +149,7 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 ## Lite tier
 
-The DEFAULT tier (ADR 0062). The corpus exists to stop a future session RE-DECIDING a settled call (ADR 0092). Lite carries
+The cheap tier for a recorded call (routine calls get no record, ADR 0062). The corpus exists to stop a future session RE-DECIDING a settled call (ADR 0092). Lite carries
 exactly the fields that do that and nothing else. The boundary is mechanical: a decision whose
 REASONING must survive — tagged assumptions someone must resolve, or an `## Assumptions` block —
 graduates to a full ADR; everything else is lite, INCLUDING a decision with a reopen-if.

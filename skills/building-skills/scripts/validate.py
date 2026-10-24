@@ -27,6 +27,8 @@ from typing import List
 
 NAME_MAX = 64
 DESC_MAX = 1024
+# Design: toolkit scripts stay Python; caps are duplicated per gate, not shared with
+# pdca-workflow/char-budget.mjs, because the plugins install independently. Revisit only if they merge.
 BODY_MAX_CHARS = 6000           # SKILL.md body char cap (ADR 0009; ungameable by long lines, cf. line caps)
 TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LINES (a sub-cap readability aid)
 REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)

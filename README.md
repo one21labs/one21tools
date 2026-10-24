@@ -27,7 +27,8 @@ individual skills:
 
 Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are
 Linux/WSL-only); cross-family judging uses any foreign-vendor CLI you have or wire yourself, and
-falls back to same-family with a recorded caveat. Installing the skills alone needs none of that.
+falls back to same-family with a recorded caveat. Installing the skills alone needs none of that. Each plugin installs standalone: no manifest
+`dependencies` unless a plugin cannot function without another's files (none today).
 
 ## What changes after install
 

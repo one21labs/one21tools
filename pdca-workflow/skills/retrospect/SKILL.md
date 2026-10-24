@@ -40,7 +40,7 @@ Run this loop:
    and list two classes: every DISTINCT correction, wrong guess, or rework; AND every request whose
    delivery you cannot now point at. Recall drops both silently and without a symptom. Hand the
    list to the agent, each item marked git-visible? (yes/no) — it can only corroborate the yes
-   class; an item with no commit has no other witness (ADR 0014).
+   class; an item with no commit has no other witness (no transcript extractor: the JSONL is unversioned and `type:user` is not human-typed; revisit when Claude Code ships a versioned transcript API).
    Enumerate each before deduping (dedupe happens at Curate); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
@@ -51,7 +51,8 @@ Run this loop:
    decision is the failure; it compounds, because the next record cites the mention as provenance.
    Check the range's own commit messages too: an artifact citing an ADR's authority that the ADR's
    Decision never granted is the sharpest form. Undecided + blocking -> delete it and re-pose the
-   question unanchored (0091's scoped test), never retrofit a record around the artifact.
+   question unanchored (0091's scoped test), never retrofit a record around the artifact. Delete only if ALL hold: blocking, no record
+   decides its predicate, re-cited undisposed (adr-lint.mjs is decided; claude-review.yml never blocks).
 6. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
    above must not pressure the no-pad rule); keep only systemic improvements (would recur),
    cite-or-silence — as many as are REAL: zero is the expected result of a clean closeout

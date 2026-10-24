@@ -2,6 +2,8 @@
 
 Dated dirs are append-only measurement records — never edit or "retrofit" one (ADR 0041; a
 re-run either REPRODUCES the committed harness as-is or is a NEW measurement in a new dated dir).
+Evidence an ADR cites lands on main as a dated dir — never only on a branch (deletable without
+review) or a tag (agents don't fetch tags).
 
 **Landing a run's results retires the prep-era text in the SAME PR** (ADR 0070): a PR that adds
 `results.jsonl` to a dir whose README still says "no run executed" / PREP ONLY must update that

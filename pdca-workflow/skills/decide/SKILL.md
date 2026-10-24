@@ -12,7 +12,7 @@ separate doc restates it.
 **Trigger.** A roadmap/product change, an open judgment call, or ANY user feedback (bug report,
 feature ask, behavioral observation). Route it here — never fix a feedback item directly before
 planning it. **Panel only for genuinely CONTESTED calls** (real two-sided trade-off, Sacred
-surface, hard-to-reverse); everything else the PM records directly (ADR 0062). When the
+surface, hard-to-reverse); everything else is routine — step 4 (ADR 0062). When the
 decisive fact is a person's preference and the person is reachable, ASK — a panel cannot
 outvote the client.
 
@@ -54,7 +54,7 @@ selection rules live in the `advise` skill). Record which advisors ran and why o
    real produced output before advising — the grading rule's home is the `verifier` agent. No
    output layer = skip.
 4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
-   at a lite/bare record you write yourself — no panel or `pm` spawn; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
+   here: decide it yourself, rationale in the commit/PR — no panel, `pm`, or ADR; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
    framed scope — it owns panel selection and the spawn/shape rules.
 5. **Decide (PM).** Escalated: invoke `pm`; it weighs the advice and writes an ADR per call per
    `references/adr-template.md` (char caps: `references/doc-budgets.md`). A settled call records
