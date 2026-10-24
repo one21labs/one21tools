@@ -40,7 +40,7 @@ Run this loop:
    and list two classes: every DISTINCT correction, wrong guess, or rework; AND every request whose
    delivery you cannot now point at. Recall drops both silently and without a symptom. Hand the
    list to the agent, each item marked git-visible? (yes/no) — it can only corroborate the yes
-   class; an item with no commit has no other witness (no transcript extractor: the JSONL is unversioned and `type:user` is not human-typed; revisit when Claude Code ships a versioned transcript API).
+   class; an item with no commit has no other witness (no transcript extractor: the JSONL is unversioned and `type:user` is not human-typed; revisit when Claude Code ships a versioned transcript API AND a per-message-to-commit attribution primitive).
    Enumerate each before deduping (dedupe happens at Curate); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a

@@ -22,7 +22,7 @@ file; ids are never renumbered or reused, so a cite of one resolves HERE:
 - 0002 -> docs/decisions/README.md (ADR = Authoritative Decision Record)
 - 0003 -> pdca-workflow/skills/decide/references/adr-lint.md (UNFALSIFIABLE presence gate)
 - 0004 -> pdca-workflow/skills/pdca-init/references/panel-generation.md (step 4, version-control the panel)
-- 0005 -> pdca-workflow/skills/retrospect/SKILL.md (step 6, /simplify; run-coupled built-ins deliberately unnamed in verifier.md)
+- 0005 -> pdca-workflow/skills/retrospect/SKILL.md (step 7, /simplify; run-coupled built-ins deliberately unnamed in verifier.md)
 - 0006 -> pdca-workflow/agents/retrospect.md (model: sonnet; frontmatter is the tier SSoT)
 - 0009 -> skills/building-skills/scripts/validate.py (design comment above BODY_MAX_CHARS)
 - 0010 -> skills/building-skills/scripts/validate.py (design comment above BODY_MAX_CHARS)
@@ -31,7 +31,7 @@ file; ids are never renumbered or reused, so a cite of one resolves HERE:
 - 0013 -> skill-measure/skills/bench/references/empirical-evals.md (delegated harness); skill-measure/scripts/eval_verdict.py
 - 0014 -> pdca-workflow/skills/retrospect/SKILL.md (step 4, self-check + no-extractor rule)
 - 0015 -> CLAUDE.md (Stack & navigation commands; test-command mirror deleted, gates.yml owns it)
-- 0016 -> pdca-workflow/README.md (invocation paragraph: panel primitives model-invocable)
+- 0016 -> pdca-workflow/README.md (invocation paragraph: panel primitives model-invocable); bench condition: skill-measure/scripts/lib/spend_guard.py header
 - 0017 -> CLAUDE.md (no plugin version fields; sole drift predicate adr-lint.mjs manifestDrift)
 - 0018 -> pdca-workflow/agents/retrospect.md (Method, backstory-sweep clause; reopen: recurrence -> a dedicated pre-PR doc-review step, not a bigger prompt)
 - 0020 -> pdca-workflow/skills/decide/references/adr-template.md (## Lite tier)
@@ -90,6 +90,6 @@ file; ids are never renumbered or reused, so a cite of one resolves HERE:
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
-- 0098 -> skill-measure/skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue #310
+- 0098 -> skill-measure/skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue #310 — if it closes with the stats menu unaddressed, re-file survivors singly
 - 0099 -> skill-measure/scripts/lib/usage_guard.py (header); skill-measure/skills/bench/references/cost-and-verdict.md (usage-limit pause)
 - 0100 -> benchmarks/2026-10-12-g8-shortfall/metadata.json (stop rule) + README.md (Measured state)

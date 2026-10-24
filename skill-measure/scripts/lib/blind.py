@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared output-blinding layer (ADR 0052 decision 4): one lib home imported by new harnesses
+"""Shared output-blinding layer (ADR 0052): one lib home imported by new harnesses
 instead of a 10th dated-dir copy (the 9 existing copies are frozen snapshots, ADR 0041).
 
 Three jobs (the first two are arm-blinding, ADR 0019 item 5):

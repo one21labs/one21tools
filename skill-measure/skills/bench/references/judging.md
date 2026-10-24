@@ -74,7 +74,7 @@ On the VERDICT path each cell is graded then prosecuted: a first pass judges eve
 expectation, then an adversarial pass re-judges each met call and defaults to not-met when the
 evidence is thin. The final met is the AND of the two (the min rule) — leniency in either stage
 drops the score. The `/bench skill` path grades once — no prosecutor pass runs there today
-(ADR 0096; wiring is a spend decision, ADR 0098). Normalization to a neutral schema (stripping
+(ADR 0096; not wired: 2x judge spend per run; wire only if a manual prosecutor pass overturns a `/bench skill` KEEP). Normalization to a neutral schema (stripping
 format and role tells) happens once and is reused, so a judge swap changes only the grader,
 keeping the comparison clean.
 

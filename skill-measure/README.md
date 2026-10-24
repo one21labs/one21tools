@@ -1,9 +1,8 @@
 # skill-measure
 
 A public hermetic pipeline for measuring YOUR OWN skill's value — packaged so any skill author
-can measure their own skill: `/plugin install skill-measure@one21tools`. Decision record:
-ADR 0055 (scope) + ADR 0063 (completion set); plan: #170 — all in the source repo's decision log,
-outside this plugin's shipped files, so no link survives an install.
+can measure their own skill: `/plugin install skill-measure@one21tools`. Decided in this
+README (Method depth, below) and `bench/SKILL.md`; plan: #170.
 
 Related work (surveyed 29-Jul-2026): bring-your-own-skill measurement is a crowded lane —
 anthropics/skills' skill-creator is the reference design for paired with/without arms and blind
@@ -105,7 +104,7 @@ ADR 0058). What a consumer must provide / knows:
   set, else your own login.
 - **Platform:** the hermetic CLAUDE.md-discovery behavior and `/bench trigger` are Linux/WSL-only
   (#170 hard-problem 4).
-- **Method depth ships in-plugin** (ADR 0063 Call 2 as reworked): pre-registration,
+- **Method depth ships in-plugin**: pre-registration,
   empirical-evals, and description-ablation live under the `/bench` skill's references —
   skill-measure is standalone.
 - **Grading workflow:** `templates/grade.workflow.js` needs the Claude Code `Workflow` tool
@@ -122,8 +121,7 @@ Install-portability proven at two levels: `consumer-layout.test.mjs` reproduces 
 copied-out layout at an unrelated cwd with NO CLIs (offline plumbing + math — CI-runnable); and a
 manual live run re-graded from a `/tmp` install driving grok end-to-end (4 calls, 0 errors — not
 CI-runnable, needs authenticated grok). Promptfoo generation is wired into
-`/bench skill` (`--substrate promptfoo`, proven live). Rationale: the source repo's
-`docs/decisions/README.md` (Retired ids 0055, 0063), which does not ship with the plugin.
+`/bench skill` (`--substrate promptfoo`, proven live).
 
 ## Provenance
 

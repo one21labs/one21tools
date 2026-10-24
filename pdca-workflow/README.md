@@ -160,7 +160,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (ADR 0016):
 it fires only at its ADR 0081 triggers, so the session itself can discharge — and mark — the
 standing close-out. `/decide` no longer carries the flag either, so it is reachable by the model;
-ADR 0016's Enforced set now names it; what conditions should bind a panel that spends many agents
+it carries no `disable-model-invocation`; what conditions should bind a panel that spends many agents
 and writes files is still an open decision, not something this README settles.
 `/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
 flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
