@@ -5,8 +5,8 @@ Prioritize all work against it.
 
 ## Stack & navigation
 No app, build, or deploy — the "code" is markdown + JSON + scripts: skills live in `skills/<name>/SKILL.md` (+ `references/`,
-`scripts/`); plugins are top-level dirs with a `.claude-plugin/plugin.json`,
-registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
+`scripts/`); plugins are entries in `.claude-plugin/marketplace.json` — a top-level dir with its
+own `plugin.json`, or a group over `skills/`; the deterministic parts are real scripts.
 Validate a skill: `python3 skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
 `node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.

@@ -18,15 +18,20 @@ hooks, and skills, not prose (autonomy).
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
 ```
 
-The harness that measures these skills is its own repo:
-[one21labs/skill-measure](https://github.com/one21labs/skill-measure) (Claude Code only).
+The harness that measures these skills (`/bench`) is its own repo,
+[one21labs/skill-measure](https://github.com/one21labs/skill-measure) (Claude Code only):
+
+```
+/plugin marketplace add one21labs/skill-measure
+/plugin install skill-measure@skill-measure
+```
 
 Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
 history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
 individual skills:
 `ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
 
-Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are
+Requirements: skill-measure needs python3 + node + the `claude` CLI (trigger runs are
 Linux/WSL-only); cross-family judging uses any foreign-vendor CLI you have or wire yourself, and
 falls back to same-family with a recorded caveat. Installing the skills alone needs none of that. Each plugin installs standalone: no manifest
 `dependencies` unless a plugin cannot function without another's files (none today).
@@ -39,8 +44,8 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 - `/decide` runs a PM-led panel and records the call as a linted ADR; `/verify` and `/red-team`
   gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
   (structure, cites, char budgets) — not convention.
-- `/bench` measures any skill with paired with/without runs and spend gates; its verdict path
-  adds blind grading and an adversarial prosecutor pass.
+- With skill-measure installed, `/bench` measures any skill with paired with/without runs and
+  spend gates; its verdict path adds blind grading and an adversarial prosecutor pass.
 
 ## Measured state (the honest block)
 
