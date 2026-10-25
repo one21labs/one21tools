@@ -41,4 +41,4 @@ A diff-scoped sweep catches zero of the two known instances — both sit outside
 ## Act (2026-07-28)
 - [outcome] the rung-4 invariant holds — verified: shipped `8d698bc`, runs from `.github/workflows/gates.yml`; 39 cited tokens across 191 frozen-dir files, none stranded.
 - [outcome] the WEAKEST assumption — still-open.
-- [outcome] the shipped-source MOVED exemption (predicate, markers, deletions, repoints of `skill-measure/scripts/run_eval.py` and ADR 0013) — verified.
+- [outcome] the shipped-source MOVED exemption (predicate, markers, deletions, repoints of `one21labs/skill-measure:scripts/run_eval.py` and ADR 0013) — verified.

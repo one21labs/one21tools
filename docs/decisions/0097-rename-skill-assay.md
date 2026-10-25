@@ -65,7 +65,7 @@ real risk is a PARTIAL rename, so the decision is mostly a completeness spec.
 - Real adoption arrives before execution -> re-price the call.
 
 ## Act (12-Oct-2026)
-- Shipped as `skill-measure`. A `skill-bench` symlink is the path shim: frozen dirs cite and
-  import that path (ADR 0089), so it and GLOBAL_TELLS' old-name entry also survive the grep gate.
+- Shipped as `skill-measure`. GLOBAL_TELLS keeps the old name as a leak pattern. The
+  `skill-bench` path shim is retired: the plugin left this repo (ADR 0102).
 - `SKILL_BENCH_*` env vars keep their names: not a decision-5 member, and renaming them would
   silently drop an adopter's settings.

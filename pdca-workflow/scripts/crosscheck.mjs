@@ -40,18 +40,13 @@ function persistRun(stamp, claim, record) {
 
 /** Pure: the lineage this plugin runs inside. `$PDCA_MAKER_FAMILY` is a real override, not a
  *  comment — an adopter driving these skills from another vendor's host inverts which family is
- *  "the maker", and without the override this plugin would be Claude-shaped by construction. Must
- *  stay in step with judge.py's GENERATOR_FAMILY (scripts/check-family-parity.test.mjs). */
+ *  "the maker", and without the override this plugin would be Claude-shaped by construction. */
 export function makerFamily(env = process.env) {
   return env.PDCA_MAKER_FAMILY || "anthropic";
 }
 
 export const MAKER_FAMILY = makerFamily();
 
-// TWIN: skill-measure/scripts/lib/judge.py carries this table and parseCopilot's logic in Python.
-// Neither may import the other (ADR 0050: plugins ship standalone, no content dependencies), so
-// the copies are structural — change one, change both. scripts/check-family-parity.test.mjs fails
-// the build if they drift.
 const FAMILY_PATTERNS = [
   [/claude|anthropic/i, "anthropic"],
   [/grok|xai/i, "xai"],
@@ -86,11 +81,11 @@ export const LANES = [
     name: "grok",
     envBin: "GROK_BIN",
     fallbacks: ["~/.grok/bin/grok"],
-    // READ stays allowed on purpose. skill-measure's judge denies it because grading must be
+    // READ stays allowed on purpose. A grading judge denies it because grading must be
     // hermetic; a cross-lineage CHECK is the opposite job — a foreign model that cannot open the
     // files is reduced to rhetoric about a claim blob, which is the appearance of a check rather
-    // than one. Writes and shell stay off via an ALLOW-list of read tools (deny flags are no-ops:
-    // skill-measure's judge.py, GROK_TOOLS).
+    // than one. Writes and shell stay off via an ALLOW-list of read tools (grok's deny flags are
+    // no-ops).
     args: (file) => ["--prompt-file", file, "--output-format", "json",
       "--tools", "read_file,list_dir,grep"],
     parse: parseGrok,

@@ -11,7 +11,7 @@ summary: "The refuted skill-measure claims are one class: VERDICT-path propertie
 - Owner: PM
 - Panel: none (ADR 0062) — two prior adversarial evaluations (grok-4.5 cross-family; sonnet
   in-family), both tree-verified; surviving findings folded in.
-- Context: `skill-measure/README.md` claimed "arm design (bare / cost-matched / structured)" but
+- Context: `one21labs/skill-measure:README.md` claimed "arm design (bare / cost-matched / structured)" but
   `bench_skill.py:71-72` builds exactly with/without; the three-arm design is the #172 study's, fed
   to `bench_verdict.py` as data. `judging.md` and `cost-and-verdict.md` taught grade-then-prosecute
   for "each cell"; only `bench_verdict.py:52` prosecutes. One root cause: path properties stated
@@ -26,7 +26,7 @@ summary: "The refuted skill-measure claims are one class: VERDICT-path propertie
    Braintrust cross-vendor judge routing) — a dated false universal is still false. Replace with
    named prior art + an honest-limits paragraph. Same for "the repo's unique asset" and "no vendor
    sells this" in `README.md`.
-3. The manifest pair (`.claude-plugin/marketplace.json`, `skill-measure/.claude-plugin/plugin.json`)
+3. The manifest pair (`.claude-plugin/marketplace.json`, `one21labs/skill-measure:.claude-plugin/plugin.json`)
    drops the "no commercial eval tool provides" clause in ONE commit; manifestDrift already guards
    divergence, no new gate.
 4. ADR 0055 corrected IN PLACE (rationalize) — its "no vendor sells" claims removed.

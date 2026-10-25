@@ -44,6 +44,15 @@ const SPAN = /`([^`]+)`/g;
 // Trailing span content after the match (a :symbol, CLI flags) is allowed.
 const PATH_RE = /^([A-Za-z0-9_.-]+)\/[A-Za-z0-9_./-]*\.[A-Za-z0-9]+/;
 const FORBIDDEN = /[$*<>{}|]/;
+// Top-level trees that LEFT this repo (ADR 0102): a frozen cite under one names another repo's
+// file, reproduced at the citing run's own commit — reported as external, never stranded.
+// Listed explicitly because a departed tree is absent from the worktree (and `skill-bench` was a
+// symlink, never a dir), so the readdir-derived top-dir set alone would leave its cites unscanned.
+export const DEPARTED = new Map([
+  ["skill-measure", "one21labs/skill-measure"],
+  ["skill-bench", "one21labs/skill-measure"],
+]);
+const isDeparted = path => DEPARTED.has(path.split("/")[0]);
 
 /**
  * Pure extraction. `files` = [{ path, text }]; `knownTopDirs` = Set of repo-root dir names.
@@ -112,7 +121,8 @@ export function movedMarkers(files) {
  * `git log --all` history. Problem iff absent AND ever-existed (a stranded relocation) —
  * UNLESS (ADR 0089 Act) the path is doc-only (.md), lies under a shipped skill dir, and the
  * citing file carries a MOVED marker for it (not on the cited line) whose new path resolves.
- * Executables never qualify: a note cannot run.
+ * Executables never qualify: a note cannot run. A DEPARTED-tree cite is never a problem; it
+ * is returned in `departed` so the run reports it instead of passing it silently.
  */
 export function checkRelocatedPaths({ candidates, existingPaths, everExisted,
   shippedDirs = new Set(), markersByFile = new Map(), resolvableNewPaths = new Set() }) {
@@ -120,14 +130,17 @@ export function checkRelocatedPaths({ candidates, existingPaths, everExisted,
     c.path.endsWith(".md")
     && [...shippedDirs].some(d => c.path.startsWith(`${d}/`))
     && (markersByFile.get(c.file) ?? []).some(m =>
-      m.oldPath === c.path && m.line !== c.line && resolvableNewPaths.has(m.newPath));
+      m.oldPath === c.path && m.line !== c.line
+      && (resolvableNewPaths.has(m.newPath) || isDeparted(m.newPath)));
+  const departed = candidates.filter(c => isDeparted(c.path));
   const problems = candidates
+    .filter(c => !isDeparted(c.path))
     .filter(c => !existingPaths.has(c.path) && everExisted.has(c.path) && !exempt(c))
     .map(c => `${c.file}:${c.line}: \`${c.path}\` is cited by this frozen dir but absent from the `
       + `worktree despite existing in git history — a relocation stranded it; restore it at the `
       + `old path (shim or pointer stub, ADR 0089/PR #230) or, for a doc-only path under a `
       + `shipped skill dir, append a MOVED marker in the citing file — never edit the frozen line`);
-  return { problems };
+  return { problems, departed };
 }
 
 /**
@@ -166,6 +179,7 @@ function main(argv) {
     knownTopDirs = new Set(readdirSync(root, { withFileTypes: true })
       .filter(e => e.isDirectory() && e.name !== ".git" && e.name !== "node_modules")
       .map(e => e.name));
+    for (const d of DEPARTED.keys()) knownTopDirs.add(d);
   } catch (e) {
     console.error(`check-relocated-paths: cannot walk ${root}/benchmarks: ${e.message}`);
     process.exit(2);
@@ -199,7 +213,7 @@ function main(argv) {
       process.exit(2);
     }
   }
-  const { problems } = checkRelocatedPaths({ candidates, existingPaths, everExisted,
+  const { problems, departed } = checkRelocatedPaths({ candidates, existingPaths, everExisted,
     shippedDirs, markersByFile, resolvableNewPaths });
   if (problems.length) {
     console.error(`check-relocated-paths: ${problems.length} stranded path(s)`);
@@ -207,7 +221,8 @@ function main(argv) {
     process.exit(1);
   }
   console.log(`check-relocated-paths: ${candidates.length} cited path token(s) across `
-    + `${files.length} frozen-dir file(s) — none stranded.`);
+    + `${files.length} frozen-dir file(s) — none stranded; ${departed.length} cite(s) into departed `
+    + `trees (${[...new Set(DEPARTED.values())].join(", ")}: reproduce at the citing run's commit).`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv);

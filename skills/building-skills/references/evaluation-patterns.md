@@ -18,7 +18,7 @@ Read this when designing tests for your skill.
 Author test cases as `evals/evals.json` in the skill folder; `validate.py` gates the shape.
 Schema SSoT, live example, and authorship discipline (fresh Claude B writes the `expectations`,
 not the skill's author): empirical-evals.md's "Authoring evals" section — **skill-measure
-plugin**, `bench` skill (a separate plugin; no relative link survives an install).
+plugin**, `bench` skill (its own repo, one21labs/skill-measure; no relative link survives an install).
 
 ---
 
