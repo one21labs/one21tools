@@ -174,7 +174,6 @@ class TestJudge(unittest.TestCase):
         self.assertEqual(os.listdir(run.call_args.kwargs["cwd"]), [])
 
     def test_grok_sandbox_is_an_allow_list_not_the_no_op_deny_flag(self):
-        # Planted-file probe, 29-Jul-2026: grok ignored --disallowed-tools; --tools held.
         j, p = self._grok_returning(("grok-4.5",))
         with p as run:
             j.grade("prompt", {"type": "object"})
@@ -257,7 +256,6 @@ class TestJudge(unittest.TestCase):
                 j.grade("prompt", {"type": "object"})
 
     def test_copilot_sandbox_is_an_explicit_allow_list(self):
-        # Planted-file probe, 24-Oct-2026: a bare --available-tools leaked the file; =sql held.
         j, p = self._copilot_returning("gpt-5-mini")
         with p as run:
             j.grade("prompt", {"type": "object"})
