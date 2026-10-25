@@ -58,11 +58,13 @@ uses — it records what ran, and its commit is exactly that state.
 - Cross-family red-team (copilot, gpt-6-luna; grok unauthenticated): 5 findings, all taken —
   CI members, executable shims, two-step install, templates, reachability. Parity retirement
   FRAME-UNCHECKED. Probed: grok, copilot.
-- [checkable] **WEAKEST:** an existing `skill-measure@one21tools` install sees "Removed from the
-  marketplace" and the new marketplace installs clean — owner: owner after merge; result:
-  pending — named signal: the owner's next session start after `/plugin marketplace update`.
-- [verified] the split stands alone: every `*_test.py`, the node test, check_reachability and
-  `claude plugin validate` pass in a scratch clone of `git subtree split --prefix=skill-measure`.
+- [verified] blank-config sim (directory-source one21tools, main -> this branch): an installed
+  `skill-measure@one21tools` drops from `enabledPlugins`, lists disabled, uninstalls clean; the
+  published repo installs via `marketplace add` + `install`.
+- [checkable] **WEAKEST:** the same holds for a GitHub-source install — owner: owner after
+  merge; result: pending — named signal: the owner's next session after `/plugin marketplace update`.
+- [verified] the split stands alone: its CI (harness tests, node test, check_reachability,
+  `claude plugin validate`) is green on one21labs/skill-measure main.
 - [unverifiable] skill-measure fails or misleads in Cowork — REOPEN-IF: it is shown to run there
   (the split is then scope only, still owner-wanted).
 
