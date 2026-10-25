@@ -1,14 +1,11 @@
 # ADR corpus linter — spec
 
 ## Table of Contents
-- [Frontmatter schema](#frontmatter-schema-every-adr-starts-with-this)
 - [The checks](#the-checks-over-docsdecisionsmd)
 - [Run / install](#run--install)
 
-The ADR system is an append-only, manually-numbered corpus. The cleanest poka-yoke is
-**prevention over detection**: there is no materialized index to keep in sync — a mirror you
-don't maintain can't drift, so the ADR files ARE the catalog (skim them by grepping the
-`summary` / `status` frontmatter). `adr-lint` guards what prevention can't design away: bad
+The ADR files ARE the catalog (no index: `adr-template.md`). `adr-lint` guards what prevention
+can't design away: bad
 frontmatter, id collisions across parallel branches, release-version coupling, dangling cites,
 unfalsifiable decisions, and budget rot. Per "no process-gating script without a test of its
 decision logic," it ships with one (`scripts/adr-lint.test.mjs`).
@@ -18,22 +15,12 @@ ships at `scripts/adr-lint.mjs` (zero-dependency, cross-platform; its header poi
 rather than re-listing the guards); a consumer on another stack reimplements the checks against
 this list.
 
-## Frontmatter schema (every ADR starts with this)
-```
----
-id: NNNN                 # 4 digits, matches the filename prefix
-title: "<short title>"
-status: proposed         # proposed | accepted | superseded by NNNN
-summary: "<one line for the skim catalog>"
----
-```
-
 ## The checks (over `docs/decisions/*.md`)
-1. **Frontmatter valid** — each ADR has frontmatter with a 4-digit `id` that matches its filename,
+1. **Frontmatter valid** (shape: the template in `adr-template.md`) — each ADR has frontmatter with a 4-digit `id` that matches its filename,
    plus a non-empty `title` and `summary` (the catalog skim values).
 2. **Ids unique** — no two files share an `id` (parallel branches grabbing the same int).
 3. **Version-agnostic** — no `vX.Y.Z` release version anywhere in an ADR; name the cut/feature, not
-   the release. (Release versions live in the project's tracker; sequence + ship-state derive from the ADR corpus — see adr-template.md.)
+   the release (rationale: adr-template.md).
 4. **No dangling cites** — every `ADR NNNN` / `[NNNN]` / `superseded by NNNN` cited inside an ADR
    resolves to a file on disk OR to the README's Retired-ids map (a record deleted after its
    content hoisted to the file that owns it — the altitude test, doc-budgets.md). A retired id
@@ -59,11 +46,9 @@ summary: "<one line for the skim catalog>"
    does still satisfy presence — accepted residual, it can never shadow token validation). A
    token-free free-form line ("absence", a CI-run description) passes — whether it truly
    enforces is review's semantic call, not lint's.
-7. **Budget** — no ADR exceeds its char budget: caps live in `char-budget.mjs` (never restated here; configurable via
-   `--budget`), lite ADRs to their own cap (`LITE_ADR_CHAR_BUDGET`). Cap + predicate SSoT in
-   `char-budget.mjs`; full budget rationale (why chars not lines, no-exemptions rule) in
-   `adr-template.md`'s Template section — canonical, not restated here. Advisory (ADR 0067,
-   never fails): a `--new-adrs` full ADR past `ADR_CHAR_MARGIN` WARNs — the margin reserves
+7. **Budget** — no ADR exceeds its char budget: caps live in `char-budget.mjs` (never restated
+   here; configurable via `--budget`), lite ADRs to their own cap (`LITE_ADR_CHAR_BUDGET`);
+   rationale: `doc-budgets.md`. Advisory (never fails): a `--new-adrs` full ADR past `ADR_CHAR_MARGIN` WARNs — the margin reserves
    `## Act` room; lite and legacy ADRs exempt.
 8. **Amendment backlink** (ADR 0040) — an ADR that ACTIVELY amends another ("amends ADR NNNN") must
    be cited back from the amended ADR's own text; an unpointed amendment is invisible from the
@@ -116,9 +101,7 @@ node scripts/adr-lint.mjs docs/decisions --budget=8000
 node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)
 ```
 
-`/pdca-init`'s SKILL.md is the copy-set SSoT: it vendors this linter, its test, and their
-`char-budget.mjs` dependency (+ test) into the consuming repo's `scripts/`, and points the project
-at running it pre-merge / in CI.
+Vendoring into a consumer repo: `/pdca-init` step 3.
 
 **Project-specific guards (add locally).** A project with a roadmap/changelog + a versioned manifest
 (e.g. `package.json`, `Cargo.toml`, a release tag) can also assert its tracker agrees with the shipped version, and that every

@@ -37,13 +37,6 @@ For exact precedence rules and interaction with Styles, see the Personalization 
 - Domain terminology: "Use medical terminology appropriately"
 - Approach preferences: "Prefer practical solutions over theoretical"
 
-### What Doesn't Work Well
-
-- Highly specific instructions (too rigid across varied contexts)
-- Contradictory requirements
-- Very long preference lists (dilutes signal)
-- Instructions that should vary by project
-
 ## Example Preferences
 
 ### Concise Professional

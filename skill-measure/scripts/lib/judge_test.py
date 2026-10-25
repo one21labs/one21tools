@@ -173,6 +173,14 @@ class TestJudge(unittest.TestCase):
             j.grade("prompt", {"type": "object"})
         self.assertEqual(os.listdir(run.call_args.kwargs["cwd"]), [])
 
+    def test_grok_sandbox_is_an_allow_list_not_the_no_op_deny_flag(self):
+        j, p = self._grok_returning(("grok-4.5",))
+        with p as run:
+            j.grade("prompt", {"type": "object"})
+        cmd = run.call_args.args[0]
+        self.assertNotIn("--disallowed-tools", cmd)
+        self.assertEqual(cmd[cmd.index("--tools") + 1], judge.GROK_TOOLS)
+
     def test_grok_reports_the_model_that_served_it(self):
         j, p = self._grok_returning(("grok-4.5-build",))
         with p:
@@ -246,6 +254,14 @@ class TestJudge(unittest.TestCase):
         with p:
             with self.assertRaises(judge.JudgeError):
                 j.grade("prompt", {"type": "object"})
+
+    def test_copilot_sandbox_is_an_explicit_allow_list(self):
+        j, p = self._copilot_returning("gpt-5-mini")
+        with p as run:
+            j.grade("prompt", {"type": "object"})
+        cmd = run.call_args.args[0]
+        self.assertIn("--available-tools=sql", cmd)
+        self.assertNotIn("--available-tools", cmd)
 
     def test_copilot_grades_when_the_router_stayed_cross_family(self):
         j, p = self._copilot_returning("gpt-5-mini")

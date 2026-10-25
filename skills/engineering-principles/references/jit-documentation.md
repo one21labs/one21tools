@@ -8,9 +8,6 @@ Documentation has a load cost. Always-loaded context (CLAUDE.md, system prompts)
 
 > "Would Claude need this before opening any file, or only when editing this specific file?"
 
-- Cross-cutting constraint (applies everywhere) → always-loaded context (CLAUDE.md)
-- File-specific constraint (only relevant when in this file) → source file header
-
 Placing file-specific documentation in always-loaded context is waste: it costs tokens every session but adds value only rarely.
 
 ## Decision Test
@@ -68,7 +65,6 @@ Result: Claude reads the header when opening license.js and has exactly the cont
 |---------|-----------|-----|
 | CLAUDE.md lists every feature the app has | Feature inventory in always-loaded context | Move to source headers or ROADMAP |
 | Source header says "this is a React component" | Restates the obvious | Delete; document only non-obvious constraints |
-| Same constraint in CLAUDE.md and source header | SSoT violation | Pick one canonical location; remove the other |
 | No header on a file with non-obvious behavior | Missing JIT doc | Add header with DESIGN CONSTRAINTS |
 
 ## Relationship to SSoT

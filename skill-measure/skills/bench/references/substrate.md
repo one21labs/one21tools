@@ -28,13 +28,5 @@ re-validates the output parser (adapter tests) before the constant moves — nev
 
 ## Arm symmetry (both runners)
 
-The with-arm and without-arm commands must differ ONLY in whether the skill is loaded — same model,
-same flags, same everything else. Otherwise the with-without delta measures the wrong thing. Both
-runners execute the two arms under identical conditions.
-
-## Portability
-
-Scripts are invoked via `${CLAUDE_PLUGIN_ROOT}` so they resolve from any working directory when the
-plugin is installed elsewhere. The consumer supplies the CLIs (grok/claude and, for promptfoo,
-node/npx), authenticated. The hermetic isolated-generation mode honors `$SKILL_BENCH_CONFIG_DIR` for
-a clean credentials-only config, and its CLAUDE.md-discovery behavior is Linux/WSL-only.
+Both runners execute the two arms under identical conditions; the commands themselves must differ
+only in skill loading (SKILL.md, `skill`).

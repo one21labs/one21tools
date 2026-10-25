@@ -27,8 +27,7 @@ Run this loop:
    a checklist to keep verbatim (e.g. the persistence/schema Sacred items for a stateless tool, the
    deploy Never for a library, the render check for a non-UI project). Keep it to the always-loaded
    minimum (~60 lines). If the project has product analytics, add a
-   `metrics command:` line so `/decide` can run it before gating/conversion calls (see
-   `../decide/references/metrics-engine.md`). If CLAUDE.md already exists, only ADD the
+   `metrics command:` line (`../decide/references/metrics-engine.md`, Wiring). If CLAUDE.md already exists, only ADD the
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
    before a PR); never rewrite the user's content.
 
@@ -37,12 +36,11 @@ Run this loop:
    home and the marker the plugin's enforcement hooks require before firing in a project — no
    `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
-   home — it carries the ADR rules, the template, AND the shared-assumption register). The copy is
+   home). The copy is
    deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
    decision rules, and the plugin cache is per-user (a link would dangle for teammates/CI). Only a
    repo hosting the plugin source itself links instead of copying. No index
-   file: the ADR files are the catalog, skimmed via their `summary`/`status` frontmatter (poka-yoke
-   — a mirror you don't keep can't drift). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
+   file (adr-template.md). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
    `adr-lint.test.mjs`, `char-budget.mjs`, and `char-budget.test.mjs` (the linter's import — without
    it `adr-lint.mjs` throws `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
    to run `node scripts/adr-lint.mjs` pre-merge / in CI — the corpus poka-yoke
@@ -59,5 +57,3 @@ Run this loop:
    house reply-summary standard: copy `${CLAUDE_PLUGIN_ROOT}/templates/plain-summary.md` to
    `.claude/output-styles/` and set `outputStyle` in settings (ADR 0074).
 
-The meta-roles (`pm`, `tech-lead`, `red-team`, `verifier`, `retrospect`) ship with this plugin
-and need no scaffolding — only the domain panel is project-specific.

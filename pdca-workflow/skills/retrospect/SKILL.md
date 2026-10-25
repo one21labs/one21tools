@@ -25,24 +25,21 @@ git-visible y/n. Invoke via this skill, not a raw agent spawn: the spawn-log lin
 run (a raw spawn only lowers 0081's measured compliance — session-end lines are the
 denominator). An adopted finding's artifact carries the literal token
 `Retrospect-Run: <UTC timestamp of the run's spawn-log line>` (commit trailer or issue-body
-line) — 0081's grep-able numerator. Step 2's material includes `docs/pdca/gate-hits.txt`
-(the agent's Method reads it).
+line) — 0081's grep-able numerator.
 
 Run this loop:
 
 1. **Scope.** Resolve the range. `git log --oneline <range>` for the commit set.
-2. **Git signal.** Run `git log -p <range>` as needed so the material is ready for the agent; its
-   Method owns the specific signal list to look for (including the panel-fire log) — don't restate
-   it here.
-3. **Analyze.** Fetch, then spawn the `retrospect` agent on the `origin/main...HEAD` range (not
-   stale local `main`, which mis-ranges after an upstream squash-merge). It owns the git/code
+2. **Don't pre-load the diff.** The isolated agent runs its own git reads (its Method owns the
+   signal list); a `git log -p` here only spends main-context tokens the agent never sees.
+3. **Analyze.** Fetch, then spawn the `retrospect` agent on the step-1 range. It owns the git/code
    analysis and the routing rules — don't restate them.
 4. **Add session friction — by re-reading the user's messages, not recalling them.** YOU (in the
    main conversation, which the isolated agent cannot see) walk this session's USER turns in order
    and list two classes: every DISTINCT correction, wrong guess, or rework; AND every request whose
    delivery you cannot now point at. Recall drops both silently and without a symptom. Hand the
    list to the agent, each item marked git-visible? (yes/no) — it can only corroborate the yes
-   class; an item with no commit has no other witness (ADR 0014).
+   class; an item with no commit has no other witness (no transcript extractor: the JSONL is unversioned and `type:user` is not human-typed; revisit when Claude Code ships a versioned transcript API AND a per-message-to-commit attribution primitive).
    Enumerate each before deduping (dedupe happens at Curate); do NOT restate
    redundant variants. This is the input the agent structurally cannot gather itself, but it is your
    PERCEPTION only — the agent independently cross-checks it against git (its Method), so a
@@ -53,7 +50,8 @@ Run this loop:
    decision is the failure; it compounds, because the next record cites the mention as provenance.
    Check the range's own commit messages too: an artifact citing an ADR's authority that the ADR's
    Decision never granted is the sharpest form. Undecided + blocking -> delete it and re-pose the
-   question unanchored (0091's scoped test), never retrofit a record around the artifact.
+   question unanchored (the test below), never retrofit a record around the artifact. Delete only if ALL hold: blocking, no record
+   decides its predicate, re-cited undisposed (adr-lint.mjs is decided; claude-review.yml never blocks).
 6. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
    above must not pressure the no-pad rule); keep only systemic improvements (would recur),
    cite-or-silence — as many as are REAL: zero is the expected result of a clean closeout

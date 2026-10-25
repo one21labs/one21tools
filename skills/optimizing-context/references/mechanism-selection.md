@@ -27,38 +27,6 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 
 ## Concrete Examples
 
-### Example 1: Bloated CLAUDE.md to Lean Version
-
-**Before** (wastes tokens on what Claude knows):
-```markdown
-# Project Guidelines
-
-## About This Project
-This is a Python web application using Flask. Flask is a micro web 
-framework written in Python. It is classified as a microframework 
-because it does not require particular tools or libraries...
-
-## Code Style
-We use Python. Python is an interpreted, high-level programming language.
-Always use 4 spaces for indentation because that is the Python standard...
-```
-
-**After** (only project-specific corrections):
-```markdown
-# CLAUDE.md
-
-## Conventions
-- Flask app, pytest for tests
-- 4-space indent, type hints required
-- Run `make lint` before commits
-
-## Common Errors to Avoid
-- Don't use `datetime.now()` — use `datetime.utcnow()`
-- Always close DB connections in finally blocks
-```
-
-**Why**: Claude knows what Flask and Python are. CLAUDE.md captures project-specific corrections only.
-
 ### Example 2: Wrong Mechanism Choice
 
 **Situation**: User wants SQL queries formatted with uppercase keywords.
@@ -105,9 +73,7 @@ Run `./deploy.sh staging` then verify at https://staging.example.com
 | Avoid | Use repo root as source | Auto-discovery loads all skills for every plugin |
 | Prefer | Use component directories as sources | Each plugin loads only specified skills |
 
-**Why**: Default directories (`/skills/`, `/agents/`, `/commands/`) at plugin root trigger
-auto-discovery that loads everything. Using component directories as sources avoids this.
-See [plugins.md](plugins.md) for implementation.
+Why and how: [plugins.md](plugins.md).
 
 ---
 
@@ -141,10 +107,7 @@ Common drift patterns (cure: reference or omit):
   license also keeping the value: `Schema is at version 12 (models.py)` still rots, because the
   number is still copied. Fix: `Schema: see models.py` — file only, no number.
 - Filenames in SEE ALSO blocks, rotted on rename
-- Deleted or decommissioned features described in CLAUDE.md, documented behavior that no longer
-  exists. Delete the rule outright — its removal is a known fact, not an open question — rather
-  than softening it into a "needs review" or "flagged" note; a flagged-but-kept rule is still a
-  live reference to dead code.
+- Deleted features still described in CLAUDE.md (cure: [claude-md.md](claude-md.md) Anti-Patterns)
 
 ---
 
@@ -159,7 +122,6 @@ After changes, verify improvement:
 | Retrieval accuracy | Does Claude find relevant info when needed? |
 | No regressions | Do previously-working tasks still work? |
 | Plugin selectivity | Install test plugin, verify only specified content in `/context` |
-| Skill activation | Does the skill trigger on 3+ realistic user phrasings (not documentation language)? |
 
 **Skill size targets** (SkillReducer empirical baselines, 2026): checklist owned by
 [building-skills/SKILL.md](../../building-skills/SKILL.md#quality-checklist) (Anti-Pattern Baselines).

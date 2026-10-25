@@ -1,8 +1,7 @@
 # one21tools
 
 Claude Code plugins that measure whether their own guidance works: skills are kept, improved, or
-reverted by hermetic paired evals at dated baselines — every claim names its baseline, and edits
-since accrue to the next batched re-measure (ADR 0095) — plus a PM-led decision workflow whose
+reverted by hermetic paired evals at dated baselines — plus a PM-led decision workflow whose
 records and gates are enforced in CI.
 
 **Goal: quality output, autonomously, judged as the person receiving it.** Two levers, and
@@ -27,7 +26,8 @@ individual skills:
 
 Requirements: the measurement harness needs python3 + node + the `claude` CLI (trigger runs are
 Linux/WSL-only); cross-family judging uses any foreign-vendor CLI you have or wire yourself, and
-falls back to same-family with a recorded caveat. Installing the skills alone needs none of that.
+falls back to same-family with a recorded caveat. Installing the skills alone needs none of that. Each plugin installs standalone: no manifest
+`dependencies` unless a plugin cannot function without another's files (none today).
 
 ## What changes after install
 
@@ -80,24 +80,12 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
 
 ## The improvement loop
 
-1. Each measured skill has `evals/evals.json` (3+ cases, schema-gated).
-2. Paired hermetic runs — with/without the skill, no repo access, no installed plugins; a
-   non-hermetic run is a recorded confounded null, never a verdict.
-3. Blind grading; the verdict path adds a prosecutor re-examining every PASS.
-4. Verdict: eval-clustered mean delta with a 95% CI, read against token cost. Keep, improve, or
-   revert follows the measurement; results land under `benchmarks/<date>-*/`.
-5. Description ablation: the always-loaded frontmatter description is trigger-tested separately.
-
 Method home: `skill-measure/skills/bench/references/empirical-evals.md`.
 
 ## Gates (required CI)
 
-`gates.yml` runs on every PR: skill shape + char budgets (`validate.py`), decision-log
-integrity + doc/agent budgets (`adr-lint.mjs`), every gate script's decision-logic tests,
-benchmark workflow checks, cross-file restatement, PR-body guards, and the fetch-audit
-requirement for new external references. Judgment calls are decided, not accumulated:
-`docs/decisions/` is the ADR log; the repo dogfoods its own `pdca-workflow` for every call
-recorded there.
+`.github/workflows/gates.yml` runs on every PR; its step names are the gate list.
+`docs/decisions/` is the ADR log.
 
 ## Where the ideas come from
 

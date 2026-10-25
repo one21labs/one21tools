@@ -12,8 +12,7 @@ Subagents are specialized AI assistants with their own context windows, system p
 6. [Custom Subagent Configuration](#custom-subagent-configuration)
 7. [Subagent Design Principles](#subagent-design-principles)
 8. [Resumable Subagents](#resumable-subagents)
-9. [Anti-Patterns](#anti-patterns)
-10. [Sources](#sources)
+9. [Sources](#sources)
 
 ---
 
@@ -68,9 +67,7 @@ For current model assignments, see Claude Code documentation.
 
 ## Model Tiering + Parallelism (match tier and concurrency to task)
 
-Two first-class efficiency levers: this repo is the main workflow people run loops through, so
-waste here compounds across every user x every iteration (rationale:
-[token-format-efficiency.md](token-format-efficiency.md)).
+Two first-class efficiency levers (rationale: [token-format-efficiency.md](token-format-efficiency.md)).
 
 ### Model Tiering
 
@@ -161,15 +158,6 @@ Useful for:
 - Multi-session research
 - Iterative refinement
 - Sequential related tasks
-
-## Anti-Patterns
-
-| Anti-Pattern | Problem | Fix |
-|--------------|---------|-----|
-| Custom subagent for everything | Overhead, rigidity | Use general Task() |
-| Too broad scope | Context pollution | Split into focused agents |
-| No tool restrictions | Security/safety risks | Grant minimal needed tools |
-| Vague description | Poor automatic delegation | Be specific about when to use |
 
 ## Sources
 

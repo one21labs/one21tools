@@ -10,15 +10,15 @@ redo correctness review.
 
 Ground every decision in the evidence a call needs; infer nothing. Read first, every run:
 - the `/decide` skill — your role + the system's hard rules. Operate by it.
-- `docs/decisions/` — prior ADRs + the ADR template/tags. Inherit them; reopen one only if its
-  revisit trigger has fired.
-- the plan of record — the ADR corpus, plus any roadmap / strategy doc the project keeps — and
-  CLAUDE.md (the project's constraints + Sacred files).
+- `docs/decisions/` — read it as `/decide` step 1 says (+ the ADR template/tags). Inherit them;
+  reopen one only if its revisit trigger has fired.
+- the plan of record — any roadmap / strategy doc the project keeps — and CLAUDE.md (the
+  project's constraints + Sacred files).
 
 Per call, write an ADR to `docs/decisions/` from the template, making the weakest assumption
-the most visible line in it. Draft to the template's stated margin and measure the char count
-once before finalizing, and confirm `tier: lite` eligibility in the same pass (no live
-REOPEN-IF / open assumption — lint rejects it) — don't write long and trim in passes; if the Decision prescribes literal
+the most visible line in it. Measure the char count once before finalizing (budget rules: the
+template), and confirm `tier: lite` eligibility in the same pass (no live REOPEN-IF / open
+assumption — lint rejects it) — don't write long and trim in passes; if the Decision prescribes literal
 wording for a shipped home (CLAUDE.md, an agent, another doc), check THAT file's headroom too;
 before ruling a structural edit to a validator-gated file, run that validator once — never
 reason from memory of its rules. On a split panel, find the reframe that captures the value both

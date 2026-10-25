@@ -89,9 +89,10 @@ export const LANES = [
     // READ stays allowed on purpose. skill-measure's judge denies it because grading must be
     // hermetic; a cross-lineage CHECK is the opposite job — a foreign model that cannot open the
     // files is reduced to rhetoric about a claim blob, which is the appearance of a check rather
-    // than one. Writes and shell stay denied: it inspects, it does not act.
+    // than one. Writes and shell stay off via an ALLOW-list of read tools (deny flags are no-ops:
+    // skill-measure's judge.py, GROK_TOOLS).
     args: (file) => ["--prompt-file", file, "--output-format", "json",
-      "--disallowed-tools", "Bash,Write,Edit"],
+      "--tools", "read_file,list_dir,grep"],
     parse: parseGrok,
   },
   {

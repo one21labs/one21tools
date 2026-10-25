@@ -6,8 +6,7 @@ PM hears the lenses that actually matter for this product. Generate it once at `
 regenerate or top it up when `/decide` finds the panel missing or stale.
 
 ## Why a custom panel
-A correctness panel finds problems but can't decide between them; the PM decides, but only as
-well as the lenses feeding it. The wrong panel (generic or borrowed from another domain) gives
+The PM decides only as well as the lenses feeding it. The wrong panel (generic or borrowed from another domain) gives
 confident, irrelevant advice. The right panel has one advisor per distinct way THIS product can
 be wrong, plus the decision axes those correctness experts don't own.
 

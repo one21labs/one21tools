@@ -4,8 +4,7 @@ Read this when a skill is always-in-context (or near its char cap) and you need 
 content earns its place, not just whether the whole earns its cost — the deeper cut beyond
 the whole-skill verdict of empirical-evals.md.
 
-For a skill that is always-in-context or near its char cap, measure WHICH content earns its
-place, not just whether the whole does. Treat sections (or each references/*.md) as factors:
+Treat sections (or each references/*.md) as factors:
 benchmark variants with one section removed per variant (one-factor-at-a-time), same eval
 set, same replicates, and compare verdicts. A section is a cut candidate when the (full −
 ablated) delta is CUT at a pre-registered practical bar (cost-and-verdict.md); an INCONCLUSIVE

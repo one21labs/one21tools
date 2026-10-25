@@ -44,20 +44,6 @@ Let Claude script against raw data rather than managing low-level API navigation
 
 **Guidance**: Start with CLI wrappers in skills. Upgrade to MCP when you need persistent connections, automatic tool discovery, or shared infrastructure across projects.
 
-## When NOT to Use MCP
-
-- Data could be pre-loaded to Project Knowledge
-- A simple script in a Skill would suffice
-- Native tools already handle the operation
-- One-time data extraction (just do it inline)
-
-## Implementation
-
-Once you've decided MCP is the right mechanism, see:
-- `mcp-builder` skill for server development workflow
-- Claude Code MCP Documentation for MCP configuration (see Sources below)
-
-
 ## Sources
 
 - [Claude Code MCP Documentation](https://code.claude.com/docs/en/mcp) - Configuration reference

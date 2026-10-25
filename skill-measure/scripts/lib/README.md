@@ -20,13 +20,8 @@ its home is the script that regenerates it, not git.
 
 ## benchstats.py — the verdict rule (use this)
 
-- `keep_verdict(delta, practical=0.0)` — KEEP iff the CI's LOWER bound clears the pre-registered
-  practical bar, HARMFUL iff the upper bound is below 0, CUT iff the whole interval sits inside
-  +/- that bar (an equivalence result, unreachable at 0), INCONCLUSIVE otherwise. The interval
-  decides; the point estimate never does. Also returns `half_width` (precision — a 50%-power
-  figure, NOT a detectable effect), `mde80` (what the design calls reliably) and `win_rate` (share
-  of scenarios won). Full rationale and what it replaced live in the function's own docstring; do
-  not restate them here.
+- `keep_verdict(delta, practical=0.0)` — the verdict rule (table: `skills/bench/references/
+  cost-and-verdict.md`; rationale: the docstring). Also returns `half_width`, `mde80`, `win_rate`.
 - `sd_between(delta)` / `clusters_for(sd, target)` — recover the between-scenario spread from a
   completed run, and size the next one from it rather than from a guess. A pre-registration states
   both the practical bar and the resulting scenario count.
@@ -60,14 +55,11 @@ its home is the script that regenerates it, not git.
 
 ## artifact_check.py / blind.py / benchstats.py (#191 hardening)
 
-- `artifact_check.check_artifact/classify_cells` — the ERROR-cell rule: a cell whose graded
-  artifact fails the mechanical shape check is infrastructure, never a quality 0.
-- `blind.capture_symmetry(records, response_fn, excluded_fn)` — per-arm exclusion-rate sweep (any
-  excluded cell counts, whatever the reason) run BEFORE blinding; `skewed: true` means fix the
-  harness, not grade the skew.
-- `benchstats.top_cell_attribution(cells, x, y)` — leave-one-out per-cell contributors to the
-  clustered delta; `inspect: true` (the verdict flips or the mean halves without some cell) sends
-  the reader to those cells before interpreting the bar.
+- `artifact_check.check_artifact/classify_cells` (ERROR-cell rule),
+  `blind.capture_symmetry(records, response_fn, excluded_fn)` (per-arm exclusion sweep),
+  `benchstats.top_cell_attribution(cells, x, y)` (leave-one-out contributors). When each applies:
+  `skills/bench/references/pre-registration.md` (Infrastructure is never quality) and
+  `cost-and-verdict.md` (Mechanism claims cite cells).
 
 ## Workflow-pipeline persist step
 

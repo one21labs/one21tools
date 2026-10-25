@@ -67,15 +67,13 @@ source repo's committed benchmarks:
 
 | Phase | What runs |
 |-------|-----------|
-| **Plan** | `/decide` — clarify scope, advisors argue (dialectic, opposing counsel on contested calls), the `pm` agent decides and writes an ADR. |
+| **Plan** | `/decide` — clarify scope, advisors argue (dialectic, opposing counsel on contested calls), one accountable decider records an ADR. |
 | **Do** | `tech-lead` turns the ADR into a buildable spec; you implement it. |
 | **Check** | `verifier` reproduces every load-bearing claim and checks the ADR's `[checkable]` assumptions against the real code/output; `red-team` tries to break it. The gate can BLOCK. |
 | **Act** | Ship + bump the version; `/retrospect` folds process learnings back into their lowest home (an agent, a skill, or CLAUDE.md). |
 
-Three jobs are split on purpose — **advise, decide, verify** — because a correctness panel
-finds problems but can't decide trade-offs, and averaging hides the one accountable decision.
-The panel pieces also ship standalone — `/advise`, `/verify`, `/red-team` — for calls that
-need one right-sized check, not the ceremony; `/decide` composes them and adds the record.
+Why **advise, decide, verify** are split, and the standalone `/advise`, `/verify`, `/red-team`:
+the `decide` skill, "Why this shape".
 
 **Measured (2026-07, six instruments; `benchmarks/2026-07-1{2,3,4}-pdca-*` in the source repo):**
 `/retrospect` shows no recall/triage edge over a bare reviewer on seeded defects — on
@@ -122,9 +120,8 @@ hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
   lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
 ```
 
-The five meta-roles ship here. The **advisor panel is project-specific** and is generated for
-each project by `/pdca-init` from `references/panel-generation.md` — one advisor per distinct way
-the product can be wrong, plus the cost / value / risk / differentiation axes.
+The five meta-roles ship here; the **advisor panel** is generated per project by `/pdca-init`
+(`skills/pdca-init/references/panel-generation.md`).
 
 ## Scope — what's generic vs project-supplied
 
@@ -133,12 +130,8 @@ thresholds, Sacred files, render/verify command). Two deliberate scope calls (re
 repo's decision log as ADR 0001, pdca-workflow-extraction-scope — outside this plugin's shipped
 files, so no link survives an install; the framework dogfooded on its own extraction):
 
-- **Metrics engine = spec, not code.** `references/metrics-engine.md` is the language-neutral
-  `analyze()` contract (window-decoupling, sample-gating, `unknown != healthy`); a project
-  implements it in its own stack against its own analytics provider. The runnable form is too
-  stack/provider-specific to ship.
-- **No standalone `review-system.md`.** The `/decide` skill IS the process
-  system-of-record — there is no separate process doc to drift against.
+- **Metrics engine = spec, not code** — why: `skills/decide/references/metrics-engine.md`.
+- **No standalone `review-system.md`** — the `/decide` skill is the system of record.
 
 ## Why it stays alive
 
@@ -157,11 +150,11 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 ```
 
 `/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
-project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (ADR 0016):
-it fires only at its ADR 0081 triggers, so the session itself can discharge — and mark — the
-standing close-out. `/decide` no longer carries the flag either, so it is reachable by the model;
-ADR 0016's Enforced set now names it; what conditions should bind a panel that spends many agents
+project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (its skill owns the
+triggers). `/decide` carries no flag either; what conditions should bind a panel that spends many agents
 and writes files is still an open decision, not something this README settles.
+`/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
+flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).

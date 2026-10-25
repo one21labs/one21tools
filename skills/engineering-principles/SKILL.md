@@ -31,7 +31,6 @@ description: Apply when designing architecture, planning work, performing root c
 ## When to Read References
 
 **`references/root-cause-analysis.md`** — Read when:
-- A problem has recurred more than once
 - Fix didn't work and you need to dig deeper
 - Facilitating a team through problem-solving
 
@@ -44,13 +43,11 @@ description: Apply when designing architecture, planning work, performing root c
 - Starting a new feature, document, or process
 - Unsure if design is complete before implementation
 - Reviewing someone else's design
-- Told a plan is already approved and to skip straight to a task breakdown
 
 **`references/ssot-enforcement.md`** — Read when:
 - Contradictions appearing in system
 - Config/constants scattered across codebase or documents
 - Establishing canonical locations for a new project
-- Asked to paste/hardcode the same literal into multiple files, even under a "fastest path" deadline
 
 **`references/jit-documentation.md`** — Read when:
 - Deciding whether a constraint belongs in CLAUDE.md or a source file header
@@ -58,9 +55,7 @@ description: Apply when designing architecture, planning work, performing root c
 - CLAUDE.md is growing and needs triage
 
 **`references/ENGINEERING_PRINCIPLES.md`** — Read when:
-- Need to cite sources (Deming, Ohno, Martin)
 - Explaining principles to stakeholders
-- Deep dive on a specific principle's origin
 
 ## Cross-References
 

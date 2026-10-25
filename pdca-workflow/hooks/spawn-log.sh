@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matchers: Skill AND Agent|Task -- both wired in hooks.json) for the
-# pdca-workflow plugin (ADR 0049 decision 2; Agent|Task surface added for ADR 0086 / #276):
+# pdca-workflow plugin (ADR 0049; Agent|Task surface added for ADR 0086 / #276):
 # append one git-visible log line whenever a panel/loop primitive is invoked, on EITHER of its
 # two observable tool surfaces:
 #   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect (the ADR 0081

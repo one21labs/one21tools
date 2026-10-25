@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Hard pre-grid spend stop (ADR 0052 decision 3, discharging ADR 0042's gate-script trigger):
+"""Hard pre-grid spend stop (ADR 0052, discharging ADR 0042's gate-script trigger):
 project a full grid's cost from the cost-pilot's measured cells and EXIT NONZERO when the
 projection exceeds the pre-registered ceiling. A gate that can only advise gets spent past
 (ADR 0042 records a 216-cell grid run past a ~5-cell decidable gate); this one is a command a
@@ -8,7 +8,7 @@ without visibly bypassing it.
 
 CLI: cost_gate.py --cells N --pilot-cost-usd X [X ...] --ceiling-usd C
 Exit 0 = projection within ceiling (prints the projection); exit 1 = over ceiling (halt, record
-the pilot as the artifact, route to a fresh /decide per ADR 0052's revisit trigger).
+the pilot as the artifact, route to a fresh /decide).
 """
 import argparse
 import json

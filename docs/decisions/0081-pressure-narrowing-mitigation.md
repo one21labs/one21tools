@@ -16,11 +16,8 @@ summary: "At the moment of failure, goal pressure narrows diagnosis to 'what mak
 
 ## Decision
 **(a) Session-close retrospect is STANDING (amends ADR 0030 in place).** The per-PR ritual stays
-dead; on-demand stays available; session close becomes a defined trigger. Closeout mode (home:
-`retrospect/SKILL.md`): scope = everything shipped since session start; the friction hand-off is a
-MANDATORY enumerated checklist (corrections, wrong guesses, rework, permission denials, CI
-failures). An EMPTY finding list is a valid result; findings land as diffs/issues/ADRs, never
-assurance lines.
+dead; on-demand stays available; session close becomes a defined trigger. Closeout mode's
+operating text: `retrospect/SKILL.md` (Session-close mode).
 
 **(b) The two-why check at every failure point.** Before committing the fix for any gate, CI, or
 verifier failure, answer: (1) instance or class? (2) which detection-ladder rung (ADR 0047) should
@@ -33,9 +30,8 @@ unanswered failures escalate the rung.
 valued by the expected cost of the misses it catches, NOT per-run yield; (iii) cutting a detection
 instrument requires a revisit trigger riding an evidence stream INDEPENDENT of that instrument.
 
-**(d) Measured compliance + pre-registered review.** `.claude/hooks/session-end-log.sh` appends
-`session-end` to `session-log.txt`, so a SKIPPED closeout is a countable miss. An adopted finding
-carries the literal `Retrospect-Run:` token. Series (readout FIRST, no band — 0080's discipline):
+**(d) Measured compliance + pre-registered review.** Denominator: `session-end-log.sh` (header);
+numerator: the `Retrospect-Run:` token (`retrospect/SKILL.md`). Series (readout FIRST, no band):
 adopted artifacts / session-ends. Pre-registered REVIEW at 10 `session-end` lines: a /decide
 records keep / demote / mint-band from the readout. Gaming direction is safe: under-logging lowers
 measured compliance, biasing toward demotion, never away.

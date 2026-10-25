@@ -140,7 +140,7 @@ It pairs each eval's runs across configurations and reports:
   Pair-level W/L/T stays as detail.
 - **A 0/0 cell (both arms score zero) is a measurement failure, not a verdict** — the eval isn't discriminating the treatment from the baseline. Never read a 0/0 as license to cut the artifact; fix the eval via transcript-level diagnosis + the REWRITE discipline above (never difficulty-raise blind). If diagnosis instead confirms the skill genuinely doesn't help, it's a clean null — see "Keep cleanly-measured nulls."
 - **Mean pass-rate delta** (mean of per-eval means), its VERDICT (`benchstats.keep_verdict` on
-  the eval-clustered interval), and the mean run-time token delta.
+  the eval-clustered one-sample t interval; the Wilson CI above is the win rate's), and the mean run-time token delta.
 - **Delta per 1k chars of loaded context**: the cost-per-benefit number. The
   denominator (ADR 0019) defaults to SKILL.md body (the always-on cost); `--include-references`
   charges body + all references/*.md (an upper bound — assumes every reference loaded), and
@@ -180,8 +180,7 @@ it — retention turns on WITH that check, not before.
 
 ## Tier 2 — section ablation
 
-Measuring WHICH content within an always-loaded skill or CLAUDE.md earns its place (not just
-whether the whole does) is a deeper cut than the whole-skill verdict above — see
+Which content within an always-loaded skill or CLAUDE.md earns its place:
 [section-ablation.md](section-ablation.md).
 
 ## Scope and limits

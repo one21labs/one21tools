@@ -50,8 +50,8 @@ absolute rate, and never compare rates across different runs, fields, or environ
 
 1. WSL only.
 2. Pin `CLAUDE_CONFIG_DIR` to an empty dir seeded with only `.credentials.json` (auth, nothing
-   else) — no installed plugins, no cached session state, so the run isn't shadowed. Same
-   hermetic-executor requirement as empirical-evals.md:165; this is its trigger-runner instance.
+   else) — no installed plugins, no cached session state, so the run isn't shadowed. Trigger-runner
+   instance of empirical-evals.md's hermetic-executor rule.
 3. A scratch project root with an empty `.claude/` — the runner writes its own command file
    under `.claude/commands/<clean-name>.md` per query; nothing pre-existing should compete.
 4. Eval set: a flat JSON array, `{"query": str, "should_trigger": bool}` per item — not
@@ -63,14 +63,13 @@ absolute rate, and never compare rates across different runs, fields, or environ
      --model <pinned-model> --num-workers 1 --timeout 240 --runs-per-query 1 --yes \
      [--description "<variant text>"]
    ```
-   `--model` pinned — never the ambient default (deltas are model-relative). `--num-workers 1`
-   is MANDATORY (worker-count collapse, above); `--timeout 240` absorbs serial-run latency.
+   `--model` pinned — never the ambient default (deltas are model-relative). `--timeout 240`
+   absorbs serial-run latency.
    `--runs-per-query 1` is the Verdict rule's first pass — pass it explicitly, the script
    defaults to 3. `--yes` is the spend guard: the run prints its cost line and refuses (exit 2)
    without it. `--description` overrides the on-disk description to test a variant without
    editing SKILL.md.
-6. Pair under equal load: run control and variant back-to-back, same serial protocol, same
-   machine, no concurrent heavy load; a run with `timeouts > 0` is suspect (see Validity).
+6. Pair control and variant back-to-back (see Validity).
 
 ## Verdict rule
 
@@ -79,13 +78,11 @@ false-positive rate — a longer description that buys no additional trigger acc
 context cost (the same "every char earns its place" bar as
 [section-ablation.md](section-ablation.md)). Run 1 replicate per query first; escalate to 3
 replicates ONLY for a query whose pass/fail flips between candidate descriptions. Escalated
-looks are diagnostic (empirical-evals.md): a description choice that rests on them is confirmed by
-a fresh pre-registered run, not by the escalation itself.
+looks are diagnostic (empirical-evals.md, Running the benchmark).
 
 ## Result snapshots
 
 Append a dated, machine-readable `.jsonl` under `benchmarks/<date>/` per run — one record per
 (description variant, query): query, should_trigger, trigger_rate, timeouts, pass — plus a
 `metadata.json` (skill, variant text, model, num-workers, timeout, `CLAUDE_CONFIG_DIR` pinned
-y/n). Same append-only, never-edited convention as empirical-evals.md's snapshots (ADR 0019): a
-run is a measurement record as of its date, not current truth.
+y/n). Append-only, per empirical-evals.md's Result snapshots.

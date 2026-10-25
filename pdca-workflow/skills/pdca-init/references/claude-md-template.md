@@ -41,8 +41,7 @@ Every fact has ONE home at the lowest altitude that owns it; higher docs referen
 Git history is the SSoT for backstory — docs state the current truth, never narrate how it got there
 (retired/renumbered IDs, what-folded-into-what, "Learned" logs = drift; cut on sight).
 The altitude ladder's home is pdca-workflow's `doc-budgets.md` (drop rungs this project lacks).
-Code is bottom-altitude but TOP authority for executable facts (schema versions, signatures,
-filenames) — a doc that restates them rots; "code" is whatever form the product takes (for a
+"Code" (the ladder's bottom rung) is whatever form the product takes (for a
 docs/skill/plugin repo: the manifests, `SKILL.md`, and scripts). Touch a source artifact ->
 update its header/frontmatter in the same change.
 

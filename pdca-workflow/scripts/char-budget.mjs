@@ -60,7 +60,7 @@ export const ADR_CHAR_MARGIN = 8000;
 
 // Lite-tier ADR cap (`tier: lite`). RAISED 1,500 -> 2,000 (ADR 0092) to buy room for the two
 // fields that actually prevent churn — rejected alternatives and reopen-if — which the old shape
-// dropped. Raising a cap to shrink a corpus is not a contradiction: lite is the DEFAULT tier
+// dropped. Raising a cap to shrink a corpus is not a contradiction: lite is the cheap tier
 // (ADR 0062), and a 2,000-char record that carries the anti-churn fields displaces a ~5,600-char
 // full one that was only full because lite could not hold them.
 export const LITE_ADR_CHAR_BUDGET = 2000;

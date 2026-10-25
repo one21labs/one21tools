@@ -17,7 +17,7 @@
  * unrelated pairs, so any threshold that caught it would bury it in noise (~4% precision). The
  * couplings worth batching in this repo are semantic — "these two experiments share an eval
  * battery" — and no token metric recovers that. A signal that fires mostly on noise trains people
- * to skip the whole report, which is worse than not shipping it (ADR 0094's Rejected list).
+ * to skip the whole report, which is worse than not shipping it.
  *
  * DESIGN CONSTRAINTS: zero dependencies; detect() is PURE (no fs, no clock — `now` is injected)
  * so the decision logic is unit-testable, matching check-restatement.mjs's detect()/main() split.

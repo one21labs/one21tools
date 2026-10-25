@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook (matcher: Agent|Task) for the pdca-workflow plugin (ADR 0040 item 6).
+# PreToolUse hook (matcher: Agent|Task) for the pdca-workflow plugin (ADR 0040).
 # DENIES an Agent/Task call that has no explicit `model` AND targets an unmodeled surface
 # (`subagent_type` absent or "general-purpose") -- the case that silently inherits the PARENT
 # SESSION model instead of a per-call tier. A named frontmatter-modeled agent or a fork

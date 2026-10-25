@@ -8,7 +8,7 @@ summary: "Relax CLAUDE.md's 'one concern per PR' to 'size PRs for reviewability'
 
 # 0056 — cohesive PRs over one-concern-per-PR
 
-- Decision: reword CLAUDE.md Shipping to "size PRs for reviewability, not one-concern" — ship a coherent unit together across files; split only to keep a clean revert boundary or main green. Decision-set-per-PR (ADR 0051) still applies; ADR 0048 (version-bump PR) retired by 0075.
+- Decision: CLAUDE.md Shipping sizes PRs for reviewability, not one-concern (rule text: there).
 - Why: owner-direct, larger PRs preferred. A concern-count rule splits cohesive work into many small PRs — proliferation, the opposite of the rule's intent. Reviewability and a clean revert boundary are the real goals, not a count. Surfaced shipping skill-measure (ADR 0055) as one multi-commit branch.
 - Enforced: prose in CLAUDE.md (no gate — PR sizing is a judgment a linter can't check).
 - Amended (owner, 23-Jul-2026): while a session's PR is open, add to it — a second PR needs a

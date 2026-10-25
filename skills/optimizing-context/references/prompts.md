@@ -7,7 +7,7 @@ Prompts are ephemeral, conversational instructions. Use when a skill or persiste
 | Situation | Use Prompt? | Alternative |
 |-----------|-------------|-------------|
 | One-time complex task | Yes | — |
-| Will repeat this procedure | No | Skill |
+| Will repeat this procedure (third use) | No | Skill |
 | Need this context in future chats | No | Project or CLAUDE.md |
 | User-wide behavior change | No | User Preferences |
 
@@ -116,16 +116,6 @@ Optimal ordering for complex prompts:
 | Vague success criteria | Unclear when done | Define specific outputs |
 | Mixing multiple tasks | Confused execution | One clear task per prompt |
 | Apologetic framing | Unnecessary tokens | Skip politeness fillers |
-
-## Prompt Reuse Decision
-
-If you're about to use the same prompt a third time:
-
-| Reuse Pattern | Consider |
-|---------------|----------|
-| Same procedure, different inputs | Create a Skill |
-| Same context, different questions | Create a Project |
-| Same format preference | Add to User Preferences |
 
 ## Chaining Prompts
 
