@@ -1,12 +1,9 @@
 # Decision log — one21tools
 
 Authoritative Decision Records (ADRs) for this repo's meta/tooling judgment calls (plugin scope,
-marketplace shape, process). One file per decision: `NNNN-slug.md`, each starting with
-`id`/`title`/`status`/`summary` frontmatter.
+marketplace shape, process).
 
-**The rules, the template, the no-index-file rationale, and the size budgets live in the plugin.**
-This repo hosts the plugin source, so it links the shipped template rather than vendoring a copy —
-read the rules there, never here:
+**The rules, the template, the no-index-file rationale, and the size budgets live in the plugin:**
 [pdca-workflow/skills/decide/references/adr-template.md](../../pdca-workflow/skills/decide/references/adr-template.md).
 
 Guard: adr-lint — command in [CLAUDE.md](../../CLAUDE.md), spec in
@@ -14,9 +11,7 @@ Guard: adr-lint — command in [CLAUDE.md](../../CLAUDE.md), spec in
 
 ## Retired ids
 
-A decision one file owns lives in that file, not here (owner altitude test, 28-Jul-2026 —
-home: doc-budgets.md). These records were deleted after their content hoisted to the owning
-file; ids are never renumbered or reused, so a cite of one resolves HERE:
+Records retired under the ADR altitude test (home: doc-budgets.md); a cite of one resolves HERE:
 
 - 0001 -> pdca-workflow/skills/decide/references/metrics-engine.md (spec-not-runnable rationale, top)
 - 0002 -> docs/decisions/README.md (ADR = Authoritative Decision Record)

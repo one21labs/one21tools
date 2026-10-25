@@ -12,19 +12,14 @@ summary: "Doc size is capped in chars, not lines (line caps are gameable by long
 - Context: a LINE cap measures layout, not the signal/token cost the budget targets.
 
 ## Decision
-Budget docs in CHARS, not lines. Cap VALUES + the over-budget predicate are SSoT in
-`pdca-workflow/scripts/char-budget.mjs` (`DOC_BUDGETS` for `CLAUDE.md`, the always-loaded layer;
-`ADR_CHAR_BUDGET` full tier, `LITE_ADR_CHAR_BUDGET` lite, ADR 0092), enforced by `adr-lint.mjs`
-(the corpus + `oversizeDocs()`), unit-tested in `adr-lint.test.mjs`/`char-budget.test.mjs`. No
-exemptions: over-budget records are rewritten under the cap, never grandfathered. NOT budgeted:
-source header comments, `STRATEGY.md`, `ROADMAP.md`, `README.md`. Budget system home:
-`pdca-workflow/skills/decide/references/doc-budgets.md`.
+Budget docs in CHARS, not lines. No exemptions: over-budget records are rewritten under the cap,
+never grandfathered. Caps, enforcement, tests, and the unbudgeted set:
+`pdca-workflow/skills/decide/references/doc-budgets.md` (Budgeted docs).
 
 ## Justification
 A char count can't be gamed by long lines and captures the real intent (signal/token efficiency)
 with no API call in CI. Rewrite-under-budget beats a grandfather allowlist while only a couple of
-records are ever over cap at once. Source headers aren't budgeted: their failure mode is drift,
-not length.
+records are ever over cap at once.
 
 ## Assumptions
 - [unverifiable] the per-file caps are right (efficiency without undue restriction). REOPEN-IF

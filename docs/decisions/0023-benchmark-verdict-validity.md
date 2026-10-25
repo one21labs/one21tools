@@ -15,9 +15,7 @@ summary: "Two conditions make a paired-benchmark verdict trustworthy: HERMETIC E
   graded text is discarded.
 
 ## Decision
-1. **Hermetic executor is required for a verdict.** A non-hermetic run is recorded
-   (`hermetic: false`) as a confounded null, never a verdict; `metadata.json` carries
-   `hermetic (y/n)`. Full gating protocol:
+1. **Hermetic executor is required for a verdict.** Full gating protocol:
    `skill-measure/skills/bench/references/empirical-evals.md` ("Hermetic executor gates a verdict").
 2. **Auditable raw sample, on main, gated on a consumer.** Retention turns ON only when
    `eval_verdict.py`'s completeness check ships (poka-yoke: no unused accumulation); until then,

@@ -9,18 +9,15 @@ No app, build, or deploy — the "code" is markdown + JSON + scripts: skills liv
 registered in `.claude-plugin/marketplace.json`; the deterministic parts are real scripts.
 Validate a skill: `python3 skills/building-skills/scripts/validate.py <dir>`.
 Lint the decision log + every char budget:
-`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`. Before editing
-any budgeted doc: measure headroom + the addition first, cut muda elsewhere to fit (doc-budgets.md).
+`node pdca-workflow/scripts/adr-lint.mjs docs/decisions`.
 Plugin skills/hooks/agents run from the installed CACHE — a stale cache silently enforces
 RETIRED policy. After a plugin-touching merge: `/plugin marketplace update one21tools` THEN
 `/reload-plugins` (reload does not pull). Mid-PR the cache always lags — the working-tree
 gate is the authority.
 
 ## Muda — ruthlessly cut on sight
-Duplicated logic / one-home violations, dead code or
-fields, premature abstraction, drift, git-tellable backstory. The taxonomy + audit method live in
-the **`engineering-principles`** skill (`waste-identification` / `ssot-enforcement`) — reference it,
-don't restate. Operationalized, not a slogan:
+Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identification` /
+`ssot-enforcement`). Operationalized, not a slogan:
 - **Cite-or-silence:** every muda call cites a `file:line`; never manufacture a "consolidation" to
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
@@ -63,8 +60,7 @@ logic; a doc restating them rots.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
   before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges).
-- PR body: Purpose / Changes / Testing / Deferred (ADR 0030); an added external ref carries its
-  fetch-audit (`check-references`, ADR 0079).
+- PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
 - **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
   e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.

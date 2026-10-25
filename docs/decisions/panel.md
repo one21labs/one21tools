@@ -1,10 +1,8 @@
 # Advisor panel — one21tools
 
-This repo's own tuned advisor panel (dogfooding pdca-workflow; adopted in ADR 0028). It is NOT a
-shipped standard — a consumer generates their own via `/pdca-init` (a borrowed panel gives
-confident-but-irrelevant advice). The `advise` skill picks the 2-3 lenses a call needs; the
-definitions live in `.claude/agents/*.md`, tracked via the `.claude/* + !.claude/agents/` negation
-(ADR 0004).
+This repo's own tuned advisor panel (dogfooding pdca-workflow). NOT a shipped standard — a
+consumer generates their own via `/pdca-init` (why: `panel-generation.md`). Selection: the
+`advise` skill; definitions: `.claude/agents/*.md`.
 
 | Advisor | Why this repo needs it |
 |---|---|
@@ -14,5 +12,4 @@ definitions live in `.claude/agents/*.md`, tracked via the `.claude/* + !.claude
 | session-operator | rules must survive a real Claude Code session, not just read well |
 
 Ownership: PM. Membership changes go through `/decide` and are recorded on the deciding ADR's
-`Panel:` line; git history is the SSoT for what changed. Each file here has frontmatter `name:`
-matching its filename (adr-lint agent guard).
+`Panel:` line; git history is the SSoT for what changed.

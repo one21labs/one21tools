@@ -16,11 +16,8 @@ summary: "A decidable requirement's core needs an executable home (rung 1-4) whe
 - **Rule:** a DECIDABLE requirement is never homed in prose — its CORE needs an executable home
   (rung 1-4) at authoring time where an AVAILABLE SURFACE binds it. No surface yet => interim
   prose deferring to ADR 0043's trigger. Judgment shells stay rung-5.
-- **Ladder:** 1 prevent (deny) > 2 detect-at-creation (PostToolUse) > 3 commit > 4 CI > 5 prose.
-  The rung, or any upgrade, needs a cited scar + economics. A full-coverage mechanism deletes its
-  rung-5 prose mirror (check-restatement.mjs); a CI backstop stays.
-- **Preconditions:** (i) a partial predicate ships with its residue recorded (ADR 0030); (ii)
-  undecidable-intent rules WARN, never deny; (iii) surface-bound.
+- **Ladder + preconditions** ((i) partial-predicate residue, (ii) undecidable intent WARNs,
+  (iii) surface-bound): text in `ENGINEERING_PRINCIPLES.md` (Detection-Latency Ladder).
 - **One home** — engineering-principles carries the ladder in GENERAL form; repo scars stay here
   (ADR 0038 inversion guard). `jit-documentation.md:23` keeps its 9a anchor (cited by ADR
   0039/0040) + a pointer — not superseded.

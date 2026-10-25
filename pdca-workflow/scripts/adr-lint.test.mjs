@@ -580,13 +580,15 @@ test("docIndexDrift: the real living docs match char-budget.mjs (the PR #251 cla
     { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS), []);
 });
 
-test("docIndexDrift: WITHOUT the decisions-dir exclusion the real corpus false-positives (the exclusion is load-bearing)", () => {
-  const all = repoFileList(AGENT_ROOT).filter(p => p.endsWith(".md"))
-    .map(p => ({ name: p, text: readFileSync(join(AGENT_ROOT, p), "utf8") }));
-  const problems = docIndexDrift(all,
+test("docIndexDrift: WITHOUT the decisions-dir exclusion an as-of-decision record false-positives (the exclusion is load-bearing)", () => {
+  // Fixture: the real corpus no longer quotes a superseded cap value, but a record legitimately may.
+  const record = { name: "docs/decisions/0001-x.md", text: "- Decision: raise `LITE_ADR_CHAR_BUDGET` from 1500.\n" };
+  const problems = docIndexDrift([record],
     { ADR_CHAR_BUDGET, ADR_CHAR_MARGIN, LITE_ADR_CHAR_BUDGET, AGENT_CHAR_BUDGET }, DOC_BUDGETS);
   assert.ok(problems.some(p => p.startsWith("docs/decisions/")),
-    "expected at least one as-of-decision number to fire when records are scanned");
+    "expected the as-of-decision number to fire when a record is scanned");
+  assert.ok(!indexScanSet([record.name, "x/doc-budgets.md"], "docs/decisions").includes(record.name),
+    "the shipped selection excludes the decisions dir");
 });
 
 // Decision-set advisory (ADR 0051 as amended): multiple new ADRs in one change get a

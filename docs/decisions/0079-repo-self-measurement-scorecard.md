@@ -22,9 +22,8 @@ Numerator from committed artifacts only, never transcripts. Live proxies = (b)'s
   CI, gated nothing (#311); the hit-rate is unmeasured and the corpus has no self-measurement.**
   Spec in this file's git history (reproducing a design for deleted machinery is
   inventory, ADR 0086); re-decide before rebuilding.
-- SHIP — reference-veracity as a mechanical PR-diff hook: a diff adding an external URL/arXiv-ID
-  to a tracked corpus path must also touch a `sources/*-reference-audit*` record. Mechanizes
-  because the trigger is syntactic; the fetch-audit's truth stays the manual adversarial step.
+- SHIP — reference-veracity as a mechanical PR-diff hook; predicate + rationale:
+  `scripts/check-references.mjs` header.
 - DEFER — defect-escape, owner-intervention rate, summary-truthfulness spot-audit (each needs a
   grader or an unminted marker); the periodic re-audit sweep (the write-time hook is primary).
   REJECT as gates — cycle-time, cost-per-decision. Epistemic routing (DERIVED/CITED/MEASURED)

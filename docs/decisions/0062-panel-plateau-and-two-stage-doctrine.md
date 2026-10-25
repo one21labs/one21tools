@@ -31,10 +31,8 @@ operationalizes the go/no-go gate itself; poka-yoke first.
 ADVISORS inside one round. Re-running the adversary AFTER folding its breaks in is the orthogonal
 axis, and it has not plateaued: four rounds on one PR each raised fresh defects, one manufactured
 by the previous round's own fix, with every gate green throughout. A Check phase ends at the
-first round that changes nothing in the artifact — not when the maker is satisfied, and not when
-the gates pass. STOP RULE, so depth cannot become never-ship: a round whose findings are all
-refuted with cited evidence counts as dry; the rounds spent are disclosed where the work lands,
-and the owner may call it at any round. The evidence here is n=1 and deliberately weaker than the
+first dry round (stop rule: red-team `SKILL.md` Return); the owner may call it at any round.
+The evidence here is n=1 and deliberately weaker than the
 five instruments behind 1-3 — the trigger below is set to match.
 Enforced: `pdca-workflow/skills/red-team/SKILL.md` (Return).
 
