@@ -321,22 +321,18 @@ Bundle components by user role:
   "plugins": [
     {
       "name": "developer-tools",
-      "source": "./",
-      "strict": false,
-      "skills": ["./skills/code-review"],
-      "agents": ["./agents/security-scanner.md"],
-      "commands": ["./commands/test.md"]
+      "source": "./plugins/developer-tools"
     },
     {
       "name": "designer-tools",
-      "source": "./",
-      "strict": false,
-      "skills": ["./skills/design-review"],
-      "commands": ["./commands/export-figma.md"]
+      "source": "./plugins/designer-tools"
     }
   ]
 }
 ```
+
+Each role is its own directory holding its `skills/`, `agents/`, and `commands/`. A shared `"./"`
+source would auto-discover every skill for every role (Anti-Pattern above).
 
 ---
 

@@ -28,9 +28,9 @@ import costing
 import usage_guard
 from hermetic_driver import build_env, neutral_cwd
 
-# Known-good pure-text sandbox. NOTE (grok 0.2.99): longer deny lists or --disable-web-search trip a
-# run_terminal_cmd tool-config validation bug — keep this exact set.
-GROK_DENY = "Bash,Read,Write,Edit,WebSearch,WebFetch"
+# Pure-text sandbox = an ALLOW-list. grok's --disallowed-tools is a no-op (planted-file probe,
+# 29-Jul-2026: the token came back under both tool-name casings); --tools with one harmless tool held.
+GROK_TOOLS = "todo_write"
 
 # The generator's family. A "cross-family" judge is only cross-family if we know WHO answered, and
 # a router that picks per call may pick this family: GitHub Copilot's `auto` was measured listing
@@ -145,7 +145,7 @@ class GrokJudge(_CostTracking):
             try:
                 r = subprocess.run(
                     [self.bin, "--prompt-file", pf, "--output-format", "json",
-                     "--json-schema", json.dumps(schema), "--disallowed-tools", GROK_DENY],
+                     "--json-schema", json.dumps(schema), "--tools", GROK_TOOLS],
                     capture_output=True, text=True, timeout=self.timeout, cwd=self.cwd)
             except subprocess.TimeoutExpired:
                 # Contract consistency: timeout is a JudgeError like every other failure mode —
@@ -226,8 +226,9 @@ class CopilotJudge(_CostTracking):
     grade() therefore reads back who answered and raises on a same-family landing, rather than
     quietly returning a grade whose independence is the thing being assumed.
 
-    `--available-tools` with no value strips every tool, which is what keeps grading hermetic; it
-    also removes the need for `--allow-all-tools` in non-interactive mode.
+    Hermetic via an allow-list of one tool that cannot touch files (`sql`, the session store). A
+    bare `--available-tools` strips nothing: planted-file probe 24-Oct-2026 returned the token
+    with it, and NO-ACCESS with `--available-tools=sql`.
     """
     name = "copilot-auto"
 
@@ -244,7 +245,7 @@ class CopilotJudge(_CostTracking):
         try:
             r = subprocess.run(
                 [self.bin, "-p", p, "--model", self.model, "--output-format", "json",
-                 "--available-tools"],
+                 "--available-tools=sql", "--allow-all-tools"],
                 capture_output=True, text=True, timeout=self.timeout)
         except subprocess.TimeoutExpired:
             raise JudgeError(f"copilot timeout after {self.timeout}s")  # same contract as grok

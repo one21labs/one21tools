@@ -72,9 +72,8 @@ so the judge is a first-class, reported variable. `--judge both` gives the diver
 ### grok CLI notes (installed build 0.2.99; docs lag the binary)
 - Headless: `grok -p <prompt>` or `--prompt-file <path>`; `--output-format json`; `--json-schema <schema>`
   constrains structured output; response envelope carries `structuredOutput`, `usage`, `modelUsage`.
-- Sandbox for pure-text grading: `--disallowed-tools "Bash,Read,Write,Edit,WebSearch,WebFetch"`.
-  KNOWN QUIRK: longer deny lists or `--disable-web-search` can trip a `run_terminal_cmd`
-  tool-config validation error — use the known-good set above.
+- Sandbox for pure-text grading: the allow-list `--tools todo_write`. `--disallowed-tools` is a
+  no-op (planted-file probe, 29-Jul-2026) — never rely on a deny flag without that probe.
 - `--agents <JSON>` hosts a grok-native judge/prosecutor panel (candidate for a grok-side fan-out).
 - Auth: grok.com subscription (zero marginal cost) or `XAI_API_KEY` for CI. Model `grok-4.5` = 500K ctx.
 - These flags are NOT in the public docs (docs.x.ai) but are present in the binary; pin the version.

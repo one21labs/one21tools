@@ -17,8 +17,8 @@
  *
  * PRECISION (the design constraint — a noisy doctrine gate would be ignored):
  * - TERMS is scar-backed, not speculative: an entry earns its place by a recorded mis-cite.
- * - Each term OCCURRENCE binds to its NEAREST `ADR NNNN` on the line and only that pairing is
- *   judged. Measured: without this, a line citing two ADRs for two mechanisms false-fires (ADR
+ * - Each term OCCURRENCE binds to ONE `ADR NNNN` on the line (the following cite, else the preceding
+ *   one — `scanLine`) and only that pairing is judged. Measured: without this, a line citing two ADRs for two mechanisms false-fires (ADR
  *   0024's summary correctly cites 0023 for the hermetic executor and 0019 for the clustered CI).
  * - Frozen dated benchmark dirs are out of scope: append-only (ADR 0041), unfixable by policy.
  *
