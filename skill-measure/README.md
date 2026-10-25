@@ -1,8 +1,7 @@
 # skill-measure
 
 A public hermetic pipeline for measuring YOUR OWN skill's value — packaged so any skill author
-can measure their own skill: `/plugin install skill-measure@one21tools`. Decided in
-`bench/SKILL.md`; plan: #170.
+can measure their own skill: `/plugin install skill-measure@one21tools`. Plan: #170.
 
 Related work (surveyed 29-Jul-2026): bring-your-own-skill measurement is a crowded lane —
 anthropics/skills' skill-creator is the reference design for paired with/without arms and blind

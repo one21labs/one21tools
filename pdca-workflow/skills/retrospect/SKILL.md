@@ -50,7 +50,7 @@ Run this loop:
    decision is the failure; it compounds, because the next record cites the mention as provenance.
    Check the range's own commit messages too: an artifact citing an ADR's authority that the ADR's
    Decision never granted is the sharpest form. Undecided + blocking -> delete it and re-pose the
-   question unanchored (0091's scoped test), never retrofit a record around the artifact. Delete only if ALL hold: blocking, no record
+   question unanchored (the test below), never retrofit a record around the artifact. Delete only if ALL hold: blocking, no record
    decides its predicate, re-cited undisposed (adr-lint.mjs is decided; claude-review.yml never blocks).
 6. **Curate.** Dedupe the enumerated list; drop non-systemic items first (the enumerate-all
    above must not pressure the no-pad rule); keep only systemic improvements (would recur),
