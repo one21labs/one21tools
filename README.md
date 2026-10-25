@@ -98,7 +98,7 @@ Method home: `one21labs/skill-measure:skills/bench/references/empirical-evals.md
 
 Lean/TPS/Deming, applied: waste elimination becomes YAGNI and SSoT enforcement; poka-yoke
 becomes gates that make the error impossible rather than detected; "build quality in" becomes
-catching defects at source. The skills encode these as directives — and the loop above is what
+catching defects at source. The skills encode these as directives — and the measured state above is what
 keeps them honest.
 
 ## Provenance

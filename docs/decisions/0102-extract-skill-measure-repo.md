@@ -27,7 +27,7 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
    PR merges. The repo is created only on the owner's go.
 3. **one21tools drops it**: marketplace entry removed, `renames` gains `"skill-measure": null`
    (chain `skill-bench` -> `skill-measure` -> null); `skill-measure/` and the `skill-bench`
-   symlink deleted; gates.yml loses every harness member (`.github/workflows/gates.yml:40,48-61,91`);
+   symlink deleted; gates.yml loses every harness member (skill-gate glob, harness tests, node glob, check-workflow);
    building-skills tests run via `unittest discover` (43 tests, no reachability guard needed).
 4. **benchmarks/ stays** — the evidence for one21tools' claims (README measured block). Frozen
    dated dirs stay byte-identical and reproduce at their own commit (one line,
@@ -41,7 +41,7 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
 6. **Parity test retired** (`scripts/check-family-parity.test.mjs`): two repos, two products,
    each owns its family table and tests; crosscheck.mjs's TWIN note cut.
 7. **Decision history stays here**; live cites repo-qualify as `one21labs/skill-measure:<path>`,
-   the form the plugin already uses for one21tools (`references/empirical-evals.md:70`). Frozen
+   the form the plugin already uses for one21tools (its `empirical-evals.md`). Frozen
    dirs and `docs/pdca/*.jsonl` logs untouched. Open harness issues (#310, #252) transfer.
 
 ## Justification

@@ -188,8 +188,9 @@ class ValidationResult:
 
 def validate_evals_json(skill_path: Path, folder_name: str) -> str:
     """R7: evals/evals.json, when present, matches skill-creator's schema (its
-    references/schemas.md is the schema SSoT; this gate pins the shape the one21labs/skill-measure
-    harness and its eval_verdict.py consume — ADR 0013). Absent file = OK (evals are encouraged, not forced).
+    references/schemas.md is the schema SSoT; this gate pins the input shape skill-creator's
+    harness consumes, whose benchmark.json one21labs/skill-measure's eval_verdict.py judges —
+    ADR 0013). Absent file = OK (evals are encouraged, not forced).
     Returns "" when valid, else the error."""
     evals_file = skill_path / "evals" / "evals.json"
     if not evals_file.exists():
