@@ -87,8 +87,8 @@ Skill is effective only if it measurably improves baseline.
 
 The full protocol — paired benchmark on skill-creator's harness, pressure cases, and the
 skill-measure plugin's cost-per-benefit verdict (one21labs/skill-measure:scripts/eval_verdict.py) — lives in the
-skill-measure plugin's `skills/bench/references/empirical-evals.md` (ADR 0013). No skill-creator installed = the manual
-baseline steps above suffice. Method writeup:
+skill-measure plugin's `skills/bench/references/empirical-evals.md` (ADR 0013). No skill-creator installed = skill-measure's
+`/bench skill` runs the paired arms; without either, the manual baseline steps above suffice. Method writeup:
 https://agentskills.io/skill-creation/evaluating-skills
 
 Caveats when crossing over:
