@@ -29,7 +29,7 @@ Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identifi
   rung should have caught it? "My error" never ends the chain.
 
 ## Sacred (do not break)
-- The **manifests = the registry**: `.claude-plugin/marketplace.json` + each plugin's
+- The **manifests = the registry**: `.claude-plugin/marketplace.json` + any plugin's own
   `plugin.json`. A broken or duplicate entry breaks `/plugin install`.
 - **SKILL.md frontmatter:** `name` FIRST (must match the folder), description-as-trigger;
   `disable-model-invocation` for explicit-invoke skills. Run `validate.py` after any SKILL.md edit.

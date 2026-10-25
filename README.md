@@ -51,7 +51,7 @@ falls back to same-family with a recorded caveat. Installing the skills alone ne
 
 Every differentiation claim here carries its measured status; `benchmarks/` holds the
 append-only evidence, one dated dir per run. Two open instrument caveats apply to every verdict
-below: the harness audit is unconverged (#310) and expectation-authorship coupling is a confirmed,
+below: the harness audit is unconverged (one21labs/skill-measure#1) and expectation-authorship coupling is a confirmed,
 unresolved validity threat (#317, ADR 0101): read a KEEP as "beats bare against the skill's own
 expectations". Each verdict measured the skill AS OF its dated dir — the text may have changed
 since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 0095).

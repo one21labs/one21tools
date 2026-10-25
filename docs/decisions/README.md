@@ -85,6 +85,6 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
-- 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue #310 — if it closes with the stats menu unaddressed, re-file survivors singly
+- 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue #310 (now one21labs/skill-measure#1) — if it closes with the stats menu unaddressed, re-file survivors singly
 - 0099 -> one21labs/skill-measure:scripts/lib/usage_guard.py (header); one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (usage-limit pause)
 - 0100 -> benchmarks/2026-10-12-g8-shortfall/metadata.json (stop rule) + README.md (Measured state)

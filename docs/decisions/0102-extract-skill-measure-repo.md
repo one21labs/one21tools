@@ -12,7 +12,7 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
 - Panel: none spawned — the owner made the contested calls; one fresh adversary per ADR 0062.
 - Context: the one21tools marketplace serves two audiences. Its toolkit plugins suit Claude
   Desktop/Cowork; skill-measure shells out to `claude -p`, promptfoo, grok and copilot
-  (`skill-measure/scripts/run_eval.py`, `lib/judge.py`) — a CLI-only dev tool listed beside
+  (`one21labs/skill-measure:scripts/run_eval.py`, `scripts/lib/judge.py`) — a CLI-only dev tool listed beside
   them. A second marketplace in this repo cannot be added from the CLI or Cowork (needs a
   `path` in `extraKnownMarketplaces`), so separation means a repo. A `skill-bench` symlink
   (ADR 0097 Act) makes the tree read as two folders.
@@ -42,7 +42,7 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
    each owns its family table and tests; crosscheck.mjs's TWIN note cut.
 7. **Decision history stays here**; live cites repo-qualify as `one21labs/skill-measure:<path>`,
    the form the plugin already uses for one21tools (its `empirical-evals.md`). Frozen
-   dirs and `docs/pdca/*.jsonl` logs untouched. Open harness issues (#310, #252) transfer.
+   dirs and `docs/pdca/*.jsonl` logs untouched. Open harness issues #310, #252 transfer (now one21labs/skill-measure#1, #2).
 
 ## Justification
 The receiving person decides it: a Cowork user should see only plugins that run there; a skill
