@@ -54,7 +54,7 @@ source repo's committed benchmarks:
   judge-dependence without manufacturing it.
 - **pre-registration + cost gates** — observed saves on record (a 3.5x cost-estimate miss
   caught and revised pre-grid; paper trail: retired ADRs 0066/0076 ->
-  `skill-measure/skills/bench/references/cost-and-verdict.md`), but NO controlled
+  `one21labs/skill-measure:skills/bench/references/cost-and-verdict.md`), but NO controlled
   comparison against running without them yet — that is a discipline claim, not a measured
   superiority claim.
 - **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
@@ -95,7 +95,7 @@ spread ~ bare spread). A mechanical DoD record check predicts record quality amo
 records only (+0.21/+0.23 both corpora); panel records satisfy its items by construction.
 Measured value so far: process guarantees, FP discipline, and that independence edge — not
 per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into retired ADR 0065
-(-> `skill-measure/skills/bench/references/pre-registration.md`), and #186's Phase-1 was closed
+(-> `one21labs/skill-measure:skills/bench/references/pre-registration.md`), and #186's Phase-1 was closed
 won't-do (the ceremony cut) — no enforcement gate ships.
 
 ## What's in the box

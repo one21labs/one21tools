@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
  * check-workflow.mjs — required CI checks for *.workflow.js files under a root dir; gates.yml
- * runs it over benchmarks/ and skill-measure/ (issue #61, wired as a gate by ADR 0029):
+ * runs it over benchmarks/ (issue #61, wired as a gate by ADR 0029):
  *   1. model-key lint: every agent() call's options object must carry a `model:` key, else the
  *      agent silently inherits the session model. The tiering rule's prose home is
  *      optimizing-context's subagents.md.

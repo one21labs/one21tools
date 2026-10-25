@@ -16,8 +16,10 @@ hooks, and skills, not prose (autonomy).
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
 /plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS), control-narratives (PLC/DCS specs)
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
-/plugin install skill-measure@one21tools         # /bench — the paired-eval harness that measures the rest
 ```
+
+The harness that measures these skills is its own repo:
+[one21labs/skill-measure](https://github.com/one21labs/skill-measure) (Claude Code only).
 
 Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
 history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
@@ -80,7 +82,7 @@ since; `git log --since=<dir-date> -- skills/<name>` lists exactly what (ADR 009
 
 ## The improvement loop
 
-Method home: `skill-measure/skills/bench/references/empirical-evals.md`.
+Method home: `one21labs/skill-measure:skills/bench/references/empirical-evals.md`.
 
 ## Gates (required CI)
 

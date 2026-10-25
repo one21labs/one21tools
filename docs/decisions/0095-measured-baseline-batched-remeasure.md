@@ -27,7 +27,7 @@ summary: "A measured claim means measured at its dated baseline, not HEAD; out-o
    against the live body.
 3. Debt is paid by a BATCHED hermetic re-measure at G>=8 evals. Forcing function: a PR that adds,
    upgrades, or restates-after-drift a measured claim for skill S — on ANY claim surface (README
-   block, pdca-workflow/README.md Measured, skill-measure/README.md) — must cite a benchmark dir
+   block, pdca-workflow/README.md Measured, one21labs/skill-measure:README.md) — must cite a benchmark dir
    whose committed treatment byte-matches the shipped body (a dir DATE is not provenance; it
    misfires on same-PR revise-and-re-measure, e.g. da76cbc), and the PR body pastes that check's
    output — merges here are self-merges in minutes. Baselines are per-CLAIM, not per-skill.

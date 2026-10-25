@@ -6,7 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, shippedSkillDirs, movedMarkers } from "./check-relocated-paths.mjs";
+import { extractPathTokens, checkRelocatedPaths, walkFrozenDirs, shippedSkillDirs, movedMarkers, DEPARTED } from "./check-relocated-paths.mjs";
 import { readFileSync } from "node:fs";
 
 const TOP = new Set(["benchmarks", "skills", "skill-measure", "docs", "scripts", "pdca-workflow"]);
@@ -121,7 +121,7 @@ test("walk tolerates a subdir vanishing mid-walk, never the benchmarks root", ()
 // skills[] dir may delete behind a structured marker in the citing file; everything else FAILs.
 const SHIPPED = new Set(["skills/building-skills"]);
 const OLD_MD = "skills/building-skills/references/description-ablation.md";
-const NEW_MD = "skill-measure/skills/bench/references/description-ablation.md";
+const NEW_MD = "docs/moved/description-ablation.md";  // in-repo target; departed targets: below
 const CITE = { path: "benchmarks/2026-07-09-description-ablation/README.md",
   text: "protocol + validity rules: `" + OLD_MD + "`, ADR 0033;\n\nMOVED: " + OLD_MD + " -> `" + NEW_MD + "`" };
 const runX = (files, ever, extra = {}) => checkRelocatedPaths({
@@ -159,6 +159,34 @@ test("unshipped path is untouched by the exemption machinery", () => {
   const oldDoc = "docs/pdca/gone.md";
   const f = { path: CITE.path, text: "cites `" + oldDoc + "`\nMOVED: " + oldDoc + " -> `" + NEW_MD + "`" };
   assert.equal(runX([f], [oldDoc]).problems.length, 1);
+});
+
+// ADR 0102: trees that left the repo. Their cites are external, never stranded — and reported.
+const SB = "skill-bench/scripts/lib/verdict.py";
+const TOP_D = new Set([...TOP, ...DEPARTED.keys()]);
+
+test("departed: a cite under a departed tree is never a problem, even if it ever existed", () => {
+  const f = { path: CITE.path, text: "imports `" + SB + "` and `skill-measure/README.md`" };
+  const r = checkRelocatedPaths({ candidates: extractPathTokens([f], TOP_D),
+    existingPaths: new Set(), everExisted: new Set([SB, "skill-measure/README.md"]) });
+  assert.equal(r.problems.length, 0);
+  assert.deepEqual(r.departed.map(c => c.path), [SB, "skill-measure/README.md"]);
+});
+
+test("departed: both the old symlink name and the moved dir are declared", () => {
+  assert.deepEqual([...DEPARTED.keys()].sort(), ["skill-bench", "skill-measure"]);
+});
+
+test("departed: a shipped .md MOVED into a departed tree passes without resolving locally", () => {
+  const dep = "skill-measure/skills/bench/references/description-ablation.md";
+  const f = { path: CITE.path, text: "rules: `" + OLD_MD + "`;\n\nMOVED: " + OLD_MD + " -> `" + dep + "`" };
+  assert.equal(runX([f], [OLD_MD], { resolvableNewPaths: new Set() }).problems.length, 0);
+});
+
+test("departed does not widen to executables: a .py MOVED into a departed tree still FAILs", () => {
+  const oldPy = "skills/building-skills/scripts/eval_verdict.py";
+  const f = { path: CITE.path, text: "run `" + oldPy + "`\nMOVED: " + oldPy + " -> `skill-measure/scripts/eval_verdict.py`" };
+  assert.equal(runX([f], [oldPy], { resolvableNewPaths: new Set() }).problems.length, 1);
 });
 
 test("shippedSkillDirs derives skills[] entries only, never bare source roots", () => {
