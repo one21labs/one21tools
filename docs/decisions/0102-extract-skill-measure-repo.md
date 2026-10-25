@@ -32,8 +32,8 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
 4. **benchmarks/ stays** — the evidence for one21tools' claims (README measured block). Frozen
    dated dirs stay byte-identical and reproduce at their own commit (one line,
    benchmarks/README.md). The forwarders keep their paths (ADR 0089 executable-shim rule):
-   `benchmarks/lib/` shims and the `eval_verdict.py` stub resolve the harness from
-   `SKILL_MEASURE_ROOT` and fail with the clone command when unset. Templates do the same and
+   `benchmarks/lib/` shims resolve the harness from `SKILL_MEASURE_ROOT` and fail with the clone
+   command when unset; the `eval_verdict.py` stub exits with the clone command. Templates do the same and
    new dirs record the harness sha.
 5. **check-relocated-paths** declares `skill-bench/` and `skill-measure/` DEPARTED: a frozen
    cite under them reports as external (reproduce at commit), not stranded and no longer

@@ -26,7 +26,7 @@ The harness that measures these skills (`/bench`) is its own repo,
 /plugin install skill-measure@skill-measure
 ```
 
-Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
+Updates: `/plugin marketplace update one21tools` (and `/plugin marketplace update skill-measure`). Installs added before 27-Jul-2026 predate a
 history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
 individual skills:
 `ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
