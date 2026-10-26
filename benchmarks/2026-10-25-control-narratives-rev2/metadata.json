@@ -25,7 +25,7 @@
   "g_floor": "a model with fewer than 8 surviving evals still runs, labelled DIAGNOSTIC-ONLY (ADR 0095 decision 4)"
  },
  "pilot": {
-  "rule": "2 with-arm cells per model on the first eval; per-model per-cell cost = mean of the pilot and prescreen cells for that model; grid refused if projected > remaining ceiling (ADR 0073)"
+  "rule": "2 with-arm cells per model on the first eval; per-cell estimate and prior spend derived by grid.py prior_costs (cost.estimate_scope); grid refused if projected > remaining ceiling (ADR 0073)"
  },
  "grid": "surviving evals x {with, without} x {opus, sonnet} x 2 reps; at most 9 x 2 x 2 x 2 = 72 cells. A reply cut off at the output cap is scored failed on every expectation with no judge call (owner, 26-Oct-2026: a truncated narrative is unusable to the receiving engineer), is never regenerated, and the per-arm cap-hit count is reported beside the verdict.",
  "judging": "Primary: one cross-family judge, whichever is available; grok is one option among several (owner, 26-Oct-2026). It is resolved by `probe_sandbox.py --judges auto` before the prescreen: skill-measure's auto order takes the first backend that answers a probe, $SKILL_BENCH_JUDGE_CMD + $SKILL_BENCH_JUDGE_MODEL first (a ChatGPT CLI or a local model), then grok, then copilot. The resolved backend is recorded in graded/sandbox-probe.jsonl and named explicitly to grade.py for every grading pass, so the judge is fixed before any data. Its verdict is what can promote (ADR 0093); every grok or copilot grade is read back for the answering model's family and a same-family or unplaceable answer is an error row (copilot's auto can route to Claude); a command judge cannot report who answered, so it is placed once, from the model $SKILL_BENCH_JUDGE_MODEL declares. A local model must be placeable by skill-measure's family table (open-weight families need the harness commit that adds them). Secondary: Claude Opus 5.5 isolated identically, FRAME-UNCHECKED. If no cross-family backend answers, the Opus result is reported unpromoted and the README says so (it still counts for the decision rule). Prescreen selection uses the Opus judge (selection only, no verdict). Before any grade, probe_sandbox.py runs a planted-file probe through each judge's grade() path on the installed CLI; rows go to graded/sandbox-probe.jsonl, and a LEAK halts grading until the sandbox is fixed (a deny flag is not evidence on its own, #331).",
@@ -38,12 +38,7 @@
   "prescreen_cap_usd": 5.0,
   "pilot_cap_usd": 2.0,
   "estimate_basis": "2026-10-12 per-cell means: generation opus $0.063, sonnet $0.024; Opus judge $0.040 per cell. 94 generation cells plus up to 2 judges: about $10-20. #328's estimate was about $30.",
-  "per_cell_estimate_usd": {
-   "opus": null,
-   "sonnet": null
-  },
-  "spent_before_grid_usd": 0.0,
-  "estimate_scope": "per_cell_estimate_usd = generation plus judging per cell, so the grid gate projects both. grid.py's backstop counts generation spend only; judge spend is recorded per row by grade.py and counts answered calls only (a judge call that times out records $0)."
+  "estimate_scope": "grid.py prior_costs derives the per-cell estimate (generation mean of the prescreen and pilot cells, plus the Opus judge's measured cost per call) and the spend before the grid (those cells plus every judge pass on them); nothing is hand-filled. grid.py's backstop counts generation spend only; judge spend is recorded by grade.py and counts answered calls only (a judge call that times out records $0; a cross-family CLI reports no cost)."
  },
  "amendments": [
   {
@@ -100,6 +95,20 @@
     "invented.py: covers the cells grade.py grades, capped replies included (grade.exclusion); it no longer needs a prior grade.py pass. Document-structure numbers (Section 4.2, Table 3.1, Rev 2.1, a '3.2 Interlocks' heading) are not counted as values.",
     "probe_sandbox.py: the row's model falls back to the judge's read-back name, so a grok probe records the answering model.",
     "tests: grade_test.py adds ExclusionTest; invented_test.py adds the document-structure case (23 tests)."
+   ]
+  },
+  {
+   "date": "2026-10-26 (UTC)",
+   "made_before_generation": true,
+   "state_at_amendment": "unchanged: no prescreen, pilot or grid cell existed",
+   "source": "PR #337 sweep, round 2",
+   "preregistration": [
+    "pilot.rule and cost.estimate_scope: the per-cell estimate and the spend before the grid are derived by grid.py, not hand-filled; the two said different things (generation only vs generation plus judging), and with spent_before_grid_usd left at 0.0 the grid cap was the whole ceiling. cost.per_cell_estimate_usd and cost.spent_before_grid_usd removed."
+   ],
+   "instrument": [
+    "grid.py: prior_costs() derives both figures and refuses the grid until the prescreen, its Opus grading and the pilot have recorded cost; the unregistered cost.failed_call_charge_usd lookup removed (the charge is cost_gate.DEFAULT_FAILED_CALL_CHARGE_USD).",
+    "aggregate.py: check_harness() before selection or verdicts.",
+    "probe_sandbox.py: exits 1 unless every judge came back NO-ACCESS (a judge error proved nothing; grade.py already refused such a row)."
    ]
   }
  ],

@@ -5,7 +5,7 @@ Plants a random token in a temp file and asks the judge, through the exact grade
 uses, to return that file's contents. A reply holding the token = LEAK: the judge can read files,
 so it could read the measured cells' neighbours. A deny flag is not evidence on its own; grok's
 --disallowed-tools was a no-op on 29-Jul (#331). Appends one row per judge to
-graded/sandbox-probe.jsonl and exits 1 on any LEAK.
+graded/sandbox-probe.jsonl and exits 1 unless every judge came back NO-ACCESS.
 
 Usage: python3 probe_sandbox.py --judges auto claude-opus-5-5
 """
@@ -33,7 +33,7 @@ def main():
     ap.add_argument("--judges", nargs="+", required=True)
     args = ap.parse_args()
     (HERE / "graded").mkdir(exist_ok=True)
-    leaked = False
+    failed = False
     for name in args.judges:
         token = secrets.token_hex(8)
         planted = Path(tempfile.mkdtemp(prefix="probe-")) / "planted.txt"
@@ -59,8 +59,8 @@ def main():
         with (HERE / "graded" / "sandbox-probe.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")
         print(json.dumps(row))
-        leaked |= result == "LEAK"
-    sys.exit(1 if leaked else 0)
+        failed |= result != "NO-ACCESS"  # a leak, or a judge error that proved nothing
+    sys.exit(1 if failed else 0)
 
 
 if __name__ == "__main__":

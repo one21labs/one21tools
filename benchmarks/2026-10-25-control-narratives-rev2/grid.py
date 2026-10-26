@@ -150,6 +150,29 @@ def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap, est):
               f"spent=${state['spent']:.2f} err={record['summary']['error']}", flush=True)
 
 
+def prior_costs():
+    """Derived, never hand-filled (metadata.json pilot): per model, the mean recorded spend of its
+    prescreen and pilot cells plus the Opus judge's measured cost per call; and all spend before
+    the grid (those cells plus every judge pass over them)."""
+    stages = ("prescreen-outputs", "pilot-outputs")
+    recs = [json.loads(p.read_text(encoding="utf-8"))
+            for d in stages for p in sorted((HERE / d).glob("*.json"))]
+    judged = [json.loads(p.read_text(encoding="utf-8")) for d in stages
+              for p in sorted((HERE / "graded").glob(f"judge-cost-*-{d}.json"))]
+    opus = [json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted((HERE / "graded").glob("judge-cost-claude-*-prescreen-outputs.json"))]
+    opus = [j for j in opus if j["calls"]]
+    if not opus or any(not any(r["model"] == m for r in recs) for m in MODELS.values()):
+        sys.exit("cost gate: no measured prescreen and pilot cost yet — run --prescreen, "
+                 "grade.py --dirs prescreen-outputs, and --pilot first")
+    judge_per_call = opus[0]["billed_usd"] / opus[0]["calls"]
+    per = {mk: sum(cell_spend(r) for r in recs if r["model"] == m)
+           / sum(1 for r in recs if r["model"] == m) + judge_per_call for mk, m in MODELS.items()}
+    prior = sum(spent_so_far(HERE / d) for d in stages) + sum(j["billed_usd"] for j in judged)
+    print(f"cost gate: per-cell estimate {per}; spent before the grid ${prior:.2f}")
+    return per, prior
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prescreen", action="store_true")
@@ -160,8 +183,7 @@ def main():
     meta = json.loads((HERE / "metadata.json").read_text(encoding="utf-8"))
     ceiling = meta["cost"]["ceiling_usd"]
     # No per-cell estimate exists before the pilot: reserve (and charge a failed call) a constant.
-    est = dict.fromkeys(MODELS, meta["cost"].get("failed_call_charge_usd",
-                                                 DEFAULT_FAILED_CALL_CHARGE_USD))
+    est = dict.fromkeys(MODELS, DEFAULT_FAILED_CALL_CHARGE_USD)
     if args.prescreen:
         out, cap = HERE / "prescreen-outputs", meta["cost"]["prescreen_cap_usd"]
         tasks = [(k, m, "without", 1) for k in EVALS for m in MODELS]
@@ -171,10 +193,8 @@ def main():
         tasks = [(first, m, "with", r) for m in MODELS for r in (1, 2)]
     else:
         sel = json.loads((HERE / "selection.json").read_text(encoding="utf-8"))
-        per = meta["cost"]["per_cell_estimate_usd"]
-        if any(per.get(m) is None for m in MODELS):
-            sys.exit("cost gate: per_cell_estimate_usd incomplete — run --prescreen and --pilot first")
-        out, cap = HERE / "outputs", ceiling - meta["cost"]["spent_before_grid_usd"]
+        per, prior = prior_costs()
+        out, cap = HERE / "outputs", ceiling - prior
         tasks = [(k, m, a, r) for m in MODELS for k in sel["surviving"][m]
                  for a in ("with", "without") for r in range(1, REPS + 1)]
         costs = [per[t[1]] for t in tasks]

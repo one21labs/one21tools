@@ -26,7 +26,7 @@ if not (HARNESS / "scripts" / "lib").is_dir():
 sys.path.insert(0, str(HARNESS / "scripts" / "lib"))
 import benchstats  # noqa: E402
 
-from grid import EVALS, MODELS, SKILLS  # noqa: E402
+from grid import EVALS, MODELS, SKILLS, check_harness  # noqa: E402
 
 SATURATED = 0.85
 MIN_G = 8
@@ -132,6 +132,7 @@ def main():
     ap.add_argument("--select", action="store_true")
     ap.add_argument("--judge", default="claude-opus-5-5")
     a = ap.parse_args()
+    check_harness()  # a verdict computed by another benchstats is not this run's
     select(a.judge) if a.select else verdicts(a.judge)
 
 
