@@ -195,6 +195,9 @@ def main():
         out, cap = HERE / "outputs", ceiling - prior
         tasks = [(k, m, a, r) for m in MODELS for k in sel["surviving"][m]
                  for a in ("with", "without") for r in range(1, REPS + 1)]
+        if not tasks:
+            sys.exit("no eval survived the prescreen for either model: nothing to measure; "
+                     "record that in the README")
         costs = [per[t[1]] for t in tasks]
         ok, projected = gate(len(tasks), [sum(costs) / len(costs)], cap)
         if not ok:

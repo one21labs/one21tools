@@ -6,7 +6,7 @@ Writes, for the measured skill:
                            claim byte-compares against (ADR 0095 decision 2)
   evals/<skill>.json       the eval battery as measured (frozen copy of skills/<skill>/evals,
                            blind-authored and struck by the owner as domain reader)
-and treatments/costs.json (body codepoints + the source and harness SHAs). Re-running on a
+and treatments/costs.json (the source and harness SHAs). Re-running on a
 changed tree refuses to overwrite: a frozen dir that silently re-derives is no longer frozen.
 """
 import json
@@ -46,8 +46,7 @@ def main():
     harness = harness_commit()
     (HERE / "treatments").mkdir(exist_ok=True)
     (HERE / "evals").mkdir(exist_ok=True)
-    costs = {"source_sha": git("rev-parse", "HEAD", cwd=REPO), "harness_sha": harness,
-             "body_chars": {}}
+    costs = {"source_sha": git("rev-parse", "HEAD", cwd=REPO), "harness_sha": harness}
     for s in SKILLS:
         body = strip_front((REPO / "skills" / s / "SKILL.md").read_text(encoding="utf-8"))
         evals = (REPO / "skills" / s / "evals" / "evals.json").read_text(encoding="utf-8")
@@ -57,7 +56,6 @@ def main():
                 sys.exit(f"{path.relative_to(REPO)} exists and differs from the live tree — "
                          "frozen instrument; start a new benchmark dir instead")
             path.write_text(content, encoding="utf-8")
-        costs["body_chars"][s] = len(body)
     out = HERE / "treatments" / "costs.json"
     if not out.exists():  # the SHA records the FIRST freeze; a re-run after commit keeps it
         out.write_text(json.dumps(costs, indent=1) + "\n", encoding="utf-8")
