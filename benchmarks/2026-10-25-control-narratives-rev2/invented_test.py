@@ -27,6 +27,10 @@ class AbsentTest(unittest.TestCase):
                 self.assertEqual(absent("pump P-101", f"Write it {cite}; trip at 2030 rpm."),
                                  [2030.0])
 
+    def test_document_structure_numbers_are_not_values(self):
+        self.assertEqual(values("See Section 4.2, Table 3.1, Rev 2.1, Fig. 2.3 and § 5.3."), set())
+        self.assertEqual(values("## 3.2 Interlocks\n4.1.2 Start\nTrip at 3.2 bar."), {3.2})
+
     def test_negative_value_counts(self):
         self.assertEqual(absent("hold at -20 degC", "trip at -40 degC, hold at -20 degC"), [-40.0])
         self.assertEqual(absent("low limit -40 degC", "trip at \u221240 degC"), [])

@@ -1,7 +1,7 @@
 """grade_one: a judge reply that is not a full grade is retried once, then becomes an error row,
 never a crash and never a row of silent falses (#331 defect 3). The judge is the real
-IsolatedClaudeJudge (its parsing runs); only its CLI call is mocked. check_probed: no judge
-grades without a NO-ACCESS sandbox probe. Needs the skill-measure lib."""
+harness ClaudeJudge from judge_for (its parsing runs); only its CLI call is mocked. check_probed:
+no judge grades without a NO-ACCESS sandbox probe. Needs the skill-measure lib."""
 import json
 import sys
 import tempfile
@@ -13,6 +13,7 @@ from unittest import mock
 sys.modules.setdefault("grid", types.SimpleNamespace(  # grid reads the frozen evals at import
     EVALS={}, cap_hit=None, check_auth=None, check_harness=None))
 import grade  # noqa: E402
+import usage_guard  # noqa: E402  (on sys.path once grade has loaded the harness)
 
 MODEL = "claude-opus-5-5"
 CELL = {"cell": "c1", "skill": "control-narratives", "scenario": "control-narratives:E1",
@@ -25,9 +26,9 @@ GOOD = json.dumps({"expectations": [{"id": 1, "met": True, "why": "quotes ```SP-
 def run(*replies):
     """grade_one over a judge whose successive CLI calls return `replies`."""
     envs = [{"result": t, "modelUsage": {MODEL: {}}, "total_cost_usd": 0.01} for t in replies]
-    with mock.patch.object(grade.usage_guard, "guarded_run", side_effect=envs), \
+    with mock.patch.object(usage_guard, "guarded_run", side_effect=envs), \
             mock.patch.dict(grade.EVALS, {CELL["scenario"]: EV}):
-        judge = grade.IsolatedClaudeJudge(MODEL)
+        judge = grade.judge_for(MODEL)
         return grade.grade_one(judge, MODEL, CELL), judge.calls
 
 
@@ -57,6 +58,19 @@ class CappedRowTest(unittest.TestCase):
         with mock.patch.dict(grade.EVALS, {CELL["scenario"]: EV}):
             row = grade.capped_row(CELL)
         self.assertEqual((row["met"], row["cap_hit"], row["arm"]), ({1: False, 2: False}, True, "without"))
+
+
+class ExclusionTest(unittest.TestCase):
+    """aggregate.py and invented.py derive the graded cell set from this, not from a stale pass."""
+
+    def test_capped_graded_error_and_short_excluded_good_graded(self):
+        capped = lambda r: (r["summary"]["error"] or "").startswith("output hit the ")  # noqa: E731
+        rec = lambda err, text: {"summary": {"error": err}, "response": text}  # noqa: E731
+        with mock.patch.object(grade, "cap_hit", capped):
+            self.assertIsNone(grade.exclusion(rec("output hit the 32000-token cap", "x")))
+            self.assertEqual(grade.exclusion(rec("timeout", "")), "timeout")
+            self.assertIsNotNone(grade.exclusion(rec(None, "too short")))
+            self.assertIsNone(grade.exclusion(rec(None, "The narrative. " * 40)))
 
 
 class GradeOneTest(unittest.TestCase):

@@ -64,13 +64,13 @@ def select(judge):
 
 
 def ungraded_cells(graded):
-    """Gradable grid cells (outputs/ minus grade.py's recorded exclusions) with no graded row:
-    a judge call that failed twice leaves no row, and without this its cell vanishes silently."""
+    """Gradable grid cells with no graded row: a judge call that failed twice, or a cell grid.py
+    regenerated or capped after the last grade.py pass, leaves no row, and without this its cell
+    vanishes silently. Gradable is decided from outputs/ as it is now (grade.exclusion)."""
+    from grade import exclusion
     recs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((HERE / "outputs").glob("*.json"))]
-    errs = HERE / "graded" / "error-cells-outputs.json"
-    excluded = {e["cell"] for e in json.loads(errs.read_text(encoding="utf-8"))} if errs.exists() else set()
     done = {r["bid"] for r in graded}
-    return [r for r in recs if not r["summary"]["error"] and r["cell"] not in excluded | done]
+    return [r for r in recs if exclusion(r) is None and r["cell"] not in done]
 
 
 def consistency(cells):
@@ -122,8 +122,8 @@ def verdicts(judge):
                   f"CI={v.get('ci95')} {v['verdict']} [{v['status'].split(' ')[0]}]")
     if out["ungraded"]:
         print("UNGRADED cells (no verdict row; results incomplete):", json.dumps(out["ungraded"]))
-    # One file per judge: a cross-family re-grade must sit beside the same-family result, never
-    # overwrite it (the agreement between the two is what promotes a verdict).
+    # One file per judge: the cross-family result sits beside the same-family one, never
+    # overwrites it (metadata.json judging says which verdict promotes).
     (HERE / f"results-{judge}.json").write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
 
 

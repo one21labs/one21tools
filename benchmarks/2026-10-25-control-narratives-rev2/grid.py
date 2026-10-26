@@ -24,7 +24,6 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[1]
 # The harness left this repo (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure
 # checkout. Neither found = exit naming the remedy, never a bare ImportError.
 HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
@@ -76,21 +75,31 @@ def check_harness():
                  f"checkout {frozen} on a clean tree, or record the deviation in the README")
 
 
+AUTH_PROBE_MODEL = "claude-nonexistent-0"  # no such model, so the call is never billed
+
+
 def check_auth(env):
     """$0, before any billed call. The empty config dir holds no credentials, so without a working
-    CLAUDE_CODE_OAUTH_TOKEN every call fails and bills a phantom retry (metadata.json auth). The
-    token is checked, not just present: `claude auth status` runs with it in the env."""
-    r = subprocess.run(["claude", "auth", "status", "--json"], env=env, capture_output=True,
-                       text=True, timeout=60)
+    CLAUDE_CODE_OAUTH_TOKEN every call fails and bills a phantom retry (metadata.json auth).
+    `claude auth status` reports any non-empty token as signed in, so the token is tested with one
+    call to a model that does not exist: the API answers 401 to a bad token and 404 to a good
+    one, at $0 either way (measured on CLI 2.1.310, 26-Oct-2026)."""
+    r = subprocess.run(["claude", "-p", "--model", AUTH_PROBE_MODEL, "--output-format", "json",
+                        "--tools", "", "--disable-slash-commands", "--strict-mcp-config", "x"],
+                       env=env, cwd=tempfile.mkdtemp(prefix="auth-check-"), capture_output=True,
+                       text=True, timeout=120)
     try:
-        ok = json.loads(r.stdout).get("loggedIn")
+        status = json.loads(r.stdout).get("api_error_status")
     except ValueError:
-        ok = False
-    if not ok:
-        held = "the exported CLAUDE_CODE_OAUTH_TOKEN did not sign in" if env.get(
-            "CLAUDE_CODE_OAUTH_TOKEN") else "no CLAUDE_CODE_OAUTH_TOKEN is exported"
-        sys.exit(f"the hermetic config is not signed in ({held}): run `claude setup-token`, then "
-                 "export CLAUDE_CODE_OAUTH_TOKEN=<token> (metadata.json auth)")
+        status = None
+    if status == 404:
+        return
+    token = (env.get("CLAUDE_CODE_OAUTH_TOKEN") or "").strip()
+    held = ("no CLAUDE_CODE_OAUTH_TOKEN is exported" if not token
+            else "the exported CLAUDE_CODE_OAUTH_TOKEN was rejected" if status in (401, 403)
+            else f"the check got status {status}, not the 404 a signed-in caller gets")
+    sys.exit(f"the hermetic config is not signed in ({held}): run `claude setup-token`, then "
+             "export CLAUDE_CODE_OAUTH_TOKEN=<token> (metadata.json auth)")
 
 
 CAP_HIT_PREFIX = "output hit the "  # hermetic_driver.summarize_call's error for a capped reply

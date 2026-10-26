@@ -32,45 +32,19 @@ if not (HARNESS / "scripts" / "lib").is_dir():
              "&& export SKILL_MEASURE_ROOT=$PWD/skill-measure")
 sys.path.insert(0, str(HARNESS / "scripts" / "lib"))
 import rubric  # noqa: E402
-import usage_guard  # noqa: E402
 from artifact_check import check_artifact  # noqa: E402
 from blind import capture_symmetry  # noqa: E402
-from hermetic_driver import build_env, neutral_cwd  # noqa: E402
-from judge import ClaudeJudge, JudgeError, make_judge, met_map, parse_reply  # noqa: E402
+from hermetic_driver import build_env  # noqa: E402
+from judge import ClaudeJudge, JudgeError, make_judge, met_map  # noqa: E402
 
 from grid import EVALS, cap_hit, check_auth, check_harness  # noqa: E402
 
 MIN_CHARS = 200
 
 
-class IsolatedClaudeJudge(ClaudeJudge):
-    """ClaudeJudge pinned to an exact model and the generation-side isolation flags."""
-
-    def __init__(self, model):
-        super().__init__(model=model)
-        self.name = model
-        self.config = tempfile.mkdtemp(prefix="judge-config-")
-        self.cwd = neutral_cwd("judge")
-        self.real_cost_usd = 0.0  # billed envelope cost; cost_usd() is the notional price table
-
-    def grade(self, prompt, schema):
-        p = prompt + "\n\nReturn ONLY valid JSON matching this schema, no prose:\n" + json.dumps(schema)
-        cmd = [self.bin, "-p", "--output-format", "json", "--model", self.model, "--tools", "",
-               "--disable-slash-commands", "--strict-mcp-config", "--effort", "medium"]
-        env = usage_guard.guarded_run(cmd, timeout=self.timeout, error=JudgeError, input=p,
-                                      cwd=self.cwd,
-                                      env={**build_env("medium"), "CLAUDE_CONFIG_DIR": self.config})
-        self._record(env)
-        self.real_cost_usd += env.get("total_cost_usd") or 0.0
-        served = sorted((env.get("modelUsage") or {}).keys())
-        if self.model not in served:
-            raise JudgeError(f"judge requested {self.model}, envelope served {served}")
-        return parse_reply(env.get("result", ""), "claude")
-
-
 def judge_for(name):
-    if name.startswith("claude-"):
-        return IsolatedClaudeJudge(name)
+    if name.startswith("claude-"):  # an exact id is a pin; the harness strips tools, cwd neutral
+        return ClaudeJudge(model=name, config_dir=tempfile.mkdtemp(prefix="judge-config-"))
     judge = make_judge(name)
     if getattr(judge, "backend", name) == "claude":  # `auto` found no cross-family lane
         sys.exit("no cross-family judge answered (command, grok, copilot): sign one in, or set "
@@ -107,6 +81,18 @@ def grade_one(judge, jname, r):
                     "why": {e["id"]: e.get("why", "") for e in v["expectations"]}}}
 
 
+def exclusion(r):
+    """Why a cell is not graded, or None. Derived from the record itself, so aggregate.py and
+    invented.py decide the same cell set as this pass without reading its output. A capped reply
+    is graded (failed, capped_row), never excluded."""
+    if cap_hit(r):
+        return None
+    if r["summary"]["error"]:
+        return r["summary"]["error"]
+    ok, reason = check_artifact(r.get("response") or "", min_chars=MIN_CHARS)
+    return None if ok else reason
+
+
 def capped_row(r):
     """A reply cut off at the output cap fails every expectation, with no judge call: the
     receiving engineer gets an unusable narrative (owner, 26-Oct-2026; metadata.json grid)."""
@@ -135,17 +121,13 @@ def main():
 
     ok_cells, errors, capped = [], [], []
     for r in recs:
-        if cap_hit(r):  # graded failed below, so not an exclusion in the symmetry sweep
-            capped.append(r)
-            continue
-        if r["summary"]["error"]:
-            errors.append({"cell": r["cell"], "reason": r["summary"]["error"]})
-            continue
-        ok, reason = check_artifact(r.get("response") or "", min_chars=MIN_CHARS)
-        if ok:
-            ok_cells.append(r)
-        else:
+        reason = exclusion(r)
+        if reason:
             errors.append({"cell": r["cell"], "reason": reason})
+        elif cap_hit(r):  # graded failed below, so not an exclusion in the symmetry sweep
+            capped.append(r)
+        else:
+            ok_cells.append(r)
     if errors:
         print(f"ERROR cells (excluded, #191): {errors}", file=sys.stderr)
     (HERE / "graded" / f"error-cells-{tag}.json").write_text(json.dumps(errors, indent=1), encoding="utf-8")

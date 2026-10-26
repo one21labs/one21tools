@@ -50,8 +50,10 @@ def main():
         version = (subprocess.run([judge.bin, "--version"], capture_output=True, text=True).stdout.strip()
                    if getattr(judge, "bin", None) else None)
         # The row names the backend grade.py is then run with, never "auto".
+        # the answering model: copilot reads it back into last_model, grok into name
         row = {"judge": getattr(judge, "backend", None) or name, "requested": name,
-               "model": getattr(judge, "last_model", None) or getattr(judge, "model", None),
+               "model": (getattr(judge, "last_model", None) or getattr(judge, "model", None)
+                         or judge.name),
                "cli": cli, "cli_version": version, "result": result,
                "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         with (HERE / "graded" / "sandbox-probe.jsonl").open("a", encoding="utf-8") as f:
