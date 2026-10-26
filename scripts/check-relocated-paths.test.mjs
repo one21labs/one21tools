@@ -188,25 +188,27 @@ test("ignored: a cite to a gitignored path is never stranded, and is reported", 
 
 // main() reads presence from the git index: an untracked copy on disk is still a strand, and
 // a gitignored one is not. A temp repo reproduces the 26-Oct local-pass/CI-fail split.
-test("main: an untracked file on disk still strands; a gitignored one does not", () => {
+test("main: an untracked file strands, even one only a personal exclude ignores; a committed-ignore one does not", () => {
   const root = mkdtempSync(join(tmpdir(), "relocated-"));
   const git = (...a) => execFileSync("git", ["-c", "user.email=t@t", "-c", "user.name=t", ...a], { cwd: root });
   mkdirSync(join(root, "benchmarks/2026-01-01-x"), { recursive: true });
   mkdirSync(join(root, ".claude-plugin"));
   mkdirSync(join(root, "docs"));
   writeFileSync(join(root, ".claude-plugin/marketplace.json"), '{"plugins":[]}');
-  writeFileSync(join(root, "benchmarks/2026-01-01-x/README.md"), "cites `docs/moved.md` and `docs/log.md`\n");
-  for (const f of ["docs/moved.md", "docs/log.md"]) writeFileSync(join(root, f), "x\n");
+  writeFileSync(join(root, "benchmarks/2026-01-01-x/README.md"), "cites `docs/moved.md`, `docs/log.md` and `docs/mine.md`\n");
+  for (const f of ["docs/moved.md", "docs/log.md", "docs/mine.md"]) writeFileSync(join(root, f), "x\n");
   git("init", "-q");
   git("add", ".");
   git("commit", "-qm", "base");
-  git("rm", "-q", "--cached", "docs/moved.md", "docs/log.md");
+  git("rm", "-q", "--cached", "docs/moved.md", "docs/log.md", "docs/mine.md");
+  writeFileSync(join(root, ".git/info/exclude"), "docs/mine.md\n");
   writeFileSync(join(root, ".gitignore"), "docs/log.md\n");
   git("add", ".gitignore");
   git("commit", "-qm", "untrack");
   const r = spawnSync(process.execPath, [fileURLToPath(new URL("./check-relocated-paths.mjs", import.meta.url)), root], { encoding: "utf8" });
   assert.equal(r.status, 1);
   assert.match(r.stderr, /`docs\/moved\.md` is cited/);
+  assert.match(r.stderr, /`docs\/mine\.md` is cited/);
   assert.doesNotMatch(r.stderr, /docs\/log\.md/);
 });
 

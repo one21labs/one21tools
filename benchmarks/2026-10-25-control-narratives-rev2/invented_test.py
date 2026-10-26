@@ -22,7 +22,7 @@ class AbsentTest(unittest.TestCase):
     def test_citations_and_dates_are_not_values(self):
         for cite in ("per IEC 61511 SRS", "ISO 9001:2015", "IEC 61508-2:2010", "ISA 18.2",
                      "ANSI/ISA 84.00.01-2004", "ASD-STE100 Issue 9 (Jan 2025)",
-                     "by 30 Nov 2026", "by Nov 30, 2026"):
+                     "by 30 Nov 2026", "by Nov 30, 2026", "per NAMUR NE 107"):
             with self.subTest(cite):
                 self.assertEqual(absent("pump P-101", f"Write it {cite}; trip at 2030 rpm."),
                                  [2030.0])

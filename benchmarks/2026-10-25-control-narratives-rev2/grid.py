@@ -73,6 +73,11 @@ def check_harness():
     if live != frozen or live.endswith("-dirty"):
         sys.exit(f"harness is at {live}, the freeze recorded {frozen}: run git -C {HARNESS} "
                  f"checkout {frozen} on a clean tree, or record the deviation in the README")
+    remote = subprocess.run(["git", "-C", str(HARNESS), "branch", "-r", "--contains", frozen],
+                            capture_output=True, text=True).stdout.strip()
+    if not remote:  # metadata.json harness: reachable on origin, or nobody can reproduce the run
+        sys.exit(f"harness commit {frozen} is on no remote branch: push it to skill-measure's "
+                 f"origin (git -C {HARNESS} fetch first if it is already there)")
 
 
 AUTH_PROBE_MODEL = "claude-nonexistent-0"  # no such model, so the call is never billed

@@ -33,7 +33,7 @@ STRUCT = r"Section|Sec|Table|Figure|Fig|Rev|Revision|Version|Step|Appendix|Annex
 # The leftmost match wins, so a citation, date or structure number consumes its digits before
 # the value branches.
 TOKEN = re.compile(
-    rf"\b(?:{BODIES})(?:/(?:{BODIES}))*\s+\d+(?:[.:-]\d+)*"
+    rf"\b(?:(?:{BODIES})(?:/(?:{BODIES}))*|NAMUR\s+NE)\s+\d+(?:[.:-]\d+)*"
     rf"|\b(?:\d{{1,2}}\s+)?(?:{MONTHS})\.?\s+(?:\d{{1,2}},?\s+)?(?:19|20)\d\d\b"
     rf"|\b(?:{STRUCT})\.?\s*\d+(?:[.-]\d+)*|\u00a7\s*\d+(?:\.\d+)*|^[ \t]*(?:#+[ \t]*)?\d+(?:\.\d+)+(?=[ \t])"
     r"|(?<![\w.:])(?P<clock>(?:[01]?\d|2[0-3]):[0-5]\d(?::[0-5]\d)?)(?!\w|[:.,]\d)"

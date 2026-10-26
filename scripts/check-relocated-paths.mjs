@@ -14,7 +14,8 @@
  * would silently report every path as never-existed (permanent false negative).
  * PRESENCE = tracked by git (`git ls-files`), not present on disk: an ignored local copy must not
  * pass a local run that CI, on a clean checkout, fails (the hook logs did, 26-Oct-2026). A cite
- * to a gitignored path is deliberately local, so never stranded; the run line counts it.
+ * to a path a committed .gitignore ignores is deliberately local, so never stranded; the run
+ * line counts it.
  *
  * APPENDING A CORRECTION (ADR 0089(b)(ii)): name the stranded path in PLAIN TEXT, not backticks.
  * A correction note is appended INSIDE the frozen dir, so a backticked path there is a new
@@ -219,10 +220,12 @@ function main(argv) {
   const existingPaths = new Set(), everExisted = new Set(), ignoredPaths = new Set();
   for (const path of new Set(candidates.map(c => c.path))) {
     if (tracked.has(path)) { existingPaths.add(path); continue; }
-    const ign = spawnSync("git", ["check-ignore", "-q", "--", path], { cwd: root });
-    if (ign.status === 0) { ignoredPaths.add(path); continue; }
+    // Only a rule the repo commits counts: a personal excludesFile or .git/info/exclude entry
+    // would exempt a path CI still flags. -v prints `source:line:pattern<TAB>path`.
+    const ign = spawnSync("git", ["check-ignore", "-v", "--", path], { cwd: root, encoding: "utf8" });
+    if (ign.status === 0 && tracked.has(ign.stdout.split(":")[0])) { ignoredPaths.add(path); continue; }
     try {
-      if (ign.status !== 1) throw new Error(ign.error?.message ?? `check-ignore exit ${ign.status}`);
+      if (ign.status !== 0 && ign.status !== 1) throw new Error(ign.error?.message ?? `check-ignore exit ${ign.status}`);
       if (execSync(`git log --all --format=%h -- "${path}"`, { cwd: root, encoding: "utf8" }).trim())
         everExisted.add(path);
     } catch (e) {
