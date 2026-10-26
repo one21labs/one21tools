@@ -12,6 +12,9 @@
  * relocated one did. Measured on the current tree: 0 false positives (ADR 0089 Assumptions).
  * CI NOTE: requires full history — gates.yml checks out with fetch-depth: 0; a shallow clone
  * would silently report every path as never-existed (permanent false negative).
+ * PRESENCE = tracked by git (`git ls-files`), not present on disk: an ignored local copy must not
+ * pass a local run that CI, on a clean checkout, fails (the hook logs did, 26-Oct-2026). A cite
+ * to a gitignored path is deliberately local, so never stranded; the run line counts it.
  *
  * APPENDING A CORRECTION (ADR 0089(b)(ii)): name the stranded path in PLAIN TEXT, not backticks.
  * A correction note is appended INSIDE the frozen dir, so a backticked path there is a new
@@ -31,8 +34,8 @@
  * Usage: node scripts/check-relocated-paths.mjs [repoRoot]   (default: cwd)
  * Exit: 0 = clean · 1 = stranded path(s) · 2 = benchmarks/ unreadable or git failure.
  */
-import { execSync } from "node:child_process";
-import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { execSync, spawnSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -122,10 +125,12 @@ export function movedMarkers(files) {
  * UNLESS (ADR 0089 Act) the path is doc-only (.md), lies under a shipped skill dir, and the
  * citing file carries a MOVED marker for it (not on the cited line) whose new path resolves.
  * Executables never qualify: a note cannot run. A DEPARTED-tree cite is never a problem; it
- * is returned in `departed` so the run reports it instead of passing it silently.
+ * is returned in `departed` so the run reports it instead of passing it silently; a cite in
+ * `ignoredPaths` (gitignored, so deliberately local) likewise, in `ignored`.
  */
 export function checkRelocatedPaths({ candidates, existingPaths, everExisted,
-  shippedDirs = new Set(), markersByFile = new Map(), resolvableNewPaths = new Set() }) {
+  shippedDirs = new Set(), markersByFile = new Map(), resolvableNewPaths = new Set(),
+  ignoredPaths = new Set() }) {
   const exempt = c =>
     c.path.endsWith(".md")
     && [...shippedDirs].some(d => c.path.startsWith(`${d}/`))
@@ -133,14 +138,15 @@ export function checkRelocatedPaths({ candidates, existingPaths, everExisted,
       m.oldPath === c.path && m.line !== c.line
       && (resolvableNewPaths.has(m.newPath) || isDeparted(m.newPath)));
   const departed = candidates.filter(c => isDeparted(c.path));
+  const ignored = candidates.filter(c => !isDeparted(c.path) && ignoredPaths.has(c.path));
   const problems = candidates
-    .filter(c => !isDeparted(c.path))
+    .filter(c => !isDeparted(c.path) && !ignoredPaths.has(c.path))
     .filter(c => !existingPaths.has(c.path) && everExisted.has(c.path) && !exempt(c))
-    .map(c => `${c.file}:${c.line}: \`${c.path}\` is cited by this frozen dir but absent from the `
-      + `worktree despite existing in git history — a relocation stranded it; restore it at the `
+    .map(c => `${c.file}:${c.line}: \`${c.path}\` is cited by this frozen dir but no longer `
+      + `tracked despite existing in git history — a relocation stranded it; restore it at the `
       + `old path (shim or pointer stub, ADR 0089/PR #230) or, for a doc-only path under a `
       + `shipped skill dir, append a MOVED marker in the citing file — never edit the frozen line`);
-  return { problems, departed };
+  return { problems, departed, ignored };
 }
 
 /**
@@ -197,24 +203,35 @@ function main(argv) {
     process.exit(2);
   }
   console.log(`shipped-skill exemption dirs (derived from marketplace.json): ${[...shippedDirs].sort().join(", ")}`);
+  let tracked;
+  try {
+    tracked = new Set(execSync("git ls-files -z", { cwd: root, encoding: "utf8", maxBuffer: 64 << 20 })
+      .split("\0").filter(Boolean));
+  } catch (e) {
+    console.error(`check-relocated-paths: git ls-files failed: ${e.message}`);
+    process.exit(2);
+  }
   const markersByFile = movedMarkers(files);
   const resolvableNewPaths = new Set();
   for (const ms of markersByFile.values())
-    for (const m of ms) if (existsSync(join(root, m.newPath))) resolvableNewPaths.add(m.newPath);
+    for (const m of ms) if (tracked.has(m.newPath)) resolvableNewPaths.add(m.newPath);
   const candidates = extractPathTokens(files, knownTopDirs);
-  const existingPaths = new Set(), everExisted = new Set();
+  const existingPaths = new Set(), everExisted = new Set(), ignoredPaths = new Set();
   for (const path of new Set(candidates.map(c => c.path))) {
-    if (existsSync(join(root, path))) { existingPaths.add(path); continue; }
+    if (tracked.has(path)) { existingPaths.add(path); continue; }
+    const ign = spawnSync("git", ["check-ignore", "-q", "--", path], { cwd: root });
+    if (ign.status === 0) { ignoredPaths.add(path); continue; }
     try {
+      if (ign.status !== 1) throw new Error(ign.error?.message ?? `check-ignore exit ${ign.status}`);
       if (execSync(`git log --all --format=%h -- "${path}"`, { cwd: root, encoding: "utf8" }).trim())
         everExisted.add(path);
     } catch (e) {
-      console.error(`check-relocated-paths: git log failed for ${path}: ${e.message}`);
+      console.error(`check-relocated-paths: git failed for ${path}: ${e.message}`);
       process.exit(2);
     }
   }
-  const { problems, departed } = checkRelocatedPaths({ candidates, existingPaths, everExisted,
-    shippedDirs, markersByFile, resolvableNewPaths });
+  const { problems, departed, ignored } = checkRelocatedPaths({ candidates, existingPaths,
+    everExisted, shippedDirs, markersByFile, resolvableNewPaths, ignoredPaths });
   if (problems.length) {
     console.error(`check-relocated-paths: ${problems.length} stranded path(s)`);
     for (const p of problems) console.error(`  - ${p}`);
@@ -222,7 +239,8 @@ function main(argv) {
   }
   console.log(`check-relocated-paths: ${candidates.length} cited path token(s) across `
     + `${files.length} frozen-dir file(s) — none stranded; ${departed.length} cite(s) into departed `
-    + `trees (${[...new Set(DEPARTED.values())].join(", ")}: reproduce at the citing run's commit).`);
+    + `trees (${[...new Set(DEPARTED.values())].join(", ")}: reproduce at the citing run's commit); `
+    + `${ignored.length} cite(s) to gitignored local paths.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main(process.argv);
