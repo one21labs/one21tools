@@ -258,3 +258,13 @@ below the per-model mde80 (0.161-0.193), which is precisely why the interaction 
 judge-robust.
 
 Raw records: `outputs/`, `pilot-outputs/`, `graded/`, `results.json`, `results.txt`.
+
+## Restore note (26-Oct-2026)
+
+Restored to main as the record (#331). This supersedes the "THROWAWAY" and "Not a merge
+candidate" wording of lines 1-3, and "this throwaway branch" at line 148.
+
+The scripts import `skill-bench/scripts/lib` (`generate.py:37`, `grade.py:22`), which left main
+with ADR 0102, so the commit that lands this dir cannot run it. `8bb1b8b`, the commit it was
+restored from, is on no branch. To reproduce, copy this dir into `benchmarks/` in a checkout of
+`bd3ebd9` (#321): its `skill-bench/` is byte-identical to `8bb1b8b`'s.
