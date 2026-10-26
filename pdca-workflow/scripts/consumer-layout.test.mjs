@@ -5,7 +5,7 @@
  * pdca-init's SKILL.md vendors into a temp dir shaped like a consumer repo, then runs
  * `adr-lint.mjs` there via `node`, the same way the SKILL.md tells the user to — pinning the
  * contract so it can't silently break. The vendor set is DERIVED from pdca-init SKILL.md step 3,
- * which owns what is vendored; a vendored `*.test.mjs` must pass where it lands.
+ * its one home.
  * Runs with the other gate tests: `node --test pdca-workflow/scripts/*.test.mjs` (gates.yml).
  */
 import { test } from "node:test";
@@ -20,7 +20,7 @@ const SCRIPTS_DIR = fileURLToPath(new URL(".", import.meta.url));
 const PDCA_INIT_SKILL = fileURLToPath(new URL("../skills/pdca-init/SKILL.md", import.meta.url));
 
 // The vendor set = every backticked `*.mjs` named in pdca-init SKILL.md step 3 (its one home).
-export function vendorFilesFromSkill(skillText) {
+function vendorFilesFromSkill(skillText) {
   const step3 = skillText.match(/^3\. [\s\S]*?(?=^4\. )/m);
   if (!step3) throw new Error("pdca-init SKILL.md: step 3 not found");
   const names = [...step3[0].matchAll(/`(?:\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/)?([\w.-]+\.mjs)`/g)]
@@ -30,30 +30,8 @@ export function vendorFilesFromSkill(skillText) {
 
 const VENDOR_FILES = vendorFilesFromSkill(readFileSync(PDCA_INIT_SKILL, "utf8"));
 
-// Run `node --test <file>` in `cwd` from inside this test runner. NODE_TEST_CONTEXT is stripped:
-// inherited from the outer runner, it turns the nested run into a reporting child that exits 0
-// even when its tests fail.
-export function runNodeTest(cwd, file) {
-  const { NODE_TEST_CONTEXT, ...env } = process.env;
-  return spawnSync(process.execPath, ["--test", file], { cwd, encoding: "utf8", env });
-}
-
-test("runNodeTest reports a failing test as a failure from inside this runner", () => {
-  const dir = mkdtempSync(join(tmpdir(), "pdca-nested-test-"));
-  try {
-    writeFileSync(join(dir, "fail.test.mjs"),
-      'import { test } from "node:test"; import assert from "node:assert"; test("f", () => assert.fail());\n');
-    writeFileSync(join(dir, "pass.test.mjs"), 'import { test } from "node:test"; test("p", () => {});\n');
-    assert.notEqual(runNodeTest(dir, "fail.test.mjs").status, 0);
-    assert.equal(runNodeTest(dir, "pass.test.mjs").status, 0);
-  } finally {
-    rmSync(dir, { recursive: true, force: true });
-  }
-});
-
-test("vendor set derives from SKILL.md step 3 and holds the linter + its import", () => {
-  assert.ok(VENDOR_FILES.includes("adr-lint.mjs"), `derived: ${VENDOR_FILES}`);
-  assert.ok(VENDOR_FILES.includes("char-budget.mjs"), `derived: ${VENDOR_FILES}`);
+test("the vendor set holds no *.test.mjs (pdca-init SKILL.md step 3)", () => {
+  assert.deepEqual(VENDOR_FILES.filter(f => f.endsWith(".test.mjs")), []);
 });
 
 test("vendorFilesFromSkill reads only step 3, with or without the plugin-root prefix", () => {
@@ -102,11 +80,6 @@ test("adr-lint runs cleanly from a consumer-shaped layout (pdca-init's vendor se
       `adr-lint exited ${result.status} in a consumer layout\nstdout: ${result.stdout}\nstderr: ${result.stderr}`);
     assert.equal(result.stderr, "");
     assert.match(result.stdout, /corpus OK/);
-
-    for (const t of VENDOR_FILES.filter(f => f.endsWith(".test.mjs"))) {
-      const run = runNodeTest(consumerRoot, join("scripts", t));
-      assert.equal(run.status, 0, `vendored ${t} fails in a consumer layout\n${run.stdout}${run.stderr}`);
-    }
   } finally {
     rmSync(consumerRoot, { recursive: true, force: true });
   }
