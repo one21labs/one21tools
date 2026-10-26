@@ -1,7 +1,7 @@
 # Loop-engineering research corpus
 
 The versioned knowledge home for research on self-improving AI loops / "AI operating systems" /
-harness engineering — the field this repo's pdca-workflow and skill-measure live in. Work-state
+harness engineering — the field this repo's pdca-workflow and one21labs/skill-measure live in. Work-state
 (which improvement directions are being executed) tracks in issue #236 per ADR 0021; THIS file
 owns the knowledge: verified sources, the SOTA map, tracking keywords, and the refresh method.
 Raw per-lane sweep outputs are committed under `sources/` (auditable, ADR 0023 ethos).

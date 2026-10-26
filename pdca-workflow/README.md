@@ -37,7 +37,7 @@ novel — Anthropic's skill-creator and SkillsBench do both): **the integrated l
 panel -> PM-authored ADR -> independent verify/red-team gate -> transcript-mined retrospective
 that edits the loop's own agents/skills — closed nowhere else as one system; **decisions as
 first-class lintable records** (budgeted, back-pointed, revisit-triggered ADRs); and in the
-sibling skill-measure harness, **adversarial prosecutor grading** (vs the field's
+separate one21labs/skill-measure harness, **adversarial prosecutor grading** (vs the field's
 neutral-by-design graders), **enforced cross-family judging** (advisory-only elsewhere), and
 **pre-registration + cost-gating** — verified absent, combined, from every mainstream eval
 framework surveyed.
