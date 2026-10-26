@@ -64,7 +64,7 @@ class ExclusionTest(unittest.TestCase):
     """aggregate.py and invented.py derive the graded cell set from this, not from a stale pass."""
 
     def test_capped_graded_error_and_short_excluded_good_graded(self):
-        capped = lambda r: (r["summary"]["error"] or "").startswith("output hit the ")  # noqa: E731
+        from capped import cap_hit as capped  # the real predicate (capped_test.py)
         rec = lambda err, text: {"summary": {"error": err}, "response": text}  # noqa: E731
         with mock.patch.object(grade, "cap_hit", capped):
             self.assertIsNone(grade.exclusion(rec("output hit the 32000-token cap", "x")))

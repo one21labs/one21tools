@@ -70,7 +70,18 @@ def ungraded_cells(graded):
     from grade import exclusion
     recs = [json.loads(p.read_text(encoding="utf-8")) for p in sorted((HERE / "outputs").glob("*.json"))]
     done = {r["bid"] for r in graded}
-    return [r for r in recs if exclusion(r) is None and r["cell"] not in done]
+    return [r for r in recs if exclusion(r) is None and r["cell"] not in done] + never_run(recs)
+
+
+def never_run(recs):
+    """Planned grid cells with no record at all (a halted or interrupted pass), as stub records
+    so they count toward INCOMPLETE like an ungraded cell."""
+    from grid import REPS
+    sel = json.loads((HERE / "selection.json").read_text(encoding="utf-8"))
+    have = {r["cell"] for r in recs}
+    return [{"cell": f"{k.replace(':', '-')}-{mk}-{a}-r{rep}", "model": MODELS[mk], "skill": k.split(":")[0],
+             "arm": a} for mk in MODELS for k in sel["surviving"][mk] for a in ("with", "without")
+            for rep in range(1, REPS + 1) if f"{k.replace(':', '-')}-{mk}-{a}-r{rep}" not in have]
 
 
 def consistency(cells):
@@ -114,8 +125,8 @@ def verdicts(judge):
             v["status"] = "BATCH" if g >= MIN_G else "DIAGNOSTIC-ONLY (G<8, ADR 0095 decision 4)"
             gap = sum(n for k, n in out["ungraded"].items() if k.startswith(f"{mk}:{s}:"))
             if gap:
-                v["status"] = (f"INCOMPLETE: {gap} gradable cell(s) have no grade (judge failed; "
-                               f"re-run grade.py) — {v['status']}")
+                v["status"] = (f"INCOMPLETE: {gap} gradable cell(s) have no grade (judge failed or never run; "
+                               f"re-run grid.py, then grade.py) — {v['status']}")
             out["cells"][f"{mk}:{s}"] = v
             print(f"{mk:6s} {s:24s} G={g:2d} bare={v['arm_means']['without']:.3f} "
                   f"with={v['arm_means']['with']:.3f} delta={v.get('mean', float('nan')):+.3f} "

@@ -35,6 +35,8 @@ from cost_gate import (DEFAULT_FAILED_CALL_CHARGE_USD, admit, call_charge_usd, c
                        gate, spent_so_far)
 from hermetic_driver import NEUTRAL_FRAME, build_env, do_call, neutral_cwd, summarize_call  # noqa: E402
 
+from capped import cap_hit  # noqa: E402
+
 SKILLS = ("control-narratives",)
 MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 EFFORT = "medium"
@@ -105,15 +107,6 @@ def check_auth(env):
             else f"the check got status {status}, not the 404 a signed-in caller gets")
     sys.exit(f"the hermetic config is not signed in ({held}): run `claude setup-token`, then "
              "export CLAUDE_CODE_OAUTH_TOKEN=<token> (metadata.json auth)")
-
-
-CAP_HIT_PREFIX = "output hit the "  # hermetic_driver.summarize_call's error for a capped reply
-
-
-def cap_hit(record):
-    """A reply cut off at the output cap: scored failed, never regenerated (metadata.json grid).
-    Regenerating until a reply fits would select away a length effect of the treatment."""
-    return (record["summary"]["error"] or "").startswith(CAP_HIT_PREFIX)
 
 
 def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap, est):

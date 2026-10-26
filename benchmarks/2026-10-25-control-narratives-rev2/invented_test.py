@@ -41,6 +41,7 @@ class AbsentTest(unittest.TestCase):
     def test_range_counts_both_ends(self):
         self.assertEqual(absent("normal level 50%", "operate within 85-95%"), [85.0, 95.0])
         self.assertEqual(absent("high alarm 95%", "operate within 85-95%"), [85.0])
+        self.assertEqual(absent("ambient", "hold within -40--20 degC"), [-40.0, -20.0])
 
     def test_clock_time_is_one_value(self):
         self.assertEqual(absent("start at 06:00", "start at 6:00, purge ends 10:30"), ["10:30"])
