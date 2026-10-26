@@ -16,6 +16,15 @@ test("familyOf places every vendor the lanes can return", () => {
   assert.equal(familyOf("kimi-k2.7-code"), "moonshot");
 });
 
+test("familyOf places local open-weight models, never the runner's name", () => {
+  for (const [model, fam] of [["mistral-7b", "mistral"], ["qwen3:32b", "alibaba"],
+    ["deepseek-r1:14b", "deepseek"], ["phi4-mini", "microsoft"], ["gemma3:27b", "google"],
+    ["llama3.3:70b", "meta"], ["ollama/mistral-small", "mistral"]]) {
+    assert.equal(familyOf(model), fam, model);
+  }
+  assert.equal(familyOf("ollama-default"), "unknown");
+});
+
 test("an unplaceable or missing model id is 'unknown', never foreign-by-default", () => {
   assert.equal(familyOf("some-internal-build-42"), "unknown");
   assert.equal(familyOf(null), "unknown");
