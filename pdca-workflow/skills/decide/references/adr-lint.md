@@ -8,7 +8,8 @@ The ADR files ARE the catalog (no index: `adr-template.md`). `adr-lint` guards w
 can't design away: bad
 frontmatter, id collisions across parallel branches, release-version coupling, dangling cites,
 unfalsifiable decisions, and budget rot. Per "no process-gating script without a test of its
-decision logic," it ships with one (`scripts/adr-lint.test.mjs`).
+decision logic," it ships with one (`scripts/adr-lint.test.mjs`, run in this plugin's CI; not
+vendored).
 
 This file is the **spec** — the authoritative, numbered guard list. A runnable node reference
 ships at `scripts/adr-lint.mjs` (zero-dependency, cross-platform; its header points back here
