@@ -2,7 +2,7 @@
 id: 0080
 title: "Every local gate hit is a logged feedback event: hook-layer append-only telemetry + scorecard breakdown"
 status: accepted, superseded in part (#311)
-summary: "Each local gate hook appends one line to docs/pdca/gate-hits.txt ON FIRING, never in the failure path; scorecard.mjs grows a gate-hits-by-gate readout (no bands until variance is known). CI channel deferred. Gate hits measure corrections CAUGHT at source; defect-escape stays deferred. Executes #246. SUPERSEDED IN PART 2026-07-27: scorecard.mjs was deleted (#311), so the readout, the format's owner, and the format half of the verification are all gone. Hooks still append; NOTHING reads the log."
+summary: "Each local gate hook appends one line to docs/pdca/gate-hits.txt ON FIRING, never in the failure path; scorecard.mjs grows a gate-hits-by-gate readout (no bands until variance is known). CI channel deferred. Gate hits measure corrections CAUGHT at source; defect-escape stays deferred. Executes #246. SUPERSEDED IN PART 2026-07-27: scorecard.mjs was deleted (#311), so the readout, the format's owner, and the format half of the verification are all gone. Hooks still append; only the retrospect agent reads the log, when present."
 ---
 
 # 0080 — gate-hit telemetry
@@ -19,8 +19,6 @@ summary: "Each local gate hook appends one line to docs/pdca/gate-hits.txt ON FI
 **(e) CI-side hits deferred** (mineable from PR history). **(f) ADR 0079 — partial:** ships the CAUGHT-side marker only; defect-ESCAPE still has none.
 
 ## Justification
-- **NOTE (2026-07-27):** hooks still append; nothing reads the log.
-
 Grader-free and mechanical; reuses the existing append-only telemetry pattern; cost ~2 lines per hook plus one pure parser; fully reversible.
 
 ## Assumptions

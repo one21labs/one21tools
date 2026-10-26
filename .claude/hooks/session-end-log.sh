@@ -12,7 +12,7 @@
 # 0071) and never mkdir (ADR 0050); single-line `>>` append (atomicity per that header);
 # stderr-silenced brace group so even a redirection-open failure leaks nothing (ADR 0080
 # pattern). A missing/malformed reason logs `unknown` — one harmless line beats a lost
-# boundary; the line format's consumers read fields, never positions (ADR 0077).
+# boundary; the line format's consumers read fields, never positions.
 #
 # liveness: boundary-coupled -- one line per session boundary; the independent expected series
 # is the distinct Claude-Session commit trailer count in the window (ADR 0086 (d): this guard
