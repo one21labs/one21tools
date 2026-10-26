@@ -48,14 +48,14 @@ export function makerFamily(env = process.env) {
 export const MAKER_FAMILY = makerFamily();
 
 // Open-weight families are listed so a local model behind $PDCA_CROSSCHECK_CMD can be placed;
-// `llama` is matched last and not inside "ollama", so a runner's name never stands in for a model.
+// `llama` is matched last and not inside "ollama", so the ollama runner's name alone places nothing.
 const FAMILY_PATTERNS = [
   [/claude|anthropic/i, "anthropic"],
   [/grok|xai/i, "xai"],
   [/gpt|openai|\bo[0-9]/i, "openai"],
   [/gemini|gemma|google/i, "google"],
   [/kimi|moonshot/i, "moonshot"],
-  [/mistral|mixtral|codestral/i, "mistral"],
+  [/mixtral|pixtral|voxtral|stral/i, "mistral"],  // stral: mistral, codestral, devstral, magistral...
   [/qwen|qwq/i, "alibaba"],
   [/deepseek/i, "deepseek"],
   [/\bphi-?\d/i, "microsoft"],
