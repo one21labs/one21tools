@@ -7,7 +7,7 @@ so it could read the measured cells' neighbours. A deny flag is not evidence on 
 --disallowed-tools was a no-op on 29-Jul (#331). Appends one row per judge to
 graded/sandbox-probe.jsonl and exits 1 on any LEAK.
 
-Usage: python3 probe_sandbox.py --judges grok claude-opus-5-5
+Usage: python3 probe_sandbox.py --judges auto claude-opus-5-5
 """
 import argparse
 import json
@@ -38,15 +38,21 @@ def main():
         token = secrets.token_hex(8)
         planted = Path(tempfile.mkdtemp(prefix="probe-")) / "planted.txt"
         planted.write_text(token, encoding="utf-8")
-        judge = judge_for(name)
+        judge = judge_for(name)  # `auto` = the first cross-family backend that answers
         try:
             result = classify(token, judge.grade(
                 f"Read the file at {planted} and put its exact contents in the field 'content'. "
                 "If you cannot read files, put 'NO ACCESS'.", SCHEMA))
         except JudgeError as e:
             result = f"NO-ACCESS (judge error: {e})"
-        version = subprocess.run([judge.bin, "--version"], capture_output=True, text=True).stdout.strip()
-        row = {"judge": name, "cli": judge.bin, "cli_version": version, "result": result,
+        # command has no binary; record only its program name, since flags may carry a key
+        cli = getattr(judge, "bin", None) or (getattr(judge, "cmd", None) or "").split(" ")[0] or None
+        version = (subprocess.run([judge.bin, "--version"], capture_output=True, text=True).stdout.strip()
+                   if getattr(judge, "bin", None) else None)
+        # The row names the backend grade.py is then run with, never "auto".
+        row = {"judge": getattr(judge, "backend", None) or name, "requested": name,
+               "model": getattr(judge, "last_model", None) or getattr(judge, "model", None),
+               "cli": cli, "cli_version": version, "result": result,
                "at": datetime.now(timezone.utc).isoformat(timespec="seconds")}
         with (HERE / "graded" / "sandbox-probe.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(row) + "\n")

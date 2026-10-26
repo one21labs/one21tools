@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Grade cells against the frozen expectations (rubric.skill_grade_prompt, one call per cell).
 
-Usage: python3 grade.py --dirs prescreen-outputs [--judges claude-opus-5-5 grok]
+Usage: python3 grade.py --dirs prescreen-outputs [--judges claude-opus-5-5 <backend>]
   -> graded/cells-<judge>-<dirs>.jsonl
 Default judge: Claude Opus 5.5, run with the same isolation as generation (no tools, no skills,
 empty config, cwd outside the checkout). It is the GENERATOR'S FAMILY: every verdict it backs is
-FRAME-UNCHECKED (ADR 0093) until a cross-family judge (`--judges grok`, where grok is installed)
-grades the same committed cells. Artifact gate + exclusion-symmetry sweep first (ERROR cells
+FRAME-UNCHECKED (ADR 0093) until a cross-family judge grades the same committed cells. That judge
+is whichever backend `probe_sandbox.py --judges auto` resolved (command, grok or copilot; a
+ChatGPT CLI or a local model rides `command`), named here explicitly. Every judge needs a
+NO-ACCESS sandbox-probe row before it grades. Artifact gate + exclusion-symmetry sweep first (ERROR cells
 excluded, never quality 0, except a reply cut off at the output cap, which is scored failed with
 no judge call; skew on the per-arm exclusion rate); per-judge resumable jsonl; a
 JudgeError (incl. a reply that is not JSON or not a full grade: judge.parse_reply, strict
@@ -67,7 +69,24 @@ class IsolatedClaudeJudge(ClaudeJudge):
 
 
 def judge_for(name):
-    return IsolatedClaudeJudge(name) if name.startswith("claude-") else make_judge(name)
+    if name.startswith("claude-"):
+        return IsolatedClaudeJudge(name)
+    judge = make_judge(name)
+    if getattr(judge, "backend", name) == "claude":  # `auto` found no cross-family lane
+        sys.exit("no cross-family judge answered (command, grok, copilot): sign one in, or set "
+                 "$SKILL_BENCH_JUDGE_CMD + $SKILL_BENCH_JUDGE_MODEL for a ChatGPT CLI or a local "
+                 "model; else grade with claude-opus-5-5 only, reported unpromoted")
+    return judge
+
+
+def check_probed(jname):
+    """R8: a judge grades only after its sandbox probe came back NO-ACCESS (probe_sandbox.py)."""
+    log = HERE / "graded" / "sandbox-probe.jsonl"
+    rows = [json.loads(l) for l in log.read_text(encoding="utf-8").splitlines() if l] if log.exists() else []
+    last = [r for r in rows if r["judge"] == jname][-1:]
+    if not last or last[0]["result"] != "NO-ACCESS":
+        sys.exit(f"{jname} has no NO-ACCESS sandbox probe: run python3 probe_sandbox.py --judges "
+                 f"{jname} first (metadata.json judging)")
 
 
 def grade_one(judge, jname, r):
@@ -104,6 +123,8 @@ def main():
     ap.add_argument("--workers", type=int, default=4)
     args = ap.parse_args()
     check_harness()
+    for jname in args.judges:
+        check_probed(jname)
     if any(j.startswith("claude-") for j in args.judges):  # same empty config as generation
         check_auth({**build_env("medium"), "CLAUDE_CONFIG_DIR": tempfile.mkdtemp()})
 

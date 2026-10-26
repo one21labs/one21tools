@@ -1,10 +1,13 @@
 """grade_one: a judge reply that is not a full grade is retried once, then becomes an error row,
 never a crash and never a row of silent falses (#331 defect 3). The judge is the real
-IsolatedClaudeJudge (its parsing runs); only its CLI call is mocked. Needs the skill-measure lib."""
+IsolatedClaudeJudge (its parsing runs); only its CLI call is mocked. check_probed: no judge
+grades without a NO-ACCESS sandbox probe. Needs the skill-measure lib."""
 import json
 import sys
+import tempfile
 import types
 import unittest
+from pathlib import Path
 from unittest import mock
 
 sys.modules.setdefault("grid", types.SimpleNamespace(  # grid reads the frozen evals at import
@@ -26,6 +29,27 @@ def run(*replies):
             mock.patch.dict(grade.EVALS, {CELL["scenario"]: EV}):
         judge = grade.IsolatedClaudeJudge(MODEL)
         return grade.grade_one(judge, MODEL, CELL), judge.calls
+
+
+class CheckProbedTest(unittest.TestCase):
+    def probed(self, *rows):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "graded").mkdir()
+            if rows:
+                (Path(d) / "graded" / "sandbox-probe.jsonl").write_text(
+                    "".join(json.dumps(r) + "\n" for r in rows))
+            with mock.patch.object(grade, "HERE", Path(d)):
+                grade.check_probed("copilot")
+
+    def test_unprobed_or_leaking_judge_is_refused(self):
+        for rows in ((), ({"judge": "copilot", "result": "LEAK"},),
+                     ({"judge": "copilot", "result": "NO-ACCESS"}, {"judge": "copilot", "result": "LEAK"}),
+                     ({"judge": "grok", "result": "NO-ACCESS"},)):
+            with self.subTest(rows=rows), self.assertRaises(SystemExit):
+                self.probed(*rows)
+
+    def test_latest_no_access_probe_passes(self):
+        self.probed({"judge": "copilot", "result": "LEAK"}, {"judge": "copilot", "result": "NO-ACCESS"})
 
 
 class CappedRowTest(unittest.TestCase):
