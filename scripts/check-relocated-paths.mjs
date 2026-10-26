@@ -2,7 +2,7 @@
 /*
  * check-relocated-paths.mjs — ARCHITECTURE ROLE: the frozen-dir path-preservation gate
  * (ADR 0089): every backticked repo-relative path cited inside a frozen dated benchmark dir
- * (`benchmarks/<YYYY-MM-DD>-*`) must still resolve in the worktree IF it ever existed in git
+ * (`benchmarks/<YYYY-MM-DD>-*`) must still be tracked by git IF it ever existed in git
  * history. Frozen dirs are append-only (ADR 0041) — their committed reproduce steps cannot be
  * swept when shared code moves, so the remedy is path-end preservation (shim or pointer stub,
  * precedent PR #230); this gate FAILs when a relocation strands one instead.
@@ -120,8 +120,8 @@ export function movedMarkers(files) {
 
 /**
  * Pure decision. `candidates` from extractPathTokens; `existingPaths` = Set of candidates
- * present in the worktree; `everExisted` = Set of absent candidates with non-empty
- * `git log --all` history. Problem iff absent AND ever-existed (a stranded relocation) —
+ * tracked by git; `everExisted` = Set of untracked candidates with non-empty
+ * `git log --all` history. Problem iff untracked AND ever-existed (a stranded relocation) —
  * UNLESS (ADR 0089 Act) the path is doc-only (.md), lies under a shipped skill dir, and the
  * citing file carries a MOVED marker for it (not on the cited line) whose new path resolves.
  * Executables never qualify: a note cannot run. A DEPARTED-tree cite is never a problem; it
