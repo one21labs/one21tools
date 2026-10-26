@@ -268,3 +268,8 @@ The scripts import `skill-bench/scripts/lib` (`generate.py:37`, `grade.py:22`), 
 with ADR 0102, so the commit that lands this dir cannot run it. `8bb1b8b`, the commit it was
 restored from, is on no branch. To reproduce, copy this dir into `benchmarks/` in a checkout of
 `bd3ebd9` (#321): its `skill-bench/` is byte-identical to `8bb1b8b`'s.
+
+Why the bulk stays: `outputs/` and `pilot-outputs/` are the graded cells, so a re-grade or a
+judge audit reads them, not the summary. `treatments/writing-plans.SKILL.md` is the exact text
+the treatment arm received, which a replay sends byte for byte; `treatments/provenance.json`
+records where it came from but cannot reproduce it if upstream changes.
