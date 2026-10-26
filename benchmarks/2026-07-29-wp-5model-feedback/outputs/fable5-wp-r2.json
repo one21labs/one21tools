@@ -1,0 +1,55 @@
+{
+ "cell": "fable5-wp-r2",
+ "lane": "fable5",
+ "requested_model": "claude-fable-5",
+ "family": "anthropic",
+ "arm": "wp",
+ "rep": 2,
+ "prompt_sha256_prefix": "be3ad3560aee3a08",
+ "summary": {
+  "error": null,
+  "retried": false,
+  "duration_s": 59.5,
+  "cost_usd": 0.38673299999999994,
+  "usage": {
+   "input_tokens": 2,
+   "cache_creation_input_tokens": 9318,
+   "cache_read_input_tokens": 11395,
+   "output_tokens": 3683,
+   "server_tool_use": {
+    "web_search_requests": 0,
+    "web_fetch_requests": 0
+   },
+   "service_tier": "standard",
+   "cache_creation": {
+    "ephemeral_1h_input_tokens": 9318,
+    "ephemeral_5m_input_tokens": 0
+   },
+   "inference_geo": "not_available",
+   "iterations": [
+    {
+     "input_tokens": 2,
+     "output_tokens": 3683,
+     "cache_read_input_tokens": 11395,
+     "cache_creation_input_tokens": 9318,
+     "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 9318
+     },
+     "type": "message"
+    }
+   ],
+   "speed": "standard"
+  },
+  "stop_reason": "end_turn",
+  "answering_model": "claude-fable-5",
+  "tool_calls": null,
+  "num_turns": 1,
+  "response_chars": 6119,
+  "timestamps": {
+   "start": "2026-07-29T21:31:47.363963+00:00",
+   "end": "2026-07-29T21:32:46.872258+00:00"
+  }
+ },
+ "response": "This document is a strong findings memo and decision log, but judged as an implementation plan it isn't executable yet \u2014 it's written for the person who already lived the 28-Jul session, not for someone with zero context, and several \"tasks\" contain unmade decisions or missing content. Here's the breakdown.\n\n## What works\n\n- Evidence discipline is excellent: file:line cites (`README.md:47`, `benchstats.py:186`), quantified results (coverage 0.948\u20130.970, trigram containment 1.4\u20133.6% vs 0.1\u20130.5%), and honest verdicts including the unflattering grok quote.\n- The prioritization logic is sound: cheap truth-in-labeling fixes first, one big governance call second, instrument dispositions third, rebalance last. The #302 kill is well-argued with numbers (effect collapses below the G=10 MDE).\n- The one-paragraph verdict is exactly the right thing to lead with.\n\n## Structural problems\n\n**1. It's ambiguous whether sections are to-do or historical record.** The Status header says \"P0 SHIPPED (PR #320 merged)\" \u2014 but the P0 section below reads as nine pending fixes in the imperative mood (\"Drop the word\", \"add honest lines\"). Same for P1: the header says \"P1 DECIDED (ADR 0095)\" while the section is still framed as an open three-option decision. A reader can't tell what's done. Stamp each section (`DONE \u2014 PR #320`, `DECIDED \u2014 ADR 0095, awaiting merge`, `OPEN`) or move completed sections to a record appendix and keep only remaining work in the body. For a document whose central theme is truth-in-labeling, being stale about its own state is the first thing to fix.\n\n**2. The Status paragraph is a changelog crammed into prose.** Eleven-plus workstreams, four ADRs, and a gating chain in one run-on block. Pull out an explicit \"Remaining work\" list \u2014 it's currently buried mid-paragraph after \"Remaining:\". That list is effectively the real plan, and it deserves top billing and structure.\n\n**3. Scope: this is at least three plans.** Per the writing-plans standard, each plan should produce working, testable output on its own. You have: (a) labeling/consistency fixes, (b) governance/instrument decisions for the owner, (c) the Inspect AI substrate swap. That swap is ~10 person-days of engineering hiding in a parenthetical \u2014 it needs its own spec and plan (adapter seam inventory, migration order, what \"runtime dollar limits\" and \"sandboxing\" mean concretely, rollback story). Likewise, splitting the document by audience would help: the owner needs a decision memo (P1/P2/P2b defaults and evidence); an executor needs task lists. Right now both are interleaved.\n\n## Placeholder and executability failures\n\nIf any of the still-open items will be executed by someone (or a subagent) without session context, these fail the no-placeholders bar:\n\n- **P0 item 3:** \"add the standing caveat line grok recommended\" \u2014 the recommended text isn't in the document. Quote the actual line.\n- **P0 item 2:** \"add honest lines for building-skills\u2026 and optimizing-context\" \u2014 write the lines. The executor shouldn't compose measured-status copy from a parenthetical.\n- **P0 items 6 and 7:** \"carry measured status **or** cut\", \"relocate **or** cut\" \u2014 these embed unmade decisions inside tasks. Decide in the plan; the task should be one action.\n- **#302 (ii):** \"free read of obra's remaining ~50k non-Anthropic doctrine\" has no deliverable defined \u2014 read and produce what? A findings file? Where?\n- **\"C5\"** is referenced but never defined in the document. Same for \"lever 1\" (inferable but never stated), \"ep corpus\", \"DV\", \"G\", \"MDE\" \u2014 fine for you, opaque to anyone else. One glossary line each, or spell out on first use.\n- No task has verification steps. Even the labeling fixes should end with \"run `validate.py` + adr-lint, expected clean\" and a commit point. The P0 batch presumably had this implicitly; the remaining tracks (rename PR, batch re-measure, Inspect swap) don't.\n\n## Content-level concerns\n\n- **The rename (ADR 0097) executes last, but earlier fixes cite `skill-bench/` paths.** After the rename, P0-era cites and the tombstone files (item 7) may go stale again. Add an explicit post-rename link-check/re-lint step to the rename PR's definition of done.\n- **P1 option (b) plus \"batched re-measures at G>=8\" needs a trigger.** The document's own top finding is that 100% of effort went to the apparatus and the last benchmark dir is dated 18-Jul. \"First G>=8 batch\" sits in the remaining list with no date, owner, or entry criterion. Without one, the re-measure debt ledger becomes a place where debt goes to be ignored \u2014 the exact failure mode ADR 0024 amendment is meant to make honest. Name the condition (\"within N days of ADR 0095 merge\" or \"before any further skill-content edit merges\").\n- **P3 is the point of the whole exercise and gets four lines.** grok's diagnosis \u2014 apparatus over product \u2014 is accepted in the verdict paragraph, yet building-skills iteration 4 and the optimizing-context re-measure have no sketch of scope, no owner, and are double-gated behind P1. That's defensible sequencing, but the plan should say what \"iteration 4 (char-negative reshape)\" actually entails, or explicitly defer it to a named future plan so it doesn't evaporate.\n- **Exit criterion for the instrument loop is missing.** #310's \"one consolidated round 2, then the residual-risk ADR regardless of quiet\" is good \u2014 it's the only place the document commits to stopping. Consider stating a similar stop rule globally: after the P2 decides land, instrument work is closed except X. Otherwise the self-referential spiral the document diagnoses has no structural barrier against restarting.\n\n## Bottom line\n\nKeep this document as the decision memo/audit record \u2014 it's good at that. Extract the still-open work into one or more real implementation plans with per-task files, exact edit content, verification commands, and commit points: one for the remaining labeling/rename work, one for the G>=8 re-measure batch, and a separate spec-then-plan for the Inspect AI swap. And reconcile the Status header with the section bodies so the document stops making claims about itself that its own sections contradict."
+}
