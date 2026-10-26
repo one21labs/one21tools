@@ -5,7 +5,7 @@ description: Invoke when writing, reviewing, or templating control narratives, F
 
 # Control Narratives
 
-Treat the narrative as a requirements document: every statement testable at FAT, every number from one list, every behavior traceable from design basis to test procedure.
+Treat the narrative as a requirements document: every statement testable at FAT, every number from the input, every behavior traceable from design basis to test procedure.
 
 ## Standards stack
 
@@ -33,11 +33,11 @@ Do not put implementation detail (blocks, tasks, routines) in the narrative.
 ## Narrative template (one per equipment module)
 
 1. Purpose and boundaries: function, upstream/downstream interfaces.
-2. Equipment and tags: reference the instrument index; do not copy it.
+2. Equipment, tags, setpoints: reference the instrument index; do not copy it. Give a setpoint table (ID | Function | Value | Action | Basis | Owner) for every number the logic uses.
 3. States and transitions: ISA-106 state table with allowed transitions, permissives, initiator (operator/auto), and automation level (manual, operator-prompted, automatic).
 4. Regulatory control: per loop give PV, output, action, mode behavior, cascade/override. No tuning values.
 5. Sequences: step tables with columns Step | Action | Transition condition | Timeout | Failure response.
-6. Interlocks and permissives: reference the cause-and-effect chart. Do not restate logic in prose.
+6. Interlocks and permissives: per interlock give cause, effect, latched or auto-reset, reset method, and fail position. Cite the cause-and-effect chart row too, never instead.
 7. Alarms: reference the rationalized alarm database.
 8. Abnormal handling: bad PV, comms loss, power loss and restart, fail positions.
 9. Operator interface: what the operator sees, changes, and is prompted for.
@@ -47,7 +47,9 @@ Choose state-based control (SBC) for plant/unit modes; sequence-based control (S
 
 ## Rules
 
-- Numbers live in lists, never in prose. Write "above the start permissive in the setpoint list", not "above 50 psig".
+- Write behavior out: what trips, what stops, latched or auto-reset, reset method, fail position, Hold/Abort response. Never defer logic to a document the narrative does not contain.
+- Take numbers only from the input. A missing value becomes a setpoint row with no value, cited by ID: `SP-07 | LT-201 high-high | HOLD | basis: overfill study | owner: process`, then "LT-201 above SP-07".
+- Never propose a safety or trip value, not even as provisional or "to confirm".
 - Give every requirement an ID (FR-<module>-NNN). If it cannot be tested, rewrite or remove it.
 - Specify transitions, timeouts, and restarts as fully as steady state.
 - Use tag numbers, not descriptive equipment names alone.
@@ -76,12 +78,13 @@ Reviewing: run the checks below and report findings as a table: ID | Location | 
 
 ## Checks before presenting
 
-- [ ] SSoT: no setpoints, ranges, or trip values in prose
+- [ ] Every number is from the input; every missing one is a blank setpoint row, cited by ID
+- [ ] No logic deferred to a document the narrative does not contain
 - [ ] Every requirement has an ID and a test method
 - [ ] Every state has entry permissives and allowed exits
 - [ ] Every sequence step has a timeout and failure response
 - [ ] Bad PV, comms loss, power loss/restart, fail positions defined
-- [ ] Interlocks and alarms referenced, not duplicated
+- [ ] Interlock behavior written out; alarms referenced, not duplicated
 - [ ] SIS functions referenced to the SRS, not specified here
 - [ ] STE limits met (sentence length, one action, active voice)
 - [ ] Open items listed with owner and date
