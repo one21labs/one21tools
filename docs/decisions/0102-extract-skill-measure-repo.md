@@ -27,7 +27,7 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
    PR merges. The repo is created only on the owner's go.
 3. **one21tools drops it**: marketplace entry removed, `renames` gains `"skill-measure": null`
    (chain `skill-bench` -> `skill-measure` -> null); `skill-measure/` and the `skill-bench`
-   symlink deleted; gates.yml loses every harness member (skill-gate glob, harness tests, node glob, check-workflow);
+   symlink deleted; gates.yml loses every harness member;
    building-skills tests run via `unittest discover` (43 tests, no reachability guard needed).
 4. **benchmarks/ stays** — the evidence for one21tools' claims (README measured block). Frozen
    dated dirs stay byte-identical and reproduce at their own commit (one line,
