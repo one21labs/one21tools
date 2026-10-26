@@ -6,16 +6,19 @@ Writes, for the measured skill:
                            claim byte-compares against (ADR 0095 decision 2)
   evals/<skill>.json       the eval battery as measured (frozen copy of skills/<skill>/evals,
                            blind-authored and struck by the owner as domain reader)
-and treatments/costs.json (body codepoints + the source SHA). Re-running on a changed tree
-refuses to overwrite: a frozen dir that silently re-derives is no longer frozen.
+and treatments/costs.json (body codepoints + the source and harness SHAs). Re-running on a
+changed tree refuses to overwrite: a frozen dir that silently re-derives is no longer frozen.
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
+# As grid.py (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure checkout.
+HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
 SKILLS = ("control-narratives",)
 
 
@@ -23,12 +26,28 @@ def strip_front(text):
     return text.split("---", 2)[2].strip() if text.startswith("---") else text.strip()
 
 
+def git(*args, cwd):
+    return subprocess.run(["git", *args], capture_output=True, text=True, check=True,
+                          cwd=cwd).stdout.strip()
+
+
+def harness_commit():
+    """The skill-measure commit in use; grid.py and grade.py compare it to the frozen one."""
+    if not (HARNESS / "scripts" / "lib").is_dir() or not (HARNESS / ".git").exists():
+        sys.exit(f"harness checkout not found at {HARNESS}: git clone https://github.com/"
+                 "one21labs/skill-measure && export SKILL_MEASURE_ROOT=$PWD/skill-measure")
+    # ADR 0102: new dirs record the harness commit. "-dirty" (as `git describe --dirty`) marks a
+    # checkout with uncommitted changes, whose code the bare sha cannot reproduce.
+    return git("rev-parse", "HEAD", cwd=HARNESS) + (
+        "-dirty" if git("status", "--porcelain", cwd=HARNESS) else "")
+
+
 def main():
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                         check=True, cwd=REPO).stdout.strip()
+    harness = harness_commit()
     (HERE / "treatments").mkdir(exist_ok=True)
     (HERE / "evals").mkdir(exist_ok=True)
-    costs = {"source_sha": sha, "body_chars": {}}
+    costs = {"source_sha": git("rev-parse", "HEAD", cwd=REPO), "harness_sha": harness,
+             "body_chars": {}}
     for s in SKILLS:
         body = strip_front((REPO / "skills" / s / "SKILL.md").read_text(encoding="utf-8"))
         evals = (REPO / "skills" / s / "evals" / "evals.json").read_text(encoding="utf-8")

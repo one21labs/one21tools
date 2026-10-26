@@ -16,6 +16,7 @@ Modes (resumable; an existing non-error cell is skipped):
 import argparse
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import threading
@@ -24,10 +25,15 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-# The harness left this repo (ADR 0102); $SKILL_MEASURE_LIB, else a sibling checkout.
-sys.path.insert(0, os.environ.get("SKILL_MEASURE_LIB") or
-                str(HERE.parents[2] / "skill-measure" / "scripts" / "lib"))
-from cost_gate import gate, spent_so_far  # noqa: E402
+# The harness left this repo (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure
+# checkout. Neither found = exit naming the remedy, never a bare ImportError.
+HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
+if not (HARNESS / "scripts" / "lib").is_dir():
+    sys.exit(f"harness not found at {HARNESS}: git clone https://github.com/"
+             "one21labs/skill-measure && export SKILL_MEASURE_ROOT=$PWD/skill-measure")
+sys.path.insert(0, str(HARNESS / "scripts" / "lib"))
+from cost_gate import (DEFAULT_FAILED_CALL_CHARGE_USD, admit, call_charge_usd, cell_spend,  # noqa: E402
+                       gate, spent_so_far)
 from hermetic_driver import NEUTRAL_FRAME, build_env, do_call, neutral_cwd, summarize_call  # noqa: E402
 
 SKILLS = ("control-narratives",)
@@ -35,7 +41,7 @@ MODELS = {"opus": "claude-opus-5-5", "sonnet": "claude-sonnet-5-5"}
 EFFORT = "medium"
 REPS = 2
 TIMEOUT_S = 600
-MAX_OUTPUT_TOKENS = "32000"  # as 2026-10-12; a reply at the cap is an ERROR cell (#328)
+MAX_OUTPUT_TOKENS = "32000"  # as 2026-10-12; a reply at the cap is scored failed (cap_hit)
 FAKE_TOOL_MARKUP = ("<invoke", "<function_calls", "</invoke>")
 ISOLATION = ("--tools", "", "--disable-slash-commands", "--strict-mcp-config", "--effort", EFFORT)
 
@@ -60,19 +66,62 @@ def extra_args(skill, arm):
     return ISOLATION + ("--append-system-prompt", body)
 
 
-def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap):
+def check_harness():
+    """Every run uses the harness commit the freeze recorded (metadata.json harness)."""
+    from prep import harness_commit
+    frozen = json.loads((HERE / "treatments" / "costs.json").read_text(encoding="utf-8"))["harness_sha"]
+    live = harness_commit()
+    if live != frozen or live.endswith("-dirty"):
+        sys.exit(f"harness is at {live}, the freeze recorded {frozen}: run git -C {HARNESS} "
+                 f"checkout {frozen} on a clean tree, or record the deviation in the README")
+
+
+def check_auth(env):
+    """$0, before any billed call. The empty config dir holds no credentials, so without a working
+    CLAUDE_CODE_OAUTH_TOKEN every call fails and bills a phantom retry (metadata.json auth). The
+    token is checked, not just present: `claude auth status` runs with it in the env."""
+    r = subprocess.run(["claude", "auth", "status", "--json"], env=env, capture_output=True,
+                       text=True, timeout=60)
+    try:
+        ok = json.loads(r.stdout).get("loggedIn")
+    except ValueError:
+        ok = False
+    if not ok:
+        held = "the exported CLAUDE_CODE_OAUTH_TOKEN did not sign in" if env.get(
+            "CLAUDE_CODE_OAUTH_TOKEN") else "no CLAUDE_CODE_OAUTH_TOKEN is exported"
+        sys.exit(f"the hermetic config is not signed in ({held}): run `claude setup-token`, then "
+                 "export CLAUDE_CODE_OAUTH_TOKEN=<token> (metadata.json auth)")
+
+
+CAP_HIT_PREFIX = "output hit the "  # hermetic_driver.summarize_call's error for a capped reply
+
+
+def cap_hit(record):
+    """A reply cut off at the output cap: scored failed, never regenerated (metadata.json grid).
+    Regenerating until a reply fits would select away a length effect of the treatment."""
+    return (record["summary"]["error"] or "").startswith(CAP_HIT_PREFIX)
+
+
+def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap, est):
     skill, eid = key.split(":")
     cell = f"{skill}-{eid}-{model_key}-{arm}-r{rep}"
     path = out / f"{cell}.json"
-    if path.exists() and not json.loads(path.read_text())["summary"]["error"]:
+    old = json.loads(path.read_text()) if path.exists() else None
+    if old and (not old["summary"]["error"] or cap_hit(old)):
         return
-    if state["halt"]:
-        return
+    with lock:  # reserve this call's estimate so concurrent workers cannot all pass the check
+        if state["halt"] or not admit(state["spent"], state["reserved"], est[model_key], cap):
+            state["halt"] = True
+            return
+        state["reserved"] += est[model_key]
     call = do_call(NEUTRAL_FRAME + "\n\n" + EVALS[key]["task"], MODELS[model_key], env, cwd,
                    timeout=TIMEOUT_S,
                    allow=(), extra_args=extra_args(skill, arm))
     summary = summarize_call(call)
     summary["cell_cost_usd"] = summary.get("cost_usd") or 0.0
+    summary["charged_usd"] = call_charge_usd(summary, est[model_key])  # a retry bills both attempts
+    # The overwritten ERROR cell's calls were billed: carry them forward (spent_so_far sums them).
+    summary["prior_attempts_usd"] = cell_spend(old) if old else 0.0
     served = sorted(((call.get("envelope") or {}).get("modelUsage") or {}).keys())
     record = {"cell": cell, "skill": skill, "scenario": key, "arm": arm, "rep": rep,
               "model": MODELS[model_key], "served_models": served, "effort": EFFORT,
@@ -85,11 +134,10 @@ def run_cell(key, model_key, arm, rep, env, cwd, out, state, lock, cap):
         record["summary"]["error"] = "fake tool-call markup in a no-tools reply"
     path.write_text(json.dumps(record, indent=1), encoding="utf-8")
     with lock:
-        state["spent"] += summary["cell_cost_usd"]
+        state["reserved"] -= est[model_key]
+        state["spent"] += summary["charged_usd"]  # prior attempts are already in the seed
         state["done"] += 1
-        if state["spent"] > cap:
-            state["halt"] = True
-        print(f"[{state['done']}/{state['n']}] {cell} ${summary['cell_cost_usd']:.3f} "
+        print(f"[{state['done']}/{state['n']}] {cell} ${summary['charged_usd']:.3f} "
               f"spent=${state['spent']:.2f} err={record['summary']['error']}", flush=True)
 
 
@@ -102,6 +150,9 @@ def main():
 
     meta = json.loads((HERE / "metadata.json").read_text(encoding="utf-8"))
     ceiling = meta["cost"]["ceiling_usd"]
+    # No per-cell estimate exists before the pilot: reserve (and charge a failed call) a constant.
+    est = dict.fromkeys(MODELS, meta["cost"].get("failed_call_charge_usd",
+                                                 DEFAULT_FAILED_CALL_CHARGE_USD))
     if args.prescreen:
         out, cap = HERE / "prescreen-outputs", meta["cost"]["prescreen_cap_usd"]
         tasks = [(k, m, "without", 1) for k in EVALS for m in MODELS]
@@ -122,13 +173,17 @@ def main():
         if not ok:
             sys.exit(f"cost gate: projected ${projected:.2f} > ${cap:.2f} remaining — grid halted")
         print(f"cost gate: {len(tasks)} cells projected ${projected:.2f} within ${cap:.2f}")
+        est = per
 
     out.mkdir(exist_ok=True)
     env = build_env(EFFORT)
     env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = MAX_OUTPUT_TOKENS
     env["CLAUDE_CONFIG_DIR"] = tempfile.mkdtemp(prefix="empty-config-")  # outside the checkout
+    check_harness()
+    check_auth(env)
     cwd = neutral_cwd(str(out))
-    state = {"spent": spent_so_far(out), "halt": False, "done": 0, "n": len(tasks)}
+    state = {"spent": spent_so_far(out), "reserved": 0.0, "halt": False, "done": 0,
+             "n": len(tasks)}
     lock = threading.Lock()
     lockfile = out / ".grid.lock"
     try:
@@ -137,12 +192,15 @@ def main():
         sys.exit(f"{lockfile} exists — another run owns this dir (or died holding it)")
     try:
         with ThreadPoolExecutor(max_workers=args.workers) as pool:
-            list(pool.map(lambda t: run_cell(*t, env, cwd, out, state, lock, cap), tasks))
+            list(pool.map(lambda t: run_cell(*t, env, cwd, out, state, lock, cap, est), tasks))
     finally:
         os.close(fd)
         lockfile.unlink(missing_ok=True)
-    if state["halt"]:
-        sys.exit(f"backstop: ${state['spent']:.2f} > ${cap:.2f} — halted, resumable")
+    # admit reserves one estimate, but a call can be charged more (a retry with no envelope is
+    # charged two): a pass that ends past the cap is a breach, never "complete".
+    if state["halt"] or state["spent"] > cap:
+        sys.exit(f"backstop: ${state['spent']:.2f} spent, next call would pass ${cap:.2f} — "
+                 "halted, resumable")
     print(f"complete: {out.name}/ total ${state['spent']:.2f}")
 
 

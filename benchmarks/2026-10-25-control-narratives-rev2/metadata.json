@@ -6,15 +6,19 @@
   "without": "claude -p --model <M> --effort medium, isolation flags (--tools \"\", --disable-slash-commands, --strict-mcp-config, shared deny list), empty CLAUDE_CONFIG_DIR, cwd outside the checkout; hermetic_driver.NEUTRAL_FRAME + task text on stdin; CLAUDE_CODE_MAX_OUTPUT_TOKENS=32000",
   "with": "without + --append-system-prompt = treatments/control-narratives.txt (revision 2 SKILL.md body at source_sha, frontmatter stripped)"
  },
+ "auth": "The empty CLAUDE_CONFIG_DIR used by every generation cell and by the Opus judge holds no credentials, so each call authenticates from CLAUDE_CODE_OAUTH_TOKEN, which hermetic_driver.build_env passes through (hermetic_driver.KEEP). Measured at $0 in the PR #337 review: `claude auth status` with an empty config dir and no token returns loggedIn false. The owner creates the token with `claude setup-token` and exports it before the prescreen.",
  "models": {
   "opus": "claude-opus-5-5",
   "sonnet": "claude-sonnet-5-5"
  },
  "effort": "medium for both models, as 2026-10-12, so the model is the only thing that varies across the model factor.",
+ "harness": "one21labs/skill-measure, loaded from $SKILL_MEASURE_ROOT (benchmarks/README.md). The commit used (benchmarks/README.md:23) is captured by prep.py as harness_sha in treatments/costs.json at freeze (first freeze only). Every prescreen, pilot, grid and grading run uses that commit, which must be clean (no -dirty suffix) and reachable on skill-measure's origin; a run at any other commit is a deviation the README records with its SHA.",
  "evals": {
   "source": "evals/control-narratives.json, frozen by prep.py from skills/control-narratives/evals/evals.json",
-  "authoring": "9 tasks by a separate agent forbidden to read any repository file, given only the skill's one-line description; held out from revision 2, which was written from #328 before the tasks existed. Every task carries the expectation 'States no number absent from the task unless clearly marked unverified' (#328).",
-  "domain_read": "Before the prescreen, the owner strikes every expectation that rewards what the receiving engineer would reject, above all an invented setpoint or trip value (skill-measure pre-registration.md, 'Audit the expectations against the reader'). Struck expectations are recorded in strikes.json and removed from the frozen battery; nothing else is edited."
+  "authoring": "9 tasks by a separate agent forbidden to read any repository file, given only the skill's one-line description; held out from revision 2, which was written from #328 before the tasks existed. Every task carries the expectation in evals.universal_expectation, appended verbatim (#328, reworded by the 2026-10-26 amendment).",
+  "domain_read": "Before the prescreen, the owner strikes every expectation that rewards what the receiving engineer would reject, above all an invented setpoint or trip value (skill-measure pre-registration.md, 'Audit the expectations against the reader'). Struck expectations are recorded in strikes.json and removed from the frozen battery; nothing else is edited. Order: the authored battery is committed to skills/control-narratives/evals/evals.json, the strikes are removed from that file in a later commit, and only then does prep.py freeze it (prep.py refuses to re-freeze a changed battery).",
+  "provenance_0101": "ADR 0101 decision 1 splits the delta by eval provenance. Every eval here is blind-authored, so the split has one stratum (blind, all evals) and each per-model delta is reported under that label. One expectation per eval is not blind: the universal expectation was authored with the skill in view (#328 wrote it beside revision 2). The per-eval split cannot separate it. invented.py, the secondary metric, counts the same failure by script, which ADR 0101 holds immune to coupling. overlap.json: overlap.py reports n-gram containment of the expectations in the frozen treatment minus the mean over the repo's other skills, separately for the blind expectations and the universal one (a floor, #317).",
+  "universal_expectation": "States no number the task did not give."
  },
  "prescreen": {
   "rule": "1 bare rep per eval per model, graded BEFORE any with-arm cell. Bare fraction-met >= 0.85 = saturated -> dropped for that model only. 0.0 floors flagged, kept. Prescreen cells are never reused in the grid.",
@@ -23,10 +27,11 @@
  "pilot": {
   "rule": "2 with-arm cells per model on the first eval; per-model per-cell cost = mean of the pilot and prescreen cells for that model; grid refused if projected > remaining ceiling (ADR 0073)"
  },
- "grid": "surviving evals x {with, without} x {opus, sonnet} x 2 reps; at most 9 x 2 x 2 x 2 = 72 cells",
- "judging": "Primary: grok (cross-family, `grade.py --judges grok`), which is what can promote a verdict (ADR 0093). Secondary: Claude Opus 5.5 isolated identically, FRAME-UNCHECKED. If grok cannot run, the Opus result is reported unpromoted and the README says so. Prescreen selection uses the Opus judge (selection only, no verdict).",
- "metrics": "per model: eval-clustered mean of (with - without) fraction-met, mean over reps within eval; benchstats.keep_verdict (KEEP iff 95% t-interval lower bound > 0, HARMFUL iff upper < 0, else INCONCLUSIVE; practical bar 0). Primary: the 2 per-model verdicts under the primary judge. Secondary, descriptive: the per-cell count of numbers absent from the task (the invented-value failure #328 names), per arm.",
+ "grid": "surviving evals x {with, without} x {opus, sonnet} x 2 reps; at most 9 x 2 x 2 x 2 = 72 cells. A reply cut off at the output cap is scored failed on every expectation with no judge call (owner, 26-Oct-2026: a truncated narrative is unusable to the receiving engineer), is never regenerated, and the per-arm cap-hit count is reported beside the verdict.",
+ "judging": "Primary: grok (cross-family, `grade.py --judges grok`), which is what can promote a verdict (ADR 0093). Secondary: Claude Opus 5.5 isolated identically, FRAME-UNCHECKED. If grok cannot run, the Opus result is reported unpromoted and the README says so. Prescreen selection uses the Opus judge (selection only, no verdict). Before any grade, probe_sandbox.py runs a planted-file probe through each judge's grade() path on the installed CLI; rows go to graded/sandbox-probe.jsonl, and a LEAK halts grading until the sandbox is fixed (a deny flag is not evidence on its own, #331).",
+ "metrics": "per model: eval-clustered mean of (with - without) fraction-met, mean over reps within eval; benchstats.keep_verdict (KEEP iff 95% t-interval lower bound > 0, HARMFUL iff upper < 0, else INCONCLUSIVE; practical bar 0). Primary: the 2 per-model verdicts under the primary judge. Secondary, descriptive: the per-cell count of numbers absent from the task (the invented-value failure #328 names), per arm. Secondary, descriptive: per-arm consistency (mean within-eval rep SD and mean worst-rep score; skill-measure pre-registration.md, 'Variance is a primary metric'). Secondary, descriptive: citation accuracy. invented.py lists, per cell, the standards it cites that neither its task nor the treatment gave. Each distinct designation is checked once against the standards body's own catalog (exists; edition; scope supports what it is cited for) by a web-research pass with an adversarial re-check, recorded in graded/citation-check.json; the owner confirms that table. Reported per arm: cells citing at least one standard that does not exist or does not cover what it is cited for. The treatment's own citations were checked the same way before freeze (PR #337).",
  "multiplicity": "2 primary intervals at 95% each, no correction.",
+ "power": "Practical bar 0 (metrics). The scenario count is fixed by the battery (G <= 9), not sized from a prior. At 80% power (skill-measure benchstats.clusters_for), G=9 reliably calls a true delta of 0.26 at the house spread 0.24 (pre-registration.md sizing table), and G=8 calls 0.28. From #328's 18-Oct intervals via benchstats.sd_between (sd: Sonnet 0.19 at G=9, Opus 0.09 at G=6; other tasks and other text, so a floor, not a plan), G=9 calls 0.21 on Sonnet and 0.10 on Opus. A smaller true effect has under 80% power and can return INCONCLUSIVE. A CI half-width is the 50%-power point, not a detectable effect.",
  "comparison_to_2026-10-18": "The 18-Oct live-text measurement's tasks and cells were lost with their branch (#328). Its numbers are context only; no delta is computed across the two instruments.",
  "cost": {
   "ceiling_usd": 40.0,
@@ -37,6 +42,46 @@
    "opus": null,
    "sonnet": null
   },
-  "spent_before_grid_usd": 0.0
- }
+  "spent_before_grid_usd": 0.0,
+  "estimate_scope": "per_cell_estimate_usd = generation plus judging per cell, so the grid gate projects both. grid.py's backstop counts generation spend only; judge spend is recorded per row by grade.py and counts answered calls only (a judge call that times out records $0)."
+ },
+ "amendments": [
+  {
+   "date": "2026-10-26 (UTC)",
+   "made_before_generation": true,
+   "state_at_amendment": "no prescreen, pilot or grid cell existed; skills/control-narratives/evals/, strikes.json and treatments/ did not exist yet",
+   "source": "PR #337 pre-merge review",
+   "preregistration": [
+    "evals.authoring: the universal expectation was 'States no number absent from the task unless clearly marked unverified'. Why reworded: #328 Findings bullet 3 records that revision 1 failed by filling gaps with a 'provisional value marked confirm', which invented trip values. The old carve-out would have scored that reply met.",
+    "harness: added (benchmarks/README.md:23 requires the harness commit).",
+    "evals.domain_read: strike order added, so the frozen battery can be shown to be the authored commit minus strikes.json.",
+    "auth: added; the hermetic config dir needs CLAUDE_CODE_OAUTH_TOKEN.",
+    "evals.provenance_0101: added (ADR 0101 decision 1).",
+    "power: added (skill-measure pre-registration.md, 'Power the design').",
+    "arms.with (treatment): SKILL.md's setpoint-table header drops Action (ID | Function | Value | Basis | Owner) to match the 5-cell example row; the per-interlock effect already carries the action. The header was Claude's addition in 4a0a719, outside the #328 text the owner approved as written (4a0a719's message), so no owner-approved text changes.",
+    "evals.universal_expectation: the 26-Oct wording 'States no number the task did not give, including any marked provisional, unverified or to be confirmed.' echoed SKILL.md's own rule, coupling the one non-blind expectation to the treatment (#317). Reworded skill-neutral; a provisional or to-be-confirmed number is still a number the task did not give.",
+    "evals.provenance_0101: overlap.json is produced by overlap.py (no longer an open question).",
+    "judging: the sandbox probe added (probe_sandbox.py).",
+    "metrics: per-arm consistency and citation accuracy added.",
+    "cost.estimate_scope: added.",
+    "arms.with (treatment): owner-approved 26-Oct-2026 ('Approve all') after a primary-source fact-check of the skill's own citations: ISA-5.06.01 'sequence tables' -> 'sequence matrices (normal, hold, recipe)' (lines 14, 75) and its ANSI/ prefix dropped (ISA's catalog); ISA-106 'hold/abort' -> 'hold states' and automation levels 'manual, computer-assisted, fully automated' (no ISA-106 source for 'abort' or 'operator-prompted'); TR ids prefixed ISA-; STE: one instruction/imperative scoped to procedures, technical nouns and verbs, warnings = command or condition then risk with placement marked a house rule, 'above' -> 'more than' (also in the line 51 example), corrected After example; description 'structure' -> 'components' and 'the SSoT check' -> 'the checks'; a missing value is 'Value HOLD' (lines 51, 81); SIS logic stays in the SRS with the BPCS response to each SIF trip written out (lines 50, 82, 88).",
+    "gate_or_optimization and decision_rule: added (owner answers, 26-Oct-2026).",
+    "grid: a capped reply is scored failed and never regenerated (owner, 26-Oct-2026); was an excluded ERROR cell."
+   ],
+   "instrument": [
+    "grade.py: each judge reply goes through judge.parse_reply and strict met_map(v, n) inside the retry, so a malformed or partial reply is retried once, then recorded as a judge error, never scored unmet. The capture-symmetry sweep runs on the per-arm exclusion rate, every ERROR reason counted, over all cells. Judge cost is persisted after every graded row, so an interrupted pass keeps its spend.",
+    "aggregate.py: an eval with no prescreen grade is kept and listed as unscreened, never silently dropped from G. A gradable grid cell with no grade marks its verdict INCOMPLETE.",
+    "grid.py: the harness loads from $SKILL_MEASURE_ROOT (was SKILL_MEASURE_LIB). Each call is charged its measured cost plus any retried attempt, or an estimate when a failed call reports none (cost_gate.DEFAULT_FAILED_CALL_CHARGE_USD, $0.15, in the prescreen and pilot; the per-cell estimate in the grid). An overwritten ERROR cell's prior attempts are kept (prior_attempts_usd). Before each launch, recorded spend plus in-flight reservations plus the call's estimate must fit the cap (cost_gate.admit).",
+    "prep.py: records harness_sha, the skill-measure commit (suffixed -dirty for a checkout with uncommitted changes), in treatments/costs.json at freeze.",
+    "invented.py: standards citations (for example IEC 61511-1, ISO 9001:2015) and written dates (Jan 2025, 30 Nov 2026) are not counted; negative values, both ends of a range and clock times are; a +/- tolerance counts unsigned, as the plus-minus sign does. A value the treatment itself states is not counted in either arm. Cells grade.py excluded are skipped. Each cell lists the standards it cites that its task and the treatment did not give (the citation-accuracy input).",
+    "grid.py and grade.py: before any billed call, check_harness refuses a skill-measure checkout that differs from treatments/costs.json harness_sha or is dirty, and check_auth refuses a hermetic config that is not signed in ($0 `claude auth status` run with the hermetic env, including any exported CLAUDE_CODE_OAUTH_TOKEN).",
+    "aggregate.py: arm means are the matched-scenario means from benchstats.clustered_delta, so they subtract to the delta; per-arm consistency added.",
+    "overlap.py and probe_sandbox.py: added (see evals.provenance_0101, judging).",
+    "grid.py: cap_hit() marks a capped reply; run_cell never regenerates one. grade.py: capped_row() scores it failed with no judge call, outside the exclusion sweep. aggregate.py: per-arm cap_hits.",
+    "tests: grade_test.py (judge-reply handling, capped row) and probe_sandbox_test.py added; invented_test.py extended (citations and dates, negatives, tolerances, ranges, clock times, treatment values, cites)."
+   ]
+  }
+ ],
+ "gate_or_optimization": "Gate (skill-measure pre-registration.md, 'Gate or optimization?'): a go/no-go on shipping revision 2, at the G the battery allows, not a powered optimization.",
+ "decision_rule": "Owner, 26-Oct-2026, before generation. KEEP on a model: revision 2 stays. INCONCLUSIVE: revision 2 stays ('Inconclusive keeps it'). The Opus judge's verdict counts when grok cannot run, labelled unpromoted ('Yes, Opus counts'). A HARMFUL verdict on either model: owner call still open, settled before generation."
 }
