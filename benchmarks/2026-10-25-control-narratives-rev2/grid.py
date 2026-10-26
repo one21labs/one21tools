@@ -76,9 +76,9 @@ def check_harness():
         sys.exit(f"harness is at {live}, the freeze recorded {frozen}: run git -C {HARNESS} "
                  f"checkout {frozen} on a clean tree, or record the deviation in the README")
     remote = subprocess.run(["git", "-C", str(HARNESS), "branch", "-r", "--contains", frozen],
-                            capture_output=True, text=True).stdout.strip()
-    if not remote:  # metadata.json harness: reachable on origin, or nobody can reproduce the run
-        sys.exit(f"harness commit {frozen} is on no remote branch: push it to skill-measure's "
+                            capture_output=True, text=True).stdout.split()
+    if not any(b.startswith("origin/") for b in remote):  # metadata.json harness: reachable on origin, or nobody can reproduce the run
+        sys.exit(f"harness commit {frozen} is on no origin branch: push it to skill-measure's "
                  f"origin (git -C {HARNESS} fetch first if it is already there)")
 
 
@@ -160,7 +160,8 @@ def prior_costs():
     opus = [json.loads(p.read_text(encoding="utf-8"))
             for p in sorted((HERE / "graded").glob("judge-cost-claude-*-prescreen-outputs.json"))]
     opus = [j for j in opus if j["calls"]]
-    if not opus or any(not any(r["model"] == m for r in recs) for m in MODELS.values()):
+    if not opus or any(not any(r["model"] == m and r["arm"] == "with" for r in recs)
+                       for m in MODELS.values()):  # the pilot is the only with-arm cost
         sys.exit("cost gate: no measured prescreen and pilot cost yet — run --prescreen, "
                  "grade.py --dirs prescreen-outputs, and --pilot first")
     judge_per_call = opus[0]["billed_usd"] / opus[0]["calls"]

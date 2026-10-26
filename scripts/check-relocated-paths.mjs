@@ -194,7 +194,11 @@ function main(argv) {
   const files = [];
   for (const p of filePaths) {
     try { files.push({ path: p, text: readFileSync(join(root, p), "utf8") }); }
-    catch (e) { if (e.code !== "ENOENT") throw e; }
+    catch (e) {
+      if (e.code === "ENOENT") continue;
+      console.error(`check-relocated-paths: cannot read ${p}: ${e.message}`);
+      process.exit(2);
+    }
   }
   let shippedDirs;
   try {

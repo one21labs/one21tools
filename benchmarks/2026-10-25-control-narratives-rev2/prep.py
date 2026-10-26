@@ -48,6 +48,9 @@ def main():
     (HERE / "evals").mkdir(exist_ok=True)
     costs = {"source_sha": git("rev-parse", "HEAD", cwd=REPO), "harness_sha": harness}
     for s in SKILLS:
+        if subprocess.run(["git", "diff", "--quiet", "HEAD", "--", f"skills/{s}"], cwd=REPO).returncode:
+            sys.exit(f"skills/{s} has uncommitted changes: commit them first, so source_sha is "
+                     "the commit the frozen copy came from")
         body = strip_front((REPO / "skills" / s / "SKILL.md").read_text(encoding="utf-8"))
         evals = (REPO / "skills" / s / "evals" / "evals.json").read_text(encoding="utf-8")
         for path, content in ((HERE / "treatments" / f"{s}.txt", body),
