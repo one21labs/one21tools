@@ -10,15 +10,14 @@ and treatments/costs.json (the source and harness SHAs). Re-running on a
 changed tree refuses to overwrite: a frozen dir that silently re-derives is no longer frozen.
 """
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
+from _harness import HARNESS
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
-# As grid.py (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure checkout.
-HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
 SKILLS = ("control-narratives",)
 
 
@@ -33,13 +32,13 @@ def git(*args, cwd):
 
 def harness_commit():
     """The skill-measure commit in use; grid.py and grade.py compare it to the frozen one."""
-    if not (HARNESS / "scripts" / "lib").is_dir() or not (HARNESS / ".git").exists():
-        sys.exit(f"harness checkout not found at {HARNESS}: git clone https://github.com/"
-                 "one21labs/skill-measure && export SKILL_MEASURE_ROOT=$PWD/skill-measure")
-    # ADR 0102: new dirs record the harness commit. "-dirty" (as `git describe --dirty`) marks a
-    # checkout with uncommitted changes, whose code the bare sha cannot reproduce.
-    return git("rev-parse", "HEAD", cwd=HARNESS) + (
-        "-dirty" if git("status", "--porcelain", cwd=HARNESS) else "")
+    if not (HARNESS / ".git").exists():
+        sys.exit(f"{HARNESS} is not a git checkout, so no commit can be recorded (ADR 0102)")
+    # A checkout with uncommitted changes runs code its sha cannot reproduce: refused, not recorded.
+    if git("status", "--porcelain", cwd=HARNESS):
+        sys.exit(f"{HARNESS} has uncommitted changes: commit or stash them, so the recorded "
+                 "harness commit is the code that runs")
+    return git("rev-parse", "HEAD", cwd=HARNESS)
 
 
 def main():

@@ -6,8 +6,8 @@ Usage: python3 grade.py --dirs prescreen-outputs [--judges claude-opus-5-5 <back
 Default judge: Claude Opus 5.5, run with the same isolation as generation (no tools, no skills,
 empty config, cwd outside the checkout). It is the GENERATOR'S FAMILY: every verdict it backs is
 FRAME-UNCHECKED (ADR 0093) until a cross-family judge grades the same committed cells. That judge
-is whichever backend `probe_sandbox.py --judges auto` resolved (command, grok or copilot; a
-ChatGPT CLI or a local model rides `command`), named here explicitly. Every judge needs a
+is whichever backend `probe_sandbox.py --judges auto` resolved (metadata.json judging), named
+here explicitly. Every judge needs a
 NO-ACCESS sandbox-probe row before it grades. Artifact gate + exclusion-symmetry sweep first (ERROR cells
 excluded, never quality 0, except a reply cut off at the output cap, which is scored failed with
 no judge call; skew on the per-arm exclusion rate); per-judge resumable jsonl; a
@@ -16,28 +16,21 @@ judge.met_map) is retried once, then recorded as an error row; judge cost is per
 """
 import argparse
 import json
-import os
 import sys
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# The harness left this repo (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure
-# checkout. Neither found = exit naming the remedy, never a bare ImportError. judge.parse_reply
-# needs skill-measure 38772a6 or later.
-HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
-if not (HARNESS / "scripts" / "lib").is_dir():
-    sys.exit(f"harness not found at {HARNESS}: git clone https://github.com/one21labs/skill-measure "
-             "&& export SKILL_MEASURE_ROOT=$PWD/skill-measure")
-sys.path.insert(0, str(HARNESS / "scripts" / "lib"))
+import _harness  # noqa: E402,F401  (judge.parse_reply needs skill-measure 38772a6 or later)
 import rubric  # noqa: E402
 from artifact_check import check_artifact  # noqa: E402
 from blind import capture_symmetry  # noqa: E402
 from hermetic_driver import build_env  # noqa: E402
 from judge import ClaudeJudge, JudgeError, make_judge, met_map  # noqa: E402
 
-from grid import EVALS, cap_hit, check_auth, check_harness  # noqa: E402
+from capped import cap_hit  # noqa: E402
+from grid import EVALS, check_auth, check_harness  # noqa: E402
 
 MIN_CHARS = 200
 

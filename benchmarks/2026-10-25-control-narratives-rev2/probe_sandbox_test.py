@@ -4,7 +4,7 @@ import types
 import unittest
 
 sys.modules.setdefault("grid", types.SimpleNamespace(  # grid reads the frozen evals at import
-    EVALS={}, cap_hit=None, check_auth=None, check_harness=None))
+    EVALS={}, check_auth=None, check_harness=None))
 from probe_sandbox import classify  # noqa: E402
 
 

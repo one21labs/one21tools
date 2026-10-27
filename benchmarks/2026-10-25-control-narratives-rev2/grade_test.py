@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest import mock
 
 sys.modules.setdefault("grid", types.SimpleNamespace(  # grid reads the frozen evals at import
-    EVALS={}, cap_hit=None, check_auth=None, check_harness=None))
+    EVALS={}, check_auth=None, check_harness=None))
 import grade  # noqa: E402
 import usage_guard  # noqa: E402  (on sys.path once grade has loaded the harness)
 
@@ -64,13 +64,11 @@ class ExclusionTest(unittest.TestCase):
     """aggregate.py and invented.py derive the graded cell set from this, not from a stale pass."""
 
     def test_capped_graded_error_and_short_excluded_good_graded(self):
-        from capped import cap_hit as capped  # the real predicate (capped_test.py)
         rec = lambda err, text: {"summary": {"error": err}, "response": text}  # noqa: E731
-        with mock.patch.object(grade, "cap_hit", capped):
-            self.assertIsNone(grade.exclusion(rec("output hit the 32000-token cap", "x")))
-            self.assertEqual(grade.exclusion(rec("timeout", "")), "timeout")
-            self.assertIsNotNone(grade.exclusion(rec(None, "too short")))
-            self.assertIsNone(grade.exclusion(rec(None, "The narrative. " * 40)))
+        self.assertIsNone(grade.exclusion(rec("output hit the 32000-token cap", "x")))
+        self.assertEqual(grade.exclusion(rec("timeout", "")), "timeout")
+        self.assertIsNotNone(grade.exclusion(rec(None, "too short")))
+        self.assertIsNone(grade.exclusion(rec(None, "The narrative. " * 40)))
 
 
 class GradeOneTest(unittest.TestCase):

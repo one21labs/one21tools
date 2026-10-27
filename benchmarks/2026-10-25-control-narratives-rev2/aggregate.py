@@ -5,26 +5,20 @@
   python3 aggregate.py [--judge J] graded grid      -> results-<J>.json + printed table
 
 Verdict per (skill, model) = benchstats.keep_verdict(clustered_delta(with - without)) — the live
-interval rule, practical bar 0, eval-clustered (ADR 0019). Below 8 surviving evals a cell is
+interval rule, practical bar 0, eval-clustered (ADR 0019). Below MIN_G surviving evals a cell is
 DIAGNOSTIC ONLY (ADR 0095 decision 4) and is labelled so here, never left to the reader.
 """
 import argparse
 import json
-import os
 import statistics
 import sys
 from collections import defaultdict
 from pathlib import Path
 
+import _harness  # noqa: F401  (puts the harness on sys.path)
+import benchstats
+
 HERE = Path(__file__).resolve().parent
-# The harness left this repo (ADR 0102): $SKILL_MEASURE_ROOT, else a sibling skill-measure
-# checkout. Neither found = exit naming the remedy, never a bare ImportError.
-HARNESS = Path(os.environ.get("SKILL_MEASURE_ROOT") or HERE.parents[2] / "skill-measure")
-if not (HARNESS / "scripts" / "lib").is_dir():
-    sys.exit(f"harness not found at {HARNESS}: git clone https://github.com/one21labs/skill-measure "
-             "&& export SKILL_MEASURE_ROOT=$PWD/skill-measure")
-sys.path.insert(0, str(HARNESS / "scripts" / "lib"))
-import benchstats  # noqa: E402
 
 from grid import EVALS, MODELS, SKILLS, check_harness  # noqa: E402
 
@@ -122,7 +116,7 @@ def verdicts(judge):
             v["cap_hits"] = {a: sum(1 for r in cells if r["arm"] == a and r.get("cap_hit"))
                              for a in ("with", "without")}  # scored failed (grade.capped_row)
             v["per_eval"] = {k: round(d, 3) for k, d in delta["per_scenario"].items()}
-            v["status"] = "BATCH" if g >= MIN_G else "DIAGNOSTIC-ONLY (G<8, ADR 0095 decision 4)"
+            v["status"] = "BATCH" if g >= MIN_G else f"DIAGNOSTIC-ONLY (G<{MIN_G}, ADR 0095 decision 4)"
             gap = sum(n for k, n in out["ungraded"].items() if k.startswith(f"{mk}:{s}:"))
             if gap:
                 v["status"] = (f"INCOMPLETE: {gap} gradable cell(s) have no grade (judge failed or never run; "
