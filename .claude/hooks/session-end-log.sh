@@ -15,7 +15,7 @@
 # boundary; the line format's consumers read fields, never positions.
 #
 # liveness: boundary-coupled -- one line per session boundary; the independent expected series
-# is the distinct Claude-Session commit trailer count in the window (ADR 0086 (d): this guard
+# is the distinct Claude-Session commit trailer count in the window (ADR 0086 (b): this guard
 # is DENIED the per-event exemption). The readout that compared them was deleted 2026-07-27
 # (#311); the log is still written.
 # canary: {"event":"SessionEnd","stdin":{"hook_event_name":"SessionEnd","reason":"clear"},"expect":{"append":"docs/pdca/session-log.txt","match":" session-end clear$"}}

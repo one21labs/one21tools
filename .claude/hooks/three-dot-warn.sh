@@ -4,7 +4,7 @@
 # (`main..X` / `origin/main..X`), inject a NON-BLOCKING additionalContext warning -- for DIFF,
 # two-dot is tip-to-tip and shows a branch merely behind main as reverting main's content; PR
 # previews need three-dot (origin/main...branch), per CLAUDE.md Shipping rules. NEVER denies.
-# Also appends one counted line to the shared session log (docs/pdca/session-log.txt -- location
+# Also appends one counted line to the session log (docs/pdca/session-log.txt -- location
 # owned and documented by the plugin's spawn-log.sh header; same single-line `>>` append, atomic
 # enough per that header) so the promotion-to-deny window is measurable: if the count
 # stays zero the warn rung suffices; if it grows, promote.

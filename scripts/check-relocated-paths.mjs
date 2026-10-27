@@ -13,7 +13,7 @@
  * CI NOTE: requires full history — gates.yml checks out with fetch-depth: 0; a shallow clone
  * would silently report every path as never-existed (permanent false negative).
  * PRESENCE = tracked by git (`git ls-files`), not present on disk: an ignored local copy must not
- * pass a local run that CI, on a clean checkout, fails (the hook logs did, 26-Oct-2026). A cite
+ * pass a local run that CI, on a clean checkout, fails. A cite
  * to a path a committed .gitignore ignores is deliberately local, so never stranded; the run
  * line counts it.
  *
@@ -225,9 +225,12 @@ function main(argv) {
   for (const path of new Set(candidates.map(c => c.path))) {
     if (tracked.has(path)) { existingPaths.add(path); continue; }
     // Only a rule the repo commits counts: a personal excludesFile or .git/info/exclude entry
-    // would exempt a path CI still flags. -v prints `source:line:pattern<TAB>path`.
-    const ign = spawnSync("git", ["check-ignore", "-v", "--", path], { cwd: root, encoding: "utf8" });
-    if (ign.status === 0 && tracked.has(ign.stdout.split(":")[0])) { ignoredPaths.add(path); continue; }
+    // would exempt a path CI still flags. -v -z prints `source NUL line NUL pattern NUL path NUL`,
+    // and -v exits 0 on a matching `!` pattern too, so a negated (un-ignored) path is not ignored.
+    const ign = spawnSync("git", ["check-ignore", "-v", "-z", "--stdin"],
+      { cwd: root, encoding: "utf8", input: path + "\0" });
+    const [src, , pat = ""] = ign.stdout.split("\0");
+    if (ign.status === 0 && !pat.startsWith("!") && tracked.has(src)) { ignoredPaths.add(path); continue; }
     try {
       if (ign.status !== 0 && ign.status !== 1) throw new Error(ign.error?.message ?? `check-ignore exit ${ign.status}`);
       if (execSync(`git log --all --format=%h -- "${path}"`, { cwd: root, encoding: "utf8" }).trim())

@@ -126,8 +126,7 @@ hook_deny_payload() {
 # ADR 0071), but an adopter may commit it, and then in a public repo an absolute path publishes the operator's home directory and
 # local tree layout on every single gate fire — this repo shipped 76 such lines before anyone
 # looked. It is also the more useful value: the same gate firing on the same file from two machines
-# should read as one context, not two. Nothing consumes it as a decision; since #311 nothing
-# reads the log at all. Stripping HERE, at the one writer, is the only place
+# should read as one context, not two. Stripping HERE, at the one writer, is the only place
 # that can guarantee it — a reviewer noticing an absolute path in a diff is the weakest rung, and
 # that rung already failed 76 times.
 hook_gate_hit() {

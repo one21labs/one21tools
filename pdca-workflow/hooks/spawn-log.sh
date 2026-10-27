@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matchers: Skill AND Agent|Task -- both wired in hooks.json) for the
 # pdca-workflow plugin (ADR 0049; Agent|Task surface added for ADR 0086 / #276):
-# append one git-visible log line whenever a panel/loop primitive is invoked, on EITHER of its
+# append one log line whenever a panel/loop primitive is invoked, on EITHER of its
 # two observable tool surfaces:
 #   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect (the ADR 0081
 #     closeout-denominator), with or without the pdca-workflow: plugin prefix.
@@ -13,8 +13,7 @@
 # content with NO Skill tool call, so the command invocation itself is unobservable to hooks;
 # it is counted at the Agent layer when the loaded skill spawns its pdca-workflow:* agent --
 # the one tool surface that path does cross.
-# Pure observability: ALWAYS exits 0, NEVER denies, never blocks -- the /retrospect git-signal
-# arm reads the log later to count panel spawns on a branch. One line per fire: ISO-8601 UTC
+# Pure observability: ALWAYS exits 0, NEVER denies, never blocks. One line per fire: ISO-8601 UTC
 # date + event tag + name as given. Cannot recurse: this hook fires on Skill/Agent tool use and
 # only appends to a file (no skill, agent, or tool is invoked from here).
 #
