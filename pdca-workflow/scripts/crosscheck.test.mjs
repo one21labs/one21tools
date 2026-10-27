@@ -16,6 +16,19 @@ test("familyOf places every vendor the lanes can return", () => {
   assert.equal(familyOf("kimi-k2.7-code"), "moonshot");
 });
 
+test("familyOf keeps no open-weight name table: a local model's family is declared", () => {
+  for (const model of ["mistral-7b", "qwen3:32b", "llama3.3:70b", "ollama-default"]) {
+    assert.equal(familyOf(model), "unknown", model);
+  }
+});
+
+test("a custom lane is placed by its declared family, not its model name", () => {
+  assert.equal(verdictFor({ lane: "custom", model: "devstral:24b", family: "mistral", text: "ok" }).status,
+    "CHECKED");
+  assert.equal(verdictFor({ lane: "custom", model: "gpt-oss", family: "anthropic", text: "ok" }).status,
+    "FRAME-UNCHECKED");
+});
+
 test("an unplaceable or missing model id is 'unknown', never foreign-by-default", () => {
   assert.equal(familyOf("some-internal-build-42"), "unknown");
   assert.equal(familyOf(null), "unknown");
@@ -77,7 +90,7 @@ test("a foreign lane that returned nothing is FRAME-UNCHECKED", () => {
 test("an answer from a model that cannot be placed is FRAME-UNCHECKED, not CHECKED", () => {
   const v = verdictFor({ lane: "custom", model: null, text: "fine" });
   assert.equal(v.status, "FRAME-UNCHECKED");
-  assert.match(v.note, /PDCA_CROSSCHECK_MODEL/);
+  assert.match(v.note, /PDCA_CROSSCHECK_FAMILY/);
 });
 
 test("an unrecognized model id does not pass as foreign", () => {

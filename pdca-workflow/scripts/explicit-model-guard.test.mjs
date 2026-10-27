@@ -1,15 +1,16 @@
 /*
  * explicit-model-guard.test.mjs — decision-logic test for hooks/explicit-model-guard.sh (ADR 0040
- * item 6: deny an Agent/Task call with no explicit `model` that targets an unmodeled surface).
+ * item 6, amended 26-Oct-2026: an Agent/Task call with no explicit `model` that targets an
+ * unmodeled surface is rewritten to model "sonnet").
  * Lives in scripts/ so the gates workflow's `node --test pdca-workflow/scripts/*.test.mjs` picks
  * it up (ADR 0012).
  *
- * The contract these cases pin: deny fires ONLY on (model absent AND subagent_type absent or
+ * The contract these cases pin: the sonnet default fires ONLY on (model absent AND subagent_type absent or
  * "general-purpose") — the call that silently inherits the parent session model; a named
  * frontmatter agent or fork passes; prose containing the word "model" (or even "model":-looking
  * text, which JSON-escapes to \"model\":) never confuses the key match; malformed/empty stdin
  * fails OPEN — a broken hook must never block every agent launch; exit code is always 0 (the
- * deny signal is the stdout JSON, not the exit code). Firing scope (ADR 0071): the guard is a
+ * signal is the stdout JSON, not the exit code). Firing scope (ADR 0071): the guard is a
  * no-op unless $CLAUDE_PROJECT_DIR has the docs/pdca adoption marker — every case here sets
  * CLAUDE_PROJECT_DIR explicitly (marker fixture for behavior cases, bare fixture for the
  * no-op case) so results never depend on the test runner's cwd.
@@ -21,7 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,48 +41,77 @@ process.on("exit", () => {
   rmSync(FIX_BARE, { recursive: true, force: true });
 });
 
-const run = (raw, projectDir = FIX_ADOPTED) =>
+const run = (raw, projectDir = FIX_ADOPTED, env = process.env) =>
   spawnSync(HOOK, [], {
     input: raw,
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    env: { ...env, CLAUDE_PROJECT_DIR: projectDir },
   });
 const runToolInput = (toolInput, projectDir) =>
   run(JSON.stringify({ tool_name: "Agent", tool_input: toolInput }), projectDir);
-const denies = (toolInput, projectDir) =>
-  runToolInput(toolInput, projectDir).stdout.includes('"permissionDecision":"deny"');
+// The rewritten tool_input when the hook defaults the call, else null (passed through). A default
+// carries no permissionDecision: it must not approve the call, only change its model.
+const defaulted = (toolInput, projectDir) => {
+  const out = runToolInput(toolInput, projectDir).stdout;
+  if (!out) return null;
+  const h = JSON.parse(out).hookSpecificOutput;
+  return h.updatedInput && !("permissionDecision" in h) ? h.updatedInput : null;
+};
+const isDefaulted = (toolInput, projectDir) => defaulted(toolInput, projectDir) !== null;
 
-test("denies: no model, no subagent_type", { skip }, () => {
-  assert.ok(denies({ prompt: "do the thing", description: "task" }));
+test("defaults to sonnet: no model, no subagent_type, other fields kept", { skip }, () => {
+  assert.deepEqual(defaulted({ prompt: "do the thing", description: "task" }),
+    { prompt: "do the thing", description: "task", model: "sonnet" });
 });
 
-test("denies: no model, subagent_type general-purpose", { skip }, () => {
-  assert.ok(denies({ prompt: "do the thing", subagent_type: "general-purpose" }));
+test("a default approves nothing and tells Claude it was defaulted", { skip }, () => {
+  const h = JSON.parse(runToolInput({ prompt: "do the thing" }).stdout).hookSpecificOutput;
+  assert.equal(h.permissionDecision, undefined);
+  assert.match(h.additionalContext, /defaulted to sonnet/);
+});
+
+test("node unavailable: falls back to a prescriptive deny, still exit 0", { skip }, () => {
+  const bin = mkdtempSync(join(tmpdir(), "emg-nonode-"));
+  try {
+    writeFileSync(join(bin, "node"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    const r = run(JSON.stringify({ tool_name: "Agent", tool_input: { prompt: "x" } }), FIX_ADOPTED,
+      { ...process.env, PATH: `${bin}:${process.env.PATH}` });
+    const h = JSON.parse(r.stdout).hookSpecificOutput;
+    assert.equal(h.permissionDecision, "deny");
+    assert.match(h.permissionDecisionReason, /Re-issue the call with model set explicitly/);
+    assert.equal(r.status, 0);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+});
+
+test("defaults to sonnet: no model, subagent_type general-purpose", { skip }, () => {
+  assert.ok(isDefaulted({ prompt: "do the thing", subagent_type: "general-purpose" }));
 });
 
 test("passes: model present, no subagent_type", { skip }, () => {
-  assert.ok(!denies({ prompt: "do the thing", model: "haiku" }));
+  assert.ok(!isDefaulted({ prompt: "do the thing", model: "haiku" }));
 });
 
 test("passes: named frontmatter agent without model (carve-out)", { skip }, () => {
-  assert.ok(!denies({ prompt: "do the thing", subagent_type: "plugin-adopter" }));
+  assert.ok(!isDefaulted({ prompt: "do the thing", subagent_type: "plugin-adopter" }));
 });
 
 test("passes: fork without model (carve-out)", { skip }, () => {
-  assert.ok(!denies({ prompt: "continue", subagent_type: "fork" }));
+  assert.ok(!isDefaulted({ prompt: "continue", subagent_type: "fork" }));
 });
 
-test("denies: prose mentioning the word model is not a set key", { skip }, () => {
-  assert.ok(denies({ prompt: "pick the best model for this and write a model card" }));
+test("defaults: prose mentioning the word model is not a set key", { skip }, () => {
+  assert.ok(isDefaulted({ prompt: "pick the best model for this and write a model card" }));
 });
 
-test('denies: escaped "model": text inside the prompt is not a set key', { skip }, () => {
-  assert.ok(denies({ prompt: 'example config: {"model": "sonnet"}' }));
+test('defaults: escaped "model": text inside the prompt is not a set key', { skip }, () => {
+  assert.ok(isDefaulted({ prompt: 'example config: {"model": "sonnet"}' }));
 });
 
 test("passes: real model key alongside prompt prose about models", { skip }, () => {
   assert.ok(
-    !denies({ prompt: 'compare each model, e.g. {"model": "x"}', model: "sonnet" })
+    !isDefaulted({ prompt: 'compare each model, e.g. {"model": "x"}', model: "sonnet" })
   );
 });
 
@@ -97,24 +127,24 @@ test("fails open on garbage stdin without a tool_input marker", { skip }, () => 
   assert.equal(r.status, 0);
 });
 
-test("always exits 0 — deny signal is stdout JSON, not the exit code", { skip }, () => {
-  assert.equal(runToolInput({ prompt: "x" }).status, 0); // a deny
+test("always exits 0 — the signal is stdout JSON, not the exit code", { skip }, () => {
+  assert.equal(runToolInput({ prompt: "x" }).status, 0); // a default
   assert.equal(runToolInput({ prompt: "x", model: "haiku" }).status, 0); // an allow
 });
 
-test("no docs/pdca marker -> no-op even on the deny case (ADR 0071)", { skip }, () => {
+test("no docs/pdca marker -> no-op even on the default case (ADR 0071)", { skip }, () => {
   const r = runToolInput({ prompt: "do the thing", description: "task" }, FIX_BARE);
   assert.equal(r.stdout, "");
   assert.equal(r.status, 0);
 });
 
-test("gate-hit telemetry (ADR 0080): deny appends exactly one line, allow appends none", { skip }, () => {
+test("gate-hit telemetry (ADR 0080): a default appends exactly one line, a pass appends none", { skip }, () => {
   // Fresh fixture — FIX_ADOPTED is shared across cases, so counts there are not deterministic.
   const fix = mkdtempSync(join(tmpdir(), "emg-telemetry-"));
   try {
     mkdirSync(join(fix, "docs", "pdca"), { recursive: true });
-    assert.ok(denies({ prompt: "do the thing" }, fix)); // decision unchanged with telemetry on
-    assert.ok(!denies({ prompt: "do the thing", model: "haiku" }, fix));
+    assert.ok(isDefaulted({ prompt: "do the thing" }, fix)); // decision unchanged with telemetry on
+    assert.ok(!isDefaulted({ prompt: "do the thing", model: "haiku" }, fix));
     const log = readFileSync(join(fix, "docs", "pdca", "gate-hits.txt"), "utf8").trim().split("\n");
     assert.equal(log.length, 1);
     assert.match(log[0], /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z gate-hit explicit-model-guard unset$/);

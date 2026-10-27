@@ -1,7 +1,7 @@
 ---
 name: red-team
 description: Adversary — tries to break each accepted decision against the real product after the PM decides; the PM must respond before proceeding (/decide).
-model: opus
+model: sonnet
 tools: Read, Grep, Glob, Bash
 ---
 

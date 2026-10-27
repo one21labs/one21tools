@@ -37,8 +37,8 @@ applies its own default — that constant is the one home, so this file does not
 2. **Lanes, not one look.** Spawn independent lanes with different questions (correctness,
    staleness, dead references, contract drift) rather than one general pass — a single lane
    returns its own priors. Any finding ABOUT this loop or the tooling running it needs a
-   foreign-vendor lane, not a sibling: `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs"`
-   (ADR 0093 owns the class and the FRAME-UNCHECKED result).
+   foreign-vendor lane, not a sibling:
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs" --claim-file <file>` (ADR 0093 owns the class and the FRAME-UNCHECKED result).
 3. **Verify each candidate against the real tree before it counts.** An unverified finding is
    not a finding: it inflates the round, and the fix it triggers is pure new risk.
 4. **Fix what is cheap and verified; open an issue for the rest** (ADR 0021 — deferred work

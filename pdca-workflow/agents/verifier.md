@@ -1,7 +1,7 @@
 ---
 name: verifier
 description: Independent verification gate for /decide — reproduces load-bearing claims against the real code and produced output, checks the PM's [checkable] assumptions, and can block a decision on a verified correctness or safety finding.
-model: opus
+model: sonnet
 tools: Bash, Glob, Grep, Read
 ---
 
