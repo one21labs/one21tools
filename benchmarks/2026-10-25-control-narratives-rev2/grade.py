@@ -48,8 +48,9 @@ def judge_for(name):
     judge = make_judge(name)
     if getattr(judge, "backend", name) == "claude":  # `auto` found no cross-family lane
         sys.exit("no cross-family judge answered (command, grok, copilot): sign one in, or set "
-                 "$SKILL_BENCH_JUDGE_CMD + $SKILL_BENCH_JUDGE_MODEL for a ChatGPT CLI or a local "
-                 "model; else grade with claude-opus-5-5 only, reported unpromoted")
+                 "$SKILL_BENCH_JUDGE_CMD, $SKILL_BENCH_JUDGE_MODEL and $SKILL_BENCH_JUDGE_FAMILY for a "
+                 "ChatGPT CLI or a local model; else grade with claude-opus-5-5 only, reported "
+                 "unpromoted")
     return judge
 
 

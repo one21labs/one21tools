@@ -47,19 +47,15 @@ export function makerFamily(env = process.env) {
 
 export const MAKER_FAMILY = makerFamily();
 
-// Open-weight families are listed so a local model behind $PDCA_CROSSCHECK_CMD can be placed;
-// `llama` is matched last and not inside "ollama", so the ollama runner's name alone places nothing.
+// Only the vendors the named CLI lanes can answer with. A custom lane's family is DECLARED
+// ($PDCA_CROSSCHECK_FAMILY), never guessed from a model name: the operator types the model id
+// anyway, so a name table adds upkeep and no trust.
 const FAMILY_PATTERNS = [
   [/claude|anthropic/i, "anthropic"],
   [/grok|xai/i, "xai"],
   [/gpt|openai|\bo[0-9]/i, "openai"],
-  [/gemini|gemma|google/i, "google"],
+  [/gemini|google/i, "google"],
   [/kimi|moonshot/i, "moonshot"],
-  [/mixtral|pixtral|voxtral|stral/i, "mistral"],  // stral: mistral, codestral, devstral, magistral...
-  [/qwen|qwq/i, "alibaba"],
-  [/deepseek/i, "deepseek"],
-  [/\bphi-?\d/i, "microsoft"],
-  [/(?<!o)llama/i, "meta"],
 ];
 
 /** Pure: which vendor family a model id belongs to. Unrecognized ids are "unknown" — which is
@@ -160,8 +156,7 @@ export function availableLanes(env = process.env, which = whichSync) {
  *  identified foreign family — an unplaceable or absent model id fails closed, because "the answer
  *  came from somewhere I cannot name" is not evidence the lineage was left. (Failing open on
  *  `unknown` would let `PDCA_CROSSCHECK_CMD='echo fine'` mint a CHECKED verdict.) */
-export function verdictFor({ lane, model, text }) {
-  const family = familyOf(model);
+export function verdictFor({ lane, model, text, family = familyOf(model) }) {
   if (family === MAKER_FAMILY) {
     return {
       status: "FRAME-UNCHECKED", lane, model, family,
@@ -174,8 +169,9 @@ export function verdictFor({ lane, model, text }) {
     return {
       status: "FRAME-UNCHECKED", lane, model, family,
       note: `${lane} answered but named no model this script can place (${model ?? "no model id"}), `
-        + `so the answer cannot be shown to come from outside ${MAKER_FAMILY}. Set `
-        + `$PDCA_CROSSCHECK_MODEL to the model id your lane actually uses.`,
+        + `so the answer cannot be shown to come from outside ${MAKER_FAMILY}. For a custom lane, `
+        + `set $PDCA_CROSSCHECK_FAMILY to the vendor of the model it calls (e.g. mistral) and `
+        + `$PDCA_CROSSCHECK_MODEL to its id.`,
     };
   }
   if (!text) {
@@ -197,7 +193,8 @@ export const NO_LANE = {
 function runLane(lane, claim, timeoutMs) {
   if (lane.custom) {
     return { text: execFileSync("sh", ["-c", lane.bin], { input: claim, encoding: "utf8", timeout: timeoutMs }).trim(),
-      model: process.env.PDCA_CROSSCHECK_MODEL ?? null };
+      model: process.env.PDCA_CROSSCHECK_MODEL ?? null,
+      family: process.env.PDCA_CROSSCHECK_FAMILY?.trim().toLowerCase() || "unknown" };
   }
   const dir = mkdtempSync(join(tmpdir(), "crosscheck-"));
   const file = join(dir, "claim.txt");
@@ -245,7 +242,7 @@ function main(argv) {
     }
     persistRun(`${stamp}-${lane.name}`, claim,
       { lane: lane.name, model: answer.model, text: answer.text });
-    const v = verdictFor({ lane: lane.name, model: answer.model, text: answer.text });
+    const v = verdictFor({ lane: lane.name, ...answer });
     if (v.status === "CHECKED") { console.log(JSON.stringify(v, null, 2)); return; }
     failures.push(`${lane.name}: ${v.note}`);
   }
