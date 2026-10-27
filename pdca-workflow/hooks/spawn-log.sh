@@ -26,12 +26,9 @@
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"subagent_type":"pdca-workflow:retrospect","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:retrospect$"}}
 # canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"pdca-workflow:red-team","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:red-team$"}}
 #
-# LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt. Chosen because (verified against
-# this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/,
-# hooks/ are unignored), so anything under .claude/ would be git-INVISIBLE -- defeating the purpose --
-# and `*.log` is gitignored too, so the file is .txt, not .log. docs/ is tracked, already the
-# home of committable process state (docs/decisions/). The retrospect rubric
-# (agents/retrospect.md) cites this path.
+# LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt, local by default: /pdca-init's
+# docs/pdca/.gitignore names it (ADR 0071), and an adopter deletes that file to commit it. The
+# retrospect rubric (agents/retrospect.md) reads it when present.
 #
 # FIRING SCOPE (ADR 0071): docs/pdca/ is also the PDCA adoption marker (scaffolded by
 # /pdca-init) -- this hook logs only where the dir ALREADY exists and never creates it. The

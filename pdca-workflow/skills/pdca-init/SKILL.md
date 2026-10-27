@@ -32,8 +32,8 @@ Run this loop:
    before a PR); never rewrite the user's content.
 
 3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
-   create it with an empty `session-log.txt` (committed): the dir is BOTH the panel spawn-log's
-   home and the marker the plugin's enforcement hooks require before firing in a project — no
+   create it with a committed `.gitignore` listing `session-log.txt` and `gate-hits.txt`: the hooks'
+   logs stay local (delete the file to commit them), and the dir is ALSO the marker the plugin's enforcement hooks require before firing in a project — no
    `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home). The copy is

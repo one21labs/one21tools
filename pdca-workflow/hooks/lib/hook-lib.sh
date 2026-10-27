@@ -122,8 +122,8 @@ hook_deny_payload() {
 # parses per line and splits on whitespace — hence the scrub, so a path containing a newline or a
 # tab cannot split a row or shift a field. docs/pdca is the ADR 0071 adoption marker — checked,
 # never created.
-# PATHS ARE LOGGED PROJECT-RELATIVE, NEVER ABSOLUTE. This log is COMMITTED (docs/pdca is a tracked
-# adoption marker), so in a public repo an absolute path publishes the operator's home directory and
+# PATHS ARE LOGGED PROJECT-RELATIVE, NEVER ABSOLUTE. The log is local by default (docs/pdca/.gitignore,
+# ADR 0071), but an adopter may commit it, and then in a public repo an absolute path publishes the operator's home directory and
 # local tree layout on every single gate fire — this repo shipped 76 such lines before anyone
 # looked. It is also the more useful value: the same gate firing on the same file from two machines
 # should read as one context, not two. Nothing consumes it as a decision; since #311 nothing
