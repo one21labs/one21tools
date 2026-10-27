@@ -4,8 +4,10 @@
 # surface (`subagent_type` absent or "general-purpose") -- the case that would silently inherit
 # the PARENT SESSION model (owner, 26-Oct-2026: "Sonnet must be default for all users of this
 # plugin"). It rewrites the call with model "sonnet" (updatedInput) instead of denying it, so no
-# round-trip is wasted; a call that names haiku or opus keeps it. If node cannot rebuild the
-# input, it falls back to the old deny. A named frontmatter-modeled agent or a fork
+# round-trip is wasted; a call that names haiku or opus keeps it. It returns NO permission
+# decision, so the rewritten call still goes through the normal permission flow (an "allow" would
+# also skip the prompt); additionalContext tells Claude it was defaulted. If node cannot rebuild
+# the input, it falls back to the old deny. A named frontmatter-modeled agent or a fork
 # (subagent_type set to anything else) is carved out: it inherits its own tier by design.
 #
 # tool_input.prompt is free text that can contain the words "model"/"subagent_type", so a
@@ -43,7 +45,7 @@ if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "
   { printf '%s gate-hit explicit-model-guard %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${subagent_type:-unset}" >> "${CLAUDE_PROJECT_DIR:-.}/docs/pdca/gate-hits.txt"; } 2>/dev/null
   updated=$(printf '%s' "$input" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const t=JSON.parse(s).tool_input;t.model="sonnet";process.stdout.write(JSON.stringify(t))})' 2>/dev/null)
   if [ -n "$updated" ]; then
-    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow","permissionDecisionReason":"%s","updatedInput":%s}}' 'No explicit model on a general-purpose call: defaulted to sonnet (pdca-workflow). Set model to haiku or opus to choose another tier.' "$updated"
+    printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s","updatedInput":%s}}' 'No explicit model on a general-purpose call: defaulted to sonnet (pdca-workflow). Set model to haiku or opus to choose another tier.' "$updated"
     exit 0
   fi
   reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model (ADR 0040). Re-issue the call with model set explicitly: sonnet by default, haiku for mechanical/deterministic execution, opus only for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'

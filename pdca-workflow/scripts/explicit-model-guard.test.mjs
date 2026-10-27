@@ -22,7 +22,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -41,24 +41,48 @@ process.on("exit", () => {
   rmSync(FIX_BARE, { recursive: true, force: true });
 });
 
-const run = (raw, projectDir = FIX_ADOPTED) =>
+const run = (raw, projectDir = FIX_ADOPTED, env = process.env) =>
   spawnSync(HOOK, [], {
     input: raw,
     encoding: "utf8",
-    env: { ...process.env, CLAUDE_PROJECT_DIR: projectDir },
+    env: { ...env, CLAUDE_PROJECT_DIR: projectDir },
   });
 const runToolInput = (toolInput, projectDir) =>
   run(JSON.stringify({ tool_name: "Agent", tool_input: toolInput }), projectDir);
-// The rewritten tool_input when the hook defaults the call, else null (passed through).
+// The rewritten tool_input when the hook defaults the call, else null (passed through). A default
+// carries no permissionDecision: it must not approve the call, only change its model.
 const defaulted = (toolInput, projectDir) => {
   const out = runToolInput(toolInput, projectDir).stdout;
-  return out ? JSON.parse(out).hookSpecificOutput.updatedInput : null;
+  if (!out) return null;
+  const h = JSON.parse(out).hookSpecificOutput;
+  return h.updatedInput && !("permissionDecision" in h) ? h.updatedInput : null;
 };
 const isDefaulted = (toolInput, projectDir) => defaulted(toolInput, projectDir) !== null;
 
 test("defaults to sonnet: no model, no subagent_type, other fields kept", { skip }, () => {
   assert.deepEqual(defaulted({ prompt: "do the thing", description: "task" }),
     { prompt: "do the thing", description: "task", model: "sonnet" });
+});
+
+test("a default approves nothing and tells Claude it was defaulted", { skip }, () => {
+  const h = JSON.parse(runToolInput({ prompt: "do the thing" }).stdout).hookSpecificOutput;
+  assert.equal(h.permissionDecision, undefined);
+  assert.match(h.additionalContext, /defaulted to sonnet/);
+});
+
+test("node unavailable: falls back to a prescriptive deny, still exit 0", { skip }, () => {
+  const bin = mkdtempSync(join(tmpdir(), "emg-nonode-"));
+  try {
+    writeFileSync(join(bin, "node"), "#!/bin/sh\nexit 1\n", { mode: 0o755 });
+    const r = run(JSON.stringify({ tool_name: "Agent", tool_input: { prompt: "x" } }), FIX_ADOPTED,
+      { ...process.env, PATH: `${bin}:${process.env.PATH}` });
+    const h = JSON.parse(r.stdout).hookSpecificOutput;
+    assert.equal(h.permissionDecision, "deny");
+    assert.match(h.permissionDecisionReason, /Re-issue the call with model set explicitly/);
+    assert.equal(r.status, 0);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
 });
 
 test("defaults to sonnet: no model, subagent_type general-purpose", { skip }, () => {
