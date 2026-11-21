@@ -55,8 +55,7 @@ logic; a doc restating them rots.
 - **Sync before spend**: before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion.
-- **Read the PR's review comments before merging** — the advisory muda-review CI posts one
-  comment; address each finding or say why not.
+- **Read the PR's review comments before merging**; address each finding or say why not.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
   before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges).
