@@ -13,7 +13,9 @@ Lint the decision log + every char budget:
 Plugin skills/hooks/agents run from the installed CACHE — a stale cache silently enforces
 RETIRED policy. After a plugin-touching merge: `/plugin marketplace update one21tools` THEN
 `/reload-plugins` (reload does not pull). Mid-PR the cache always lags — the working-tree
-gate is the authority.
+gate is the authority. A cloud session loads only account-enabled plugins, never this repo's
+`enabledPlugins`: a `pdca-workflow` skill that is not loaded is run from source — read and
+follow `pdca-workflow/skills/<name>/SKILL.md`.
 
 ## Muda — ruthlessly cut on sight
 Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identification` /

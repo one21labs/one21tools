@@ -3,8 +3,8 @@
 # pdca-workflow plugin (ADR 0049; Agent|Task surface added for ADR 0086 / #276):
 # append one log line whenever a panel/loop primitive is invoked, on EITHER of its
 # two observable tool surfaces:
-#   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect (the ADR 0081
-#     closeout-denominator), with or without the pdca-workflow: plugin prefix.
+#   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect, with or
+#     without the pdca-workflow: plugin prefix.
 #   - Agent/Task tool: `agent-spawn <subagent_type>` for any PLUGIN-OWNED agent
 #     (subagent_type `pdca-workflow:*`) -- the surface panel agents actually spawn through,
 #     which the Skill matcher never sees (#276: the ADR 0086 red-team run and a /retrospect
@@ -17,9 +17,6 @@
 # date + event tag + name as given. Cannot recurse: this hook fires on Skill/Agent tool use and
 # only appends to a file (no skill, agent, or tool is invoked from here).
 #
-# liveness: boundary-coupled -- a retrospect run's adoption artifact carries a Retrospect-Run
-# commit trailer (an independently logged series in git); expected vs observed compared by
-# a readout deleted 2026-07-27 (#311).
 # canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"red-team"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn red-team$"}}
 # canary: {"event":"PreToolUse","tool":"Skill","stdin":{"tool_name":"Skill","tool_input":{"skill":"pdca-workflow:retrospect"}},"expect":{"append":"docs/pdca/session-log.txt","match":" skill-spawn pdca-workflow:retrospect$"}}
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"subagent_type":"pdca-workflow:retrospect","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:retrospect$"}}

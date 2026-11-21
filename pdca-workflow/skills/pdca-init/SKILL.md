@@ -29,7 +29,7 @@ Run this loop:
    minimum (~60 lines). If the project has product analytics, add a
    `metrics command:` line (`../decide/references/metrics-engine.md`, Wiring). If CLAUDE.md already exists, only ADD the
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
-   before a PR); never rewrite the user's content.
+   at session close); never rewrite the user's content.
 
 3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
    create it with a committed `.gitignore` listing `session-log.txt` and `gate-hits.txt`: the hooks'
@@ -56,5 +56,5 @@ Run this loop:
    auto-apply) the optional advisory CI: copy `${CLAUDE_PLUGIN_ROOT}/templates/claude-review.yml` into
    `.github/workflows/` and print its OAuth-token / required-check setup steps. Also offer the
    house reply-summary standard: copy `${CLAUDE_PLUGIN_ROOT}/templates/plain-summary.md` to
-   `.claude/output-styles/` and set `outputStyle` in settings (ADR 0074).
+   `.claude/output-styles/` and set `outputStyle` in settings.
 

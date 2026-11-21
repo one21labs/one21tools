@@ -13,10 +13,11 @@ without the full ceremony.
 
 1. **State the claim set.** Each load-bearing claim + where it should be observable (file,
    command, output). Include any `[checkable]` assumptions to check.
-2. **Spawn the `verifier` agent fresh** — pass the claims and the paths, never the desired
+2. **Spawn the `verifier` agent fresh** (how to spawn a role, and what a lost helper means: the
+   `decide` skill, Roles) — pass the claims and the paths, never the desired
    verdict or the reasoning that produced them (uncontaminated is the point). A claim about this
-   loop's own behaviour is one the agent will REFUSE — it inherits the maker's lineage (ADR 0093
-   defines the class and owns why). Route that claim out instead, don't just note it:
+   loop's own behaviour is one the agent will REFUSE — it inherits the maker's lineage, and with
+   it the maker's blind spots. Route that claim out instead, don't just note it:
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs" --claim-file <file>` finds whichever
    foreign-vendor CLI this machine has, sends the claim, and reports which model answered. Exit 3
    is `FRAME-UNCHECKED` — no lane, or a lane that answered from the maker's own family. Record the

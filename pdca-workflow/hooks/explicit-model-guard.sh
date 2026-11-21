@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse hook (matcher: Agent|Task) for the pdca-workflow plugin (ADR 0040).
+# PreToolUse hook (matcher: Agent|Task|Workflow) for the pdca-workflow plugin.
 # DEFAULTS TO SONNET an Agent/Task call that has no explicit `model` AND targets an unmodeled
 # surface (`subagent_type` absent or "general-purpose") -- the case that would silently inherit
 # the PARENT SESSION model (owner, 26-Oct-2026: "Sonnet must be default for all users of this
@@ -34,6 +34,18 @@ input=$(cat)
 [ -d "${CLAUDE_PROJECT_DIR:-.}/docs/pdca" ] || exit 0
 scope=$(printf '%s' "$input" | sed -n 's/.*\("tool_input".*\)/\1/p')
 [ -z "$scope" ] && exit 0
+
+# A Workflow call spawns its agents from a script, so the Agent/Task rewrite below never sees
+# them. workflow-model.mjs reads the script and prints a deny when an agent() call sets no model;
+# it prints nothing (and this exits 0) on a named workflow, unreadable input, or no node.
+if printf '%s' "$input" | grep -q '"tool_name"[[:space:]]*:[[:space:]]*"Workflow"'; then
+  decision=$(printf '%s' "$input" | node "$(dirname "$0")/../scripts/workflow-model.mjs" --hook 2>/dev/null)
+  if [ -n "$decision" ]; then
+    { printf '%s gate-hit explicit-model-guard workflow\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${CLAUDE_PROJECT_DIR:-.}/docs/pdca/gate-hits.txt"; } 2>/dev/null
+    printf '%s' "$decision"
+  fi
+  exit 0
+fi
 
 has_model=$(printf '%s' "$scope" | grep -c '"model"[[:space:]]*:')
 subagent_type=$(printf '%s' "$scope" | sed -n 's/.*"subagent_type"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')

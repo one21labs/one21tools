@@ -152,3 +152,35 @@ test("gate-hit telemetry (ADR 0080): a default appends exactly one line, a pass 
     rmSync(fix, { recursive: true, force: true });
   }
 });
+
+const runWorkflow = (toolInput, projectDir) =>
+  run(JSON.stringify({ tool_name: "Workflow", tool_input: toolInput }), projectDir);
+
+test("Workflow: a script with an unmodeled agent() call is denied", { skip }, () => {
+  const r = runWorkflow({ script: 'await agent("review it", { label: "r" })' });
+  const h = JSON.parse(r.stdout).hookSpecificOutput;
+  assert.equal(h.permissionDecision, "deny");
+  assert.match(h.permissionDecisionReason, /set no model/);
+  assert.equal(r.status, 0);
+});
+
+test("Workflow: a fully modeled script, and a named workflow, pass untouched", { skip }, () => {
+  assert.equal(runWorkflow({ script: 'await agent("review it", { model: "sonnet" })' }).stdout, "");
+  assert.equal(runWorkflow({ name: "saved-workflow" }).stdout, "");
+});
+
+test("Workflow: the word model inside a prompt does not excuse an unmodeled call's neighbour", { skip }, () => {
+  const script = 'await agent("pick a model", { model: "sonnet" })\nawait agent("b")';
+  assert.match(JSON.parse(runWorkflow({ script }).stdout).hookSpecificOutput.permissionDecisionReason, /script:2/);
+});
+
+test("Workflow: no docs/pdca marker -> no-op", { skip }, () => {
+  assert.equal(runWorkflow({ script: 'await agent("b")' }, FIX_BARE).stdout, "");
+});
+
+test("hooks.json quotes every plugin-root path — an install path with a space must not split the command", () => {
+  const wiring = JSON.parse(readFileSync(fileURLToPath(new URL("../hooks/hooks.json", import.meta.url)), "utf8"));
+  const commands = Object.values(wiring.hooks).flat().flatMap((m) => m.hooks.map((h) => h.command));
+  assert.ok(commands.length > 0);
+  for (const c of commands) assert.match(c, /^"\$\{CLAUDE_PLUGIN_ROOT\}\/[^"]+"$/, c);
+});

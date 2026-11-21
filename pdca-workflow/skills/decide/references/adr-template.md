@@ -25,11 +25,11 @@ Rules:
   quality signal the PM must address (reframe the call until it is testable, or accept it as
   explicitly unfalsifiable), not wave through. The precise predicate (the tags; the same-bullet
   REOPEN-IF pairing) is adr-lint.md check 5 — canonical there, not restated here.
-- **The PR is the decision-batching unit** (ADR 0051). A PR ships one new ADR — or a
+- **The PR is the decision-batching unit.** A PR ships one new ADR — or a
   deliberately grouped work package of several, enumerated in the PR body. Mutually-citing
   records MUST ship together (the dangling-cite guard); cite-unconnected members draw an
-  advisory WARN (adr-lint.md check 12), fine for a planned batch. Split only per ADR 0056
-  (revert boundary, keep main green) or a spend gate. If a decision must change before its PR
+  advisory WARN (adr-lint.md check 12), fine for a planned batch. Split only for a
+  revert boundary, to keep main green, or at a spend gate. If a decision must change before its PR
   merges, **revise it in place** — never add a second ADR to amend or overrule a still-unmerged
   sibling (proliferation; the draft history is squashed away anyway).
 - **Rationalize in place.** Correct, re-sequence, or fold an amendment into the ADR it touches — on
@@ -111,7 +111,7 @@ reads verified/refuted, never `pending`; a runnable check left `pending` is the 
 is reserved for a TEST awaiting a future or external signal the gate cannot obtain now (a later
 A/B's outcome, a future retro miss), which it must NAME. A permanently out-of-sandbox fact is
 `[unverifiable]` (routes to REOPEN-IF), never a `[checkable]` pending. No adr-lint rule polices
-this — naming is substance a linter cannot check (retired ADR 0032).
+this — naming is substance a linter cannot check.
 **checkable-doc** (plan) PM verifies vs roadmap/ADRs before emitting; **contradiction** fix the
 sequence in the same ADR, never ship un-fixed; **unverifiable** allowed but becomes the revisit
 trigger. A shared unverifiable assumption lives once in the register below — reference it, don't
@@ -142,7 +142,8 @@ references ADR IDs and mirrors ship-state there; if not, the corpus suffices.
 
 ## Lite tier
 
-The cheap tier for a recorded call (routine calls get no record, ADR 0062). The corpus exists to stop a future session RE-DECIDING a settled call (ADR 0092). Lite carries
+The cheap tier for a recorded call (routine calls get no record). The corpus exists to stop a
+future session RE-DECIDING a settled call. Lite carries
 exactly the fields that do that and nothing else. The boundary is mechanical: a decision whose
 REASONING must survive — tagged assumptions someone must resolve, or an `## Assumptions` block —
 graduates to a full ADR; everything else is lite, INCLUDING a decision with a reopen-if.

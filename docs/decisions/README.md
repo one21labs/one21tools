@@ -54,7 +54,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0046 -> scripts/check-restatement.mjs (header); pdca-workflow/templates/claude-review.yml (one-home line)
 - 0048 -> CLAUDE.md (no plugin version fields; bump cadence is a dead path)
 - 0049 -> pdca-workflow/hooks/spawn-log.sh (header); pdca-workflow/agents/retrospect.md (Telemetry logs)
-- 0050 -> README.md (Requirements: each plugin installs standalone)
+- 0050 -> README.md (Install: each plugin installs standalone)
 - 0051 -> pdca-workflow/skills/decide/references/adr-template.md (PR is the decision-batching unit); adr-lint.md (check 12)
 - 0052 -> one21labs/skill-measure:scripts/lib/cost_gate.py (header); one21labs/skill-measure:scripts/lib/blind.py (header)
 - 0053 -> .github/workflows/gates.yml (header: branch-protection settings)

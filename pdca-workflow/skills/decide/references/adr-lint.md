@@ -31,12 +31,12 @@ this list.
    signal). An ADR with none is **UNFALSIFIABLE**. This checks PRESENCE of a real tagged bullet (not
    a prose mention); whether a stated criterion is genuinely falsifiable is the PM's/gate's semantic
    call, not lint's.
-6. **Lite tier** (`tier: lite` frontmatter — the DEFAULT, ADR 0062/0092) — exempt from the
+6. **Lite tier** (`tier: lite` frontmatter — the DEFAULT) — exempt from the
    falsifiability gate (nothing left to test), and it MAY carry a `Reopen-if:` line. REJECTED if
    it carries the assumption machinery instead — a tagged bullet
    (`[unverifiable]`/`[checkable]`/`[checkable-doc]`/`[contradiction]`/`[verified]`) or an
    `## Assumptions` section: that reasoning must survive, so it graduates to a full ADR.
-   Positive bar (ADR 0087): the body must also carry an `Enforced:` line (settled = enforced
+   Positive bar: the body must also carry an `Enforced:` line (settled = enforced
    somewhere findable — the lite shape in adr-template.md), and every file-like token it cites
    (a closed extension list: mjs/js/ts/md/sh/yml/yaml/json/py/txt) must resolve on disk: exact
    repo-relative path or basename anywhere in the tree (`.git`/`node_modules` excluded; a `:NN`
@@ -50,7 +50,7 @@ this list.
    here; configurable via `--budget`), lite ADRs to their own cap (`LITE_ADR_CHAR_BUDGET`);
    rationale: `doc-budgets.md`. Advisory (never fails): a `--new-adrs` full ADR past `ADR_CHAR_MARGIN` WARNs — the margin reserves
    `## Act` room; lite and legacy ADRs exempt.
-8. **Amendment backlink** (ADR 0040) — an ADR that ACTIVELY amends another ("amends ADR NNNN") must
+8. **Amendment backlink** — an ADR that ACTIVELY amends another ("amends ADR NNNN") must
    be cited back from the amended ADR's own text; an unpointed amendment is invisible from the
    record it changes (adr-template.md "Rationalize in place"). A passive "amended by NNNN" already
    carries its own cite, so only the active voice is checked.
@@ -64,26 +64,26 @@ machinery:
     `.claude/agents` stays under `AGENT_CHAR_BUDGET`, and its frontmatter `name:` matches its
     filename.
 11. **Named-doc budget** (`oversizeDocs`) — char-checks `CLAUDE.md` against `DOC_BUDGETS`.
-12. **Decision-set advisory** (`decisionSetWarnings`, ADR 0051 as amended; opt-in via
+12. **Decision-set advisory** (`decisionSetWarnings`; opt-in via
     `--new-adrs=<ids-or-paths>`) — when a change adds MORE THAN ONE new ADR, cite-unconnected
     members (edge = either record cites the other) get a WARN, never a failure: the PR is the
     batching unit (a deliberate work package is fine); the WARN surfaces an accidental
     grab-bag at review. Flag absent or a single new ADR = nothing reported; only the
     PR-context CI step (which passes the diff-added files) emits it.
 
-13. **Outcome vocabulary** (ADR 0079; a corpus check, numbered here to keep checks 1-12's
+13. **Outcome vocabulary** (a corpus check, numbered here to keep checks 1-12's
     historical numbers stable) — every `- [outcome]` row carries exactly ONE whole-word of
     `verified` / `violated` / `still-open`: the controlled input any metrics-engine consumer
     would classify on. A free-text synonym ("FALSIFIED") or a double-tag is
     unclassifiable — and a dropped miss reads as no miss.
 
-14. **Stale status on recorded discharge** (ADR 0088; a corpus check) — a `;`-split clause of a
+14. **Stale status on recorded discharge** (a corpus check) — a `;`-split clause of a
     line containing "discharg" that cites an ADR id existing on disk FAILS if that ADR's
     frontmatter is still `status: proposed`: the state-changing event was recorded into a
     sibling file and the target's status never flipped. The clause (not the whole line) is the
     unit, so an unrelated proposed cite sharing the line stays quiet; date-adjacent and
     unknown 4-digit tokens never match.
-15. **Doc-indexed constant cross-check** (`docIndexDrift`, ADR 0088; a `main()` guard over every
+15. **Doc-indexed constant cross-check** (`docIndexDrift`; a `main()` guard over every
     .md OUTSIDE the decisions dir) — a line that backtick-names a `char-budget.mjs` scalar
     constant (or `DOC_BUDGETS` plus a backticked filename matching a key's BASENAME) and contains
     a 3+-digit number must include that constant's current value: comma-insensitive,

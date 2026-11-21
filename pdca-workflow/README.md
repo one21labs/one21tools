@@ -111,12 +111,14 @@ skills/
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
 commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
-scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs
-                 (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke, the cross-lineage
-                 claim route, the sweep stop verdict, backlog signals (node, zero-dep)
+scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs,
+                 workflow-model.mjs (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke,
+                 the cross-lineage claim route, the sweep stop verdict, backlog signals, the
+                 every-agent()-names-a-model rule for Workflow scripts (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
                plain-summary.md            the reply-summary standard /pdca-init copies in
-hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
+hooks/         hooks.json (model guard over Agent, Task and Workflow calls; ADR post-edit
+                 lint; spawn log)
   lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
 ```
 
@@ -145,7 +147,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /plugin install pdca-workflow@one21tools
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
-/retrospect       # standing at session close + on demand (ADR 0081); improves the process
+/retrospect       # standing at session close + on demand; improves the process
 /pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
 ```
 
@@ -155,6 +157,13 @@ triggers). `/decide` carries no flag either; what conditions should bind a panel
 and writes files is still an open decision, not something this README settles.
 `/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
 flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
+
+**Where it loads.** Claude Code and Cowork load everything. A cloud session (Claude Code on the
+web) loads this plugin only when it is turned on for your ACCOUNT in the desktop app — a repo's
+`enabledPlugins` is not installed there — and chat loads the skills and command but ignores agents
+and hooks. Wherever the agents are missing, the skills spawn each role with its `model:` passed
+explicitly (`skills/decide/SKILL.md`, Roles), so a missing guard does not silently move helpers to
+the session's model.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).
