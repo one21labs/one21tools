@@ -77,7 +77,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0074 -> .claude/output-styles/plain-summary.md (+ pdca-workflow/templates/plain-summary.md)
 - 0075 -> CLAUDE.md (Shipping: plugins carry no version fields; absence is the enforcement)
 - 0076 -> one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (derived estimates + warn escalation)
-- 0077 -> .gitattributes (comment above the merge=union lines)
+- 0077 -> git history (merge=union attribute dropped when the logs went local, ADR 0080 (c))
 - 0078 -> scripts/check-pr-body.mjs (body-side closing-keyword guard)
 - 0083 -> pdca-workflow/agents/retrospect.md (Method, Custodial state)
 - 0085 -> README.md (Provenance) + each shipped plugin README's Provenance section

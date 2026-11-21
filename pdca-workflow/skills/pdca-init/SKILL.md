@@ -32,19 +32,20 @@ Run this loop:
    before a PR); never rewrite the user's content.
 
 3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
-   create it with an empty `session-log.txt` (committed): the dir is BOTH the panel spawn-log's
-   home and the marker the plugin's enforcement hooks require before firing in a project — no
+   create it with a committed `.gitignore` listing `session-log.txt` and `gate-hits.txt`: the hooks'
+   logs stay local (delete the file to commit them), and the dir is ALSO the marker the plugin's enforcement hooks require before firing in a project — no
    `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home). The copy is
    deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
    decision rules, and the plugin cache is per-user (a link would dangle for teammates/CI). Only a
    repo hosting the plugin source itself links instead of copying. No index
-   file (adr-template.md). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
-   `adr-lint.test.mjs`, `char-budget.mjs`, and `char-budget.test.mjs` (the linter's import — without
-   it `adr-lint.mjs` throws `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
+   file (adr-template.md). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs` and
+   `char-budget.mjs` (the linter's import — without it `adr-lint.mjs` throws
+   `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
    to run `node scripts/adr-lint.mjs` pre-merge / in CI — the corpus poka-yoke
-   (`../decide/references/adr-lint.md`).
+   (`../decide/references/adr-lint.md`). Not their `*.test.mjs`: those test this plugin's own
+   repo layout and corpus, and fail in a consumer.
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`; its Method owns the inference, roster size, target dir,

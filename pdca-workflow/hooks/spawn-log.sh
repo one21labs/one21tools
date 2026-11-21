@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # PreToolUse hook (matchers: Skill AND Agent|Task -- both wired in hooks.json) for the
 # pdca-workflow plugin (ADR 0049; Agent|Task surface added for ADR 0086 / #276):
-# append one git-visible log line whenever a panel/loop primitive is invoked, on EITHER of its
+# append one log line whenever a panel/loop primitive is invoked, on EITHER of its
 # two observable tool surfaces:
 #   - Skill tool: `skill-spawn <name>` for advise, red-team, verify, retrospect (the ADR 0081
 #     closeout-denominator), with or without the pdca-workflow: plugin prefix.
@@ -13,8 +13,7 @@
 # content with NO Skill tool call, so the command invocation itself is unobservable to hooks;
 # it is counted at the Agent layer when the loaded skill spawns its pdca-workflow:* agent --
 # the one tool surface that path does cross.
-# Pure observability: ALWAYS exits 0, NEVER denies, never blocks -- the /retrospect git-signal
-# arm reads the log later to count panel spawns on a branch. One line per fire: ISO-8601 UTC
+# Pure observability: ALWAYS exits 0, NEVER denies, never blocks. One line per fire: ISO-8601 UTC
 # date + event tag + name as given. Cannot recurse: this hook fires on Skill/Agent tool use and
 # only appends to a file (no skill, agent, or tool is invoked from here).
 #
@@ -26,12 +25,9 @@
 # canary: {"event":"PreToolUse","tool":"Agent","stdin":{"tool_name":"Agent","tool_input":{"subagent_type":"pdca-workflow:retrospect","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:retrospect$"}}
 # canary: {"event":"PreToolUse","tool":"Task","stdin":{"tool_name":"Task","tool_input":{"subagent_type":"pdca-workflow:red-team","prompt":"x"}},"expect":{"append":"docs/pdca/session-log.txt","match":" agent-spawn pdca-workflow:red-team$"}}
 #
-# LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt. Chosen because (verified against
-# this repo's .gitignore): `.claude/*` is gitignored (only settings.json, output-styles/, agents/,
-# hooks/ are unignored), so anything under .claude/ would be git-INVISIBLE -- defeating the purpose --
-# and `*.log` is gitignored too, so the file is .txt, not .log. docs/ is tracked, already the
-# home of committable process state (docs/decisions/). The retrospect rubric
-# (agents/retrospect.md) cites this path.
+# LOG LOCATION: $CLAUDE_PROJECT_DIR/docs/pdca/session-log.txt, local by default: /pdca-init's
+# docs/pdca/.gitignore names it (ADR 0071), and an adopter deletes that file to commit it. The
+# retrospect rubric (agents/retrospect.md) reads it when present.
 #
 # FIRING SCOPE (ADR 0071): docs/pdca/ is also the PDCA adoption marker (scaffolded by
 # /pdca-init) -- this hook logs only where the dir ALREADY exists and never creates it. The

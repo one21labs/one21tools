@@ -20,8 +20,9 @@ summary: "Resolves ADR 0050's needs-design (issue #212): pdca-workflow's enforce
 2. **A hook never creates the marker.** `spawn-log.sh`'s `mkdir -p` is removed; it logs only where
    `docs/pdca/` already exists — a hook that mkdir'd its own opt-in marker would opt every project
    in on the first builtin-`verify` invocation.
-3. **`/pdca-init` scaffolds the marker** (`docs/pdca/` + a committed empty `session-log.txt`); its
-   SKILL.md states no-marker-no-hooks.
+3. **`/pdca-init` scaffolds the marker** (`docs/pdca/` + a committed `.gitignore` naming the two
+   hook logs, so the dir exists in every clone and the logs stay local, ADR 0080 (c)); its SKILL.md
+   states no-marker-no-hooks.
 4. **The hooks-only carrier plugin stays parked**: self-scoped hooks make pdca-workflow a no-op
    outside adopting projects.
 5. **Native per-project `enabledPlugins` documented** (plugin README) for scoping the whole plugin.

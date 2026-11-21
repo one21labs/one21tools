@@ -98,7 +98,6 @@ A failure prints the offending files and exits non-zero; a clean corpus exits ze
 # a bare pipe reports the filter's status, not the gate's, and a red gate then reads green
 node scripts/adr-lint.mjs                  # lints ./docs/decisions, char budget from char-budget.mjs
 node scripts/adr-lint.mjs docs/decisions --budget=8000
-node --test scripts/*.test.mjs             # the decision-logic tests (adr-lint + char-budget)
 ```
 
 Vendoring into a consumer repo: `/pdca-init` step 3.
