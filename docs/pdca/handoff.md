@@ -41,8 +41,8 @@ load each `skills/*/evals/evals.json` through skill-measure's `bench_skill.load_
 
 ## Next candidates, ranked
 
-1. **The advisory review has not posted on #339.** Run 44874897554 finished green with no
-   comment. A guard that does not fire: read its `claude-review-execution-log` artifact.
+1. **The advisory review has not posted on #339.** Each run ends in 2 seconds at zero cost:
+   a bad token or a limit. Its warning step now prints the reason in the job log; read it.
 2. **Nobody has run either plugin in the desktop app itself.** The Code tab shares the engine
    that was run here; Cowork's sandbox is undocumented (is `python3`, `node`, `claude` there?).
    One manual pass by the owner closes it.
