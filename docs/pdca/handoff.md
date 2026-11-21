@@ -1,66 +1,65 @@
 # Handoff
 
-Written 21-Nov-2026 on `claude/brave-pasteur-4ho96t` (PR #339), on top of `f5773bd`. Rewrite this
-file whole each turn (`pdca-workflow/commands/improve.md`, step 8). Where it disagrees with git
-or the tracker, they win.
+Written 21-Nov-2026 on `claude/brave-pasteur-4ho96t` (PR #339), on top of `b540286`. Rewrite this
+file whole each turn (`pdca-workflow/commands/improve.md`). Where it disagrees with git or the
+tracker, they win.
 
 Goal (`README.md`): quality output, autonomously, judged as the person receiving it.
 
 ## Measures
 
-| Measure | Baseline `d4bcbc2` | Now | Target |
-|---|---|---|---|
-| Shipped skills with a promoted "helps" verdict | 1 of 5 | 1 of 5 | 5 of 5, none below bare |
-| Known user-facing defects on `main` | 4 | 4 (1 once #339 merges) | 0 |
-| Internal record or issue numbers in shipped, model-loaded text | 37 | 0 | 0 |
-| Shipped guidance, bytes | 218,629 | 222,384 | no larger than baseline |
-| Gate and hook code with tests, bytes | 344,073 | 345,621 | smaller than baseline |
-| `CLAUDE.md` chars against its 6,000 cap | 5,637 | 5,998 | headroom of 300 |
+| Measure | Baseline `d4bcbc2` | Last | Now | Target |
+|---|---|---|---|---|
+| Shipped skills with a promoted "helps" verdict | 1 of 5 | 1 of 5 | 1 of 4 | all, none below bare |
+| Known user-facing defects on `main` once #339 merges | 4 | 1 | 0 | 0 |
+| Internal record or issue numbers in shipped, model-loaded text | 37 | 0 | 0 | 0 |
+| Shipped guidance, bytes | 218,629 | 222,384 | 210,936 | below baseline |
+| Gate and hook code with tests, bytes | 344,073 | 345,621 | 312,667 | below baseline |
+| Everything outside `benchmarks/`, bytes | 926,255 | 922,421 | 817,020 | falling |
+| `CLAUDE.md` chars against its 6,000 cap | 5,637 | 5,998 | 5,782 | headroom of 300 |
 
 How to read them: verdicts from the README "Measured state" table; cites with
 `grep -rnE 'ADRs? [0-9]{4}|#[0-9]{2,3}\b'` over `skills/*/SKILL.md`, `skills/*/references`,
-`pdca-workflow/{skills,agents,commands}`; bytes with `wc -c` over the same set, and over
-`scripts/*.mjs`, `pdca-workflow/{scripts,hooks}`, `.claude/hooks`, `validate*.py`, `gates.yml`.
-
-The two byte measures moved the wrong way this turn: the Workflow guard, the role-spawn rule
-and the loop command added more than the cuts removed.
+`pdca-workflow/{skills,agents,commands}`; guidance bytes with `wc -c` over the same set; gate
+bytes over `scripts/*.mjs`, `pdca-workflow/{scripts,hooks}`, `.claude/hooks`, `validate*.py`,
+`gates.yml`; the total with `git ls-files -- . ':!benchmarks'`.
 
 ## Shipped this turn
 
-PR #339: the ready half of #337; hook paths quoted; the model guard covers Workflow scripts; a
-lost agent is never a result; shipped text cleaned of private record numbers; one gate deleted;
-the handoff file allowed; this loop.
+PR #339, second pass (owner, 21-Nov: "Be ruthless. All code is sunk cost."): the
+`control-narratives` skill removed (it scored below the bare model); two gates deleted with the
+records and the research corpus they guarded; the analytics spec nothing implemented; old sweep
+logs; the loop command cut to a wrapper around `/pdca-workflow:MSH`; `CLAUDE.md` trimmed.
 
 ## Next candidates, ranked
 
-1. **`control-narratives` still ships text that scored below the bare model** (#328: pooled
-   -0.103, interval [-0.191, -0.016]). A defect users receive. Revision 2 waits on #337, which
-   waits on the owner's `claude setup-token`. If that has not moved, propose removing the skill
-   from the marketplace until it is measured.
-2. **The advisory review has not posted on #339.** Run 44874369631 ended after one turn, no
-   model use and no cost (the account was at 92% of its 5-hour limit minutes earlier). The next
-   run, 44874897554, finished green and the PR still has no review comment. Green and silent is
-   a guard that does not fire: read that run's `claude-review-execution-log` artifact for the
-   denied or missing `gh pr comment`.
-3. **`dev-skills` and `engineering-skills` each ship all five skill folders and every
-   `evals/`**, because both use `source: ./skills`. Seen in an account-synced install. Text
-   shipped that earns nothing; the fix moves folders and strands frozen benchmark cites, so it
-   needs the owner's call on `check-relocated-paths` first.
+1. **The advisory review has not posted on #339.** Run 44874369631 ended after one turn at no
+   cost; run 44874897554 finished green and the PR still has no review comment. A guard that
+   does not fire: read that run's `claude-review-execution-log` artifact for the denied or
+   missing `gh pr comment`.
+2. **`optimizing-context` ships 54 KB with no verdict** (two inconclusive diagnostic pairs,
+   `benchmarks/2026-10-12-g8-shortfall/`), and `building-skills` is unsettled. Measure them, or
+   cut `optimizing-context` to the references a measurement supports. Needs the owner's token.
+3. **Five decision records describe a harness that now lives in `one21labs/skill-measure`**
+   (0019, 0023, 0041, 0096, 0097). Confirm that repo holds each rule, then retire them to
+   forward entries.
 
-Also true, unranked: `CLAUDE.md` sits at its cap and needs a whole-file cut; about 120 comments
-in shipped hooks and scripts still cite internal records.
+Also true, unranked: `dev-skills` and `engineering-skills` each copy every skill folder and its
+`evals/` to disk (`source: ./skills`) — disk only, nothing a model loads; about 100 comments in
+hooks and scripts still cite internal records; `.claude/hooks/pr-create-guard.sh` guards
+`gh pr create`, which a cloud session never runs.
 
 ## Waiting on the owner
 
-- Merge #339, then #337 needs a rebase onto it.
+- Merge #339. #337 then needs a rebase: it carries the `control-narratives` revision, which
+  should return to the marketplace only if its re-measure beats the bare model (#328).
 - Turn `pdca-workflow` on for the account (desktop app: Customize, Plugins). Until then no
   cloud session loads it, and nobody has confirmed its agents and guards load there.
-- `claude setup-token`, for the #328 re-measure.
-- The scheduled task "one21tools self-improvement loop" (daily 10:41 UTC) exists but is turned
-  OFF: a test firing got 403 on this repo, because a task created from a session carries no
-  repository. Attach `one21labs/one21tools` with push access to it in the scheduled-tasks
-  settings, then turn it on. Until then the loop runs only when someone types
-  `/pdca-workflow:improve`.
-- Decide: delete `check-relocated-paths` before its own 12-month condition; where frozen
-  benchmark evidence lives; whether guards are copied into adopting repos (#338 item 3); whether
-  the 90% pause rule also covers the weekly limit (83% at 06:11 UTC, resets Sun 22-Nov 18:00 UTC).
+- `claude setup-token`, for the #328 re-measure and candidate 2.
+- The scheduled task "one21tools self-improvement loop" (daily 10:41 UTC) is turned OFF: a test
+  firing got 403 on this repo. Attach `one21labs/one21tools` with push access to it in the
+  scheduled-tasks settings, then turn it on.
+- Decide: ADR 0024 says cut only after benefit-per-token plateaus; the sunk-cost ruling now in
+  `CLAUDE.md` cuts sooner — amend or retire 0024. Where frozen benchmark evidence lives (22 MB,
+  cloned by every install). Whether guards are copied into adopting repos (#338 item 3).
+  Whether the 90% pause rule also covers the weekly limit.
