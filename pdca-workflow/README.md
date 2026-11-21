@@ -160,10 +160,11 @@ and writes files is still an open decision, not something this README settles.
 `/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
 flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
 
-**Where it loads.** Claude Code and Cowork load everything. A cloud session (Claude Code on the
-web) loads this plugin only when it is turned on for your ACCOUNT in the desktop app — a repo's
-`enabledPlugins` is not installed there — and chat loads the skills and command but ignores agents
-and hooks. Wherever the agents are missing, the skills spawn each role with its `model:` passed
+**Where it loads.** Claude Code (terminal and the desktop app's Code tab) and Cowork load
+everything. A cloud session (Claude Code on the web) loads this plugin only when it is turned on
+for your ACCOUNT in the desktop app — a repo's `enabledPlugins` is not installed there — and Chat
+loads the skills and commands but ignores agents and hooks. On Windows the hooks need Git for
+Windows (they are bash scripts). Wherever the agents are missing, the skills spawn each role with its `model:` passed
 explicitly (`skills/decide/SKILL.md`, Roles), so a missing guard does not silently move helpers to
 the session's model.
 

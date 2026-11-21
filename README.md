@@ -20,20 +20,28 @@ hooks, and skills, not prose (autonomy).
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH /improve
 ```
 
-**Claude desktop app and Cowork:** open Customize, select Plugins, select Add marketplace, enter
-`one21labs/one21tools`, then install the plugins you want.
+**Claude desktop app (Chat, Cowork, Code):** open Customize, select Plugins, select Add, select
+Add marketplace, enter `one21labs/one21tools`, then install the plugins you want. In the Code tab
+the terminal commands above also work typed into a session.
 
 **Cloud sessions (Claude Code on the web):** a cloud session loads the plugins turned on for your
 account in the desktop app, as above. It does NOT install plugins a repository enables in its
 `.claude/settings.json` — so turn `pdca-workflow` on for your account, or its skills, agents and
 guards are absent from every cloud session, including ones on a repo that ran `/pdca-init`.
 
-What loads where: the skills work everywhere, chat included. `pdca-workflow`'s agents and guards
-load in Claude Code and Cowork, not in chat; in a cloud session, account plugins' skills are
-confirmed to load, its agents and guards are not yet confirmed. Wherever they are missing, its
-skills fall back to spawning each role with its model passed explicitly
-(`pdca-workflow/skills/decide/SKILL.md`, Roles). Its scripts need `node`; its guards also need
-`bash`.
+What loads where:
+
+| Surface | Skills and commands | `pdca-workflow` agents | `pdca-workflow` guards |
+|---|---|---|---|
+| Claude Code in a terminal; desktop app, Code tab | Yes | Yes | Yes (run in a terminal session: a helper spawned with no model ran on Sonnet) |
+| Desktop app, Cowork | Yes | Yes, per Anthropic's platform table | Yes, per the same table; not run by us |
+| Desktop app, Chat | Yes | No | No |
+| Cloud session | Yes | Not confirmed | Not confirmed |
+
+Without the agents, each role still gets its own model: `pdca-workflow/skills/decide/SKILL.md`
+(Roles) owns the fallback. The scripts need `node`; the guards also need
+`bash`, which on Windows means Git for Windows. All four plugins from this repo and
+skill-measure install side by side with no shared names.
 
 Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
 history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
@@ -42,8 +50,9 @@ individual skills:
 
 Each plugin installs standalone: no manifest `dependencies` unless a plugin cannot function
 without another's files (none today). The harness that measures these skills (`/bench`) is its
-own repo and install, [one21labs/skill-measure](https://github.com/one21labs/skill-measure)
-(Claude Code only).
+own repo and install, [one21labs/skill-measure](https://github.com/one21labs/skill-measure):
+it reads each skill's `evals/evals.json` here as it is, and needs the `claude` command-line
+program, so it runs in a terminal or the desktop app's Code tab, not in Chat.
 
 ## What changes after install
 

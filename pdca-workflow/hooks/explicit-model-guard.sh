@@ -60,7 +60,7 @@ if [ "$has_model" -eq 0 ] && { [ -z "$subagent_type" ] || [ "$subagent_type" = "
     printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"%s","updatedInput":%s}}' 'No explicit model on a general-purpose call: defaulted to sonnet (pdca-workflow). Set model to haiku or opus to choose another tier.' "$updated"
     exit 0
   fi
-  reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model (ADR 0040). Re-issue the call with model set explicitly: sonnet by default, haiku for mechanical/deterministic execution, opus only for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'
+  reason='Denied: no explicit model, and subagent_type is absent or general-purpose -- this call would silently inherit the parent session model. Re-issue the call with model set explicitly: sonnet by default, haiku for mechanical/deterministic execution, opus only for planning. To target a defined frontmatter agent instead, set subagent_type to its name.'
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"%s"}}' "$reason"
 fi
 exit 0
