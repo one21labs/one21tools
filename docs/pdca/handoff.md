@@ -41,8 +41,8 @@ load each `skills/*/evals/evals.json` through skill-measure's `bench_skill.load_
 
 ## Next candidates, ranked
 
-1. **The advisory review has not posted on #339.** Each run ends in 2 seconds at zero cost:
-   a bad token or a limit. Its warning step now prints the reason in the job log; read it.
+1. **The advisory review runs on no PR:** "OAuth token revoked" (its job log now prints the
+   reason). Owner fix, below. Then confirm it posts its one comment.
 2. **Nobody has run either plugin in the desktop app itself.** The Code tab shares the engine
    that was run here; Cowork's sandbox is undocumented (is `python3`, `node`, `claude` there?).
    One manual pass by the owner closes it.
@@ -59,7 +59,8 @@ remove that; `validate.py` runs on Python 3.9 today but no check holds it there.
   `control-narratives` revision, which should return only if its re-measure beats bare (#328).
 - Turn `pdca-workflow` on for the account (desktop app: Customize, Plugins), then try
   `/pdca-workflow:decide` and `/bench` once in the Code tab and once in Cowork.
-- `claude setup-token`, for the #328 re-measure and candidate 3.
+- `claude setup-token`; store it as the repo secret `CLAUDE_CODE_OAUTH_TOKEN` (candidate 1).
+  The same token serves the #328 re-measure and candidate 3.
 - The scheduled task "one21tools self-improvement loop" is OFF: attach this repository to it
   with push access, then turn it on.
 - Decide: ADR 0024 (cut only after a plateau) against the sunk-cost ruling in `CLAUDE.md`;
