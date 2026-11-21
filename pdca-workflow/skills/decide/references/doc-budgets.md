@@ -39,6 +39,7 @@ correct).
 | README | `README.md` | none | — | — |
 | CLAUDE.md | `CLAUDE.md` | **6,000** (~2 pp) | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | CLAUDE.md | pdca-init's `claude-md-template.md` (the scaffold it copies) | **6,000** | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
+| docs | `docs/pdca/handoff.md` (the one handoff file; rewritten whole, never appended) | **4,000** | ~1,000 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | docs | `docs/decisions/NNNN-*.md` (ADR) | **9,000**; draft margin **8,000** | ~2,250 | `char-budget.mjs` (`ADR_CHAR_BUDGET`, margin `ADR_CHAR_MARGIN`) |
 | docs | `docs/decisions/NNNN-*.md` (lite ADR, `tier: lite`) | **2,000** | ~500 | `char-budget.mjs` (`LITE_ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/README.md` (ADR guide) | none | — | — |

@@ -13,9 +13,8 @@ Lint the decision log + every char budget:
 Plugin skills/hooks/agents run from the installed CACHE — a stale cache silently enforces
 RETIRED policy. After a plugin-touching merge: `/plugin marketplace update one21tools` THEN
 `/reload-plugins` (reload does not pull). Mid-PR the cache always lags — the working-tree
-gate is the authority. A cloud session loads only account-enabled plugins, never this repo's
-`enabledPlugins`: a `pdca-workflow` skill that is not loaded is run from source — read and
-follow `pdca-workflow/skills/<name>/SKILL.md`.
+gate is the authority. A cloud session loads only account-enabled plugins: run a
+`pdca-workflow` skill or command that is not loaded from its source file.
 
 ## Muda — ruthlessly cut on sight
 Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identification` /
@@ -51,8 +50,8 @@ logic; a doc restating them rots.
 ## Shipping — PR
 - **Size PRs for reviewability, not one-concern (ADR 0056)**: ship cohesive work together across
   files; split only for a clean revert boundary or to keep main green. Plugins carry NO
-  version fields — updates key on git content (ADR 0075).
-- **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
+  version fields — updates key on git content.
+- **Sync before spend**: before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion.
 - **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
@@ -70,10 +69,13 @@ logic; a doc restating them rots.
   outside one21labs/* without the owner's per-item approval of the exact text. An internal issue
   saying "file upstream" authorizes DRAFTING, not posting — leave the draft in the internal issue
   and stop.
-- **Findings valve** (ADR 0021, amended 28-Jul-2026): fix it in-session, discard it, or hand the
+- **Findings valve**: fix it in-session, discard it, or hand the
   owner a memo — an issue is the EXCEPTION, only for work someone must act on later; the PR's
-  Deferred section links any it creates. No handoff/TODO files — work-state tracks in issues,
-  decision-state stays in ADRs.
+  Deferred section links any it creates. ONE handoff file, `docs/pdca/handoff.md`: what git and
+  the tracker cannot tell the next session, REWRITTEN whole each session, never appended; they
+  win where it disagrees. No other TODO files.
+- **Self-improvement loop:** one turn per run — `pdca-workflow/commands/improve.md`. **Usage:**
+  at 90% of the 5-hour window, schedule a resume after the reset and stop.
 
 ## Feedback = PDCA trigger
 This repo dogfoods its own `pdca-workflow` plugin. A judgment call gets DECIDED before it's built: routine — in the

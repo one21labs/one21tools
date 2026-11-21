@@ -111,6 +111,8 @@ skills/
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
 commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
+               improve — one turn of the self-improvement loop: read the handoff, measure, ship
+                 one package, retrospect, rewrite the handoff (run by hand or on a schedule)
 scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs,
                  workflow-model.mjs (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke,
                  the cross-lineage claim route, the sweep stop verdict, backlog signals, the
@@ -149,6 +151,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /decide   # decide a judgment call; writes an ADR
 /retrospect       # standing at session close + on demand; improves the process
 /pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
+/pdca-workflow:improve        # one turn of the self-improvement loop; schedule it to run unattended
 ```
 
 `/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a

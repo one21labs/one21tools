@@ -17,7 +17,7 @@ hooks, and skills, not prose (autonomy).
 /plugin marketplace add one21labs/one21tools
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
 /plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS), control-narratives (PLC/DCS specs)
-/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH
+/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH /improve
 ```
 
 **Claude desktop app and Cowork:** open Customize, select Plugins, select Add marketplace, enter

@@ -30,7 +30,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0017 -> CLAUDE.md (no plugin version fields; sole drift predicate adr-lint.mjs manifestDrift)
 - 0018 -> pdca-workflow/agents/retrospect.md (Method, backstory-sweep clause; reopen: recurrence -> a dedicated pre-PR doc-review step, not a bigger prompt)
 - 0020 -> pdca-workflow/skills/decide/references/adr-template.md (## Lite tier)
-- 0021 -> CLAUDE.md (Shipping - PR, Findings valve)
+- 0021 -> CLAUDE.md (Shipping - PR, Findings valve; its handoff-file ban lifted 21-Nov-2026 for ONE rewritten, size-capped file)
 - 0022 -> .claude/settings.json (extraKnownMarketplaces: directory source ./)
 - 0025 -> one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (## Scoring: fraction-met, prosecutor min rule)
 - 0026 -> one21labs/skill-measure:scripts/lib/README.md (bench_io record formats + raw-output archive)

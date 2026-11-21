@@ -23,9 +23,10 @@ test("overBudget: over the cap fails, at/under passes (decision logic)", () => {
   assert.equal(overBudget(5999, 6000), false); // under -> ok
 });
 
-test("budgets CLAUDE.md + the pdca-init template (enforcement isn't silently gutted)", () => {
+test("budgets CLAUDE.md, the handoff file + the pdca-init template (enforcement isn't silently gutted)", () => {
   assert.deepEqual(Object.keys(DOC_BUDGETS).sort(), [
     "CLAUDE.md",
+    "docs/pdca/handoff.md",
     "pdca-workflow/skills/pdca-init/references/claude-md-template.md",
   ]);
 });

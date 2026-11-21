@@ -67,7 +67,8 @@ update its header/frontmatter in the same change.
   disclosure).
 - Never file/edit outside this project's own org/namespace without the owner's per-item approval
   of the exact text — "file upstream" authorizes drafting, not posting.
-- Deferred work gets an issue, not a handoff/TODO file — work-state in issues, decisions in ADRs.
+- Deferred work gets an issue; decisions go in ADRs. ONE handoff file, `docs/pdca/handoff.md`,
+  rewritten whole each session, never appended; git and the tracker win where it disagrees.
 
 ## Feedback = PDCA trigger
 User feedback (bug report, feature ask, behavioral observation) triggers `/decide`
