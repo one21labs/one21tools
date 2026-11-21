@@ -83,6 +83,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0085 -> README.md (Provenance) + each shipped plugin README's Provenance section
 - 0087 -> pdca-workflow/scripts/adr-lint.mjs (lite Enforced: check); adr-lint.md (check 6)
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
+- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026: a blocking gate over two terms, recorded after the fact, with no failure in the CI history that still has step data)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
 - 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue one21labs/skill-measure#1 — if it closes with the stats menu unaddressed, re-file survivors singly
