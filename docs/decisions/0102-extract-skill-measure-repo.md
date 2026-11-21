@@ -31,13 +31,11 @@ summary: "Extract skill-measure/ to one21labs/skill-measure with history; one21t
    building-skills tests run via `unittest discover` (43 tests, no reachability guard needed).
 4. **benchmarks/ stays** — the evidence for one21tools' claims (README measured block). Frozen
    dated dirs stay byte-identical and reproduce at their own commit (one line,
-   benchmarks/README.md). The forwarders keep their paths (ADR 0089 executable-shim rule):
-   `benchmarks/lib/` shims resolve the harness from `SKILL_MEASURE_ROOT` and fail with the clone
-   command when unset; the `eval_verdict.py` stub exits with the clone command. Templates do the same and
-   new dirs record the harness sha.
-5. **check-relocated-paths** declares `skill-bench/` and `skill-measure/` DEPARTED: a frozen
-   cite under them reports as external (reproduce at commit), not stranded and no longer
-   invisible — 8 `skill-bench/` cites were unchecked (symlink, not a dir). Tested.
+   benchmarks/README.md). `benchmarks/lib/` shims resolve the harness from `SKILL_MEASURE_ROOT`
+   and fail with the clone command when unset. Templates do the same and new dirs record the
+   harness sha.
+5. **No gate guards a frozen dir's cited paths** (the path gate was deleted 21-Nov-2026): a
+   cite into `skill-bench/` or `skill-measure/` reproduces at the dir's own commit.
 6. **Parity test retired** (`scripts/check-family-parity.test.mjs`): two repos, two products,
    each owns its family table and tests; crosscheck.mjs's TWIN note cut.
 7. **Decision history stays here**; live cites repo-qualify as `one21labs/skill-measure:<path>`,

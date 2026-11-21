@@ -28,7 +28,7 @@ summary: "Rename now (cost only rises with installs), LAST, live surfaces only. 
    under-covering; (b) marketplace gains `"renames": {"skill-bench": "skill-assay"}` — without
    it an existing install errors plugin-not-found; (c) every ADR file token into `skill-bench/`
    repoints or adr-lint fails; (d) install strings, the `skill-bench:bench` namespace,
-   `gates.yml`, `check-relocated-paths` (a rename IS a relocation, ADR 0089).
+   `gates.yml`.
 6. Acceptance gate: `grep -rn skill-bench` outside `benchmarks/` returns only the renames map's
    old key; adr-lint exit 0; validate.py passes; owner runs `/plugin marketplace update` THEN
    `/reload-plugins`.

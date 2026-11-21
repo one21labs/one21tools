@@ -26,8 +26,7 @@ Run this loop:
    DROPPING template lines that don't apply to this stack — the template is a generic scaffold, not
    a checklist to keep verbatim (e.g. the persistence/schema Sacred items for a stateless tool, the
    deploy Never for a library, the render check for a non-UI project). Keep it to the always-loaded
-   minimum (~60 lines). If the project has product analytics, add a
-   `metrics command:` line (`../decide/references/metrics-engine.md`, Wiring). If CLAUDE.md already exists, only ADD the
+   minimum (~60 lines). If CLAUDE.md already exists, only ADD the
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
    at session close); never rewrite the user's content.
 

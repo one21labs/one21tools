@@ -125,8 +125,8 @@ mislabelled row: split it in two (one status each) or explain WITHOUT naming the
 — saying "corrected from `verified`" puts two status words in the row and fails the lint.** Across the
 corpus, the rate at which resolved `[checkable]` assumptions verify vs. refute (the `## Act`
 `[outcome]` lines) is the **assumption hit-rate** — the emergent, bottom-up quality signal of the
-loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, via
-the `metrics-engine.md` contract over `## Act` outcomes — no separate metrics home.
+loop. It is a read-out, not a target (optimizing it invites Goodhart); compute it, if wanted, from
+the `## Act` outcomes — no separate metrics home.
 
 **Status = decision validity** (frontmatter `status`), not shipping — `accepted` is the authoritative
 live decision; `proposed` = not yet authoritative; `superseded by NNNN` = retired by a separate one

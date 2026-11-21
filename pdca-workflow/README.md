@@ -104,7 +104,7 @@ won't-do (the ceremony cut) — no enforcement gate ships.
 agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
 skills/
   decide/   the decision panel + the process system-of-record
-    references/       adr-template, adr-lint, metrics-engine, doc-budgets
+    references/       adr-template, adr-lint, doc-budgets
   advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
   retrospect/        the Act loop
   sweep/             iterate an audit until it converges, or report that the cap ran out
@@ -134,7 +134,6 @@ thresholds, Sacred files, render/verify command). Two deliberate scope calls (re
 repo's decision log as ADR 0001, pdca-workflow-extraction-scope — outside this plugin's shipped
 files, so no link survives an install; the framework dogfooded on its own extraction):
 
-- **Metrics engine = spec, not code** — why: `skills/decide/references/metrics-engine.md`.
 - **No standalone `review-system.md`** — the `/decide` skill is the system of record.
 
 ## Why it stays alive

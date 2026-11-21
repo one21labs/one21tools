@@ -13,7 +13,7 @@ Guard: adr-lint — command in [CLAUDE.md](../../CLAUDE.md), spec in
 
 Records retired under the ADR altitude test (home: doc-budgets.md); a cite of one resolves HERE:
 
-- 0001 -> pdca-workflow/skills/decide/references/metrics-engine.md (spec-not-runnable rationale, top)
+- 0001 -> git history (metrics-engine.md deleted 21-Nov-2026: a spec nothing here implemented)
 - 0002 -> docs/decisions/README.md (ADR = Authoritative Decision Record)
 - 0003 -> pdca-workflow/skills/decide/references/adr-lint.md (UNFALSIFIABLE presence gate)
 - 0004 -> pdca-workflow/skills/pdca-init/references/panel-generation.md (step 4, version-control the panel)
@@ -82,8 +82,10 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0083 -> pdca-workflow/agents/retrospect.md (Method, Custodial state)
 - 0085 -> README.md (Provenance) + each shipped plugin README's Provenance section
 - 0087 -> pdca-workflow/scripts/adr-lint.mjs (lite Enforced: check); adr-lint.md (check 6)
+- 0079 -> git history (both carriers deleted: scorecard.mjs in #311; check-references.mjs 21-Nov-2026 with the uncited research corpus it guarded)
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
-- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026: a blocking gate over two terms, recorded after the fact, with no failure in the CI history that still has step data)
+- 0089 -> git history (check-relocated-paths.mjs deleted 21-Nov-2026: a frozen benchmark dir reproduces at its own commit)
+- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026: a blocking gate over two terms with no recorded catch)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
 - 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue one21labs/skill-measure#1 — if it closes with the stats menu unaddressed, re-file survivors singly

@@ -49,7 +49,7 @@ again, stop and report — never a vote, a pass, or a quiet round.
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift (a shipped ADR a
    sibling still treats as open; an accepted ADR long stalled with no `## Act`;
    roadmap/changelog/tracker out of sync) — cite the line; omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,
-   not real. Metrics: `references/metrics-engine.md`, Wiring.
+   not real.
 2. **Frame.** Clarify scope FIRST, per the `advise` skill's Frame step (its home). List the open
    calls. One register. Multiple calls: pre-allocate parallel `pm`s' IDs here, one each.
 3. **Check output.** For any claim about what the product renders/prints/exports/writes, grade the
