@@ -37,11 +37,11 @@ the handoff file allowed; this loop.
    -0.103, interval [-0.191, -0.016]). A defect users receive. Revision 2 waits on #337, which
    waits on the owner's `claude setup-token`. If that has not moved, propose removing the skill
    from the marketplace until it is measured.
-2. **The advisory review did not run on #339, cause unknown.** Run 44874369631 ended after one
-   turn, no model use and no cost. The job now warns instead of failing red, but a review that
-   never posts is a guard that does not fire. Read the next run on #339: if it fails the same
-   way, the likely cause is the repo's `CLAUDE_CODE_OAUTH_TOKEN`, which only the owner can
-   reissue.
+2. **The advisory review has not posted on #339.** Run 44874369631 ended after one turn, no
+   model use and no cost (the account was at 92% of its 5-hour limit minutes earlier). The next
+   run, 44874897554, finished green and the PR still has no review comment. Green and silent is
+   a guard that does not fire: read that run's `claude-review-execution-log` artifact for the
+   denied or missing `gh pr comment`.
 3. **`dev-skills` and `engineering-skills` each ship all five skill folders and every
    `evals/`**, because both use `source: ./skills`. Seen in an account-synced install. Text
    shipped that earns nothing; the fix moves folders and strands frozen benchmark cites, so it
@@ -56,6 +56,11 @@ in shipped hooks and scripts still cite internal records.
 - Turn `pdca-workflow` on for the account (desktop app: Customize, Plugins). Until then no
   cloud session loads it, and nobody has confirmed its agents and guards load there.
 - `claude setup-token`, for the #328 re-measure.
+- The scheduled task "one21tools self-improvement loop" (daily 10:41 UTC) exists but is turned
+  OFF: a test firing got 403 on this repo, because a task created from a session carries no
+  repository. Attach `one21labs/one21tools` with push access to it in the scheduled-tasks
+  settings, then turn it on. Until then the loop runs only when someone types
+  `/pdca-workflow:improve`.
 - Decide: delete `check-relocated-paths` before its own 12-month condition; where frozen
   benchmark evidence lives; whether guards are copied into adopting repos (#338 item 3); whether
   the 90% pause rule also covers the weekly limit (83% at 06:11 UTC, resets Sun 22-Nov 18:00 UTC).
