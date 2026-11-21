@@ -16,7 +16,7 @@ hooks, and skills, not prose (autonomy).
 ```
 /plugin marketplace add one21labs/one21tools
 /plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
-/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS), control-narratives (PLC/DCS specs)
+/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS)
 /plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH /improve
 ```
 
@@ -71,7 +71,6 @@ with the skill in view, a confirmed bias (#317, ADR 0101), and the harness audit
 | `engineering-principles` | Probably helps; not freshly proven. The slim version that ships was shown no worse than the longer version that was proven, but its own interval includes zero. The operational rules carry the effect; concepts the model already knows add nothing measurable. | `benchmarks/2026-07-18-ep-slim-remeasure/`, `benchmarks/2026-07-09-ep-remeasure-hermetic/`, `benchmarks/2026-07-18-ep-partition/` |
 | `building-skills` | Unsettled: one judge says it helps, the headline judge is inconclusive. A revision missed its pre-registered bar and was reverted. | `benchmarks/2026-07-18-bs-iter3-remeasure/`, `benchmarks/2026-10-12-g8-shortfall/` |
 | `optimizing-context` | Unmeasured on the current instrument (ADR 0100). | `benchmarks/2026-10-12-g8-shortfall/` |
-| `control-narratives` | No promoted verdict, and the one measurement so far went against it: the shipped text scored below the bare model (18/19-Oct, same-family judge, evidence not on main). A revision and its re-measure are open. | issue #328 |
 | `pdca-workflow` | The decision panel does not beat a cost-matched plain prompt on decision quality. What did measure: `/retrospect` asserts fewer false findings, and independent advisors anticipate failures a single voice misses. | `pdca-workflow/README.md`, "Measured" |
 
 ## The improvement loop
