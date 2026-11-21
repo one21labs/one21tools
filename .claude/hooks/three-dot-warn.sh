@@ -35,8 +35,11 @@ input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$cmd" ] && exit 0
 
-printf '%s' "$cmd" | grep -qE '\bgit\b.*\bdiff\b' || exit 0
-range=$(printf '%s' "$cmd" | grep -oE '(^|[^[:alnum:]_/.-])(origin/)?main\.\.([^.]|$)' | head -1)
+# The range must sit in the SAME command segment as its `git diff`: a compound command pairing a
+# correct `git log main..X` with a correct three-dot `git diff` used to fire on the log's range.
+# Segments split on | ; & and the JSON-escaped newline.
+range=$(printf '%s' "$cmd" | sed 's/\\n/\n/g' | tr '|;&' '\n\n\n' | grep -E '\bgit\b.*\bdiff\b' \
+  | grep -oE '(^|[^[:alnum:]_/.-])(origin/)?main\.\.([^.]|$)' | head -1)
 [ -z "$range" ] && exit 0
 
 root="${CLAUDE_PROJECT_DIR:-.}"

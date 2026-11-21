@@ -37,10 +37,11 @@ the handoff file allowed; this loop.
    -0.103, interval [-0.191, -0.016]). A defect users receive. Revision 2 waits on #337, which
    waits on the owner's `claude setup-token`. If that has not moved, propose removing the skill
    from the marketplace until it is measured.
-2. **The advisory review job fails red and says nothing.** Run 44874369631 on #339 ended after
-   one turn, no model use and no cost; the log hides the reason. A guard that cannot say why it
-   failed. Find the cause (the job's `claude-review-execution-log` artifact), then make the
-   failure name itself.
+2. **The advisory review did not run on #339, cause unknown.** Run 44874369631 ended after one
+   turn, no model use and no cost. The job now warns instead of failing red, but a review that
+   never posts is a guard that does not fire. Read the next run on #339: if it fails the same
+   way, the likely cause is the repo's `CLAUDE_CODE_OAUTH_TOKEN`, which only the owner can
+   reissue.
 3. **`dev-skills` and `engineering-skills` each ship all five skill folders and every
    `evals/`**, because both use `source: ./skills`. Seen in an account-synced install. Text
    shipped that earns nothing; the fix moves folders and strands frozen benchmark cites, so it

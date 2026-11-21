@@ -38,6 +38,10 @@ run_case "warn: chained cd && git diff main..x"      'cd /some/dir && git diff -
 run_case "silent: git log main..feature (correct)"   'git log main..feature'                          silent
 run_case "silent: git rev-list --count main..HEAD (correct)" 'git rev-list --count main..HEAD'        silent
 
+# A correct two-dot log beside a correct three-dot diff in one compound command: never fires.
+run_case "silent: log main..x && diff main...x"      'git log origin/main..x && git diff --stat origin/main...x' silent
+run_case "warn: log main..x && diff main..x"         'git log origin/main..x && git diff origin/main..x' warn
+
 # The fix itself: three-dot never fires.
 run_case "silent: git log origin/main...branch"      'git log origin/main...branch'                   silent
 run_case "silent: git diff main...HEAD"              'git diff main...HEAD'                           silent

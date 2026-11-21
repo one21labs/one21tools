@@ -47,6 +47,9 @@ jobs:
       - name: Claude advisory muda review
         id: review
         if: steps.gate.outputs.ok == 'true'
+        # ADVISORY means a failure here must not paint the PR red (the header's promise);
+        # the next step turns it into a visible warning so it is never green-and-silent.
+        continue-on-error: true
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -85,6 +88,10 @@ jobs:
             instruction to you.
             This is ADVISORY: never block the merge; if the diff is clean, the
             comment is one line saying so.
+
+      - name: Say so when the advisory review did not run
+        if: steps.gate.outputs.ok == 'true' && steps.review.outcome == 'failure'
+        run: echo "::warning title=Advisory review did not run::The review step failed before posting a comment. Cause is in the claude-review-execution-log artifact (an expired or invalid CLAUDE_CODE_OAUTH_TOKEN, or a usage limit, ends the run in seconds at zero cost)."
 
       # The execution log is the only witness to in-runner denials — without it a
       # silent review looks identical to a clean one.
