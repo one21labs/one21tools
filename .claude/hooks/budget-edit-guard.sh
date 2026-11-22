@@ -97,7 +97,9 @@ try:
         spec.loader.exec_module(mod)
         return mod
     size_out, size_cur, unit, hint = len(out), len(cur), "chars", ""
-    if re.search(r"docs/decisions/[^/]+\.md$", fp):
+    # Records only (NNNN-*.md), as adr-lint caps them. README.md holds the Retired-ids map,
+    # which grows with every retirement and has no cap.
+    if re.search(r"docs/decisions/\d{4}-[^/]+\.md$", fp):
         cap = caps["lite"] if re.search(r"^tier:\s*lite\s*$", out[:800], re.M) else caps["adr"]
     elif re.search(r"pdca-workflow/agents/[^/]+\.md$", fp):
         cap = caps["agent"]
