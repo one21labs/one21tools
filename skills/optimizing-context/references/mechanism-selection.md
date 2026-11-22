@@ -70,8 +70,8 @@ Run `./deploy.sh staging` then verify at https://staging.example.com
 
 | Choice | Approach | Result |
 |--------|----------|--------|
-| Avoid | Use repo root as source | Auto-discovery loads all skills for every plugin |
-| Prefer | Use component directories as sources | Each plugin loads only specified skills |
+| Avoid | Repo root as source with no `skills` list | Every skill in `skills/` loads for that plugin |
+| Prefer | List each plugin's skills, or use component directories as sources | Each plugin loads only specified skills |
 
 Why and how: [plugins.md](plugins.md).
 

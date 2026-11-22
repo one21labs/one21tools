@@ -6,7 +6,7 @@ Subagents are specialized AI assistants with their own context windows, system p
 
 1. [Core Concept: Context Isolation](#core-concept-context-isolation)
 2. [When Subagent vs Other Mechanisms](#when-subagent-vs-other-mechanisms)
-3. [Subagent vs Task() Delegation](#subagent-vs-task-delegation)
+3. [Custom Subagent vs General Delegation](#custom-subagent-vs-general-delegation)
 4. [Built-in Subagents (Claude Code)](#built-in-subagents-claude-code)
 5. [Model Tiering + Parallelism (match tier and concurrency to task)](#model-tiering--parallelism-match-tier-and-concurrency-to-task)
 6. [Custom Subagent Configuration](#custom-subagent-configuration)
@@ -32,9 +32,9 @@ Each subagent operates in a fresh context. This prevents:
 | Parallel exploration useful | Sequential, single-focus work |
 | Task is self-contained | Frequent back-and-forth needed |
 
-## Subagent vs Task() Delegation
+## Custom Subagent vs General Delegation
 
-**Prefer general `Task()` delegation over custom subagents.**
+**Prefer general delegation (the `Agent` tool, formerly `Task`) over custom subagents.**
 
 Custom subagents:
 - Gatekeep context (may over-restrict)
@@ -55,11 +55,12 @@ General delegation:
 
 | Subagent | Model Tier | Tools | Purpose |
 |----------|------------|-------|---------|
-| **General** | Capable | All | Complex multi-step tasks |
-| **Explore** | Fast | Read-only | Quick codebase search |
-| **Plan** | Capable | Read-only | Research for planning |
+| **General** | Parent's model | All | Complex multi-step tasks |
+| **Explore** | Parent's model | Read-only | Codebase search |
+| **Plan** | Parent's model | Read-only | Research for planning |
 
-**Explore** is optimized for speed but read-only. Use for finding information without changes.
+**Explore** is read-only. Use for finding information without changes. Built-in agents inherit
+the parent conversation's model unless the call sets one.
 
 **General** can read and write. Use for tasks requiring both exploration and modification.
 
