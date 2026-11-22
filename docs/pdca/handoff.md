@@ -54,7 +54,7 @@ skill-measure's `bench_skill.load_evals`; run `validate.py` over its `skills/ben
 2. **The guards are bash**, so Windows needs Git for Windows; a node rewrite removes that.
 3. **`validate.py` runs on Python 3.9 but no check holds it there.**
 
-Also true: #337 needs a rebase; `control-narratives` returns only if its re-measure beats bare;
+Also: #337 needs a rebase; `control-narratives` returns only if its re-measure beats bare;
 a shell edit bypasses the budget guard, and CI is the catch.
 
 ## Waiting on the owner
