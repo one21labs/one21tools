@@ -45,6 +45,10 @@ export const DOC_BUDGETS = {
   // ENOENT-tolerant). Kept here so the scaffold can't ship over the budget it teaches
   // (#164: two under-cap PRs merge-skewed it to 6047).
   "pdca-workflow/skills/pdca-init/references/claude-md-template.md": 6000,
+  // The one handoff file (commands/improve.md step 8). Its failure mode is ACCRETION — a file
+  // that is appended to instead of rewritten turns into an unowned to-do list and drifts — so
+  // the cap is what keeps "rewrite it whole" from being prose. Absent in a project = inert.
+  "docs/pdca/handoff.md": 4000,
 };
 
 // Single-decision ADR cap. Sized with SLACK above the ~6,000 the corpus historically ran at:

@@ -30,11 +30,12 @@ unanswered failures escalate the rung.
 valued by the expected cost of the misses it catches, NOT per-run yield; (iii) cutting a detection
 instrument requires a revisit trigger riding an evidence stream INDEPENDENT of that instrument.
 
-**(d) Measured compliance + pre-registered review.** Denominator: `session-end-log.sh` (header);
-numerator: the `Retrospect-Run:` token (`retrospect/SKILL.md`). Series (readout FIRST, no band):
-adopted artifacts / session-ends. Pre-registered REVIEW at 10 `session-end` lines: a /decide
-records keep / demote / mint-band from the readout. Gaming direction is safe: under-logging lowers
-measured compliance, biasing toward demotion, never away.
+**(d) Measured compliance — RETIRED 21-Nov-2026.** The series (adopted artifacts carrying a
+`Retrospect-Run:` token / `session-end` lines) lost every reader: its readout was deleted (#311),
+the review pre-registered at 10 `session-end` lines never ran, and the logs are local-only since
+26-Oct. The token instruction is cut from the shipped `retrospect` skill, where adopters loaded
+it with no denominator at all; `session-end-log.sh` stays as a local log. (a)-(c) are unchanged.
+Re-decide before rebuilding a compliance measure.
 
 ## Justification
 Same countermeasure family Toyota chose for the same failure mode in humans: a mandatory default

@@ -104,19 +104,23 @@ won't-do (the ceremony cut) — no enforcement gate ships.
 agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
 skills/
   decide/   the decision panel + the process system-of-record
-    references/       adr-template, adr-lint, metrics-engine, doc-budgets
+    references/       adr-template, adr-lint, doc-budgets
   advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
   retrospect/        the Act loop
   sweep/             iterate an audit until it converges, or report that the cap ran out
   pdca-init/         scaffolds a project + generates its advisor panel
     references/       panel-generation, claude-md-template, advisor-template
 commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
-scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs
-                 (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke, the cross-lineage
-                 claim route, the sweep stop verdict, backlog signals (node, zero-dep)
+               improve — one turn of the self-improvement loop: read the handoff, measure, ship
+                 one package, retrospect, rewrite the handoff (run by hand or on a schedule)
+scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs,
+                 workflow-model.mjs (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke,
+                 the cross-lineage claim route, the sweep stop verdict, backlog signals, the
+                 every-agent()-names-a-model rule for Workflow scripts (node, zero-dep)
 templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
                plain-summary.md            the reply-summary standard /pdca-init copies in
-hooks/         hooks.json (model guard, ADR post-edit lint, spawn log)
+hooks/         hooks.json (model guard over Agent, Task and Workflow calls; ADR post-edit
+                 lint; spawn log)
   lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
 ```
 
@@ -130,7 +134,6 @@ thresholds, Sacred files, render/verify command). Two deliberate scope calls (re
 repo's decision log as ADR 0001, pdca-workflow-extraction-scope — outside this plugin's shipped
 files, so no link survives an install; the framework dogfooded on its own extraction):
 
-- **Metrics engine = spec, not code** — why: `skills/decide/references/metrics-engine.md`.
 - **No standalone `review-system.md`** — the `/decide` skill is the system of record.
 
 ## Why it stays alive
@@ -145,8 +148,9 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 /plugin install pdca-workflow@one21tools
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
 /decide   # decide a judgment call; writes an ADR
-/retrospect       # standing at session close + on demand (ADR 0081); improves the process
+/retrospect       # standing at session close + on demand; improves the process
 /pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
+/pdca-workflow:improve        # one turn of the self-improvement loop; schedule it to run unattended
 ```
 
 `/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
@@ -155,6 +159,14 @@ triggers). `/decide` carries no flag either; what conditions should bind a panel
 and writes files is still an open decision, not something this README settles.
 `/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
 flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
+
+**Where it loads.** Claude Code (terminal and the desktop app's Code tab) and Cowork load
+everything. A cloud session (Claude Code on the web) loads this plugin only when it is turned on
+for your ACCOUNT in the desktop app — a repo's `enabledPlugins` is not installed there — and Chat
+loads the skills and commands but ignores agents and hooks. On Windows the hooks need Git for
+Windows (they are bash scripts). Wherever the agents are missing, the skills spawn each role with its `model:` passed
+explicitly (`skills/decide/SKILL.md`, Roles), so a missing guard does not silently move helpers to
+the session's model.
 
 **Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
 unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).

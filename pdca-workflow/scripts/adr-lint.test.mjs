@@ -167,7 +167,7 @@ test("no unpointed amendment on the real corpus", () => {
   assert.deepEqual(hits, []);
 });
 
-// Outcome vocabulary (ADR 0079, spec check 13): a consumer classifies `- [outcome]`
+// Outcome vocabulary (adr-lint.md, check 13): a consumer classifies `- [outcome]`
 // rows on exactly one controlled word; a synonym or double-tag is unclassifiable and a dropped
 // miss reads as no miss.
 test("fires on an [outcome] row without exactly one of verified|violated|still-open", () => {

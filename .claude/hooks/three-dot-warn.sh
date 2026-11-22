@@ -4,9 +4,9 @@
 # (`main..X` / `origin/main..X`), inject a NON-BLOCKING additionalContext warning -- for DIFF,
 # two-dot is tip-to-tip and shows a branch merely behind main as reverting main's content; PR
 # previews need three-dot (origin/main...branch), per CLAUDE.md Shipping rules. NEVER denies.
-# Also appends one counted line to the shared session log (docs/pdca/session-log.txt -- location
+# Also appends one counted line to the session log (docs/pdca/session-log.txt -- location
 # owned and documented by the plugin's spawn-log.sh header; same single-line `>>` append, atomic
-# enough per that header) so the promotion-to-deny window is measurable from git: if the count
+# enough per that header) so the promotion-to-deny window is measurable: if the count
 # stays zero the warn rung suffices; if it grows, promote.
 #
 # FIRE CONDITIONS: the command must (a) invoke `git diff` -- and ONLY diff: the trap is
@@ -35,8 +35,11 @@ input=$(cat)
 cmd=$(printf '%s' "$input" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
 [ -z "$cmd" ] && exit 0
 
-printf '%s' "$cmd" | grep -qE '\bgit\b.*\bdiff\b' || exit 0
-range=$(printf '%s' "$cmd" | grep -oE '(^|[^[:alnum:]_/.-])(origin/)?main\.\.([^.]|$)' | head -1)
+# The range must sit in the SAME command segment as its `git diff`: a compound command pairing a
+# correct `git log main..X` with a correct three-dot `git diff` used to fire on the log's range.
+# Segments split on | ; & and the JSON-escaped newline.
+range=$(printf '%s' "$cmd" | sed 's/\\n/\n/g' | tr '|;&' '\n\n\n' | grep -E '\bgit\b.*\bdiff\b' \
+  | grep -oE '(^|[^[:alnum:]_/.-])(origin/)?main\.\.([^.]|$)' | head -1)
 [ -z "$range" ] && exit 0
 
 root="${CLAUDE_PROJECT_DIR:-.}"

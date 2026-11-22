@@ -25,6 +25,9 @@
  *     {"round": 1, "ids": ["hook-lib-missing-test", "stale-judge-default"]}
  *   `ids` are stable slugs for VERIFIED findings only — an unverified finding is not a finding.
  *   An empty `ids` array is the normal shape of a quiet round and must still be logged.
+ *   `lost` (optional) counts the round's lanes or verifiers that returned NOTHING — died, timed
+ *   out, hit a usage limit. A lost agent looked at nothing, so a round with lost > 0 is never
+ *   quiet: it cannot count toward CLEAN, whatever its `ids` say.
  * Exit 0 CLEAN | 1 EXHAUSTED | 2 RUNNING (another round is owed) | 3 malformed input.
  */
 import { readFileSync } from "node:fs";
@@ -36,7 +39,7 @@ export const DEFAULT_MAX = 6;
 
 /**
  * Pure verdict on a sweep's round log.
- * @param {Array<{round:number, ids:string[]}>} rounds - in execution order
+ * @param {Array<{round:number, ids:string[], lost?:number}>} rounds - in execution order
  * @param {number} max - the iteration cap the operator stated BEFORE starting
  * @param {number} quietRounds - consecutive no-new-findings rounds required to call it clean
  */
@@ -53,24 +56,31 @@ export function sweepState(rounds, max, quietRounds = 2) {
     if (!r || !Array.isArray(r.ids)) {
       return { state: "MALFORMED", reason: `round ${perRound.length + 1} has no ids array` };
     }
+    if (r.lost !== undefined && (!Number.isInteger(r.lost) || r.lost < 0)) {
+      return { state: "MALFORMED", reason: `round ${perRound.length + 1} has a lost count that is not a non-negative integer` };
+    }
     const fresh = r.ids.filter((id) => !seen.has(id));
     for (const id of r.ids) seen.add(id);
-    perRound.push({ round: perRound.length + 1, total: r.ids.length, fresh: fresh.length, freshIds: fresh });
+    perRound.push({ round: perRound.length + 1, total: r.ids.length, fresh: fresh.length,
+                    freshIds: fresh, lost: r.lost ?? 0 });
   }
   const n = perRound.length;
   const totalFindings = seen.size;
   // A quiet TAIL, not a quiet count anywhere: the rounds that must be empty are the LAST ones,
   // because a fix applied in round 3 can introduce a defect that only round 4 can see.
   const tail = perRound.slice(-quietRounds);
-  const quiet = n >= quietRounds && tail.every((r) => r.fresh === 0);
+  const quiet = n >= quietRounds && tail.every((r) => r.fresh === 0 && r.lost === 0);
   if (quiet) {
     return { state: "CLEAN", reason: `${quietRounds} consecutive rounds found nothing new`,
              rounds: n, totalFindings, perRound };
   }
   if (n >= max) {
-    const lastFresh = perRound[n - 1]?.fresh ?? 0;
+    const last = perRound[n - 1];
+    const why = last.fresh === 0 && tail.some((r) => r.lost > 0)
+      ? `agents lost in the closing rounds (${tail.reduce((a, r) => a + r.lost, 0)} returned nothing)`
+      : `findings still arriving (round ${n} found ${last.fresh} new)`;
     return { state: "EXHAUSTED",
-             reason: `cap of ${max} rounds reached with findings still arriving (round ${n} found ${lastFresh} new) — remaining defects UNKNOWN, not zero`,
+             reason: `cap of ${max} rounds reached with ${why} — remaining defects UNKNOWN, not zero`,
              rounds: n, totalFindings, perRound };
   }
   return { state: "RUNNING", reason: `round ${n + 1} of at most ${max} is owed`,
@@ -99,7 +109,8 @@ function main(argv) {
     console.error(`sweep-state: ${v.reason}`);
     return EXIT.MALFORMED;
   }
-  const detail = v.perRound.map((r) => `  round ${r.round}: ${r.total} finding(s), ${r.fresh} new`).join("\n");
+  const detail = v.perRound.map((r) =>
+    `  round ${r.round}: ${r.total} finding(s), ${r.fresh} new${r.lost ? `, ${r.lost} agent(s) LOST` : ""}`).join("\n");
   console.log(`sweep-state: ${v.state} — ${v.reason}\n${detail}\n${v.totalFindings} distinct finding(s) across ${v.rounds} round(s).`);
   return EXIT[v.state];
 }

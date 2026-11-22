@@ -88,3 +88,25 @@ test("exit codes: only CLEAN is 0, so a caller cannot treat exhaustion as succes
   assert.notEqual(EXIT.MALFORMED, 0);
   assert.equal(new Set(Object.values(EXIT)).size, 4);
 });
+
+test("a round that lost agents is never quiet — two empty rounds with lost work are not CLEAN", () => {
+  const v = sweepState([r("a"), { ids: [], lost: 9 }, r()], 10);
+  assert.equal(v.state, "RUNNING");
+  // The same log without the loss WOULD be clean: the lost count is what withholds it.
+  assert.equal(sweepState([r("a"), r(), r()], 10).state, "CLEAN");
+});
+
+test("lost work at the cap is EXHAUSTED and says agents were lost, not that findings arrived", () => {
+  const v = sweepState([r("a"), { ids: [], lost: 2 }, r()], 3);
+  assert.equal(v.state, "EXHAUSTED");
+  assert.match(v.reason, /agents lost in the closing rounds \(2 returned nothing\)/);
+});
+
+test("a full quiet tail after an earlier lost round is CLEAN — the loss was re-run", () => {
+  assert.equal(sweepState([r("a"), { ids: [], lost: 3 }, r(), r()], 10).state, "CLEAN");
+});
+
+test("a lost count that is not a non-negative integer is MALFORMED", () => {
+  assert.equal(sweepState([{ ids: [], lost: -1 }], 10).state, "MALFORMED");
+  assert.equal(sweepState([{ ids: [], lost: "two" }], 10).state, "MALFORMED");
+});

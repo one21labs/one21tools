@@ -13,7 +13,8 @@ Lint the decision log + every char budget:
 Plugin skills/hooks/agents run from the installed CACHE — a stale cache silently enforces
 RETIRED policy. After a plugin-touching merge: `/plugin marketplace update one21tools` THEN
 `/reload-plugins` (reload does not pull). Mid-PR the cache always lags — the working-tree
-gate is the authority.
+gate is the authority. A cloud session loads only account-enabled plugins: run a
+`pdca-workflow` skill or command that is not loaded from its source file.
 
 ## Muda — ruthlessly cut on sight
 Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identification` /
@@ -22,9 +23,10 @@ Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identifi
   look useful. **Don't gold-plate** — premature process machinery is itself muda.
 - **Poka-yoke:** delete the mirror; derive, don't duplicate — doctrine: `engineering-principles`
   Process-Level Poka-yoke.
-- **Forcing functions:** `adr-lint` guards the decision log; the advisory muda-review CI posts
-  one findings comment, never blocks. `/retrospect` closes EVERY session (+ on demand; ADR 0081) —
-  empty findings valid, never a green line.
+- **Sunk cost (owner, 21-Nov-2026):** what a thing cost to build is no reason to keep it; it
+  stays only for what it earns from here.
+- **Forcing function:** `/retrospect` closes EVERY session (+ on demand; ADR 0081) — empty
+  findings valid, never a green line.
 - **Two-why (ADR 0081):** before fixing any gate/CI/verifier failure: instance or class? which
   rung should have caught it? "My error" never ends the chain.
 
@@ -33,7 +35,7 @@ Taxonomy + audit method: the **`engineering-principles`** skill (`waste-identifi
   `plugin.json`. A broken or duplicate entry breaks `/plugin install`.
 - **SKILL.md frontmatter:** `name` FIRST (must match the folder), description-as-trigger;
   `disable-model-invocation` for explicit-invoke skills. Run `validate.py` after any SKILL.md edit.
-- `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index); run `adr-lint` pre-merge.
+- `docs/decisions/` is version-agnostic, frontmatter-cataloged (no index).
 
 ## Docs — one home per fact
 Every fact has ONE home at the lowest altitude that owns it; higher docs reference, never restate
@@ -49,29 +51,28 @@ logic; a doc restating them rots.
 ## Shipping — PR
 - **Size PRs for reviewability, not one-concern (ADR 0056)**: ship cohesive work together across
   files; split only for a clean revert boundary or to keep main green. Plugins carry NO
-  version fields — updates key on git content (ADR 0075).
-- **Sync before spend** (ADR 0043): before executing an issue, `git fetch origin main` + re-read
+  version fields — updates key on git content.
+- **Sync before spend**: before executing an issue, `git fetch origin main` + re-read
   the issue and search PRs citing it; repeat before the final push. When issue-write is
   available, post an "in progress" claim comment at start; clear it on completion.
-- **gh quirks:** `gh issue view` needs `--json` here (Projects-classic deprecation); `gh pr edit`
-  fails the same way — PATCH the body via `gh api`.
-- **Read the PR's review comments before merging** — the advisory muda-review CI posts one
-  comment; address each finding or say why not. Merging unread leaves muda on `main`.
+- **Read the PR's review comments before merging**; address each finding or say why not.
 - **Squash-merge is the owner's per-PR call** (not automatic). Judge merged-ness by PR state +
   file diff, never `main..branch` ahead-count; after any upstream merge, `git fetch` + rebase
   before ranging, branching, or `/retrospect` (stale local `main` = phantom ranges).
 - PR body: Purpose / Changes / Testing / Deferred (ADR 0030).
-- **Disclose Claude authorship** on every issue and PR Claude writes (this repo AND external repos,
-  e.g. anthropics/skills): end the body with "*Disclosure: written by Claude (Claude Code) under
+- **Disclose Claude authorship** on every issue and PR Claude writes (here AND in external repos): end the body with "*Disclosure: written by Claude (Claude Code) under
   the direction of the repo owner.*" The Claude-Session commit trailer alone is not disclosure.
 - **No external publication without approval**: never file or edit issues/PRs/comments in a repo
   outside one21labs/* without the owner's per-item approval of the exact text. An internal issue
   saying "file upstream" authorizes DRAFTING, not posting — leave the draft in the internal issue
   and stop.
-- **Findings valve** (ADR 0021, amended 28-Jul-2026): fix it in-session, discard it, or hand the
+- **Findings valve**: fix it in-session, discard it, or hand the
   owner a memo — an issue is the EXCEPTION, only for work someone must act on later; the PR's
-  Deferred section links any it creates. No handoff/TODO files — work-state tracks in issues,
-  decision-state stays in ADRs.
+  Deferred section links any it creates. ONE handoff file, `docs/pdca/handoff.md`: what git and
+  the tracker cannot tell the next session, REWRITTEN whole each session, never appended; they
+  win where it disagrees. No other TODO files.
+- **Self-improvement loop:** one turn per run — `pdca-workflow/commands/improve.md`. **Usage:**
+  at 90% of the 5-hour window, schedule a resume after the reset and stop.
 
 ## Feedback = PDCA trigger
 This repo dogfoods its own `pdca-workflow` plugin. A judgment call gets DECIDED before it's built: routine — in the

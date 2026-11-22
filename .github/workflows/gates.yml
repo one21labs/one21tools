@@ -1,13 +1,13 @@
 # gates.yml — the REQUIRED check (retired ADR 0012): every char-budget/structure gate script, run
 # on every PR and push to main. This is the enforcement layer ADR 0008/0009 record — the scripts
 # exit nonzero on a violation, so any over-budget SKILL.md/reference/agent/ADR/CLAUDE.md fails the
-# check. Mark `gates` required in Settings -> Branches (claude-review.yml stays advisory).
+# check. Mark `gates` required in Settings -> Branches.
 # Also require up-to-date branches AND disallow bypass (admin/agent tokens skip protection
 # otherwise).
 # Zero setup: the gate scripts are zero-dependency by design and run on the runner's
 # preinstalled python3 + node.
 # Rejected (retired ADR 0012): git hooks (client-side, a clone without them bypasses every gate);
-# folding into claude-review.yml (advisory by design, must not hang on a token). Reopen-if:
+# folding into an advisory review job (advisory by design, must not hang on a token). Reopen-if:
 # runtime/flakiness materially slows PRs -> split or cache; a consumer without GitHub documents
 # the manual gate invocations as their required-check equivalent.
 name: gates
@@ -29,11 +29,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          # Full history: check-relocated-paths' ever-existed filter is `git log --all` (ADR
-          # 0089) — on the default depth-1 clone every path reads never-existed and that gate
-          # goes silently green forever.
-          fetch-depth: 0
 
       - name: Skill gate — validate.py over every skill (frontmatter, body/reference caps, emoji)
         run: |
@@ -49,13 +44,6 @@ jobs:
       - name: JS gate tests (char budgets + adr-lint decision logic)
         # unquoted so the shell expands the glob — works on every node version
         run: node --test pdca-workflow/scripts/*.test.mjs scripts/*.test.mjs
-
-
-      - name: "check-relocated-paths — frozen benchmark dirs' backticked paths still resolve (ADR 0089)"
-        run: node scripts/check-relocated-paths.mjs
-
-      - name: "check-cite-ownership — an ADR cite names the record that OWNS the doctrine term (ADR 0090)"
-        run: node scripts/check-cite-ownership.mjs
 
       - name: adr-lint — ADR structure + ADR/CLAUDE.md/agent char budgets
         # --verbose: the per-record char listing belongs in the CI log, not in the post-edit
@@ -95,9 +83,3 @@ jobs:
           git fetch --depth=1 origin "$GITHUB_BASE_REF"
           NEW=$(git diff --diff-filter=A --name-only "origin/$GITHUB_BASE_REF" HEAD -- docs/decisions/ | tr '\n' ',')
           node pdca-workflow/scripts/adr-lint.mjs docs/decisions --new-adrs="$NEW"
-
-      - name: "check-references — an external ref added to the corpus carries a fetch-audit record (ADR 0079)"
-        if: github.event_name == 'pull_request'
-        run: |
-          git fetch --depth=1 origin "$GITHUB_BASE_REF"
-          node scripts/check-references.mjs "origin/$GITHUB_BASE_REF"

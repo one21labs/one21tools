@@ -1,7 +1,7 @@
 # Doc system — altitude ladder, char budgets, token approximation
 
 Single home for the **documentation hierarchy**: the altitude ladder (below) and the doc-size
-budgets. Char budgets were decided in **ADR 0008**. The authoritative *value* of each cap lives in
+budgets. The authoritative *value* of each cap lives in
 its enforcement home (`char-budget.mjs`); the table below indexes them for navigation, not as a
 second source. The one-home / drift *rule* lives in CLAUDE.md "Docs — one home per fact"; this file
 owns the *ladder* that rule ranks by.
@@ -22,7 +22,7 @@ The tier order a fact's home is ranked against (high -> low):
 Code is the lowest tier and owns executables — schema versions, signatures, dims, filenames,
 breakpoints, and (here) the budget numbers themselves (`char-budget.mjs`). A copy above its home is drift.
 
-**The ADR altitude test (owner, 26-Jul-2026):** a decision record is for calls that affect MANY
+**The ADR altitude test:** a decision record is for calls that affect MANY
 files or none in particular — policies. Name the ONE file that owns the decision: if you can,
 the decision belongs in that file's header comment, not an ADR; a retired record's id maps to
 its new home in `docs/decisions/README.md` (ids are never renumbered or reused; gaps are
@@ -39,6 +39,7 @@ correct).
 | README | `README.md` | none | — | — |
 | CLAUDE.md | `CLAUDE.md` | **6,000** (~2 pp) | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | CLAUDE.md | pdca-init's `claude-md-template.md` (the scaffold it copies) | **6,000** | ~1,500 | `char-budget.mjs` (`DOC_BUDGETS`) |
+| docs | `docs/pdca/handoff.md` (the one handoff file; rewritten whole, never appended) | **4,000** | ~1,000 | `char-budget.mjs` (`DOC_BUDGETS`) |
 | docs | `docs/decisions/NNNN-*.md` (ADR) | **9,000**; draft margin **8,000** | ~2,250 | `char-budget.mjs` (`ADR_CHAR_BUDGET`, margin `ADR_CHAR_MARGIN`) |
 | docs | `docs/decisions/NNNN-*.md` (lite ADR, `tier: lite`) | **2,000** | ~500 | `char-budget.mjs` (`LITE_ADR_CHAR_BUDGET`) |
 | docs | `docs/decisions/README.md` (ADR guide) | none | — | — |
@@ -50,7 +51,7 @@ The caps above (CLAUDE.md / ADRs / agents) are the SSoT + over-budget predicate 
 enforced by `adr-lint.mjs` (ADRs, no exemptions; `oversizeDocs()` over `CLAUDE.md`; `oversizeAgents()`
 over agent prompts) and unit-tested in `adr-lint.test.mjs` + `char-budget.test.mjs`. **SKILL.md-body +
 skill-reference char budgets are a separate concern owned by the `building-skills` skill, not
-pdca-workflow** — ADR 0009 extends the discipline there so this plugin has no cross-skill dependency.
+pdca-workflow**, so this plugin has no cross-skill dependency.
 Lower a cap when a doc is leaned; never pad it.
 
 **A consumer with a designated detail-home doc** (one other docs reference, so a larger cap is the
@@ -66,7 +67,7 @@ validate.py's (`skills/**/references/*.md`, SKILL.md) AND `char-budget.mjs`'s (C
 agent prompts) — counts unicode CODEPOINTS, not bytes (`wc -c` over-reads every em-dash by 2), so
 measure with the gate itself or
 `python3 -c "print(len(open(f,encoding='utf-8').read()))"`. Edit budgeted docs via the
-Edit/Write tools only — Bash writes bypass the budget-edit-guard hook (ADR 0060). If the
+Edit/Write tools only — a Bash write bypasses any edit-time size hook a project wires. If the
 addition exceeds the headroom, do NOT word-golf the new line into mush and do NOT edit-validate-trim
 in a loop: review the WHOLE file for muda and drift (restatements of another home, narration,
 dead references) and cut there first — a file living at its cap is itself a smell that it carries
@@ -74,7 +75,7 @@ waste or holds facts belonging at a different altitude.
 
 ## Method — chars <-> tokens
 
-Budgets are in **chars** (ADR 0008): a char count can't be gamed by long lines, and needs no API
+Budgets are in **chars**: a char count can't be gamed by long lines, and needs no API
 call to check in CI. The token column is a convenience estimate via the standard **~4 chars/token**
 rule for English/markdown, cross-checked against **words x 1.33**; the two bracket each other within
 ~25%, and dense markdown (backticks, slashes, symbols) sits nearer the chars / 4 end. Page anchor:

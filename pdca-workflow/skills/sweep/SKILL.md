@@ -37,12 +37,13 @@ applies its own default — that constant is the one home, so this file does not
 2. **Lanes, not one look.** Spawn independent lanes with different questions (correctness,
    staleness, dead references, contract drift) rather than one general pass — a single lane
    returns its own priors. Any finding ABOUT this loop or the tooling running it needs a
-   foreign-vendor lane, not a sibling: `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs"`
-   (ADR 0093 owns the class and the FRAME-UNCHECKED result).
+   foreign-vendor lane, not a sibling:
+   `node "${CLAUDE_PLUGIN_ROOT}/scripts/crosscheck.mjs" --claim-file <file>` (the `verify`
+   skill, step 2, owns that route and its FRAME-UNCHECKED result).
 3. **Verify each candidate against the real tree before it counts.** An unverified finding is
    not a finding: it inflates the round, and the fix it triggers is pure new risk.
-4. **Fix what is cheap and verified; open an issue for the rest** (ADR 0021 — deferred work
-   tracks in issues, never in a handoff file). Each editing fix lane gets its own git worktree (or
+4. **Fix what is cheap and verified; open an issue for the rest** (deferred work
+   tracks in issues). Each editing fix lane gets its own git worktree (or
    returns a diff to one coordinator): a harness hook can commit a shared tree mid-edit. Then
    re-run the project's deterministic gates: a fix that breaks a gate is next round's finding.
    **The loop is SUBTRACTIVE by default and additive only in the rare case.** Delete the
@@ -51,12 +52,14 @@ applies its own default — that constant is the one home, so this file does not
    hook or script a round ships becomes the next round's surface, so an additive habit makes the
    loop feed itself and the count stops falling: measured here as a round whose headline finding
    was a bug in a guard the round before had built, inside a 9-round sweep that never went quiet.
-5. **Append the round line** — `{"round": N, "ids": ["slug-a"], "xfam": "<model that answered>"}`,
+5. **Append the round line** — `{"round": N, "ids": ["slug-a"], "lost": 0}`,
    verified findings only. A round that found nothing still gets a line with an empty array; that
    line IS the evidence of convergence, and a skipped one silently shortens the quiet tail.
-   `xfam` names the cross-lineage model, read back from the lane (`crosscheck.mjs`), and it must
-   appear on a round INSIDE the quiet tail — omit it and the verdict is FRAME-UNCHECKED, not CLEAN.
-   Documenting the shape without it produced exactly that dead end.
+   `lost` counts the lanes and verifiers that returned NOTHING (crash, timeout, usage limit):
+   they looked at nothing, so the script never counts that round as quiet — re-run the lost
+   work in the next round. If a foreign-vendor lane answered, add `"xfam": "<model>"`; the
+   script does not read it, so a sweep with no such lane must SAY in its report that findings
+   about the loop itself went unchecked.
 6. **Ask the script for the verdict — never decide it in prose:**
    `node "${CLAUDE_PLUGIN_ROOT}/scripts/sweep-state.mjs" <log> --max <N>`. It owns the stopping
    states, their exact meaning, and the exit code for each; its header is the one home for all of

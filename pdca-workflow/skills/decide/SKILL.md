@@ -12,7 +12,7 @@ separate doc restates it.
 **Trigger.** A roadmap/product change, an open judgment call, or ANY user feedback (bug report,
 feature ask, behavioral observation). Route it here — never fix a feedback item directly before
 planning it. **Panel only for genuinely CONTESTED calls** (real two-sided trade-off, Sacred
-surface, hard-to-reverse); everything else is routine — step 4 (ADR 0062). When the
+surface, hard-to-reverse); everything else is routine — step 4. When the
 decisive fact is a person's preference and the person is reachable, ASK — a panel cannot
 outvote the client.
 
@@ -35,7 +35,13 @@ ceremony; this skill composes them and adds the record.
 | Bridge | `tech-lead` | turns an accepted decision into a buildable spec. |
 | Adversary | `red-team` | tries to break each decision against the real product; the PM must respond (when required: loop step 6). |
 
-**Model split** — each agent's frontmatter `model:` is the SSoT for its tier.
+**Spawning a role.** Spawn it by agent name — its frontmatter `model:` then applies (the one
+home for its tier). Name not registered (skills loaded without the plugin's agents)? Spawn a
+general-purpose agent told to read and adopt `../../agents/<role>.md`, passing that file's
+`model:` — unset, the helper runs on the session's model. No subagents at all? Play the role
+yourself from that file, one at a time, and record that the check was not independent. A helper
+that returns nothing (crash, timeout, usage limit) is LOST, not an answer: re-run it once; lost
+again, stop and report — never a vote, a pass, or a quiet round.
 
 ## The loop
 1. **Inherit.** `git fetch`; check open PRs + remote branches for in-flight ADRs. Scan
@@ -43,13 +49,13 @@ ceremony; this skill composes them and adds the record.
    triggers vs the current product; flag any that fire. The corpus IS the plan: flag drift (a shipped ADR a
    sibling still treats as open; an accepted ADR long stalled with no `## Act`;
    roadmap/changelog/tracker out of sync) — cite the line; omit if none. Grep-verify a claimed inter-ADR relationship (supersedes/contradicts) — no cite,
-   not real. Metrics: `references/metrics-engine.md`, Wiring.
+   not real.
 2. **Frame.** Clarify scope FIRST, per the `advise` skill's Frame step (its home). List the open
    calls. One register. Multiple calls: pre-allocate parallel `pm`s' IDs here, one each.
 3. **Check output.** For any claim about what the product renders/prints/exports/writes, grade the
    real produced output before advising — the grading rule's home is the `verifier` agent. No
    output layer = skip.
-4. **Advise (dialectic).** Two-stage routing (ADR 0062): a routine or reversible call STOPS
+4. **Advise (dialectic).** Two-stage routing: a routine or reversible call STOPS
    here: decide it yourself, rationale in the commit/PR — no panel, `pm`, or ADR; escalate only for a high-stakes or irreversible call. Then run the `advise` primitive on the
    framed scope — it owns panel selection and the spawn/shape rules.
 5. **Decide (PM).** Escalated: invoke `pm`; it weighs the advice and writes an ADR per call per
@@ -69,7 +75,7 @@ ceremony; this skill composes them and adds the record.
    `docs/decisions/README.md` (vendored `references/adr-template.md`: frontmatter, ship-state,
    tracker mirror; lint: `references/adr-lint.md`). Ship the ADR as read back from
    disk, never an agent's chat echo. Spawned experiments: a
-   neutral falsifiable hypothesis (ADR 0059).
+   neutral falsifiable hypothesis, naming no preferred outcome.
 8. **Iterate the system.** Fold what you learned (a missing field, a better stop rule) back into
    its home — an agent file, this skill, or CLAUDE.md. Automate this Act loop with `/retrospect`.
 

@@ -24,7 +24,7 @@ Ask these questions in order:
 | Is this a reusable procedure across projects? | → Skill | consider if needed at all |
 
 An operational rule landing in a repo-only home despite the shipping-boundary row means the
-row's wording is insufficient — strengthen it or add a validate.py check (retired ADR 0038).
+row's wording is insufficient — strengthen it or add a validate.py check.
 
 ## What Belongs Where
 

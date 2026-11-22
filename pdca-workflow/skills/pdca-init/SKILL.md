@@ -26,25 +26,25 @@ Run this loop:
    DROPPING template lines that don't apply to this stack — the template is a generic scaffold, not
    a checklist to keep verbatim (e.g. the persistence/schema Sacred items for a stateless tool, the
    deploy Never for a library, the render check for a non-UI project). Keep it to the always-loaded
-   minimum (~60 lines). If the project has product analytics, add a
-   `metrics command:` line (`../decide/references/metrics-engine.md`, Wiring). If CLAUDE.md already exists, only ADD the
+   minimum (~60 lines). If CLAUDE.md already exists, only ADD the
    missing workflow themes (cut muda, one-home/altitude, the PDCA feedback trigger, `/retrospect`
-   before a PR); never rewrite the user's content.
+   at session close); never rewrite the user's content.
 
 3. **Scaffold the adoption marker + the decision log + its guard.** If `docs/pdca/` is absent,
-   create it with an empty `session-log.txt` (committed): the dir is BOTH the panel spawn-log's
-   home and the marker the plugin's enforcement hooks require before firing in a project — no
+   create it with a committed `.gitignore` listing `session-log.txt` and `gate-hits.txt`: the hooks'
+   logs stay local (delete the file to commit them), and the dir is ALSO the marker the plugin's enforcement hooks require before firing in a project — no
    `docs/pdca/`, no hooks (the hooks never create it themselves). If `docs/decisions/` is absent, create it: copy
    `../decide/references/adr-template.md` into `docs/decisions/README.md` (its canonical
    home). The copy is
    deliberately vendored, frozen at adoption: a plugin update must not silently rewrite a project's
    decision rules, and the plugin cache is per-user (a link would dangle for teammates/CI). Only a
    repo hosting the plugin source itself links instead of copying. No index
-   file (adr-template.md). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs`,
-   `adr-lint.test.mjs`, `char-budget.mjs`, and `char-budget.test.mjs` (the linter's import — without
-   it `adr-lint.mjs` throws `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
+   file (adr-template.md). Copy `${CLAUDE_PLUGIN_ROOT}/scripts/adr-lint.mjs` and
+   `char-budget.mjs` (the linter's import — without it `adr-lint.mjs` throws
+   `ERR_MODULE_NOT_FOUND`) into the project's `scripts/` and tell the user
    to run `node scripts/adr-lint.mjs` pre-merge / in CI — the corpus poka-yoke
-   (`../decide/references/adr-lint.md`).
+   (`../decide/references/adr-lint.md`). Not their `*.test.mjs`: those test this plugin's own
+   repo layout and corpus, and fail in a consumer.
 
 4. **Generate the advisor panel.** This is the point of per-project customization — follow
    `references/panel-generation.md`; its Method owns the inference, roster size, target dir,
@@ -55,5 +55,5 @@ Run this loop:
    auto-apply) the optional advisory CI: copy `${CLAUDE_PLUGIN_ROOT}/templates/claude-review.yml` into
    `.github/workflows/` and print its OAuth-token / required-check setup steps. Also offer the
    house reply-summary standard: copy `${CLAUDE_PLUGIN_ROOT}/templates/plain-summary.md` to
-   `.claude/output-styles/` and set `outputStyle` in settings (ADR 0074).
+   `.claude/output-styles/` and set `outputStyle` in settings.
 

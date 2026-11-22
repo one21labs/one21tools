@@ -13,7 +13,7 @@ Guard: adr-lint — command in [CLAUDE.md](../../CLAUDE.md), spec in
 
 Records retired under the ADR altitude test (home: doc-budgets.md); a cite of one resolves HERE:
 
-- 0001 -> pdca-workflow/skills/decide/references/metrics-engine.md (spec-not-runnable rationale, top)
+- 0001 -> git history (metrics-engine.md deleted 21-Nov-2026: a spec nothing here implemented)
 - 0002 -> docs/decisions/README.md (ADR = Authoritative Decision Record)
 - 0003 -> pdca-workflow/skills/decide/references/adr-lint.md (UNFALSIFIABLE presence gate)
 - 0004 -> pdca-workflow/skills/pdca-init/references/panel-generation.md (step 4, version-control the panel)
@@ -30,7 +30,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0017 -> CLAUDE.md (no plugin version fields; sole drift predicate adr-lint.mjs manifestDrift)
 - 0018 -> pdca-workflow/agents/retrospect.md (Method, backstory-sweep clause; reopen: recurrence -> a dedicated pre-PR doc-review step, not a bigger prompt)
 - 0020 -> pdca-workflow/skills/decide/references/adr-template.md (## Lite tier)
-- 0021 -> CLAUDE.md (Shipping - PR, Findings valve)
+- 0021 -> CLAUDE.md (Shipping - PR, Findings valve; its handoff-file ban lifted 21-Nov-2026 for ONE rewritten, size-capped file)
 - 0022 -> .claude/settings.json (extraKnownMarketplaces: directory source ./)
 - 0025 -> one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (## Scoring: fraction-met, prosecutor min rule)
 - 0026 -> one21labs/skill-measure:scripts/lib/README.md (bench_io record formats + raw-output archive)
@@ -54,7 +54,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0046 -> scripts/check-restatement.mjs (header); pdca-workflow/templates/claude-review.yml (one-home line)
 - 0048 -> CLAUDE.md (no plugin version fields; bump cadence is a dead path)
 - 0049 -> pdca-workflow/hooks/spawn-log.sh (header); pdca-workflow/agents/retrospect.md (Telemetry logs)
-- 0050 -> README.md (Requirements: each plugin installs standalone)
+- 0050 -> README.md (Install: each plugin installs standalone)
 - 0051 -> pdca-workflow/skills/decide/references/adr-template.md (PR is the decision-batching unit); adr-lint.md (check 12)
 - 0052 -> one21labs/skill-measure:scripts/lib/cost_gate.py (header); one21labs/skill-measure:scripts/lib/blind.py (header)
 - 0053 -> .github/workflows/gates.yml (header: branch-protection settings)
@@ -77,12 +77,15 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0074 -> .claude/output-styles/plain-summary.md (+ pdca-workflow/templates/plain-summary.md)
 - 0075 -> CLAUDE.md (Shipping: plugins carry no version fields; absence is the enforcement)
 - 0076 -> one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (derived estimates + warn escalation)
-- 0077 -> .gitattributes (comment above the merge=union lines)
+- 0077 -> git history (merge=union attribute dropped when the logs went local, ADR 0080 (c))
 - 0078 -> scripts/check-pr-body.mjs (body-side closing-keyword guard)
 - 0083 -> pdca-workflow/agents/retrospect.md (Method, Custodial state)
 - 0085 -> README.md (Provenance) + each shipped plugin README's Provenance section
 - 0087 -> pdca-workflow/scripts/adr-lint.mjs (lite Enforced: check); adr-lint.md (check 6)
+- 0079 -> git history (both carriers deleted: scorecard.mjs in #311; check-references.mjs 21-Nov-2026 with the uncited research corpus it guarded)
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
+- 0089 -> git history (check-relocated-paths.mjs deleted 21-Nov-2026: a frozen benchmark dir reproduces at its own commit)
+- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026: a blocking gate over two terms with no recorded catch)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
 - 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue one21labs/skill-measure#1 — if it closes with the stats menu unaddressed, re-file survivors singly

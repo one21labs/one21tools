@@ -16,12 +16,12 @@ Method:
   the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open);
   git-tellable backstory in changed doc text (CLAUDE.md's cut-on-sight list).
 - **Telemetry logs:** read `docs/pdca/session-log.txt` + `docs/pdca/gate-hits.txt` if present.
-  A gate-hit is a caught violation; recurring hits on one gate = a promotion candidate (ADR
-  0080). Flag a panel fire with no matching judgment call in range (misfire) and a worthy call
+  A gate-hit is a caught violation; recurring hits on one gate = a promotion candidate.
+  Flag a panel fire with no matching judgment call in range (misfire) and a worthy call
   with no fire (miss) — zero lines ≠ no panel: raw agents skip the hook; check ADR `Panel:` lines.
 - **Custodial state:** `git branch -r`, `git branch -vv`, `git worktree list`, `git stash list` —
   flag merged-PR leftovers, `claude/*` refs with no PR, gone-upstream locals, stray
-  worktrees/stashes. Then the backlog (ADR 0094): run
+  worktrees/stashes. Then the backlog: run
   `${CLAUDE_PLUGIN_ROOT}/scripts/issue-hygiene.mjs` (usage in its header), CITE its summary —
   propose only, closing/retitling are owner calls. Prefer a structural fix to a vigilance rule.
 - **Session friction (ONE unverified source):** each supplied correction or wrong guess is a
@@ -40,7 +40,7 @@ Method:
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a friction instance — never
   manufacture one to hit a count, and verify it against the repo before relaying — specific, not
-  vibes. None real? Say so — zero is a valid result (ADR 0081).
+  vibes. None real? Say so — zero is a valid result.
 
 Output (terse, fragments): every real improvement, each as —
 finding (evidence: commit / `file:line` / friction) -> improvement (smallest change) -> home (exact file) -> judgment call?

@@ -102,7 +102,7 @@ export function lint({ files, budget = ADR_CHAR_BUDGET, liteBudget = LITE_ADR_CH
     const dangling = [...cited].filter(id => !onDisk.has(id) && !retiredIds.has(id));
     if (dangling.length) problems.push(`${a.name}: dangling ADR cite(s): ${dangling.join(", ")} — the cited record is not in this corpus. Ship it in the same PR (mutually-citing records must land together), correct the number, or add the id to README.md's Retired-ids map if its content was hoisted`);
 
-    // Outcome vocabulary (ADR 0079, spec check 13): every `## Act` `- [outcome]` row carries
+    // Outcome vocabulary (adr-lint.md, check 13): every `## Act` `- [outcome]` row carries
     // EXACTLY ONE of verified|violated|still-open — the controlled input a hit-rate
     // consumer classifies on. Free-text synonyms ("FALSIFIED") or double-tags are unclassifiable,
     // and a dropped miss reads as no miss (unknown != healthy). Applies to every tier.

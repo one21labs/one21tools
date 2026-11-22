@@ -78,6 +78,10 @@ Two first-class efficiency levers (rationale: [token-format-efficiency.md](token
 - **ALWAYS set the worker/grader model explicitly** — subagents INHERIT the session model when
   `model` is unset, so a 100+-agent grid launched from an Opus session silently runs every worker
   on the expensive tier. Set `model: sonnet`/`haiku` explicitly; use `inherit` only when you mean it.
+- **A lost agent is not an answer.** A worker that returns nothing (crash, timeout, usage limit;
+  a Workflow `agent()` returning `null`) looked at nothing — never count it as a "no" vote, a
+  passed check, or an empty finding list (`filter(Boolean)` hides exactly this). Re-run it once;
+  if it is lost again, stop and report what was not checked.
 
 ### Parallelism
 
