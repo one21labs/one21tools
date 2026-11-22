@@ -13,7 +13,7 @@ Guard: adr-lint — command in [CLAUDE.md](../../CLAUDE.md), spec in
 
 Records retired under the ADR altitude test (home: doc-budgets.md); a cite of one resolves HERE:
 
-- 0001 -> git history (metrics-engine.md deleted 21-Nov-2026: a spec nothing here implemented)
+- 0001 -> git history (metrics-engine.md deleted 21-Nov-2026)
 - 0002 -> docs/decisions/README.md (ADR = Authoritative Decision Record)
 - 0003 -> pdca-workflow/skills/decide/references/adr-lint.md (UNFALSIFIABLE presence gate)
 - 0004 -> pdca-workflow/skills/pdca-init/references/panel-generation.md (step 4, version-control the panel)
@@ -29,9 +29,11 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0016 -> pdca-workflow/README.md (invocation paragraph: panel primitives model-invocable); bench condition: one21labs/skill-measure:scripts/lib/spend_guard.py header
 - 0017 -> CLAUDE.md (no plugin version fields; sole drift predicate adr-lint.mjs manifestDrift)
 - 0018 -> pdca-workflow/agents/retrospect.md (Method, backstory-sweep clause; reopen: recurrence -> a dedicated pre-PR doc-review step, not a bigger prompt)
+- 0019 -> one21labs/skill-measure:scripts/eval_verdict.py (header)
 - 0020 -> pdca-workflow/skills/decide/references/adr-template.md (## Lite tier)
 - 0021 -> CLAUDE.md (Shipping - PR, Findings valve; its handoff-file ban lifted 21-Nov-2026 for ONE rewritten, size-capped file)
 - 0022 -> .claude/settings.json (extraKnownMarketplaces: directory source ./)
+- 0023 -> one21labs/skill-measure:skills/bench/references/empirical-evals.md
 - 0025 -> one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (## Scoring: fraction-met, prosecutor min rule)
 - 0026 -> one21labs/skill-measure:scripts/lib/README.md (bench_io record formats + raw-output archive)
 - 0027 -> one21labs/skill-measure:scripts/lib/verdict.py (merge_verdict: directional merge bar)
@@ -47,6 +49,7 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0038 -> skills/engineering-principles/references/jit-documentation.md (Decision Test, shipping-boundary row)
 - 0039 -> skills/engineering-principles/references/waste-identification.md + ssot-enforcement.md + jit-documentation.md; skills/building-skills/references/validation-rules.md
 - 0040 -> pdca-workflow/hooks/explicit-model-guard.sh (header); skills/building-skills/scripts/validate.py (R8)
+- 0041 -> benchmarks/README.md (scaffold from the harness templates, never a dated dir)
 - 0042 -> one21labs/skill-measure:skills/bench/references/pre-registration.md (cite methodology; cost-pilot; prior-art pass)
 - 0043 -> CLAUDE.md (Shipping - PR, Sync before spend)
 - 0044 -> skills/building-skills/scripts/validate.py (R6.2)
@@ -82,12 +85,14 @@ Records retired under the ADR altitude test (home: doc-budgets.md); a cite of on
 - 0083 -> pdca-workflow/agents/retrospect.md (Method, Custodial state)
 - 0085 -> README.md (Provenance) + each shipped plugin README's Provenance section
 - 0087 -> pdca-workflow/scripts/adr-lint.mjs (lite Enforced: check); adr-lint.md (check 6)
-- 0079 -> git history (both carriers deleted: scorecard.mjs in #311; check-references.mjs 21-Nov-2026 with the uncited research corpus it guarded)
+- 0079 -> git history (carriers deleted: scorecard.mjs #311, check-references.mjs 21-Nov-2026)
 - 0088 -> pdca-workflow/scripts/adr-lint.mjs (docIndexDrift + stale-discharge comments)
-- 0089 -> git history (check-relocated-paths.mjs deleted 21-Nov-2026: a frozen benchmark dir reproduces at its own commit)
-- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026: a blocking gate over two terms with no recorded catch)
+- 0089 -> benchmarks/README.md (a frozen dir reproduces at its own commit; path gate deleted 21-Nov-2026)
+- 0090 -> git history (check-cite-ownership.mjs deleted 21-Nov-2026)
 - 0091 -> pdca-workflow/skills/retrospect/SKILL.md (step 5, unearned provenance + delete test)
 - 0094 -> pdca-workflow/agents/retrospect.md (Custodial state, backlog); pdca-workflow/scripts/issue-hygiene.mjs (header)
+- 0096 -> one21labs/skill-measure:README.md (Honest limits)
+- 0097 -> .claude-plugin/marketplace.json (renames map); ADR 0102
 - 0098 -> one21labs/skill-measure:skills/bench/references/judging.md (prosecutor scoped to verdict path); backlog: issue one21labs/skill-measure#1 — if it closes with the stats menu unaddressed, re-file survivors singly
 - 0099 -> one21labs/skill-measure:scripts/lib/usage_guard.py (header); one21labs/skill-measure:skills/bench/references/cost-and-verdict.md (usage-limit pause)
 - 0100 -> benchmarks/2026-10-12-g8-shortfall/metadata.json (stop rule) + README.md (Measured state)

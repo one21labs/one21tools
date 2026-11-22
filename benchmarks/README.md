@@ -22,12 +22,8 @@ commit that landed it — the harness was in-tree then. `benchmarks/lib/` shims 
 import `bench_io`/`verdict`/`hermetic_driver` and read the deny-list from its `scripts/lib`
 (usage: that dir's `README.md`); record the harness commit in `metadata.json`; follow the ADR
 0023/0026 artifact formats. A copied dir carries whatever stale conventions it had at its date.
+No gate checks this; a stale-copy miss recurring is the trigger to build one.
 
-**Path preservation when shared code moves** (ADR 0089): keep the paths a frozen dir cites
-resolvable — an executable dependency gets a forwarding shim, a doc-only cite a pointer stub or
-appended correction; the frozen line itself is never edited.
-`scripts/check-relocated-paths.mjs` gates the BACKTICKED cites only; un-backticked and relative
-forms are deliberate residue (that script's SCOPE header). So a dir predating the gate can still
-name a moved path in plain text — the pre-extraction benchmarks/lib README, now
-one21labs/skill-measure:scripts/lib/README.md, is cited that way in several dated dirs. Those lines are
-frozen records, not a backlog: append a correction if one is worth writing, never edit them.
+**When shared code moves** (ADR 0089): the frozen line is never edited. A dir that cites a
+moved path reproduces at the commit that landed it; no gate checks those paths. Append a
+correction if one is worth writing.
