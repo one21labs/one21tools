@@ -1,186 +1,25 @@
 # pdca-workflow
 
-A PM-led PDCA (Plan-Do-Check-Act) feedback loop for AI-assisted projects, run by Claude agents:
-turn every piece of user feedback into a deliberate decision, build it, verify it against the real
-product, then improve the process that produced it.
+Two second-opinion skills. Both work by starting fresh subagents that have not seen your
+reasoning, because that independence is what they are for.
 
-The goal is **not to remove the human from the loop** — it is to raise the AI's decision quality
-(recorded, independently verified, self-improving) so the human can delegate more and intervene
-less. The human stays accountable; the agents earn more of the work.
+| Skill | When | What it does |
+|---|---|---|
+| `/advise` | Before a contested decision | You state your own pick, two independent advisors argue opposing sides, and you report what they changed. |
+| `/fresh-check` | Before work ships | A reviewer with no stake reproduces each claim against the real code and output, then tries to break the work. |
 
-## The loop is the asset
-
-This plugin is an implementation of what the field now calls **loop engineering**: the durable
-asset around an AI model is the loop — context, memory, decision records, evals, verification
-gates, and the feedback that improves them — not the model, which is a swappable component.
-The frame was derived here independently, from TPS/lean and Deming's PDCA applied to a real
-repo; the wider field converged on the same shape from the other direction:
-
-- Anthropic on context as a finite engineered resource ([Sept 2025](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents))
-  and a planner -> generator -> evaluator harness cycling until the app works
-  ([Mar 2026](https://www.anthropic.com/engineering/harness-design-long-running-apps));
-  Boris Cherny: "The default isn't 'I'm going to prompt Claude' — the default is now 'I'm going
-  to have Claude prompt itself'" (MIT Technology Review, May 2026). Anthropic's "dreaming" — a
-  scheduled offline pass that reviews sessions and curates memory — is `/retrospect`'s frame.
-- Tom Blomfield's self-improving company loop — sensor / policy / tool / quality gate / learning
-  mechanism ([YC, May 2026](https://www.ycombinator.com/library/Qf-how-to-build-a-self-improving-company-with-ai)):
-  here, ADRs are the policy layer, verify/red-team the quality gate, retrospect the learning
-  mechanism, and hooks/linters the forcing functions.
-- The lineage runs back to Karpathy's LLM-OS sketch (2023); Lilian Weng's
-  [harness engineering for self-improvement](https://lilianweng.github.io/posts/2026-07-04-harness/)
-  (July 2026) argues self-improvement should target exactly this orchestration layer, bounded
-  by permissions and observability.
-
-What survives contact with the surveyed field as this stack's actual differentiation (a 2026-07
-three-lane survey; pieces like paired with/without skill evals and trigger ablation are NOT
-novel — Anthropic's skill-creator and SkillsBench do both): **the integrated loop** — advisor
-panel -> PM-authored ADR -> independent verify/red-team gate -> transcript-mined retrospective
-that edits the loop's own agents/skills — closed nowhere else as one system; **decisions as
-first-class lintable records** (budgeted, back-pointed, revisit-triggered ADRs); and in the
-separate one21labs/skill-measure harness, **adversarial prosecutor grading** (vs the field's
-neutral-by-design graders), **enforced cross-family judging** (advisory-only elsewhere), and
-**pre-registration + cost-gating** — verified absent, combined, from every mainstream eval
-framework surveyed.
-
-Being different is not being better, and this repo holds its own claims to its own rule
-(ADR 0024: an unmeasured process is a cut candidate). Per-claim measured status, on the
-source repo's committed benchmarks:
-- **prosecutor grading** — measured effect: the battery's uniform prosecutor RAISED the
-  skills' with-arm delta (+0.075 -> +0.088) by shaving the baseline's inflated partial
-  credit — verdicts get harder to earn, not easier (`2026-07-08-skills-hermetic`).
-- **cross-family judging** — earned its keep twice: the #172 prototype flipped its first
-  verdict, and the 2026-07 frozen re-grade flipped 1 of 10 recorded primary verdicts
-  (`2026-07-17-crossjudge-regrade`); the other 9 held — the instrument detects
-  judge-dependence without manufacturing it.
-- **pre-registration + cost gates** — observed saves on record (a 3.5x cost-estimate miss
-  caught and revised pre-grid; paper trail: retired ADRs 0066/0076 ->
-  `one21labs/skill-measure:skills/bench/references/cost-and-verdict.md`), but NO controlled
-  comparison against running without them yet — that is a discipline claim, not a measured
-  superiority claim.
-- **the integrated loop itself** — NOT yet shown to beat cheaper alternatives. The honest
-  measured state is in "Measured" below: specific edges (false-positive halving, failure
-  anticipation from independent perspectives) and honest nulls elsewhere; a direct
-  panel-vs-single-advisor comparison has not run. Until it does, "closed nowhere else"
-  is a fact about the field, not evidence of value.
-
-## The cycle
-
-| Phase | What runs |
-|-------|-----------|
-| **Plan** | `/decide` — sort the call first: ask the person, inherit a record, or decide it inline. Only a contested call gets the panel: two opposing advisors argue, one accountable decider records an ADR. |
-| **Do** | `tech-lead` turns the ADR into a buildable spec; you implement it. |
-| **Check** | `verifier` reproduces every load-bearing claim and checks the ADR's `[checkable]` assumptions against the real code/output; `red-team` tries to break it. The gate can BLOCK. |
-| **Act** | Ship + bump the version; `/retrospect` folds process learnings back into their lowest home (an agent, a skill, or CLAUDE.md). |
-
-Why **advise, decide, verify** are split, and the standalone `/advise`, `/verify`, `/red-team`:
-the `decide` skill, "Why this shape".
-
-**Measured (2026-07, six instruments; `benchmarks/2026-07-1{2,3,4}-pdca-*` in the source repo):**
-`/retrospect` shows no recall/triage edge over a bare reviewer on seeded defects — on
-discriminating substrates with a triage-aware metric the delta is ~zero under both judge
-families — but reproducibly asserts FEWER false findings, same direction in both versions at
-very different magnitudes (FP guard per clean cell: v2 1.33 vs 2.50, a halving; v1 1.167 vs
-1.333, ~12%).
-`/decide` shows no rubric-quality edge over a token-matched deliberation prompt
-(judge-sensitive: +0.010 same-family; the cross-family re-grade moves it positive — direction
-only, prototype basis per ADR 0057; CIs straddle zero); a 6.6x-cheaper
-decider+probes replacement failed all pre-registered quality bars across a 3-iteration
-improvement loop under BOTH judges; a poker/Delphi numeric-estimation round at 0.29x cost
-failed three of four bars under BOTH judges (its planted-trap losses trace mostly to a
-decider output-capture defect — that benchmark's post-verdict correction; the surviving
-gap is record richness) — the panel's one measured edge is failure anticipation from genuinely independent
-perspectives (solo self-argument collapses it; both cheap substitutes died on it), with high
-per-run variance and NO run-to-run variance damping (three same-config runs: panel scenario
-spread ~ bare spread). A mechanical DoD record check predicts record quality among bare
-records only (+0.21/+0.23 both corpora); panel records satisfy its items by construction.
-Measured value so far: process guarantees, FP discipline, and that independence edge — not
-per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into retired ADR 0065
-(-> `one21labs/skill-measure:skills/bench/references/pre-registration.md`), and #186's Phase-1 was closed
-won't-do (the ceremony cut) — no enforcement gate ships.
-
-**In use, not yet measured:** every paneled ADR carries an `Effect:` line — the session's own
-pick before any helper ran, then what the advice, the PM and the check each changed. It is the
-running answer to "did the panel earn its cost on MY decisions"; `/retrospect` reads it and
-names a stage that changed nothing ten records running as a cut candidate. No numbers yet.
-
-## What's in the box
-
-```
-agents/        pm, tech-lead, red-team, verifier, retrospect   (domain-agnostic meta-roles)
-skills/
-  decide/   the decision panel + the process system-of-record
-    references/       adr-template, adr-lint, doc-budgets
-  advise/ verify/ red-team/   the panel primitives, standalone (decide composes them)
-  retrospect/        the Act loop
-  sweep/             iterate an audit until it converges, or report that the cap ran out
-  pdca-init/         scaffolds a project + generates its advisor panel
-    references/       panel-generation, claude-md-template, advisor-template
-commands/      MSH — ship one highest-value cohesive work package end to end, autonomously
-               improve — one turn of the self-improvement loop: read the handoff, measure, ship
-                 one package, retrospect, rewrite the handoff (run by hand or on a schedule)
-scripts/       adr-lint.mjs, char-budget.mjs, crosscheck.mjs, sweep-state.mjs, issue-hygiene.mjs,
-                 workflow-model.mjs (+ .test.mjs each)   the ADR-corpus + doc-budget poka-yoke,
-                 the cross-lineage claim route, the sweep stop verdict, backlog signals, the
-                 every-agent()-names-a-model rule for Workflow scripts (node, zero-dep)
-templates/     claude-review.yml           opt-in advisory muda CI (GitHub)
-               plain-summary.md            the reply-summary standard /pdca-init copies in
-hooks/         hooks.json (model guard over Agent, Task and Workflow calls; ADR post-edit
-                 lint; spawn log)
-  lib/hook-lib.sh    the one home every file_path hook sources (+ test-hook-lib.sh)
-```
-
-The five meta-roles ship here; the **advisor panel** is generated per project by `/pdca-init`
-(`skills/pdca-init/references/panel-generation.md`).
-
-## Scope — what's generic vs project-supplied
-
-The plugin ships the generic framework; each project supplies its domain (advisor personas,
-thresholds, Sacred files, render/verify command). Two deliberate scope calls (recorded in this
-repo's decision log as ADR 0001, pdca-workflow-extraction-scope — outside this plugin's shipped
-files, so no link survives an install; the framework dogfooded on its own extraction):
-
-- **No standalone `review-system.md`** — the `/decide` skill is the system of record.
-
-## Why it stays alive
-
-A process rots unless it is **committed** (version control survives), **auto-discovered**
-(CLAUDE.md points to it), and **executable** (a `/`-command runs it; a test or linter gates it).
-This plugin keeps all three wired, and ADR revisit triggers pull stale decisions back each run.
-
-## Use it in a project
+Neither is for routine calls. Each costs one or two extra agents, and the evidence for `/advise`
+is that it helps you see how a decision could fail, not that it picks better options. The
+numbers are in the repository README.
 
 ```
 /plugin install pdca-workflow@one21tools
-/pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
-/decide   # sort a judgment call: ask, decide inline, or run the panel and write an ADR
-/retrospect       # standing at session close + on demand; improves the process
-/pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
-/pdca-workflow:improve        # one turn of the self-improvement loop; schedule it to run unattended
+/advise should we merge these two services or keep them separate?
+/fresh-check the retry fix in src/queue.py
 ```
 
-`/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
-project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (its skill owns the
-triggers). `/decide` carries no flag either: its first step sorts the call, and only the contested exit
-spends helpers or writes a record.
-`/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
-flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
+The plugin has no hooks, agents or scripts, and needs no project setup.
 
-**Where it loads.** Claude Code (terminal and the desktop app's Code tab) and Cowork load
-everything. A cloud session (Claude Code on the web) loads this plugin only when it is turned on
-for your ACCOUNT in the desktop app — a repo's `enabledPlugins` is not installed there — and Chat
-loads the skills and commands but ignores agents and hooks. On Windows the hooks need Git for
-Windows (they are bash scripts). Wherever the agents are missing, the skills spawn each role with its `model:` passed
-explicitly (`skills/decide/SKILL.md`, Roles), so a missing guard does not silently move helpers to
-the session's model.
-
-**Hook firing scope (ADR 0071):** the enforcement hooks are per-project opt-in — they no-op
-unless the project has the `docs/pdca/` marker (`/pdca-init` creates it; the hooks never do).
-Installing the plugin for its skills alone changes nothing in projects that haven't adopted.
-To scope the whole plugin (skills included) per project, use Claude Code's native
-`enabledPlugins` in the project's `.claude/settings.json`.
-
-## Provenance
-
-Direction, principles, and requirements for this plugin originate with the repo owner; Claude
-authors the implementation — scripts, agent and skill prose, records — under that direction
-(ADR 0085). Where a specific design call is the owner's, the file says so at the point it applies.
+Until 23-Nov-2026 this plugin was a full decide, build, verify, improve workflow. The repository
+README says what was removed and why. The name is from that workflow and no longer describes
+the contents; it is kept so that existing installs keep working.

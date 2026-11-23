@@ -10,10 +10,8 @@
  * that check other files for hardcoded personal paths, using the owner's real username as the
  * fixture.
  *
- * RUNG 1 IS ELSEWHERE, AND THAT IS THE POINT (ADR 0047). The telemetry writer now emits
- * project-relative paths (pdca-workflow/hooks/lib/hook-lib.sh, hook_gate_hit), so the biggest
- * producer cannot emit one at all. This file is the rung-4 backstop for everything a writer does
- * not own: a doc, a benchmark record, a README example someone pastes from their own terminal.
+ * It is the backstop for whatever gets pasted in by hand: a doc, a README example copied from
+ * someone's own terminal.
  *
  * IT SCANS THE REAL INDEX, not a fixture: `git ls-files`, every tracked text file. A test that
  * checked a sample would pass while the repo leaked.
@@ -41,7 +39,7 @@ const HOME_ROOTS = ["/home/", "/Users/", "/mnt/c/Users/", "C:\\\\Users\\\\", "C:
 const NAME = "([A-Za-z_][A-Za-z0-9._-]*)";
 // Two shapes, because the second is the one a path-shaped regex cannot see. Claude Code encodes a
 // project directory into a flat slug by replacing every `/` with `-`, so `/home/<account>/projects`
-// becomes `-home-<account>-projects` — and that string appeared in five committed benchmark files
+// becomes `-home-<account>-projects` — and that string appeared in five committed files
 // AFTER a sweep that believed it had removed every home path. It carries exactly the same account
 // name, in a form with no slashes at all. A cross-family review found it; the slash-based pass and
 // its author both read straight past it.
@@ -103,7 +101,5 @@ test("no tracked file carries an absolute path out of a real home directory", ()
   }
   assert.deepEqual(bad, [],
     `this repo is PUBLIC — these tracked files publish a home directory:\n  ${bad.join("\n  ")}\n`
-    + `Replace the account name with USER (or make the path project-relative). If a telemetry `
-    + `writer produced it, fix the writer: hook_gate_hit in pdca-workflow/hooks/lib/hook-lib.sh `
-    + `emits project-relative paths for exactly this reason.`);
+    + `Replace the account name with USER, or make the path project-relative.`);
 });
