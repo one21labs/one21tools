@@ -28,7 +28,7 @@ per-product mapping in [mechanism-selection.md](references/mechanism-selection.m
 | Independent task with own context | **Subagent** | Context isolation, tool restrictions |
 | Distribute tools with selective installation | **Plugin** | Package agents/skills/commands, install only what's needed |
 | One-time instruction | **Prompt** | Ephemeral, conversational |
-| User behavior defaults (all chats) | **User Preferences** (Claude.ai) or **User CLAUDE.md** (Claude Code) | Permanent, account-wide |
+| User behavior defaults (all chats) | **Profile instructions** (Claude.ai) or **User CLAUDE.md** (Claude Code) | Permanent, account-wide |
 | Project-specific behavior | **Project Instructions** | Scoped to initiative |
 
 For worked before/after examples of these choices (Skill vs.
@@ -64,7 +64,7 @@ Read the appropriate reference when creating/optimizing:
 | Skills | [skills.md](references/skills.md) | Creating skills |
 | Plugins | [plugins.md](references/plugins.md) | Marketplace structure, auto-discovery |
 | Projects | [projects.md](references/projects.md) | Claude.ai projects |
-| User Preferences | [user-preferences.md](references/user-preferences.md) | Claude.ai defaults |
+| Profile instructions | [profile-instructions.md](references/profile-instructions.md) | Claude.ai defaults |
 | Prompts | [prompts.md](references/prompts.md) | Designing prompts |
 | MCP | [mcp.md](references/mcp.md) | Server design |
 | Subagents | [subagents.md](references/subagents.md) | Task delegation |

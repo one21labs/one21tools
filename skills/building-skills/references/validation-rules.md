@@ -53,7 +53,7 @@ description: Invoke when...  # MUST be SECOND field
 | Kebab-case only (`a-z`, `0-9`, `-`) | Error | agentskills.io spec |
 | No leading/trailing hyphens | Error | agentskills.io spec |
 | No consecutive hyphens (`--`) | Error | Kebab-case standard |
-| No reserved words (`anthropic`, `claude`) | Error | Upload testing |
+| No reserved words (`anthropic`, `claude`) | Error | platform.claude.com (Claude Code itself reserves only `anthropic-skills`) |
 | No XML chars (`<`, `>`) | Error | platform.claude.com |
 | Gerund form preferred | Convention | platform.claude.com |
 

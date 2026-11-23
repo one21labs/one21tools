@@ -95,9 +95,9 @@ Two first-class efficiency levers (rationale: [token-format-efficiency.md](token
   repo. Give each worker its own git worktree, or have workers return drafts to one coordinator
   that applies them.
 - **Verify against the right worktree** — a failed `cd` silently runs commands in a DIFFERENT checkout (false-green validate); `git worktree add <branch>` checks out the stale LOCAL branch, not origin's tip. Chain `validate && commit && push` so a mid-chain failure surfaces instead of hiding behind a stale checkout.
-- **`isolation:'worktree'` agents obey a DIFFERENT root's permissions** — the spawned worktree's own
-  `.claude/settings.local.json`, not the session's; a narrow allow-list there floods prompts. Prefer
-  in-process Workflow/Task; a bare `"Bash"` in user-global settings covers all roots.
+- **A worktree does not carry its own approvals** — "don't ask again" in a worktree session
+  saves the rule to the main checkout's `.claude/settings.local.json`, and it applies in every
+  worktree of the repository ([worktrees docs](https://code.claude.com/docs/en/worktrees)).
 - **A Workflow's `.output` is a wrapper** `{summary, log, …, result}` — unwrap before parsing; the
   file is not the raw returned array.
 

@@ -17,7 +17,7 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 
 | Layer | Claude.ai | Claude Code | API |
 |-------|-----------|-------------|-----|
-| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
+| User-level | Profile instructions | User CLAUDE.md, user settings | — |
 | Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
 | Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
 | On-demand | Skills | Skills | Skills |
@@ -34,7 +34,7 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 | Choice | Mechanism | Problem |
 |--------|-----------|---------|
 | Avoid | Skill | Creates portable package for a personal preference |
-| Prefer | User Preferences (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
+| Prefer | Profile instructions (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
 | Prefer | ~/.claude/CLAUDE.md (Claude Code) | User-level defaults for all Claude Code sessions |
 
 ### Example 3: Skill vs. CLAUDE.md
