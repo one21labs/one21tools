@@ -64,7 +64,7 @@ correct altitude) adds its own entry to `DOC_BUDGETS` with a bigger number — e
 Before ANY edit to a capped file, measure headroom = cap − current, and size the planned addition
 the same way, minus any text it replaces. Measure in the GATE'S unit: every enforced cap —
 validate.py's (`skills/**/references/*.md`, SKILL.md) AND `char-budget.mjs`'s (CLAUDE.md, ADRs,
-agent prompts) — counts unicode CODEPOINTS, not bytes (`wc -c` over-reads every em-dash by 2), so
+agent prompts) — counts unicode CODEPOINTS, not bytes (`wc -c` over-reads every em-dash by 2; so does `wc -m` in a C locale), so
 measure with the gate itself or
 `python3 -c "print(len(open(f,encoding='utf-8').read()))"`. Edit budgeted docs via the
 Edit/Write tools only — a Bash write bypasses any edit-time size hook a project wires. If the
