@@ -71,12 +71,11 @@ update its header/frontmatter in the same change.
   rewritten whole each session, never appended; git and the tracker win where it disagrees.
 
 ## Feedback = PDCA trigger
-User feedback (bug report, feature ask, behavioral observation) triggers `/decide`
-immediately — Plan (advise -> PM decides -> ADR; + a tracker entry if the project keeps one), Do,
-Check (tests + a fresh-eyes gate; + a produced-output check if there is an output layer), Act
-(ship + iterate the system).
-**Never fix directly** before planning — a judgment call (threshold, scope, policy) triggers the
-panel even when it's meta/tooling.
+User feedback (bug report, feature ask, behavioral observation) goes to `/decide` first. It
+sorts the call: ask the person, inherit a record, decide inline (rationale in the commit/PR), or,
+for a contested or hard-to-reverse call only, run the panel and record an ADR. Then Do, Check
+(tests + a fresh-eyes gate; + a produced-output check if there is an output layer), Act (ship +
+iterate the system).
 **A concern YOU raise is feedback too.** Fix it, file it, or task it in the SAME turn — saying it
 is not handling it. Prose in a reply has no owner and dies with the turn, leaving the user to
 catch the gap.

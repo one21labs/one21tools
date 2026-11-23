@@ -2,7 +2,7 @@
 id: 0062
 title: "Panel plateau: re-scope /decide to a two-stage gate; two-stage doctrine; marginal dollar to #186 Phase-1"
 status: accepted
-summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): routine calls decided in the commit/PR with no ADR or pm spawn (owner, 24-Oct-2026), full panel + ADR only for high-stakes gate-passers. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first. Amended 26-Jul-2026 (#236): advisor BREADTH saturates but adversary DEPTH does not — a Check phase ends at the first round that changes nothing in the artifact, n=1."
+summary: "ADR 0057's plateau fired. Re-scope /decide (not cut): routine calls decided in the commit/PR with no ADR or pm spawn (owner, 24-Oct-2026), full panel + ADR only for high-stakes gate-passers. Adopt the owner two-stage doctrine as policy. Marginal dollar -> #186 Phase-1, poka-yoke first. Amended 26-Jul-2026 (#236): advisor BREADTH saturates but adversary DEPTH does not — a Check phase ends at the first round that changes nothing in the artifact, n=1. Amended 23-Nov-2026: the gate is /decide's FIRST step (ask, inherit, panel, inline); two advisors by default; each paneled record carries a self-reported Effect: line, the in-use cost read-out."
 ---
 
 # 0062 — panel plateau + two-stage doctrine
@@ -36,6 +36,17 @@ The evidence here is n=1 and deliberately weaker than the
 five instruments behind 1-3 — the trigger below is set to match.
 Enforced: `pdca-workflow/skills/red-team/SKILL.md` (Return).
 
+**5 — Gate FIRST; the panel prices itself in use** (amended 2026-11-23; owner: "optimized for
+value (low cost, high value)"). Decision 1's gate sat at step 4, behind a fetch and a corpus scan
+every routine call paid for. It is now `/decide`'s first step, four exits: ask the person, inherit
+a record, decide inline, panel. The panel defaults to TWO opposing advisors (decision 4: breadth
+saturates). Every paneled record carries an `Effect:` line — the session's pick before any helper
+ran, then what advice, PM and check each changed — a free in-use read-out in place of a sixth
+paid instrument. The separate `pm` spawn is on trial under that line: no instrument isolated it.
+Homes: `pdca-workflow/skills/decide/SKILL.md` (Sort first); `adr-template.md` (`Effect:`).
+The line is a convention, unlinted and self-reported; `pdca-workflow/agents/retrospect.md`
+reads it and flags a paneled record that lacks one.
+
 ## Justification
 Re-scope is low-regret: the cut critique bites only on routine calls (now unrecorded); the keep case's
 failure-anticipation insurance (0.42 vs. 0.08 trap-acing) is preserved for the high-stakes calls
@@ -43,6 +54,7 @@ it exists for, at ~0 re-scope cost.
 
 ## Assumptions
 - [unverifiable] WEAKEST — the whole re-scope rides on it: the failure-anticipation edge (0.42 vs. 0.08) is a real mechanism, not n=1 construction noise; re-scope is deliberately low-regret regardless (escalation is rare). REOPEN-IF a third independent construction fails to replicate the ~0.42/0.08 gap above run noise -> escalate re-scope to full cut.
+- [unverifiable] (Decision 5) A stage's self-reported `nothing` is evidence it is not earning its cost. The session writes the line and judges its own counterfactual; the adversary refused this frame and no cross-lineage lane was reachable (FRAME-UNCHECKED, 23-Nov-2026; Probed: none). REOPEN-IF a stage cut on this evidence is followed by a defect that stage exists to catch.
 
 ## Rejected alternatives
 - Full CUT (drop panel from default) — forfeits the failure-anticipation edge before it is priced.
@@ -59,3 +71,6 @@ it exists for, at ~0 re-scope cost.
 - (Decision 4) Round one comes back dry on three separate PRs -> the depth rule drops to a single
   round. Or a PR needs more rounds than the owner will pay for -> depth gets a hard ceiling, and
   the ceiling is recorded here rather than left to judgment.
+- (Decision 5) A stage's `Effect:` reads `nothing` ten records running -> cut that stage. Or a
+  call that left at the inline exit is reverted or re-argued -> that row of the sort was too
+  loose; tighten it.
