@@ -3,16 +3,17 @@
 Four small Claude Code skills, kept to what measurement supports.
 
 This repo used to ship much more: a decision panel with decision records and a linter, guard
-hooks, a project scaffolder, and two large reference skills. Its own benchmarks showed that most
-of that did not change what the model does, so on 23-Nov-2026 it was cut to the parts that did.
+hooks, a project scaffolder, and two large reference skills. Its own benchmarks showed that the
+heaviest parts did no better than a plain prompt, and that the gains the skills did show mostly
+appeared on cases written with the skill in view. On 23-Nov-2026 it was cut to four small skills.
 What was removed, and the evidence, is at the end.
 
 ## What is here
 
 | Plugin | Skill | What it does | What the evidence says |
 |---|---|---|---|
-| `dev-skills` | `code-standards` | A house style for code: file headers, naming, error handling, logging, function size. | Helps. Beat the bare model by +0.44 (95% interval +0.19 to +0.69) with a different vendor's model as judge. The gain is on tasks written with the skill in view, so read it as "reliably applies this style", not "writes better code". |
-| `engineering-skills` | `engineering-principles` | Four working rules: approved is not complete; a person's mistake is not a root cause; one definition per fact; time already spent is not a reason to finish. | Rewritten on 23-Nov-2026 from the rules that carried the measured effect in the longer version (+0.21, interval includes zero; the conceptual material added nothing). The rewrite has not been measured. |
+| `dev-skills` | `code-standards` | A house style for code: file headers, naming, error handling, logging, function size. | Applies the style. Beat the bare model by +0.44 (95% interval +0.19 to +0.69) with a different vendor's model as judge, and by +0.36 to +0.40 on the current models. All of that is on cases written with the skill in view, so read it as "reliably applies this style", not "writes better code". |
+| `engineering-skills` | `engineering-principles` | Four working rules: approved is not complete; a person's mistake is not a root cause; one definition per fact; time already spent is not a reason to finish. | Weak. The longer version measured +0.21 (interval +0.04 to +0.37) in July and was inconclusive on the current models in October (+0.09 and +0.14). Splitting it showed the situational rules carried the effect and the conceptual material added nothing; one case, a plan called "already approved", moved from 0.00 to 0.80. This four-rule rewrite, made on 23-Nov-2026, has not been measured. It is kept because it is 2.5 KB, and it goes if a measurement shows nothing. |
 | `pdca-workflow` | `/advise` | Before a contested decision: state your own pick, get two independent opposing views, report what they changed. | Independent advisors did not choose better options than one careful pass. They anticipated the real failure more often: 0.42, against 0.25 bare and 0.08 for one agent arguing with itself (four cases, small sample). |
 | `pdca-workflow` | `/fresh-check` | Before work ships: a reviewer with no stake reproduces the claims and tries to break it. | Not measured. Kept because fresh reviewers given the work, and not the author's conclusions, kept finding real defects while this repo was being built. |
 
@@ -50,8 +51,11 @@ The measurement harness is its own plugin,
 against the bare model on the cases in the skill's `evals/evals.json` and reports the difference
 with an interval. `code-standards` and `engineering-principles` carry their cases here.
 
-The rule this repo now follows: a skill stays if it beats the bare model on cases written
-without the skill in view, and goes if it does not.
+The rule this repo now follows: a skill that claims to make the work better stays only if it
+beats the bare model on cases written without the skill in view. A skill that carries a
+preference the model cannot know, such as a house style, has to show only that the preference
+gets applied. No skill here has yet passed the first test; the table above says how far each one
+got.
 
 ## What was removed, and why
 
@@ -60,9 +64,9 @@ without the skill in view, and goes if it does not.
 | `/decide` (advisor panel, decider, decision records, record linter) | No better than a plain "think carefully" prompt on decision quality (+0.01, interval -0.18 to +0.20), at about four times the cost of a bare decision. |
 | `/verify`, `/red-team` | Merged into `/fresh-check`. |
 | `/retrospect`, `/sweep`, `/pdca-init`, the improve loop, the guard hooks | Unmeasured, or measured with no effect on recall; they mostly maintained the process around them. |
-| `optimizing-context` | Inconclusive on every run (+0.003 to +0.10, each interval includes zero) for 53 KB of guidance that restated product documentation and went stale: fifteen wrong statements were found in it and `building-skills` in two days. |
-| `building-skills` | Unsettled results, and it overlaps Anthropic's own skill-creator. Its validator stays as this repo's CI check. |
-| The benchmark output (22 MB) | Moved out of the plugin repo. |
+| `optimizing-context` | Showed a gain on its own cases in July (+0.27, interval +0.12 to +0.41). On the current models in October all four runs were inconclusive (+0.003 to +0.10). It was 53 KB of guidance that restated product documentation, and its product facts had to be corrected against the current documentation (commit `e11d8f6`). |
+| `building-skills` | Not removed for lack of effect: it beat the bare model on its own cases on the current models (+0.30 and +0.32, both intervals above zero), the same kind of evidence `code-standards` has. Removed because it does the same job as Anthropic's own skill-creator, which is kept current by the people who define the format, and because it needed the same corrections as `optimizing-context`. This is the cut the evidence supports least. Its validator stays as this repo's CI check. |
+| The benchmark output (22 MB) | A plugin repo is downloaded by everyone who installs from it. The write-ups moved to skill-measure; the raw output stays in this repo's history. |
 
 Across all the skills, the gain on cases written with the skill in view was +0.37. On cases
 written blind it was +0.04, with the bare model already at 0.82. The current model does most of

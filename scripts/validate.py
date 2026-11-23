@@ -33,8 +33,6 @@ from typing import List
 
 NAME_MAX = 64
 DESC_MAX = 1024
-# Design: toolkit scripts stay Python; caps are duplicated per gate, not shared with
-# pdca-workflow/char-budget.mjs, because the plugins install independently. Revisit only if they merge.
 BODY_MAX_CHARS = 6000           # SKILL.md body char cap (ADR 0009; ungameable by long lines, cf. line caps)
 TOC_THRESHOLD = 150             # SKILL.md body: TOC required past this many LINES (a sub-cap readability aid)
 REFERENCE_MAX_CHARS = 12000     # skill references/*.md char cap (ADR 0009; the progressive-disclosure tier)
@@ -44,8 +42,8 @@ EVALS_MIN_CASES = 3             # README's "3+ cases" floor (issue #144); below 
 NAME_PATTERN = re.compile(r'^[a-z0-9-]+$')
 RESERVED_WORDS = ["anthropic", "claude"]
 VALID_TRIGGERS = ["invoke when", "use when", "use for", "apply when"]
-# Recognized TOC headings, anchored at line start (see validation-rules.md "Table of Contents
-# Formats") — prose or a code block merely QUOTING a marker does not satisfy the gate.
+# Recognized TOC headings, anchored at line start — prose or a code block merely QUOTING a
+# marker does not satisfy the gate.
 TOC_RE = re.compile(r'(?im)^##\s*(table of contents|toc|contents)\b')
 
 # Emoji detection pattern - matches most emoji ranges
@@ -140,8 +138,7 @@ def skill_body_chars(content: str) -> int:
     """R4 body-char count for a SKILL.md text: chars past the frontmatter block, plus everything
     in the frontmatter beyond the first two lines (name/description carry their own caps) — else
     a `details: |` block scalar or a duplicated key would smuggle unbounded prose past the cap.
-    Whole text if the frontmatter is malformed. Also imported by the repo's budget-edit-guard
-    hook to project post-edit sizes — the counting logic lives here only (ADR 0060)."""
+    Whole text if the frontmatter is malformed."""
     m = re.match(r'^---\n(.*?)\n---', content, re.DOTALL)
     if not m:
         return len(content)

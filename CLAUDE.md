@@ -28,8 +28,10 @@ costs context on every load and buys nothing.
 
 A claim in the README about what a skill does needs a measurement behind it, or the words "not
 measured". The harness is the `skill-measure` plugin (`/bench`); the past write-ups are in that
-repo under `evidence/`. A skill stays if it beats the bare model on cases written without the
-skill in view, and goes if it does not. What it cost to build is not a reason to keep it.
+repo under `evidence/`. A skill that claims to make the work better stays only if it beats
+the bare model on cases written without the skill in view. A skill that carries a preference the
+model cannot know, such as a house style, has to show only that the preference gets applied.
+What a skill cost to build is not a reason to keep it.
 
 ## Checks
 

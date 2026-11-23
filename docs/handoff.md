@@ -11,7 +11,7 @@ benchmarks; the README's last section gives the numbers. The last commit with ev
 is `0a1834d`.
 
 The benchmark write-ups moved to `one21labs/skill-measure` under `evidence/`. The raw run output
-(about 21 MB) was not moved: it stays in this repo's history at `0a1834d`, under `benchmarks/`.
+(about 22 MB) was not moved: it stays in this repo's history at `0a1834d`, under `benchmarks/`.
 
 ## Not yet measured
 
@@ -20,12 +20,17 @@ The benchmark write-ups moved to `one21labs/skill-measure` under `evidence/`. Th
 - `fresh-check` is new and has no cases at all.
 - `advise` was measured only as part of the old decision panel.
 - None of the four has been run in the desktop app.
+- No skill has beaten the bare model on cases written without the skill in view. The October
+  attempt to write such cases mostly produced cases the bare model already passed.
 
 Measuring needs the `claude` command-line program signed in with a token the owner creates
 (`claude setup-token`), then `/bench` from skill-measure.
 
 ## Open with the owner
 
+- `building-skills` was removed although it measured a gain on its own cases (+0.30 and +0.32
+  on the current models). The reason was overlap with Anthropic's skill-creator, not the
+  numbers. It is the one cut worth a second look; it restores from `0a1834d`.
 - The plugin name `pdca-workflow` no longer describes two second-opinion skills. Renaming breaks
   existing installs unless the marketplace `renames` map carries the old name across, which has
   only been verified for a removal. Kept as is until the owner decides.

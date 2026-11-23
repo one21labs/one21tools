@@ -24,8 +24,7 @@ from validate import (
 
 
 class TestSkillBodyChars(unittest.TestCase):
-    """skill_body_chars is also imported by the repo's budget-edit-guard hook (ADR 0060) to
-    project post-edit sizes -- pin its contract, including the malformed-frontmatter branch
+    """Pin skill_body_chars' contract, including the malformed-frontmatter branch
     validate_skill itself never reaches (it early-returns on broken frontmatter)."""
 
     def test_name_description_lines_excluded(self):
