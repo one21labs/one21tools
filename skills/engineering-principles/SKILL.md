@@ -1,66 +1,44 @@
 ---
 name: engineering-principles
-description: Apply when designing architecture, planning work, performing root cause analysis, eliminating waste or duplication, reviewing designs before implementation, or when quality or process questions arise — Lean/TPS foundations for software, documentation, and process.
+description: Use when planning or breaking down work, reviewing a design, analysing an incident or a recurring problem, or changing a value or rule that lives in more than one place. Four working rules that hold up under schedule pressure.
 ---
 
-# Engineering Principles
+# Engineering principles
 
-## Quick Decision Guide
+Four rules that change what gets built. Each matters most when someone is in a hurry or says the
+question is already settled, because that is when it gets skipped.
 
-| Situation | Action | Reference |
-|-----------|--------|-----------|
-| Starting new work, or told a plan is "already approved" | Design first — approval isn't completeness; check the checklist anyway | `references/design-review.md` |
-| Problem keeps recurring | Root cause analysis | `references/root-cause-analysis.md` |
-| Process feels slow/bloated | Waste identification | `references/waste-identification.md` |
-| Duplicate definitions suspected, or asked to hardcode one value into several files | SSoT audit — one definition, even under time pressure | `references/ssot-enforcement.md` |
-| Deciding where documentation belongs | JIT documentation | `references/jit-documentation.md` |
-| Need quotes, citations, deep theory | Full reference | `references/ENGINEERING_PRINCIPLES.md` |
+## Approved is not the same as complete
 
-## Core Decision Heuristics
+When you are handed a plan that has "already been approved", check that it says what is in scope,
+what the output or interface looks like, and how anyone will know it worked. If it does not, list
+those gaps and put the tasks that close them ahead of the build tasks. Do not quietly pick a
+format, a scope or a performance target yourself. Approval covers what the plan says, and a
+silent choice ships a guess under someone else's sign-off.
 
-| Principle | Question to Ask |
-|-----------|-----------------|
-| **Design First** | Can I outline/sketch this before building? |
-| **SRP** | Does this serve exactly one actor? One reason to change? |
-| **SSoT** | Is this fact stated in exactly one place? |
-| **Pareto** | Am I focusing on the vital few (20%), not trivial many? |
-| **Lean** | Does this action add value? If not, it's waste. |
-| **Jidoka** | Should I stop and fix this now, or will it compound? |
-| **PDSA** | Did I predict the outcome? Am I comparing results to prediction? |
+## A person's mistake is not a root cause
 
-## When to Read References
+When something failed because someone skipped a step or ran the wrong command, keep asking why
+the system let that happen: why the step was manual, why nothing noticed the bad result. There is
+usually more than one chain, so follow each. Fix the mechanism (a check in the pipeline, an alert
+that reaches someone, a permission that should not exist) and not the person. Training and
+reminders fail the same way next time. For each fix, say how the team will confirm it works, such
+as injecting the failure and watching the alert fire.
 
-**`references/root-cause-analysis.md`** — Read when:
-- Fix didn't work and you need to dig deeper
-- Facilitating a team through problem-solving
+## One definition per fact
 
-**`references/waste-identification.md`** — Read when:
-- Process review or retrospective
-- Something feels inefficient but unclear why
-- Applying Lean thinking to a specific domain
+A value or a rule is defined in one place, and everything else reads it or points to it. This
+holds under time pressure too. Asked to update a value that is hardcoded in several files, define
+it once and have the others use it, because the copies are what made the update risky. Keep that
+change small, and leave unrelated improvements out of an urgent fix.
 
-**`references/design-review.md`** — Read when:
-- Starting a new feature, document, or process
-- Unsure if design is complete before implementation
-- Reviewing someone else's design
+The same goes for documents. Pick the one home for each fact (the code, when the code enforces
+it) and replace every other copy with a pointer. A copy "kept in sync" drifts. History belongs in
+version control, not in the document.
 
-**`references/ssot-enforcement.md`** — Read when:
-- Contradictions appearing in system
-- Config/constants scattered across codebase or documents
-- Establishing canonical locations for a new project
+## Time already spent is not a reason to finish
 
-**`references/jit-documentation.md`** — Read when:
-- Deciding whether a constraint belongs in CLAUDE.md or a source file header
-- Writing or reviewing source file headers
-- CLAUDE.md is growing and needs triage
-
-**`references/ENGINEERING_PRINCIPLES.md`** — Read when:
-- Explaining principles to stakeholders
-
-## Cross-References
-
-| Need | Skill |
-|------|-------|
-| Context engineering, CLAUDE.md, prompts | `optimizing-context` |
-| Building skills | `building-skills` |
-| Design First operationalized (Pre-Code Checklist) | `code-standards` |
+Scope the remaining work to the requirement that exists. If half-built generality goes beyond it,
+such as extra formats, a plugin layer, or a framework for cases nobody has asked for, recommend
+stopping and removing it. Do not schedule its completion or leave it dormant "for later". Say
+plainly that the effort already spent does not change what is needed.

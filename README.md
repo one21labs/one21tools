@@ -1,112 +1,78 @@
 # one21tools
 
-Claude Code plugins that measure whether their own guidance works: skills are kept, improved, or
-reverted by hermetic paired evals at dated baselines — plus a PM-led decision workflow whose
-records and gates are enforced in CI.
+Four small Claude Code skills, kept to what measurement supports.
 
-**Goal: quality output, autonomously, judged as the person receiving it.** Two levers, and
-everything here serves one of them: raise the measured benefit-per-token of what Claude loads
-(quality), or move rules into surfaces that fire without a human catching the miss — gates,
-hooks, and skills, not prose (autonomy).
+This repo used to ship much more: a decision panel with decision records and a linter, guard
+hooks, a project scaffolder, and two large reference skills. Its own benchmarks showed that most
+of that did not change what the model does, so on 23-Nov-2026 it was cut to the parts that did.
+What was removed, and the evidence, is at the end.
+
+## What is here
+
+| Plugin | Skill | What it does | What the evidence says |
+|---|---|---|---|
+| `dev-skills` | `code-standards` | A house style for code: file headers, naming, error handling, logging, function size. | Helps. Beat the bare model by +0.44 (95% interval +0.19 to +0.69) with a different vendor's model as judge. The gain is on tasks written with the skill in view, so read it as "reliably applies this style", not "writes better code". |
+| `engineering-skills` | `engineering-principles` | Four working rules: approved is not complete; a person's mistake is not a root cause; one definition per fact; time already spent is not a reason to finish. | Rewritten on 23-Nov-2026 from the rules that carried the measured effect in the longer version (+0.21, interval includes zero; the conceptual material added nothing). The rewrite has not been measured. |
+| `pdca-workflow` | `/advise` | Before a contested decision: state your own pick, get two independent opposing views, report what they changed. | Independent advisors did not choose better options than one careful pass. They anticipated the real failure more often: 0.42, against 0.25 bare and 0.08 for one agent arguing with itself (four cases, small sample). |
+| `pdca-workflow` | `/fresh-check` | Before work ships: a reviewer with no stake reproduces the claims and tries to break it. | Not measured. Kept because fresh reviewers given the work, and not the author's conclusions, kept finding real defects while this repo was being built. |
+
+The four skills are about 13 KB of text in total. There are no hooks, agents or scripts in any
+plugin.
 
 ## Install
 
-**Claude Code (terminal):**
+In Claude Code:
 
 ```
 /plugin marketplace add one21labs/one21tools
-/plugin install dev-skills@one21tools          # code-standards, building-skills, optimizing-context
-/plugin install engineering-skills@one21tools  # engineering-principles (Lean/TPS)
-/plugin install pdca-workflow@one21tools       # /decide /advise /verify /red-team /retrospect /sweep /pdca-init /MSH /improve
+/plugin install dev-skills@one21tools
+/plugin install engineering-skills@one21tools
+/plugin install pdca-workflow@one21tools
 ```
 
-**Claude desktop app (Chat, Cowork, Code):** open Customize, select Plugins, select Add, select
-Add marketplace, enter `one21labs/one21tools`, then install the plugins you want. In the Code tab
-the terminal commands above also work typed into a session.
+In the Claude desktop app: open Customize, select Plugins, select Add, select Add marketplace,
+enter `one21labs/one21tools`, then install the plugins you want.
 
-**Cloud sessions (Claude Code on the web):** a cloud session loads the plugins turned on for your
-account in the desktop app, as above. It does NOT install plugins a repository enables in its
-`.claude/settings.json` — so turn `pdca-workflow` on for your account, or its skills, agents and
-guards are absent from every cloud session, including ones on a repo that ran `/pdca-init`.
+A cloud session (Claude Code on the web) loads the plugins turned on for your account, not the
+ones a repository enables in its settings.
 
-What loads where:
+`/advise` and `/fresh-check` start subagents, so they need a surface that has them (Claude Code
+in a terminal, the desktop app's Code tab, Cowork). Where there are none, each skill says so
+instead of pretending.
 
-| Surface | Skills and commands | `pdca-workflow` agents | `pdca-workflow` guards |
-|---|---|---|---|
-| Claude Code in a terminal; desktop app, Code tab | Yes | Yes | Yes (run in a terminal session: a helper spawned with no model ran on Sonnet) |
-| Desktop app, Cowork | Yes | Yes, per Anthropic's platform table | Yes, per the same table; not run by us |
-| Desktop app, Chat | Yes | No | No |
-| Cloud session | Yes | Not confirmed | Not confirmed |
+Updates: `/plugin marketplace update one21tools`. The plugin names are unchanged from before the
+cut, so existing installs update in place. Skills that were removed disappear on update.
 
-Without the agents, each role still gets its own model: `pdca-workflow/skills/decide/SKILL.md`
-(Roles) owns the fallback. The scripts need `node`; the guards also need
-`bash`, which on Windows means Git for Windows. The three plugins here and skill-measure's one
-install side by side with no shared names.
+## Measuring a skill
 
-Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
-history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
-individual skills:
-`ln -s /path/to/one21tools/skills/code-standards ~/.claude/skills/code-standards`.
+The measurement harness is its own plugin,
+[one21labs/skill-measure](https://github.com/one21labs/skill-measure). Its `/bench` runs a skill
+against the bare model on the cases in the skill's `evals/evals.json` and reports the difference
+with an interval. `code-standards` and `engineering-principles` carry their cases here.
 
-Each plugin installs standalone: no manifest `dependencies` unless a plugin cannot function
-without another's files (none today). The harness that measures these skills (`/bench`) is its
-own repo and install, [one21labs/skill-measure](https://github.com/one21labs/skill-measure):
-it reads each skill's `evals/evals.json` here as it is, and needs the `claude` command-line
-program, so it runs in a terminal or the desktop app's Code tab, not in Chat.
+The rule this repo now follows: a skill stays if it beats the bare model on cases written
+without the skill in view, and goes if it does not.
 
-## What changes after install
+## What was removed, and why
 
-- The engineering skills fire on design, planning, waste, and SSoT questions and push back on
-  sunk-cost, premature abstraction, and copy-paste-under-deadline patterns — the behaviors the
-  eval battery below actually tests.
-- `/decide` sorts a judgment call first (ask, inherit, or decide inline) and only for a
-  contested one runs a PM-led panel and records a linted ADR; `/verify` and `/red-team`
-  gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
-  (structure, cites, char budgets) — not convention.
-- With skill-measure installed, `/bench` measures any skill with paired with/without runs and
-  spend gates; its verdict path adds blind grading and an adversarial prosecutor pass.
+| Removed | Why |
+|---|---|
+| `/decide` (advisor panel, decider, decision records, record linter) | No better than a plain "think carefully" prompt on decision quality (+0.01, interval -0.18 to +0.20), at about seven times the cost. |
+| `/verify`, `/red-team` | Merged into `/fresh-check`. |
+| `/retrospect`, `/sweep`, `/pdca-init`, the improve loop, the guard hooks | Unmeasured, or measured with no effect on recall; they mostly maintained the process around them. |
+| `optimizing-context` | Inconclusive on every run (+0.003 to +0.10, each interval includes zero) for 53 KB of guidance that restated product documentation and went stale: fifteen wrong statements were found in it and `building-skills` in two days. |
+| `building-skills` | Unsettled results, and it overlaps Anthropic's own skill-creator. Its validator stays as this repo's CI check. |
+| The benchmark output (22 MB) | Moved out of the plugin repo. |
 
-## Measured state
+Across all the skills, the gain on cases written with the skill in view was +0.37. On cases
+written blind it was +0.04, with the bare model already at 0.82. The current model does most of
+this unprompted. Short rules that tell it what to do in a specific situation moved behaviour;
+doctrine, panels and ceremony did not.
 
-What each plugin's evidence supports today. Numbers, intervals and judges live in the dated
-directory each row names (`benchmarks/` is append-only, one directory per run). Read every "helps"
-as "beat the bare model against the skill's own expectations": those expectations were written
-with the skill in view, a confirmed bias (#317, ADR 0101), and the harness audit is still open
-(one21labs/skill-measure#1). Each verdict measured the skill text AS OF its dated directory;
-`git log --since=<dir-date> -- skills/<name>` lists what changed since (ADR 0095).
-
-| Plugin part | What the evidence supports | Evidence |
-|---|---|---|
-| `code-standards` | Helps, and the verdict held under a second, different-vendor judge. A 12-Oct re-run agrees on Sonnet 5.5 but is not promoted (same-family judge); its Opus 5.5 pair is unmeasured. | `benchmarks/2026-07-17-code-standards-remeasure/`, `benchmarks/2026-10-12-g8-shortfall/` |
-| `engineering-principles` | Probably helps; not freshly proven. The slim version that ships was shown no worse than the longer version that was proven, but its own interval includes zero. The operational rules carry the effect; concepts the model already knows add nothing measurable. | `benchmarks/2026-07-18-ep-slim-remeasure/`, `benchmarks/2026-07-09-ep-remeasure-hermetic/`, `benchmarks/2026-07-18-ep-partition/` |
-| `building-skills` | Unsettled: one judge says it helps, the headline judge is inconclusive. A revision missed its pre-registered bar and was reverted. | `benchmarks/2026-07-18-bs-iter3-remeasure/`, `benchmarks/2026-10-12-g8-shortfall/` |
-| `optimizing-context` | Unmeasured on the current instrument (ADR 0100). | `benchmarks/2026-10-12-g8-shortfall/` |
-| `pdca-workflow` | The decision panel does not beat a cost-matched plain prompt on decision quality. What did measure: `/retrospect` asserts fewer false findings, and independent advisors anticipate failures a single voice misses. | `pdca-workflow/README.md`, "Measured" |
-
-## The improvement loop
-
-Method home: `one21labs/skill-measure:skills/bench/references/empirical-evals.md`.
-
-## Gates (required CI)
-
-`.github/workflows/gates.yml` runs on every PR; its step names are the gate list.
-`docs/decisions/` is the ADR log.
-
-## Where the ideas come from
-
-Lean/TPS/Deming, applied: waste elimination becomes YAGNI and SSoT enforcement; poka-yoke
-becomes gates that make the error impossible rather than detected; "build quality in" becomes
-catching defects at source. The skills encode these as directives — and the measured state above is what
-keeps them honest.
-
-## Provenance
-
-What comes from whom (ADR 0085): the repo owner supplies the direction, the principles, and the
-requirements; Claude produces the implementation — code, prose mechanics, records — under that
-direction. This default speaks for the whole repo. Where it fails for a doc read standalone, that
-doc carries a single inline note at the point of deviation (exemplar:
-`skills/engineering-principles/references/ENGINEERING_PRINCIPLES.md`).
+The write-ups behind every number here are in skill-measure under `evidence/`. The removed code
+and the raw benchmark output remain in this repo's history: the last commit that contains them
+is `0a1834d`.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+See `LICENSE`.

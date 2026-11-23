@@ -10,10 +10,8 @@
  * that check other files for hardcoded personal paths, using the owner's real username as the
  * fixture.
  *
- * RUNG 1 IS ELSEWHERE, AND THAT IS THE POINT (ADR 0047). The telemetry writer now emits
- * project-relative paths (pdca-workflow/hooks/lib/hook-lib.sh, hook_gate_hit), so the biggest
- * producer cannot emit one at all. This file is the rung-4 backstop for everything a writer does
- * not own: a doc, a benchmark record, a README example someone pastes from their own terminal.
+ * It is the backstop for whatever gets pasted in by hand: a doc, a README example copied from
+ * someone's own terminal.
  *
  * IT SCANS THE REAL INDEX, not a fixture: `git ls-files`, every tracked text file. A test that
  * checked a sample would pass while the repo leaked.
