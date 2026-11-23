@@ -10,7 +10,7 @@ Skills are modular packages that extend Claude's capabilities with procedural kn
 | Project-specific knowledge | No | CLAUDE.md or Project |
 | One-time complex task | No | Detailed prompt |
 | External data access | No | MCP server |
-| User-wide defaults | No | User Preferences |
+| User-wide defaults | No | Profile instructions |
 | Deterministic automation on events | No | Hooks |
 
 ## What Makes Skills Effective

@@ -9,7 +9,7 @@ Prompts are ephemeral, conversational instructions. Use when a skill or persiste
 | One-time complex task | Yes | — |
 | Will repeat this procedure (third use) | No | Skill |
 | Need this context in future chats | No | Project or CLAUDE.md |
-| User-wide behavior change | No | User Preferences |
+| User-wide behavior change | No | Profile instructions |
 
 ## Core Prompt Patterns
 
@@ -138,5 +138,5 @@ Each step gets Claude's fresh attention on the specific sub-task.
 
 ## Sources
 
-- [Prompt Engineering Overview](https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview) - Official prompt engineering guide
+- [Prompt Engineering Overview](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview) - Official prompt engineering guide
 - [Effective Context Engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) - Context as curated tokens

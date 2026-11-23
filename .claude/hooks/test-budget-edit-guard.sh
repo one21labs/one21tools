@@ -61,6 +61,10 @@ printf '%s' "$out" | grep -q 'deny'; check "lite ADR held to lite cap" $?
 out=$(payload Write "$FIX/docs/decisions/0099-x.md" "content=normal adr text" | bash "$HOOK")
 [ -z "$out" ]; check "full ADR under cap silent" $?
 
+# 6b. The decisions README is not a record: no cap (its Retired-ids map only grows)
+out=$(payload Write "$FIX/docs/decisions/README.md" "content=$big" | bash "$HOOK")
+[ -z "$out" ]; check "decisions README over the adr cap silent" $?
+
 # 7. Non-budgeted file -> silent, fast bail
 out=$(payload Write "$FIX/notes.md" "content=$big" | bash "$HOOK")
 [ -z "$out" ]; check "non-budgeted file ignored" $?

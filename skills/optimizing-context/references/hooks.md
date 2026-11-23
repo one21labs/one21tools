@@ -40,7 +40,7 @@ Hooks occupy the top rungs of the detection-latency ladder (see the engineering-
 |-------|-----------|
 | **Enforces** automatically | **Guides** Claude's judgment |
 | Runs code | Provides instructions |
-| Cannot be bypassed | Claude interprets |
+| Not Claude's choice; `disableAllHooks` turns them off | Claude interprets |
 | For hard policies | For soft conventions |
 
 **Example distinction**:

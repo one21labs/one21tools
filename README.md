@@ -40,8 +40,8 @@ What loads where:
 
 Without the agents, each role still gets its own model: `pdca-workflow/skills/decide/SKILL.md`
 (Roles) owns the fallback. The scripts need `node`; the guards also need
-`bash`, which on Windows means Git for Windows. All four plugins from this repo and
-skill-measure install side by side with no shared names.
+`bash`, which on Windows means Git for Windows. The three plugins here and skill-measure's one
+install side by side with no shared names.
 
 Updates: `/plugin marketplace update one21tools`. Installs added before 27-Jul-2026 predate a
 history rewrite and cannot update — remove and re-add the marketplace once. Or clone and symlink
@@ -59,7 +59,8 @@ program, so it runs in a terminal or the desktop app's Code tab, not in Chat.
 - The engineering skills fire on design, planning, waste, and SSoT questions and push back on
   sunk-cost, premature abstraction, and copy-paste-under-deadline patterns — the behaviors the
   eval battery below actually tests.
-- `/decide` runs a PM-led panel and records the call as a linted ADR; `/verify` and `/red-team`
+- `/decide` sorts a judgment call first (ask, inherit, or decide inline) and only for a
+  contested one runs a PM-led panel and records a linted ADR; `/verify` and `/red-team`
   gate what ships; `/retrospect` mines what went wrong. Records are enforced by `adr-lint`
   (structure, cites, char budgets) — not convention.
 - With skill-measure installed, `/bench` measures any skill with paired with/without runs and

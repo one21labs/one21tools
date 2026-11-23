@@ -425,7 +425,6 @@ NEXT STEP
         print("[OK] Valid")
         for w in result.warnings:
             print(f"  [WARN] {w}")
-        print(f"\nNext: python3 package.py {args.skill_directory}")
         return 0
     else:
         print(f"[FAIL] {result.error}")

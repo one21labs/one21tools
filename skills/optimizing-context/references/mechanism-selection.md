@@ -17,7 +17,7 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 
 | Layer | Claude.ai | Claude Code | API |
 |-------|-----------|-------------|-----|
-| User-level | User Preferences, Memories, Styles | User CLAUDE.md, user settings | — |
+| User-level | Profile instructions | User CLAUDE.md, user settings | — |
 | Project/Repo | Project Instructions, Project Knowledge | Repo CLAUDE.md, project settings | System prompt |
 | Session | Conversation history, uploaded files | Conversation + tool results | Messages array |
 | On-demand | Skills | Skills | Skills |
@@ -34,7 +34,7 @@ for a specific mechanism choice or the full altitude/SSoT rules.
 | Choice | Mechanism | Problem |
 |--------|-----------|---------|
 | Avoid | Skill | Creates portable package for a personal preference |
-| Prefer | User Preferences (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
+| Prefer | Profile instructions (Claude.ai) | "Format SQL with uppercase keywords" applies everywhere |
 | Prefer | ~/.claude/CLAUDE.md (Claude Code) | User-level defaults for all Claude Code sessions |
 
 ### Example 3: Skill vs. CLAUDE.md
@@ -70,8 +70,8 @@ Run `./deploy.sh staging` then verify at https://staging.example.com
 
 | Choice | Approach | Result |
 |--------|----------|--------|
-| Avoid | Use repo root as source | Auto-discovery loads all skills for every plugin |
-| Prefer | Use component directories as sources | Each plugin loads only specified skills |
+| Avoid | Repo root as source with no `skills` list | Every skill in `skills/` loads for that plugin |
+| Prefer | List each plugin's skills, or use component directories as sources | Each plugin loads only specified skills |
 
 Why and how: [plugins.md](plugins.md).
 

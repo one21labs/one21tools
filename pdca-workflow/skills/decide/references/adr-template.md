@@ -77,6 +77,7 @@ summary: "<one line for the skim catalog>"
 - Date: YYYY-MM-DD
 - Owner: PM
 - Panel: <which advisors ran + why this subset>
+- Effect: alone <your pick before any helper> | advice <effect> | pm <effect> | check <effect, or skipped>
 - Context: <current problem/gap first (crisp, cite file:line), then the open question it raises>
 
 ## Decision
@@ -103,6 +104,13 @@ summary: "<one line for the skim catalog>"
 - [process] <what the cycle missed or got right>
 - [pivot] <any REOPEN-IF that fired>
 ```
+
+`Effect:` is the panel's cost check, written by the session, never by a helper. Each stage's
+`<effect>` STARTS with one of these words, so a grep can count them: `changed` (the decision moved: advice against your pick alone, `pm`
+against your pick after advice, check against the PM's decision), `added: <what>` (the decision
+held, but what the stage found — a risk, a defect in this record — changed the plan or the
+record), `nothing`, or for an unrun check `skipped`. A stage
+reading `nothing` ten records running is a cut candidate — the `retrospect` agent reads these.
 
 Tag routing: **verified** fine; **checkable** (code) the gate verifies, unchecked = defect. A
 `[checkable]` whose TEST is a deterministic check the gate can run in-session (a command, a file
@@ -167,6 +175,7 @@ summary: "<one line for the skim catalog>"
 - Why: <the one load-bearing reason>
 - Rejected: <what was considered and why not — the field that stops it being re-proposed>
 - Reopen-if: <the condition that would legitimately revisit it; omit only if none exists>
+- Effect: <only if a panel ran — the Template's line>
 - Enforced: <test / script / gate file that makes it stick>
 ```
 

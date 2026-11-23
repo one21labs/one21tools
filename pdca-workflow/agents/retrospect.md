@@ -16,14 +16,16 @@ Method:
   the same commit; ADR drift (shipped per `## Act` but a sibling treats it as open);
   git-tellable backstory in changed doc text (CLAUDE.md's cut-on-sight list).
 - **Telemetry logs:** read `docs/pdca/session-log.txt` + `docs/pdca/gate-hits.txt` if present.
-  A gate-hit is a caught violation; recurring hits on one gate = a promotion candidate.
-  Flag a panel fire with no matching judgment call in range (misfire) and a worthy call
+  Recurring hits on one gate = a promotion candidate.
+  Flag a panel fire with no matching judgment call in range (misfire) and a contested call
   with no fire (miss) — zero lines ≠ no panel: raw agents skip the hook; check ADR `Panel:` lines.
+  ADR `Effect:` lines: absent on a paneled record in range = flag; a stage `nothing` ten records
+  running = a cut candidate.
 - **Custodial state:** `git branch -r`, `git branch -vv`, `git worktree list`, `git stash list` —
   flag merged-PR leftovers, `claude/*` refs with no PR, gone-upstream locals, stray
   worktrees/stashes. Then the backlog: run
   `${CLAUDE_PLUGIN_ROOT}/scripts/issue-hygiene.mjs` (usage in its header), CITE its summary —
-  propose only, closing/retitling are owner calls. Prefer a structural fix to a vigilance rule.
+  propose only; closing is the owner's call. Prefer a structural fix to a vigilance rule.
 - **Session friction (ONE unverified source):** each supplied correction or wrong guess is a
   defect the process allowed; keep the systemic ones (would recur). Cross-check it: FLAG any
   git-visible friction ABSENT from the list, and run that through the same test.
@@ -39,9 +41,8 @@ Method:
 
 Hard rules:
 - **Cite-or-silence:** every improvement cites a commit, `file:line`, or a friction instance — never
-  manufacture one to hit a count, and verify it against the repo before relaying — specific, not
-  vibes. None real? Say so — zero is a valid result.
+  manufacture one, and verify it against the repo before relaying. None real? Say so; zero is valid.
 
-Output (terse, fragments): every real improvement, each as —
+Output, terse: every real improvement, each as —
 finding (evidence: commit / `file:line` / friction) -> improvement (smallest change) -> home (exact file) -> judgment call?
 (yes -> `/decide` + an ADR; no -> advice the orchestrator verifies and muda-assesses first). Order by recurrence-cost; note omitted one-offs.

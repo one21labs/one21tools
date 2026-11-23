@@ -5,8 +5,8 @@ Claude Code plugins package agents, skills, commands, and hooks for distribution
 ## Table of Contents
 
 1. [When to Use Plugins](#when-to-use-plugins)
-2. [Critical Behavior: Auto-Discovery](#critical-behavior-auto-discovery)
-3. [Solution: Component Directories as Sources](#solution-component-directories-as-sources)
+2. [Critical Behavior: Default Directories and Explicit Paths](#critical-behavior-default-directories-and-explicit-paths)
+3. [Component Directories as Sources](#component-directories-as-sources)
 4. [Marketplace.json Structure](#marketplacejson-structure)
 5. [Monorepo Pattern](#monorepo-pattern)
 6. [Plugin Caching](#plugin-caching)
@@ -26,49 +26,36 @@ Use plugins to distribute reusable tools that users can selectively install:
 
 ---
 
-## Critical Behavior: Auto-Discovery
+## Critical Behavior: Default Directories and Explicit Paths
 
-**Auto-discovery loads all content in default directories**, regardless of what you specify explicitly.
+A plugin's default directories are scanned automatically:
 
-### Default Directories
+| Directory    | Component      |
+|--------------|----------------|
+| `/skills/`   | Agent Skills   |
+| `/agents/`   | Subagents      |
+| `/commands/` | Slash commands |
 
-| Directory   | Component     | Auto-Discovered |
-|-------------|---------------|-----------------|
-| `/skills/`  | Agent Skills  | Yes             |
-| `/agents/`  | Subagents     | Yes             |
-| `/commands/` | Slash commands | Yes            |
+How an explicit path combines with the default depends on the field
+([plugins reference](https://code.claude.com/docs/en/plugins-reference)):
 
-### The Problem
+| You set | Result |
+|---------|--------|
+| Nothing | Everything in the default directories loads |
+| `skills` in a plugin's own manifest | Adds to the default `skills/` scan |
+| `commands`, `agents` or `outputStyles` | Replaces the default directory, which is no longer scanned |
+| `skills` subdirectories on a marketplace entry whose `source` is the marketplace root | Only those subdirectories load; the default `skills/` is not scanned |
 
-When these directories exist at the **plugin root**, Claude Code automatically discovers and loads **all** content within them.
-
-**Explicit paths supplement, they don't replace.**
-
-### Example: Anti-Pattern
-
-```json
-{
-  "name": "my-tools",
-  "source": "./",
-  "skills": ["./skills/skill-a"]
-}
-```
-
-What happens:
-1. Entire repo copied to cache (because `"source": "./"`)
-2. `/skills/` directory exists at plugin root
-3. Auto-discovery loads **ALL skills** in `/skills/`
-4. Explicit `skills` array is ignored
-
-Result: Users get everything, not just `skill-a`.
+A plugin that has its own manifest and a `skills/` directory therefore loads all of that
+directory, whatever else it lists. Confirm what loaded (Verification, below); do not trust the
+layout alone.
 
 ---
 
-## Solution: Component Directories as Sources
+## Component Directories as Sources
 
-Use component directories (`./skills`, `./agents`, `./commands`) directly as plugin sources.
-
-### Correct Pattern
+One layout that keeps each plugin to its own content: use a component directory (`./skills`,
+`./agents`, `./commands`) as the plugin source, and list what loads.
 
 ```json
 {
@@ -80,32 +67,8 @@ Use component directories (`./skills`, `./agents`, `./commands`) directly as plu
 ```
 
 What happens:
-1. Only `/skills/` directory copied to cache
-2. Plugin root = the cached skills directory
-3. Individual skills at root level: `/c-embedded-rpi/`, `/engineering-epc/`, etc.
-4. No `/skills/` subdirectory → no auto-discovery
-5. Only explicitly listed skills load
-
-### Why This Works
-
-**Before copying** (repository structure):
-```
-/repo-root/
-  /skills/
-    /c-embedded-rpi/
-    /engineering-epc/
-    /other-skill/
-```
-
-**After copying to cache** (plugin root):
-```
-/plugin-cache/
-  /c-embedded-rpi/       ← At root level
-  /engineering-epc/      ← At root level
-  /other-skill/          ← At root level
-```
-
-Auto-discovery looks for `/skills/` directory at plugin root. It doesn't exist (skills are directly at root), so nothing auto-loads.
+1. Only the `skills/` directory is copied to cache
+2. Only the listed skills load for this plugin
 
 ---
 
@@ -139,17 +102,21 @@ Auto-discovery looks for `/skills/` directory at plugin root. It doesn't exist (
 |-------|---------|---------|
 | `name` | Plugin identifier | `"engineering-skills"` |
 | `source` | What gets copied to cache | `"./skills"` |
-| `strict` | Require plugin.json? | `false` (for simple plugins) |
+| `strict` | Which manifest defines the plugin | `false` (for simple plugins) |
 | `skills` | Which skills to load | `["./skill-a", "./skill-b"]` |
 | `agents` | Which agents to load | `["./agent-a.md"]` |
 | `commands` | Which commands to load | `["./cmd-a.md"]` |
 
 ### The `strict` Field
 
-Controls whether plugin needs its own `plugin.json` file:
+Decides which manifest defines the plugin when it has its own `plugin.json`:
 
-- `strict: true` (default): Plugin must have `.claude-plugin/plugin.json`
-- `strict: false`: Marketplace entry entirely defines plugin
+- `strict: true` (default): `plugin.json` is the manifest; the entry's `skills`, `commands` and
+  `agents` are appended to it
+- `strict: false`: the marketplace entry defines the plugin. Do not also give that plugin a
+  `plugin.json`: the two conflict and the plugin fails to load (`conflicting manifests`)
+
+With no `plugin.json`, the entry defines the plugin under either value.
 
 Use `strict: false` for:
 - Simple plugins defined entirely in marketplace
@@ -229,12 +196,10 @@ Organize by component type for selective installation:
 
 ## Plugin Caching
 
-When plugins install, Claude Code copies content to cache:
-
-| Scope     | Location                    | Shared With      |
-|-----------|-----------------------------|------------------|
-| `user`    | `~/.claude/plugins/cache/`  | All your projects |
-| `project` | `./.claude/plugins/cache/`  | Team via git     |
+When plugins install, Claude Code copies content to
+`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` (set `CLAUDE_CODE_PLUGIN_CACHE_DIR`
+to move the root). There is no per-project cache, and a project's `.claude/plugins/` is not
+scanned: a team shares plugins by declaring them in `.claude/settings.json`.
 
 ### What Gets Copied
 
@@ -281,7 +246,7 @@ claude --debug
 ```
 
 Common issues:
-- All skills loading → Auto-discovery active (check plugin root structure)
+- All skills loading → the default `skills/` directory is being scanned (see Critical Behavior)
 - Nothing loading → Paths incorrect (verify relative to source)
 - Validation errors → Check JSON syntax in marketplace.json
 
@@ -331,8 +296,8 @@ Bundle components by user role:
 }
 ```
 
-Each role is its own directory holding its `skills/`, `agents/`, and `commands/`. A shared `"./"`
-source would auto-discover every skill for every role (Anti-Pattern above).
+Each role is its own directory holding its `skills/`, `agents/`, and `commands/`, so each
+plugin's defaults hold only its own content.
 
 ---
 

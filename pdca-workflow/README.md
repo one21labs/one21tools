@@ -67,7 +67,7 @@ source repo's committed benchmarks:
 
 | Phase | What runs |
 |-------|-----------|
-| **Plan** | `/decide` — clarify scope, advisors argue (dialectic, opposing counsel on contested calls), one accountable decider records an ADR. |
+| **Plan** | `/decide` — sort the call first: ask the person, inherit a record, or decide it inline. Only a contested call gets the panel: two opposing advisors argue, one accountable decider records an ADR. |
 | **Do** | `tech-lead` turns the ADR into a buildable spec; you implement it. |
 | **Check** | `verifier` reproduces every load-bearing claim and checks the ADR's `[checkable]` assumptions against the real code/output; `red-team` tries to break it. The gate can BLOCK. |
 | **Act** | Ship + bump the version; `/retrospect` folds process learnings back into their lowest home (an agent, a skill, or CLAUDE.md). |
@@ -97,6 +97,11 @@ Measured value so far: process guarantees, FP discipline, and that independence 
 per-decision quality, not consistency. Follow-up: ADR 0057/0061; #184 discharged into retired ADR 0065
 (-> `one21labs/skill-measure:skills/bench/references/pre-registration.md`), and #186's Phase-1 was closed
 won't-do (the ceremony cut) — no enforcement gate ships.
+
+**In use, not yet measured:** every paneled ADR carries an `Effect:` line — the session's own
+pick before any helper ran, then what the advice, the PM and the check each changed. It is the
+running answer to "did the panel earn its cost on MY decisions"; `/retrospect` reads it and
+names a stage that changed nothing ten records running as a cut candidate. No numbers yet.
 
 ## What's in the box
 
@@ -147,7 +152,7 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 ```
 /plugin install pdca-workflow@one21tools
 /pdca-init        # once per project: CLAUDE.md + docs/pdca/ + docs/decisions/ + advisor panel
-/decide   # decide a judgment call; writes an ADR
+/decide   # sort a judgment call: ask, decide inline, or run the panel and write an ADR
 /retrospect       # standing at session close + on demand; improves the process
 /pdca-workflow:MSH [targets]  # Make Shit Happen: pick (or take) ONE work package, ship it end to end
 /pdca-workflow:improve        # one turn of the self-improvement loop; schedule it to run unattended
@@ -155,8 +160,8 @@ This plugin keeps all three wired, and ADR revisit triggers pull stale decisions
 
 `/pdca-init` is explicit-invoke only (`disable-model-invocation`) — it scaffolds files into a
 project, so it never auto-fires. `/retrospect` is model-invocable but trigger-bound (its skill owns the
-triggers). `/decide` carries no flag either; what conditions should bind a panel that spends many agents
-and writes files is still an open decision, not something this README settles.
+triggers). `/decide` carries no flag either: its first step sorts the call, and only the contested exit
+spends helpers or writes a record.
 `/advise`, `/verify` and `/red-team` carry no `disable-model-invocation` by design: an invoke-only
 flag routed autonomous use to raw agents. Restore it per skill only if one auto-fires wastefully.
 

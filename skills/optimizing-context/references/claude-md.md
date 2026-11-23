@@ -21,9 +21,10 @@ CLAUDE.md is Claude Code's project-level context mechanism. It's loaded automati
 |------|-------|----------|
 | `~/.claude/CLAUDE.md` | User (all projects) | Personal conventions, global preferences |
 | `./CLAUDE.md` | Project root | Team conventions, project architecture |
-| `./.claude/CLAUDE.local.md` | Project (gitignored) | Personal project overrides, experiments |
+| `./CLAUDE.local.md` | Project root (gitignored) | Personal project notes, experiments |
 
-Precedence: Project overrides user. Local overrides project.
+All of them load: the files are concatenated, not overridden, ordered from the filesystem root
+down to the working directory, with `CLAUDE.local.md` read after `CLAUDE.md` in each directory.
 
 ## Core Philosophy: Constitution, Not Manual
 
@@ -74,7 +75,7 @@ Don't just mention files exist—explain *why* Claude should read them:
 
 ## Structure Guidance
 
-Be specific: "Use 2-space indentation" is better than "Format code properly". Use bullet points for each memory item regardless of file size ([official guidance](https://docs.claude.com/en/docs/claude-code/memory.md)).
+Be specific: "Use 2-space indentation" is better than "Format code properly". Group instructions under headings and bullets ([memory docs](https://code.claude.com/docs/en/memory)).
 
 | File Size | Formatting | Rationale |
 |-----------|------------|-----------|
@@ -113,7 +114,7 @@ tokens each); commands and path hints are High/Medium (100-200 each); background
 
 **Line count heuristic**: target under 1,000 tokens for most projects (enterprise monorepos may need
 up to 3,000), which maps to roughly 60–100 lines depending on density. Target under 60; treat 100 as
-a hard ceiling to prune before adding. Anthropic: "Bloated CLAUDE.md files cause Claude to ignore your actual instructions." Community empirical data: adherence degrades noticeably around 80 lines, significantly past 200. No official line count exists — prune by the token target and the per-line test ("would removing this cause Claude to make mistakes?").
+a hard ceiling to prune before adding. Anthropic's memory docs set a looser bound: "target under 200 lines per CLAUDE.md file." Community empirical data: adherence degrades noticeably around 80 lines, significantly past 200. Prune by the token target and the per-line test ("would removing this cause Claude to make mistakes?").
 
 ## CLAUDE.md as Forcing Function
 
@@ -165,6 +166,6 @@ CLAUDE.md should evolve:
 
 ## Sources
 
-- [Memory documentation](https://docs.claude.com/en/docs/claude-code/memory.md) - Official formatting guidance (bullets, headings)
+- [Memory documentation](https://code.claude.com/docs/en/memory) - Official guidance: file locations, load order, size target
 - [Using CLAUDE.md Files](https://claude.com/blog/using-claude-md-files) - Official guidance
 - [How I Use Claude Code](https://shrivastava.io/p/how-i-use-claude-code) - Practical patterns, constitution-not-manual philosophy

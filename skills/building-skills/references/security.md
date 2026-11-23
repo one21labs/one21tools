@@ -58,9 +58,9 @@ Before using a skill from untrusted source:
 
 ## MCP Tool Security
 
-Use fully qualified tool names:
+Use fully qualified tool names (plugin-bundled servers: `mcp__plugin_<plugin>_<server>__<tool>`):
 ```
-ServerName:tool_name
+mcp__<server>__<tool>
 ```
 
 Verify tool permissions before use. Malicious skills can invoke tools in harmful ways.

@@ -14,7 +14,7 @@ Everything in a project is available to every conversation in that project:
 | Use Project when... | Use Something Else when... |
 |---------------------|---------------------------|
 | Need shared context for initiative | Procedure repeats across initiatives (use Skill) |
-| Team collaboration needed | Personal workflow (use User Preferences) |
+| Team collaboration needed | Personal workflow (use profile instructions) |
 | Background knowledge applies to all chats | Just need one conversation |
 | Organizing related work | Context needs to travel to other products |
 
@@ -36,7 +36,7 @@ Tone: Direct, action-oriented. Skip preamble.
 **Avoid**:
 - Repeating what's in uploaded docs
 - Generic instructions Claude already follows
-- Contradicting User Preferences without reason
+- Contradicting your profile instructions without reason
 
 ### Project Files (Knowledge Base)
 Documents Claude can reference across all conversations in the project.
