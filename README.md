@@ -57,7 +57,7 @@ without the skill in view, and goes if it does not.
 
 | Removed | Why |
 |---|---|
-| `/decide` (advisor panel, decider, decision records, record linter) | No better than a plain "think carefully" prompt on decision quality (+0.01, interval -0.18 to +0.20), at about seven times the cost. |
+| `/decide` (advisor panel, decider, decision records, record linter) | No better than a plain "think carefully" prompt on decision quality (+0.01, interval -0.18 to +0.20), at about four times the cost of a bare decision. |
 | `/verify`, `/red-team` | Merged into `/fresh-check`. |
 | `/retrospect`, `/sweep`, `/pdca-init`, the improve loop, the guard hooks | Unmeasured, or measured with no effect on recall; they mostly maintained the process around them. |
 | `optimizing-context` | Inconclusive on every run (+0.003 to +0.10, each interval includes zero) for 53 KB of guidance that restated product documentation and went stale: fifteen wrong statements were found in it and `building-skills` in two days. |
